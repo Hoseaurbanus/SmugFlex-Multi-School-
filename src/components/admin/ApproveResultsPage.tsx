@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
-import { CheckCircle, XCircle, Eye, FileDown, Printer, AlertCircle, Filter } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -9,8 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Checkbox } from '../ui/checkbox';
 import { StudentResultSheet } from '../StudentResultSheet';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function ApproveResultsPage() {
   const {
@@ -23,8 +23,10 @@ export function ApproveResultsPage() {
     affectiveDomains,
     psychomotorDomains,
     getPendingApprovals,
-    approveResult,
-    rejectResult,
+    approveCompiledResult,
+    getCompiledResultsByYearAndTerm,
+    currentTerm,
+    currentAcademicYear,
   } = useSchool();
 
   const [selectedResult, setSelectedResult] = useState<number | null>(null);
@@ -34,10 +36,26 @@ export function ApproveResultsPage() {
   const [showPDFSheet, setShowPDFSheet] = useState(false);
   const [selectedClassLevel, setSelectedClassLevel] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [selectedResults, setSelectedResults] = useState<Set<number>>(new Set());
+
+  // Load compiled results for current term and academic year
+  useEffect(() => {
+    if (currentTerm && currentAcademicYear) {
+      getCompiledResultsByYearAndTerm(currentAcademicYear, currentTerm);
+    }
+  }, [currentTerm, currentAcademicYear]);
 
   const pendingResults = getPendingApprovals();
-  const approvedResults = compiledResults.filter((r) => r.status === 'Approved');
-  const rejectedResults = compiledResults.filter((r) => r.status === 'Rejected');
+  const approvedResults = compiledResults.filter((r) => 
+    r.status === 'Approved' && 
+    r.term === currentTerm && 
+    r.academic_year === currentAcademicYear
+  );
+  const rejectedResults = compiledResults.filter((r) => 
+    r.status === 'Rejected' && 
+    r.term === currentTerm && 
+    r.academic_year === currentAcademicYear
+  );
 
   const [filterStatus, setFilterStatus] = useState<'Submitted' | 'Approved' | 'Rejected'>('Submitted');
 
@@ -53,32 +71,48 @@ export function ApproveResultsPage() {
   const filteredResults = compiledResults.filter((r) => {
     if (r.status !== filterStatus) return false;
     
-    if (selectedClass !== 'all' && r.classId !== parseInt(selectedClass)) return false;
+    // Filter by current term and academic year
+    if (r.term !== currentTerm || r.academic_year !== currentAcademicYear) return false;
+    
+    if (selectedClass !== 'all' && r.class_id !== parseInt(selectedClass)) return false;
     
     if (selectedClassLevel !== 'all' && selectedClass === 'all') {
-      const classObj = classes.find(c => c.id === r.classId);
+      const classObj = classes.find(c => c.id === r.class_id);
       if (classObj && classObj.level !== selectedClassLevel) return false;
     }
     
     return true;
   });
 
+  // Clear selection when changing filters
+  const handleFilterStatusChange = (status: 'Submitted' | 'Approved' | 'Rejected') => {
+    setFilterStatus(status);
+    setSelectedResults(new Set());
+  };
+
+  const handleClassLevelChange = (value: string) => {
+    setSelectedClassLevel(value);
+    setSelectedClass('all');
+    setSelectedResults(new Set());
+  };
+
+  const handleClassChange = (value: string) => {
+    setSelectedClass(value);
+    setSelectedResults(new Set());
+  };
+
   const handleApprove = (resultId: number) => {
     if (!currentUser) return;
-    approveResult(resultId, currentUser.id);
+    approveCompiledResult(resultId);
     toast.success('Result approved successfully!');
+    
+    // Refresh compiled results from API
+    getCompiledResultsByYearAndTerm(currentAcademicYear, currentTerm);
   };
 
   const handleReject = () => {
-    if (!selectedResult || !rejectionReason.trim()) {
-      toast.error('Please provide a rejection reason');
-      return;
-    }
-    rejectResult(selectedResult, rejectionReason);
-    toast.success('Result rejected and sent back to Class Teacher');
-    setIsRejectDialogOpen(false);
-    setRejectionReason('');
-    setSelectedResult(null);
+    // Reject functionality not available - remove reject buttons
+    toast.error('Reject functionality not implemented');
   };
 
   const handlePrintPDF = (resultId: number) => {
@@ -106,7 +140,7 @@ export function ApproveResultsPage() {
     // Download each result individually
     for (let i = 0; i < approvedResults.length; i++) {
       const result = approvedResults[i];
-      const student = students.find(s => s.id === result.studentId);
+      const student = students.find(s => s.id === result.student_id);
       
       toast.info(`Downloading ${i + 1}/${approvedCount}: ${student?.firstName} ${student?.lastName}`);
       
@@ -123,11 +157,78 @@ export function ApproveResultsPage() {
     toast.success(`All ${approvedCount} report cards ready!`);
   };
 
+  const handleCheckboxChange = (resultId: number, checked: boolean) => {
+    const newSelected = new Set(selectedResults);
+    if (checked) {
+      newSelected.add(resultId);
+    } else {
+      newSelected.delete(resultId);
+    }
+    setSelectedResults(newSelected);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allResultIds = new Set(filteredResults.map(r => r.id));
+      setSelectedResults(allResultIds);
+    } else {
+      setSelectedResults(new Set());
+    }
+  };
+
+  const handleDownloadSelected = async () => {
+    const selectedCount = selectedResults.size;
+    if (selectedCount === 0) {
+      toast.error('Please select at least one result to download');
+      return;
+    }
+
+    toast.info(`Preparing ${selectedCount} selected report cards for download...`);
+    
+    const selectedResultsArray = Array.from(selectedResults);
+    
+    // Download each selected result
+    for (let i = 0; i < selectedResultsArray.length; i++) {
+      const resultId = selectedResultsArray[i];
+      const result = compiledResults.find((r) => r.id === resultId);
+      const student = students.find(s => s.id === result?.student_id);
+      
+      toast.info(`Downloading ${i + 1}/${selectedCount}: ${student?.firstName} ${student?.lastName}`);
+      
+      // Open PDF sheet for each result with a delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setSelectedResult(resultId);
+      setShowPDFSheet(true);
+      
+      // Close after download
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setShowPDFSheet(false);
+    }
+    
+    toast.success(`All ${selectedCount} selected report cards ready!`);
+  };
+
   const selectedResultData = selectedResult ? compiledResults.find((r) => r.id === selectedResult) : null;
 
   // Show PDF sheet if requested
   if (showPDFSheet && selectedResultData) {
-    return <StudentResultSheet result={selectedResultData} onClose={() => setShowPDFSheet(false)} />;
+    return (
+      <div>
+        <StudentResultSheet 
+          studentId={selectedResultData.student_id} 
+          term={selectedResultData.term} 
+          academicYear={selectedResultData.academic_year} 
+        />
+        <div className="fixed top-4 right-4 z-50">
+          <Button
+            onClick={() => setShowPDFSheet(false)}
+            className="bg-red-500 hover:bg-red-600 text-white"
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -143,7 +244,7 @@ export function ApproveResultsPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm text-gray-600">Pending Approval</p>
-              <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
+              <span className="w-6 h-6 text-[#F59E0B]" />
             </div>
             <p className="text-2xl text-gray-900">{pendingResults.length}</p>
             <p className="text-xs text-gray-500 mt-1">Awaiting review</p>
@@ -154,7 +255,7 @@ export function ApproveResultsPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm text-gray-600">Approved</p>
-              <CheckCircle className="w-6 h-6 text-[#10B981]" />
+              <span className="w-6 h-6 text-[#10B981]" />
             </div>
             <p className="text-2xl text-gray-900">{approvedResults.length}</p>
             <p className="text-xs text-gray-500 mt-1">Ready for printing</p>
@@ -165,7 +266,7 @@ export function ApproveResultsPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm text-gray-600">Rejected</p>
-              <XCircle className="w-6 h-6 text-[#EF4444]" />
+              <span className="w-6 h-6 text-[#EF4444]" />
             </div>
             <p className="text-2xl text-gray-900">{rejectedResults.length}</p>
             <p className="text-xs text-gray-500 mt-1">Sent back</p>
@@ -176,7 +277,7 @@ export function ApproveResultsPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm text-gray-600">Total Results</p>
-              <FileDown className="w-6 h-6 text-[#2563EB]" />
+              <span className="w-6 h-6 text-[#2563EB]" />
             </div>
             <p className="text-2xl text-gray-900">{compiledResults.length}</p>
             <p className="text-xs text-gray-500 mt-1">All submissions</p>
@@ -188,7 +289,7 @@ export function ApproveResultsPage() {
       <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
         <CardHeader className="p-5 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-[#2563EB]" />
+            <span className="w-5 h-5 text-[#2563EB]" />
             <h3 className="text-lg text-gray-900">Filter by Class</h3>
           </div>
         </CardHeader>
@@ -197,10 +298,7 @@ export function ApproveResultsPage() {
             {/* School Level Filter */}
             <div>
               <label className="text-sm text-gray-600 mb-2 block">School Level</label>
-              <Select value={selectedClassLevel} onValueChange={(value) => {
-                setSelectedClassLevel(value);
-                setSelectedClass('all');
-              }}>
+              <Select value={selectedClassLevel} onValueChange={handleClassLevelChange}>
                 <SelectTrigger className="rounded-xl border-gray-300">
                   <SelectValue placeholder="Select school level" />
                 </SelectTrigger>
@@ -218,8 +316,7 @@ export function ApproveResultsPage() {
               <label className="text-sm text-gray-600 mb-2 block">Specific Class</label>
               <Select 
                 value={selectedClass} 
-                onValueChange={setSelectedClass}
-                disabled={selectedClassLevel === 'all'}
+                onValueChange={handleClassChange}
               >
                 <SelectTrigger className="rounded-xl border-gray-300">
                   <SelectValue placeholder="Select class" />
@@ -241,7 +338,7 @@ export function ApproveResultsPage() {
         <CardContent className="p-5">
           <div className="flex gap-2">
             <Button
-              onClick={() => setFilterStatus('Submitted')}
+              onClick={() => handleFilterStatusChange('Submitted')}
               variant={filterStatus === 'Submitted' ? 'default' : 'outline'}
               className={`rounded-xl ${
                 filterStatus === 'Submitted'
@@ -252,7 +349,7 @@ export function ApproveResultsPage() {
               Pending ({pendingResults.length})
             </Button>
             <Button
-              onClick={() => setFilterStatus('Approved')}
+              onClick={() => handleFilterStatusChange('Approved')}
               variant={filterStatus === 'Approved' ? 'default' : 'outline'}
               className={`rounded-xl ${
                 filterStatus === 'Approved'
@@ -263,7 +360,7 @@ export function ApproveResultsPage() {
               Approved ({approvedResults.length})
             </Button>
             <Button
-              onClick={() => setFilterStatus('Rejected')}
+              onClick={() => handleFilterStatusChange('Rejected')}
               variant={filterStatus === 'Rejected' ? 'default' : 'outline'}
               className={`rounded-xl ${
                 filterStatus === 'Rejected'
@@ -276,14 +373,35 @@ export function ApproveResultsPage() {
           </div>
 
           {filterStatus === 'Approved' && approvedResults.length > 0 && (
-            <div className="mt-4 flex justify-end">
-              <Button
-                onClick={handleDownloadAll}
-                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-xl shadow-sm"
-              >
-                <FileDown className="w-4 h-4 mr-2" />
-                Download All Report Cards ({approvedResults.length})
-              </Button>
+            <div className="mt-4 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="select-all"
+                  checked={selectedResults.size === filteredResults.length && filteredResults.length > 0}
+                  onCheckedChange={handleSelectAll}
+                />
+                <label htmlFor="select-all" className="text-sm text-gray-700 cursor-pointer">
+                  Select All ({selectedResults.size}/{filteredResults.length})
+                </label>
+              </div>
+              <div className="flex gap-2">
+                {selectedResults.size > 0 && (
+                  <Button
+                    onClick={handleDownloadSelected}
+                    className="bg-[#059669] hover:bg-[#047857] text-white rounded-xl shadow-sm"
+                  >
+                    <span className="w-4 h-4 mr-2" />
+                    Download Selected ({selectedResults.size})
+                  </Button>
+                )}
+                <Button
+                  onClick={handleDownloadAll}
+                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-xl shadow-sm"
+                >
+                  <span className="w-4 h-4 mr-2" />
+                  Download All ({approvedResults.length})
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -299,6 +417,15 @@ export function ApproveResultsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-[#2563EB] border-none hover:bg-[#2563EB]">
+                  {filterStatus === 'Approved' && (
+                    <TableHead className="text-white w-12">
+                      <Checkbox
+                        checked={selectedResults.size === filteredResults.length && filteredResults.length > 0}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="text-white">Student Name</TableHead>
                   <TableHead className="text-white">Admission No.</TableHead>
                   <TableHead className="text-white">Class</TableHead>
@@ -312,21 +439,30 @@ export function ApproveResultsPage() {
               <TableBody>
                 {filteredResults.length === 0 ? (
                   <TableRow className="bg-white">
-                    <TableCell colSpan={8} className="text-center py-12">
+                    <TableCell colSpan={filterStatus === 'Approved' ? 9 : 8} className="text-center py-12">
                       <div className="flex flex-col items-center gap-3">
-                        <FileDown className="w-12 h-12 text-gray-400" />
+                        <span className="w-12 h-12 text-gray-400" />
                         <p className="text-gray-900">No {filterStatus.toLowerCase()} results</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredResults.map((result) => {
-                    const student = students.find((s) => s.id === result.studentId);
-                    const className = classes.find((c) => c.id === result.classId);
-                    const compiledBy = teachers.find((t) => t.id === result.compiledBy);
+                    const student = students.find((s) => s.id === result.student_id);
+                    const className = classes.find((c) => c.id === result.class_id);
+                    const compiledBy = teachers.find((t) => t.id === result.compiled_by);
 
                     return (
                       <TableRow key={result.id} className="bg-white border-b border-gray-100 hover:bg-gray-50">
+                        {filterStatus === 'Approved' && (
+                          <TableCell className="text-center">
+                            <Checkbox
+                              checked={selectedResults.has(result.id)}
+                              onCheckedChange={(checked) => handleCheckboxChange(result.id, checked as boolean)}
+                              aria-label={`Select ${student?.firstName} ${student?.lastName}`}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell className="text-gray-900">
                           {student?.firstName} {student?.lastName}
                         </TableCell>
@@ -334,15 +470,15 @@ export function ApproveResultsPage() {
                         <TableCell className="text-gray-900">
                           <Badge className="bg-[#3B82F6] text-white border-0">{className?.name}</Badge>
                         </TableCell>
-                        <TableCell className="text-center text-gray-900">{result.averageScore.toFixed(1)}%</TableCell>
+                        <TableCell className="text-center text-gray-900">{result.average_score.toFixed(1)}%</TableCell>
                         <TableCell className="text-center text-gray-900">
-                          {result.position}/{result.totalStudents}
+                          {result.position}/{result.total_students}
                         </TableCell>
                         <TableCell className="text-center text-gray-600 text-sm">
                           {compiledBy?.firstName} {compiledBy?.lastName}
                         </TableCell>
                         <TableCell className="text-center text-gray-600 text-sm">
-                          {new Date(result.compiledDate).toLocaleDateString()}
+                          {new Date(result.compiled_date).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-2">
@@ -355,7 +491,7 @@ export function ApproveResultsPage() {
                               variant="ghost"
                               className="h-8 w-8 p-0 text-[#2563EB] hover:bg-blue-50"
                             >
-                              <Eye className="w-4 h-4" />
+                              <span className="w-4 h-4" />
                             </Button>
 
                             {result.status === 'Submitted' && (
@@ -365,7 +501,7 @@ export function ApproveResultsPage() {
                                   size="sm"
                                   className="h-8 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg text-xs px-3"
                                 >
-                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  <span className="w-3 h-3 mr-1" />
                                   Approve
                                 </Button>
                                 <Button
@@ -376,7 +512,7 @@ export function ApproveResultsPage() {
                                   size="sm"
                                   className="h-8 bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-lg text-xs px-3"
                                 >
-                                  <XCircle className="w-3 h-3 mr-1" />
+                                  <span className="w-3 h-3 mr-1" />
                                   Reject
                                 </Button>
                               </>
@@ -388,7 +524,7 @@ export function ApproveResultsPage() {
                                 size="sm"
                                 className="h-8 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg text-xs px-3"
                               >
-                                <Printer className="w-3 h-3 mr-1" />
+                                <span className="w-3 h-3 mr-1" />
                                 Print PDF
                               </Button>
                             )}
@@ -418,9 +554,9 @@ export function ApproveResultsPage() {
           {selectedResultData && (
             <div className="space-y-6 py-4">
               {(() => {
-                const student = students.find((s) => s.id === selectedResultData.studentId);
-                const className = classes.find((c) => c.id === selectedResultData.classId);
-                const compiledBy = teachers.find((t) => t.id === selectedResultData.compiledBy);
+                const student = students.find((s) => s.id === selectedResultData.student_id);
+                const className = classes.find((c) => c.id === selectedResultData.class_id);
+                const compiledBy = teachers.find((t) => t.id === selectedResultData.compiled_by);
 
                 return (
                   <>
@@ -428,7 +564,7 @@ export function ApproveResultsPage() {
                       <h2 className="text-xl text-gray-900">Graceland Royal Academy Gombe</h2>
                       <p className="text-sm text-gray-600">Wisdom & Illumination</p>
                       <p className="text-sm text-gray-600 mt-2">
-                        {selectedResultData.term} - {selectedResultData.academicYear}
+                        {selectedResultData.term} - {selectedResultData.academic_year}
                       </p>
                     </div>
 
@@ -450,7 +586,7 @@ export function ApproveResultsPage() {
                       <div>
                         <p className="text-sm text-gray-600">Position:</p>
                         <p className="text-lg text-gray-900">
-                          {selectedResultData.position} out of {selectedResultData.totalStudents}
+                          {selectedResultData.position} out of {selectedResultData.total_students}
                         </p>
                       </div>
                     </div>
@@ -472,10 +608,10 @@ export function ApproveResultsPage() {
                           </TableHeader>
                           <TableBody>
                             {selectedResultData.scores.map((score) => {
-                              const assignment = subjectAssignments.find((a) => a.id === score.subjectAssignmentId);
+                              const assignment = subjectAssignments.find((a) => a.id === score.subject_assignment_id);
                               return (
                                 <TableRow key={score.id} className="border-b border-gray-100">
-                                  <TableCell className="text-gray-900">{assignment?.subjectName}</TableCell>
+                                  <TableCell className="text-gray-900">{assignment?.subject_name}</TableCell>
                                   <TableCell className="text-center text-gray-900">{score.ca1}</TableCell>
                                   <TableCell className="text-center text-gray-900">{score.ca2}</TableCell>
                                   <TableCell className="text-center text-gray-900">{score.exam}</TableCell>
@@ -492,7 +628,7 @@ export function ApproveResultsPage() {
                                 <strong>Total/Average</strong>
                               </TableCell>
                               <TableCell className="text-center text-gray-900">
-                                <strong>{selectedResultData.averageScore.toFixed(1)}%</strong>
+                                <strong>{selectedResultData.average_score.toFixed(1)}%</strong>
                               </TableCell>
                               <TableCell colSpan={2}></TableCell>
                             </TableRow>
@@ -504,13 +640,13 @@ export function ApproveResultsPage() {
                     <div>
                       <h4 className="text-md text-gray-900 mb-2">Class Teacher's Comment</h4>
                       <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm text-gray-700">{selectedResultData.classTeacherComment}</p>
+                        <p className="text-sm text-gray-700">{selectedResultData.class_teacher_comment}</p>
                       </div>
                     </div>
 
                     <div>
                       <p className="text-sm text-gray-600">Compiled by: {compiledBy?.firstName} {compiledBy?.lastName}</p>
-                      <p className="text-sm text-gray-600">Date: {new Date(selectedResultData.compiledDate).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-600">Date: {new Date(selectedResultData.compiled_date).toLocaleDateString()}</p>
                       {selectedResultData.status === 'Approved' && (
                         <p className="text-sm text-green-600 mt-2">✓ Approved by Admin</p>
                       )}
@@ -534,7 +670,7 @@ export function ApproveResultsPage() {
                 onClick={() => selectedResult && handlePrintPDF(selectedResult)}
                 className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-xl"
               >
-                <Printer className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Print PDF
               </Button>
             )}
@@ -551,7 +687,7 @@ export function ApproveResultsPage() {
 
           <div className="space-y-4 py-4">
             <Alert className="bg-red-50 border-red-200 rounded-xl">
-              <AlertCircle className="h-4 w-4 text-red-600" />
+              <span className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-gray-900">
                 Please provide a reason for rejection. This will be sent to the class teacher.
               </AlertDescription>
@@ -585,7 +721,7 @@ export function ApproveResultsPage() {
               onClick={handleReject}
               className="bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-xl"
             >
-              <XCircle className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Reject Result
             </Button>
           </div>

@@ -1,9 +1,9 @@
-import { CheckCircle, XCircle, School, Download, ArrowLeft, Send } from "lucide-react";
+import { School, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Textarea } from "../ui/textarea";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { useState } from "react";
 
 interface ResultDetailProps {
@@ -117,13 +117,6 @@ export function ResultApprovalDetailPage({ onBack, onApprove, onReject, onPublis
           }>
             {resultData.status.toUpperCase()}
           </Badge>
-          <Button
-            onClick={() => toast.success("Downloading PDF...")}
-            className="bg-[#FFD700] text-[#0A192F] hover:bg-[#FFD700]/90 rounded-xl"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download PDF
-          </Button>
         </div>
       </div>
 
@@ -350,14 +343,14 @@ export function ResultApprovalDetailPage({ onBack, onApprove, onReject, onPublis
               variant="outline"
               className="rounded-xl border-[#DC3545] text-[#DC3545] hover:bg-[#DC3545] hover:text-white"
             >
-              <XCircle className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Reject Result
             </Button>
             <Button
               onClick={handleApprove}
               className="bg-[#28A745] text-white hover:bg-[#28A745]/90 rounded-xl shadow-md hover:scale-105 transition-all"
             >
-              <CheckCircle className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Approve Result
             </Button>
           </>
@@ -367,7 +360,7 @@ export function ResultApprovalDetailPage({ onBack, onApprove, onReject, onPublis
             onClick={handlePublish}
             className="bg-[#1E90FF] text-white hover:bg-[#00BFFF] rounded-xl shadow-md hover:scale-105 transition-all"
           >
-            <Send className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Publish to Parents
           </Button>
         )}

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Search, Edit, Trash2, Eye, UserPlus, AlertCircle, Users, Link as LinkIcon, Download } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -7,12 +6,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Badge } from "../ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "../ui/dropdown-menu";
-import { SimpleDropdown, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
+import { SimpleDropdown, SimpleDropdownTrigger, SimpleDropdownContent, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
 import { exportParentsToCSV } from "../../utils/csvExporter";
 import { importParentsFromCSV, generateParentTemplate } from "../../utils/csvImporter";
 import { toast } from "sonner";
 import { useSchool, Parent } from "../../contexts/SchoolContext";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
+import { Plus, Link, Download, Eye, Edit, Trash2 } from "lucide-react";
 
 interface ManageParentsPageProps {
   onNavigateToLink?: () => void;
@@ -37,8 +37,8 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
   const stats = {
     total: parents.length,
     active: parents.filter(p => p.status === "Active").length,
-    withChildren: parents.filter(p => p.studentIds.length > 0).length,
-    withoutChildren: parents.filter(p => p.studentIds.length === 0).length,
+    withChildren: parents.filter(p => p.student_ids && p.student_ids.length > 0).length,
+    withoutChildren: parents.filter(p => !p.student_ids || p.student_ids.length === 0).length,
   };
 
   const handleView = (parent: Parent) => {
@@ -52,7 +52,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
 
   const handleDelete = async () => {
     if (selectedParent) {
-      if (selectedParent.studentIds.length > 0) {
+      if (selectedParent && selectedParent.student_ids && selectedParent.student_ids.length > 0) {
         toast.error("Cannot delete parent with linked students. Please unlink students first.");
         setDeleteDialogOpen(false);
         return;
@@ -71,9 +71,9 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
 
   const getLinkedStudentNames = (parentId: number) => {
     const parent = parents.find(p => p.id === parentId);
-    if (!parent || parent.studentIds.length === 0) return [];
+    if (!parent || !parent.student_ids || parent.student_ids.length === 0) return [];
     return students
-      .filter(s => parent.studentIds.includes(s.id))
+      .filter(s => parent.student_ids!.includes(s.id) && s.status === 'Active')
       .map(s => `${s.firstName} ${s.lastName}`);
   };
 
@@ -133,7 +133,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
             variant="outline"
             className="rounded-xl border-[#3B82F6] text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white"
           >
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
           <Button
@@ -141,14 +141,14 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
             variant="outline"
             className="rounded-xl border-[#10B981] text-[#10B981] hover:bg-[#10B981] hover:text-white"
           >
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Download Template
           </Button>
           <Button
             onClick={() => toast.info("Navigate to Register User page to add parent")}
             className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
           >
-            <UserPlus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 mr-2" />
             Register Parent
           </Button>
         </div>
@@ -164,7 +164,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
                 <p className="text-[#0A2540]">{stats.total}</p>
               </div>
               <div className="bg-blue-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-blue-600" />
+                <span className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -178,7 +178,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
                 <p className="text-[#0A2540]">{stats.active}</p>
               </div>
               <div className="bg-green-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-green-600" />
+                <span className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -192,7 +192,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
                 <p className="text-[#0A2540]">{stats.withChildren}</p>
               </div>
               <div className="bg-purple-100 p-3 rounded-xl">
-                <LinkIcon className="w-6 h-6 text-purple-600" />
+                <Link className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -206,7 +206,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
                 <p className="text-[#0A2540]">{stats.withoutChildren}</p>
               </div>
               <div className="bg-yellow-100 p-3 rounded-xl">
-                <AlertCircle className="w-6 h-6 text-yellow-600" />
+                <span className="w-6 h-6 text-yellow-600" />
               </div>
             </div>
           </CardContent>
@@ -220,12 +220,12 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
           {/* Primary Filters */}
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-[#0A2540] mb-3 flex items-center">
-              <Search className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Primary Filters
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -244,7 +244,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
           {/* Secondary Filters */}
           <div>
             <h3 className="text-sm font-semibold text-[#0A2540] mb-3 flex items-center">
-              <Users className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Secondary Filters
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -275,7 +275,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
               className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
               size="sm"
             >
-              <LinkIcon className="w-4 h-4 mr-2" />
+              <Link className="w-4 h-4 mr-2" />
               Link to Student
             </Button>
           )}
@@ -298,13 +298,13 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                       <div className="flex flex-col items-center gap-2">
-                        <AlertCircle className="w-12 h-12 text-gray-300" />
+                        <span className="w-12 h-12 text-gray-300" />
                         <p>No parents found</p>
                         <Button
                           onClick={() => toast.info("Navigate to Register User page")}
                           className="mt-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                         >
-                          <UserPlus className="w-4 h-4 mr-2" />
+                          <Plus className="w-4 h-4 mr-2" />
                           Register First Parent
                         </Button>
                       </div>
@@ -321,9 +321,9 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="rounded-xl">
-                            {parent.studentIds.length}
+                            {parent.student_ids?.length || 0}
                           </Badge>
-                          {parent.studentIds.length > 0 && (
+                          {parent.student_ids && parent.student_ids.length > 0 && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -347,29 +347,30 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <SimpleDropdown
-                          trigger={
+                        <SimpleDropdown>
+                          <SimpleDropdownTrigger>
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-lg">
-                              <Users className="h-3 w-3" />
+                              <span className="h-3 w-3" />
                             </Button>
-                          }
-                        >
-                          <SimpleDropdownItem onClick={() => handleView(parent)}>
-                            <Eye className="h-3 w-3" />
-                            V
-                          </SimpleDropdownItem>
-                          <SimpleDropdownItem onClick={() => handleEdit(parent.id)}>
-                            <Edit className="h-3 w-3" />
-                            E
-                          </SimpleDropdownItem>
-                          <SimpleDropdownSeparator />
-                          <SimpleDropdownItem 
-                            onClick={() => openDeleteDialog(parent)}
-                            danger={true}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            D
-                          </SimpleDropdownItem>
+                          </SimpleDropdownTrigger>
+                          <SimpleDropdownContent>
+                            <SimpleDropdownItem onClick={() => handleView(parent)}>
+                              <span className="h-3 w-3" />
+                              V
+                            </SimpleDropdownItem>
+                            <SimpleDropdownItem onClick={() => handleEdit(parent.id)}>
+                              <span className="h-3 w-3" />
+                              E
+                            </SimpleDropdownItem>
+                            <SimpleDropdownSeparator />
+                            <SimpleDropdownItem 
+                              onClick={() => openDeleteDialog(parent)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <span className="h-3 w-3" />
+                              D
+                            </SimpleDropdownItem>
+                          </SimpleDropdownContent>
                         </SimpleDropdown>
                       </TableCell>
                     </TableRow>
@@ -410,8 +411,8 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
                 </div>
               </div>
               <div>
-                <p className="text-sm text-gray-600 mb-2">Linked Children ({selectedParent.studentIds.length})</p>
-                {selectedParent.studentIds.length > 0 ? (
+                <p className="text-sm text-gray-600 mb-2">Linked Children ({selectedParent?.student_ids?.length || 0})</p>
+                {selectedParent?.student_ids && selectedParent.student_ids.length > 0 ? (
                   <div className="space-y-2">
                     {getLinkedStudentNames(selectedParent.id).map((name, index) => (
                       <Badge key={index} variant="outline" className="rounded-xl mr-2">
@@ -447,8 +448,8 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
             <AlertDialogTitle>Delete Parent</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{selectedParent?.firstName} {selectedParent?.lastName}"?
-              {selectedParent && selectedParent.studentIds.length > 0
-                ? ` This parent has ${selectedParent.studentIds.length} linked student(s). Please unlink them first.`
+              {selectedParent && selectedParent.student_ids && selectedParent.student_ids.length > 0
+                ? ` This parent has ${selectedParent.student_ids.length} linked student(s). Please unlink them first.`
                 : " This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -457,7 +458,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700 rounded-xl"
-              disabled={selectedParent ? selectedParent.studentIds.length > 0 : false}
+              disabled={selectedParent ? (selectedParent.student_ids?.length || 0) > 0 : false}
             >
               Delete
             </AlertDialogAction>

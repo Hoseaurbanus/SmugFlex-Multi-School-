@@ -1,11 +1,10 @@
-import { ArrowLeft, Mail, Phone, MapPin, Clock, Send } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Label } from "../ui/label";
 import { useState } from "react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface ContactPageProps {
   onBack: () => void;
@@ -52,7 +51,7 @@ export function ContactPage({ onBack }: ContactPageProps) {
               <CardContent className="p-6">
                 <div className="flex items-start gap-4 mb-6">
                   <div className="bg-blue-100 p-3 rounded-lg">
-                    <MapPin className="h-6 w-6 text-[#2563EB]" />
+                    <span className="h-6 w-6 text-[#2563EB]" />
                   </div>
                   <div>
                     <h3 className="mb-1">Visit Us</h3>
@@ -66,7 +65,7 @@ export function ContactPage({ onBack }: ContactPageProps) {
 
                 <div className="flex items-start gap-4 mb-6">
                   <div className="bg-green-100 p-3 rounded-lg">
-                    <Phone className="h-6 w-6 text-[#10B981]" />
+                    <span className="h-6 w-6 text-[#10B981]" />
                   </div>
                   <div>
                     <h3 className="mb-1">Call Us</h3>
@@ -79,7 +78,7 @@ export function ContactPage({ onBack }: ContactPageProps) {
 
                 <div className="flex items-start gap-4 mb-6">
                   <div className="bg-purple-100 p-3 rounded-lg">
-                    <Mail className="h-6 w-6 text-purple-600" />
+                    <span className="h-6 w-6 text-purple-600" />
                   </div>
                   <div>
                     <h3 className="mb-1">Email Us</h3>
@@ -92,7 +91,7 @@ export function ContactPage({ onBack }: ContactPageProps) {
 
                 <div className="flex items-start gap-4">
                   <div className="bg-orange-100 p-3 rounded-lg">
-                    <Clock className="h-6 w-6 text-orange-600" />
+                    <span className="h-6 w-6 text-orange-600" />
                   </div>
                   <div>
                     <h3 className="mb-1">Office Hours</h3>
@@ -210,7 +209,7 @@ export function ContactPage({ onBack }: ContactPageProps) {
                   </div>
 
                   <Button type="submit" className="bg-[#2563EB] hover:bg-[#1d4ed8] w-full md:w-auto">
-                    <Send className="mr-2 h-4 w-4" />
+                    <span className="mr-2 h-4 w-4" />
                     Send Message
                   </Button>
                 </form>

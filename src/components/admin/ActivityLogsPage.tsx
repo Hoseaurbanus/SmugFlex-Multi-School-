@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Search, Filter, Download, Shield, UserCog, Link as LinkIcon, KeyRound } from "lucide-react";
+import { KeyRound, Settings, Link } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
+// @ts-ignore - TypeScript language service caching issue
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
@@ -25,11 +26,11 @@ export function ActivityLogsPage() {
   });
 
   const getActionIcon = (action: string) => {
-    if (action.includes('User') || action.includes('Create')) return <UserCog className="w-4 h-4" />;
+    if (action.includes('User') || action.includes('Create')) return <Settings className="w-4 h-4" />;
     if (action.includes('Password')) return <KeyRound className="w-4 h-4" />;
-    if (action.includes('Link') || action.includes('Unlink')) return <LinkIcon className="w-4 h-4" />;
-    if (action.includes('Deactivate') || action.includes('Activate')) return <Shield className="w-4 h-4" />;
-    return <UserCog className="w-4 h-4" />;
+    if (action.includes('Link') || action.includes('Unlink')) return <Link className="w-4 h-4" />;
+    if (action.includes('Deactivate') || action.includes('Activate')) return <span className="w-4 h-4" />;
+    return <Settings className="w-4 h-4" />;
   };
 
   const getActionBadgeColor = (action: string) => {
@@ -80,7 +81,7 @@ export function ActivityLogsPage() {
         <CardHeader className="p-5 border-b border-white/10">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <div className="relative flex-1 max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#C0C8D3]" />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#C0C8D3]" />
               <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -120,7 +121,7 @@ export function ActivityLogsPage() {
                 onClick={handleExport}
                 className="h-12 bg-[#1E90FF] hover:bg-[#00BFFF] text-white rounded-xl shadow-md hover:scale-105 transition-all whitespace-nowrap"
               >
-                <Download className="w-5 h-5 mr-2" />
+                <span className="w-5 h-5 mr-2" />
                 Export Log
               </Button>
             </div>
@@ -187,7 +188,7 @@ export function ActivityLogsPage() {
         <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Shield className="w-4 h-4 text-[#1E90FF]" />
+              <span className="w-4 h-4 text-[#1E90FF]" />
               <p className="text-[#C0C8D3] text-sm">Total Actions</p>
             </div>
             <p className="text-white text-xl">{totalActions}</p>

@@ -1,517 +1,621 @@
-import { useState } from "react";
-import { Search, Link as LinkIcon, Unlink, Users, UserCheck, AlertCircle, CheckCircle2, X } from "lucide-react";
-import { Card, CardContent, CardHeader } from "../ui/card";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
-import { toast } from "sonner";
-import { Badge } from "../ui/badge";
-import { Avatar, AvatarFallback } from "../ui/avatar";
-import { Switch } from "../ui/switch";
-import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../ui/alert-dialog";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSchool } from "../../contexts/SchoolContext";
+import { toast } from "sonner";
+import {
+  User,
+  UserCheck,
+  UserX,
+  Users2,
+  Link,
+  Unlink,
+  CheckCircle,
+  Search,
+  X,
+  Users,
+  AlertCircle
+} from "lucide-react";
 
-export function LinkStudentParentPage() {
-  const { students, parents, linkStudentToParent, unlinkStudentFromParent, classes, parentStudentLinks } = useSchool();
+interface Student {
+  id: number;
+  firstName: string;
+  lastName: string;
+  admissionNumber: string;
+  level: string;
+  class_id: number;
+  parent_id: number | null;
+  parent_name?: string;
+  date_of_birth: string;
+  profileImage?: string;
+}
+
+interface Parent {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  alternate_phone?: string;
+  address?: string;
+  occupation?: string;
+  status: 'Active' | 'Inactive';
+  created_at: string;
+  profileImage?: string;
+}
+
+const LinkStudentParentPage: React.FC = () => {
+  const { 
+    students, 
+    parents, 
+    linkStudentToParent, 
+    unlinkStudentFromParent,
+    getParentStudents,
+    parentStudentLinks,
+    loadStudentsFromAPI,
+    loadParentsFromAPI
+  } = useSchool();
+  
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
+  const [relationshipType, setRelationshipType] = useState<"father" | "mother" | "guardian">("guardian");
+  const [notifyParent, setNotifyParent] = useState(true);
+  const [isLinking, setIsLinking] = useState(false);
+  const [isUnlinking, setIsUnlinking] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
   const [parentSearch, setParentSearch] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState<any>(null);
-  const [selectedParent, setSelectedParent] = useState<any>(null);
-  const [relationship, setRelationship] = useState<'Father' | 'Mother' | 'Guardian'>('Guardian');
-  const [notifyParent, setNotifyParent] = useState(true);
   const [showUnlinkDialog, setShowUnlinkDialog] = useState(false);
-  const [unlinkData, setUnlinkData] = useState<{ parentId: number; studentId: number; studentName: string } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Transform real data for display
-  const studentsData = Array.isArray(students) ? students.map(s => {
-    const cls = Array.isArray(classes) ? classes.find(c => c.id === s.class_id) : null;
-    const parent = Array.isArray(parents) ? parents.find(p => p.id === s.parent_id) : null;
-    return {
-      id: s.id,
-      name: `${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Unknown Student',
-      admissionNo: s.admissionNumber,
-      class: s.className || cls?.name || 'N/A',
-      photo: s.photo_url || null,
-      hasParent: s.parent_id !== null,
-      parentName: parent ? `${parent.firstName || ''} ${parent.lastName || ''}`.trim() : null
-    };
-  }) : [];
+  // Load data on component mount
+  useEffect(() => {
+    refreshData();
+  }, []);
 
-  const parentsData = Array.isArray(parents) ? parents.map(p => {
-    // Get linked children from parent_student_links table (more accurate)
-    const linkedChildren = Array.isArray(parentStudentLinks) 
-      ? parentStudentLinks
-          .filter(link => link.parent_id === p.id)
-          .map(link => {
-            const student = Array.isArray(students) ? students.find(s => s.id === link.student_id) : null;
-            return student ? {
-              id: student.id,
-              name: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
-              admissionNo: student.admissionNumber,
-              class: student.className,
-              relationship: link.relationship
-            } : null;
-          })
-          .filter(child => child !== null)
-      : [];
+  // Refresh data function
+  const refreshData = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        loadStudentsFromAPI(),
+        loadParentsFromAPI()
+      ]);
+      
+      // Debug: Log loaded data
+      console.log('Loaded students:', students.length);
+      console.log('Loaded parents:', parents.length);
+      console.log('Parent-student links:', parentStudentLinks.length);
+      console.log('Students with parent_id:', students.filter(s => s.parent_id !== null).length);
+      console.log('Students with links (including from parentStudentLinks):', students.filter(s => s.parent_id !== null || parentStudentLinks.some(link => link.student_id === s.id)).length);
+      
+      toast.success("Data refreshed successfully");
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      toast.error("Failed to refresh data");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
-    return {
-      id: p.id,
-      name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown Parent',
-      email: p.email || 'N/A',
-      phone: p.phone || 'N/A',
-      linkedChildren,
-      linkedCount: linkedChildren.length
-    };
-  }) : [];
+  // Filter students and parents based on search
+  const filteredStudents = students.filter(student =>
+    `${student.firstName} ${student.lastName}`.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    student.admissionNumber.toLowerCase().includes(studentSearch.toLowerCase())
+  );
 
-  const filteredStudents = Array.isArray(studentsData) ? studentsData.filter(s => 
-    (s.name && s.name.toLowerCase().includes(studentSearch.toLowerCase())) ||
-    (s.admissionNo && s.admissionNo.toLowerCase().includes(studentSearch.toLowerCase())) ||
-    (s.class && s.class.toLowerCase().includes(studentSearch.toLowerCase()))
-  ) : [];
+  const filteredParents = parents.filter(parent =>
+    `${parent.first_name} ${parent.last_name}`.toLowerCase().includes(parentSearch.toLowerCase()) ||
+    parent.email.toLowerCase().includes(parentSearch.toLowerCase())
+  );
 
-  const filteredParents = Array.isArray(parentsData) ? parentsData.filter(p => 
-    (p.name && p.name.toLowerCase().includes(parentSearch.toLowerCase())) ||
-    (p.email && p.email.toLowerCase().includes(parentSearch.toLowerCase())) ||
-    (p.phone && p.phone.toLowerCase().includes(parentSearch.toLowerCase()))
-  ) : [];
+  // Calculate statistics
+  const totalStudents = students.length;
+  const linkedStudents = students.filter(student => {
+    // Check if student has parent_id OR if there's a link in parentStudentLinks
+    return student.parent_id !== null || parentStudentLinks.some(link => link.student_id === student.id);
+  }).length;
+  const unlinkedStudents = totalStudents - linkedStudents;
+  const linkingProgress = totalStudents > 0 ? (linkedStudents / totalStudents) * 100 : 0;
 
   const handleLinkStudentParent = async () => {
     if (!selectedStudent || !selectedParent) {
-      toast.error("Please select both a student and a parent");
+      toast.error("Please select both a student and a parent to link");
       return;
     }
 
+    setIsLinking(true);
     try {
-      const success = await linkStudentToParent(selectedParent.id, selectedStudent.id, relationship);
+      await linkStudentToParent(selectedParent.id, selectedStudent.id, relationshipType.charAt(0).toUpperCase() + relationshipType.slice(1) as 'Father' | 'Mother' | 'Guardian');
+      toast.success(`Successfully linked ${selectedStudent.firstName} ${selectedStudent.lastName} with ${selectedParent.first_name} ${selectedParent.last_name}`);
       
-      if (success) {
-        const notifyMsg = notifyParent ? " — Parent will be notified" : "";
-        toast.success(`${selectedStudent.name} linked to ${selectedParent.name} as ${relationship}${notifyMsg}`, {
-          duration: 4000,
-        });
-        
-        setSelectedStudent(null);
-        setSelectedParent(null);
-      } else {
-        toast.error("Failed to link student to parent");
-      }
-    } catch (error) {
-      toast.error("An error occurred while linking");
+      // Refresh data to reflect changes
+      await refreshData();
+      
+      // Reset selection
+      setSelectedStudent(null);
+      setSelectedParent(null);
+      setRelationshipType("guardian");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to link student and parent");
+    } finally {
+      setIsLinking(false);
     }
   };
 
-  const handleUnlinkChild = (parentId: number, studentId: number, studentName: string) => {
-    setUnlinkData({ parentId, studentId, studentName });
-    setShowUnlinkDialog(true);
-  };
-
-  const confirmUnlink = async () => {
-    if (!unlinkData) return;
-
-    const { parentId, studentId } = unlinkData;
-    
-    try {
-      const success = await unlinkStudentFromParent(parentId, studentId);
-      
-      if (success) {
-        toast.success(`${unlinkData.studentName} unlinked successfully`);
-        setShowUnlinkDialog(false);
-        setUnlinkData(null);
-        
-        // Clear selections if they were involved in the unlink
-        if (selectedParent?.id === parentId) {
-          setSelectedParent(null);
-        }
-        if (selectedStudent?.id === studentId) {
-          setSelectedStudent(null);
-        }
-      } else {
-        toast.error("Failed to unlink student");
-      }
-    } catch (error) {
-      toast.error("An error occurred while unlinking");
+  const handleUnlinkChild = async () => {
+    if (!selectedStudent) {
+      toast.error("Please select a student to unlink");
+      return;
     }
-  };
 
-  // Statistics
-  const stats = {
-    totalStudents: Array.isArray(students) ? students.length : 0,
-    linkedStudents: Array.isArray(students) ? students.filter((s: any) => s.parent_id !== null).length : 0,
-    unlinkedStudents: Array.isArray(students) ? students.filter((s: any) => s.parent_id === null).length : 0,
-    totalParents: Array.isArray(parents) ? parents.length : 0,
+    setIsUnlinking(true);
+    try {
+      // Find the parent_id from either student record or parentStudentLinks
+      let parentId = selectedStudent.parent_id;
+      if (!parentId) {
+        const link = parentStudentLinks.find(link => link.student_id === selectedStudent.id);
+        if (link) {
+          parentId = link.parent_id;
+        }
+      }
+      
+      if (!parentId) {
+        toast.error("No parent link found for this student");
+        return;
+      }
+      
+      await unlinkStudentFromParent(parentId, selectedStudent.id);
+      toast.success(`Successfully unlinked ${selectedStudent.firstName} ${selectedStudent.lastName}`);
+      setShowUnlinkDialog(false);
+      
+      // Refresh data to reflect changes
+      await refreshData();
+      
+      setSelectedStudent(null);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to unlink student");
+    } finally {
+      setIsUnlinking(false);
+    }
   };
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-[#0A2540] mb-2">Link Student to Parent</h1>
-        <p className="text-gray-600">Connect students with their parents/guardians for portal access</p>
+      {/* Modern Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 md:p-8 text-white mb-8 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold mb-2 flex items-center gap-3 text-white" style={{ color: 'white' }}>
+              <Link className="w-8 h-8" style={{ color: 'white' }} />
+              <span style={{ color: 'white' }}>Student-Parent Linking</span>
+            </h1>
+            <p className="text-blue-100 text-sm md:text-base max-w-2xl" style={{ color: '#E0F2FE' }}>
+              Connect students with their parents/guardians for seamless portal access and real-time progress tracking
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl">
+            <Users2 className="w-5 h-5" style={{ color: 'white' }} />
+            <span className="font-medium" style={{ color: 'white' }}>{totalStudents} Total Students</span>
+            <button
+              onClick={refreshData}
+              disabled={isRefreshing}
+              className="ml-2 p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors disabled:opacity-50"
+              title="Refresh data"
+            >
+              {isRefreshing ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <CheckCircle className="w-4 h-4" style={{ color: 'white' }} />
+              )}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Total Students</p>
-                <p className="text-[#0A2540]">{stats.totalStudents}</p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-500 text-xs font-medium">Total Students</p>
+              <p className="text-lg font-bold text-gray-900 mt-1">{totalStudents}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="bg-blue-100 p-3 rounded-lg">
+              <User className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+        </div>
 
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Linked</p>
-                <p className="text-[#0A2540]">{stats.linkedStudents}</p>
-              </div>
-              <div className="bg-green-100 p-3 rounded-xl">
-                <CheckCircle2 className="w-6 h-6 text-green-600" />
-              </div>
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-500 text-xs font-medium">Linked Students</p>
+              <p className="text-lg font-bold text-green-600 mt-1">{linkedStudents}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="bg-green-100 p-3 rounded-lg">
+              <UserCheck className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+        </div>
 
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Unlinked</p>
-                <p className="text-[#0A2540]">{stats.unlinkedStudents}</p>
-              </div>
-              <div className="bg-yellow-100 p-3 rounded-xl">
-                <AlertCircle className="w-6 h-6 text-yellow-600" />
-              </div>
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-500 text-xs font-medium">Unlinked Students</p>
+              <p className="text-lg font-bold text-orange-600 mt-1">{unlinkedStudents}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <UserX className="w-5 h-5 text-orange-600" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Total Parents</p>
-                <p className="text-[#0A2540]">{stats.totalParents}</p>
-              </div>
-              <div className="bg-purple-100 p-3 rounded-xl">
-                <UserCheck className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Progress Bar */}
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-base font-semibold text-gray-900">Linking Progress</h3>
+          <span className="text-xs text-gray-500">{Math.round(linkingProgress)}% Complete</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-3">
+          <div 
+            className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full transition-all duration-300"
+            style={{ width: `${linkingProgress}%` }}
+          />
+        </div>
       </div>
 
       {/* Main Linking Interface */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Student Selection */}
-        <Card className="border-[#0A2540]/10">
-          <CardHeader className="p-5 bg-[#3B82F6] rounded-t-xl">
-            <h3 className="text-white flex items-center gap-2">
-              <Users className="w-5 h-5" />
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <User className="w-4 h-4 text-blue-600" />
               Select Student
-            </h3>
-          </CardHeader>
-          <CardContent className="p-5 space-y-4">
-            {/* Search */}
+            </h2>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            {/* Search Input */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search students by name or email..."
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
-                placeholder="Search by name, admission no, or class..."
-                className="pl-10 rounded-xl border-[#0A2540]/20"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
-            {/* Selected Student */}
+            {/* Selected Student Display */}
             {selectedStudent && (
-              <div className="p-4 bg-green-50 border-2 border-green-500 rounded-xl">
-                <div className="flex items-start justify-between mb-2">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12 border-2 border-green-500">
-                      <AvatarFallback className="bg-green-500 text-white">
-                        {selectedStudent.name.split(' ').map((n: string) => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                      <User className="w-6 h-6 text-blue-600" />
+                    </div>
                     <div>
-                      <p className="text-[#0A2540] text-sm">{selectedStudent.name}</p>
-                      <p className="text-xs text-gray-600">{selectedStudent.admissionNo}</p>
+                      <p className="font-medium text-gray-900">
+                        {selectedStudent.firstName} {selectedStudent.lastName}
+                      </p>
+                      <p className="text-sm text-gray-500">{selectedStudent.admissionNumber}</p>
                     </div>
                   </div>
-                  <Button
+                  <button
                     onClick={() => setSelectedStudent(null)}
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 rounded-full hover:bg-red-50"
+                    className="text-gray-400 hover:text-gray-600"
                   >
-                    <X className="w-4 h-4 text-red-600" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="rounded-xl">{selectedStudent.class}</Badge>
-                  {selectedStudent.hasParent && (
-                    <Badge className="bg-yellow-100 text-yellow-800 rounded-xl">Already Linked</Badge>
-                  )}
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Student List */}
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredStudents.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                  <p>No students found</p>
-                </div>
-              ) : (
-                filteredStudents.map((student) => (
-                  <button
-                    key={student.id}
-                    onClick={() => setSelectedStudent(student)}
-                    className={`w-full p-3 rounded-xl transition-all text-left ${
-                      selectedStudent?.id === student.id
-                        ? 'bg-green-50 border-2 border-green-500'
-                        : 'bg-gray-50 border border-gray-200 hover:border-blue-400 hover:bg-blue-50'
-                    }`}
-                  >
+            {/* Students List */}
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {filteredStudents.map((student) => (
+                <div
+                  key={student.id}
+                  onClick={() => setSelectedStudent(student)}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                    selectedStudent?.id === student.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Avatar className="w-10 h-10">
-                        <AvatarFallback className="bg-blue-500 text-white text-sm">
-                          {student.name.split(' ').map((n: string) => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="text-[#0A2540] text-sm">{student.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <p className="text-xs text-gray-600">{student.admissionNo}</p>
-                          <span className="text-gray-400">•</span>
-                          <p className="text-xs text-gray-600">{student.class}</p>
-                        </div>
-                        {student.hasParent && (
-                          <p className="text-xs text-green-600 mt-1">
-                            Linked to: {student.parentName}
-                          </p>
-                        )}
+                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <User className="w-5 h-5 text-gray-600" />
                       </div>
-                      {student.hasParent && (
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                      )}
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {student.firstName} {student.lastName}
+                        </p>
+                        <p className="text-sm text-gray-500">{student.admissionNumber}</p>
+                      </div>
                     </div>
-                  </button>
-                ))
-              )}
+                    {(() => {
+                      const isLinked = student.parent_id !== null || parentStudentLinks.some(link => link.student_id === student.id);
+                      return isLinked && (
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          Linked
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Parent Selection */}
-        <Card className="border-[#0A2540]/10">
-          <CardHeader className="p-5 bg-[#10B981] rounded-t-xl">
-            <h3 className="text-white flex items-center gap-2">
-              <UserCheck className="w-5 h-5" />
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-green-600" />
               Select Parent
-            </h3>
-          </CardHeader>
-          <CardContent className="p-5 space-y-4">
-            {/* Search */}
+            </h2>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            {/* Search Input */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search parents by name or email..."
                 value={parentSearch}
                 onChange={(e) => setParentSearch(e.target.value)}
-                placeholder="Search by name, phone, or email..."
-                className="pl-10 rounded-xl border-[#0A2540]/20"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               />
             </div>
 
-            {/* Selected Parent */}
+            {/* Selected Parent Display */}
             {selectedParent && (
-              <div className="p-4 bg-green-50 border-2 border-green-500 rounded-xl">
-                <div className="flex items-start justify-between mb-2">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12 border-2 border-green-500">
-                      <AvatarFallback className="bg-green-500 text-white">
-                        {selectedParent.name.split(' ').map((n: string) => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                      <Users className="w-6 h-6 text-green-600" />
+                    </div>
                     <div>
-                      <p className="text-[#0A2540] text-sm">{selectedParent.name}</p>
-                      <p className="text-xs text-gray-600">{selectedParent.phone}</p>
+                      <p className="font-medium text-gray-900">
+                        {selectedParent.first_name} {selectedParent.last_name}
+                      </p>
+                      <p className="text-sm text-gray-500">{selectedParent.email}</p>
                     </div>
                   </div>
-                  <Button
+                  <button
                     onClick={() => setSelectedParent(null)}
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 rounded-full hover:bg-red-50"
+                    className="text-gray-400 hover:text-gray-600"
                   >
-                    <X className="w-4 h-4 text-red-600" />
-                  </Button>
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <p className="text-sm text-gray-600 mb-2">{selectedParent.email}</p>
-                <Badge variant="outline" className="rounded-xl">
-                  {selectedParent.linkedChildren.length} child(ren) linked
-                </Badge>
               </div>
             )}
 
-            {/* Parent List */}
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredParents.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                  <p>No parents found</p>
-                </div>
-              ) : (
-                filteredParents.map((parent) => (
-                  <div key={parent.id}>
-                    <button
-                      onClick={() => setSelectedParent(parent)}
-                      className={`w-full p-3 rounded-xl transition-all text-left ${
-                        selectedParent?.id === parent.id
-                          ? 'bg-green-50 border-2 border-green-500'
-                          : 'bg-gray-50 border border-gray-200 hover:border-green-400 hover:bg-green-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarFallback className="bg-green-500 text-white text-sm">
-                            {parent.name.split(' ').map((n: string) => n[0]).join('')}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="text-[#0A2540] text-sm">{parent.name}</p>
-                          <p className="text-xs text-gray-600 mt-1">{parent.phone}</p>
-                        </div>
-                        <Badge variant="outline" className="rounded-xl text-xs">
-                          {parent.linkedChildren.length}
-                        </Badge>
+            {/* Parents List */}
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {filteredParents.map((parent) => (
+                <div
+                  key={parent.id}
+                  onClick={() => setSelectedParent(parent)}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                    selectedParent?.id === parent.id
+                      ? "border-green-500 bg-green-50"
+                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <Users className="w-5 h-5 text-gray-600" />
                       </div>
-                    </button>
-
-                    {/* Linked Children (when parent is selected) */}
-                    {selectedParent?.id === parent.id && parent.linkedChildren.length > 0 && (
-                      <div className="ml-4 mt-2 space-y-2">
-                        <p className="text-xs text-gray-600">Currently linked children:</p>
-                        {parent.linkedChildren.map((child) => (
-                          <div 
-                            key={child.id}
-                            className="p-3 bg-white rounded-lg border border-gray-200 flex items-center justify-between"
-                          >
-                            <div>
-                              <p className="text-[#0A2540] text-xs">{child.name}</p>
-                              <p className="text-xs text-gray-600">{child.admissionNo} • {child.class}</p>
-                              <p className="text-xs text-blue-600">{child.relationship}</p>
-                            </div>
-                            <Button
-                              onClick={() => handleUnlinkChild(parent.id, child.id, child.name)}
-                              size="sm"
-                              className="h-8 px-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs"
-                            >
-                              <Unlink className="w-3 h-3 mr-1" />
-                              Unlink
-                            </Button>
-                          </div>
-                        ))}
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {parent.first_name} {parent.last_name}
+                        </p>
+                        <p className="text-sm text-gray-500">{parent.email}</p>
                       </div>
-                    )}
+                    </div>
+                    {(() => {
+                      const linkedStudents = getParentStudents(parent.id);
+                      return linkedStudents.length > 0 && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                          {linkedStudents.length} linked
+                        </span>
+                      );
+                    })()}
                   </div>
-                ))
-              )}
+                </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Link Action */}
-      <Card className="border-[#0A2540]/10">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                  <LinkIcon className="w-6 h-6 text-blue-600" />
+      {/* Current Links Display */}
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+          <CheckCircle className="w-5 h-5 text-green-600" />
+          Current Student-Parent Links
+        </h3>
+        
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          {students.filter(student => {
+            // Check if student has parent_id OR if there's a link in parentStudentLinks
+            return student.parent_id !== null || parentStudentLinks.some(link => link.student_id === student.id);
+          }).map((student) => {
+            // Find parent from either student.parent_id or parentStudentLinks
+            let parent = null;
+            if (student.parent_id) {
+              parent = parents.find(p => p.id === student.parent_id);
+            } else {
+              const link = parentStudentLinks.find(link => link.student_id === student.id);
+              if (link) {
+                parent = parents.find(p => p.id === link.parent_id);
+              }
+            }
+            
+            if (!parent) return null;
+            
+            return (
+              <div key={student.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {student.firstName} {student.lastName}
+                    </p>
+                    <p className="text-sm text-gray-500">{student.admissionNumber} • {student.level}</p>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-[#0A2540]">Relationship</Label>
-                  <Select value={relationship} onValueChange={(value: 'Father' | 'Mother' | 'Guardian') => setRelationship(value)}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Father">Father</SelectItem>
-                      <SelectItem value="Mother">Mother</SelectItem>
-                      <SelectItem value="Guardian">Guardian</SelectItem>
-                    </SelectContent>
-                  </Select>
+                
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Link className="w-4 h-4" />
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                    <Users className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {parent.first_name} {parent.last_name}
+                    </p>
+                    <p className="text-sm text-gray-500">{parent.email}</p>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div>
-                  <Label className="text-[#0A2540]">Notify Parent of Link</Label>
-                  <p className="text-sm text-gray-600">Send in-app notification</p>
-                </div>
-                <Switch 
-                  checked={notifyParent} 
-                  onCheckedChange={setNotifyParent}
-                />
-              </div>
+            );
+          })}
+          
+          {students.filter(student => student.parent_id !== null).length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p>No student-parent links have been created yet</p>
             </div>
+          )}
+        </div>
+      </div>
 
-            <Button
-              onClick={handleLinkStudentParent}
-              disabled={!selectedStudent || !selectedParent}
-              className="h-12 px-8 bg-[#10B981] hover:bg-[#059669] text-white rounded-xl shadow-md disabled:opacity-50"
+      {/* Linking Controls */}
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Linking Options</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Relationship Type
+            </label>
+            <select
+              value={relationshipType}
+              onChange={(e) => setRelationshipType(e.target.value as "father" | "mother" | "guardian")}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <LinkIcon className="w-5 h-5 mr-2" />
-              Link Selected
-            </Button>
+              <option value="father">Father</option>
+              <option value="mother">Mother</option>
+              <option value="guardian">Guardian</option>
+            </select>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="notifyParent"
+              checked={notifyParent}
+              onChange={(e) => setNotifyParent(e.target.checked)}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="notifyParent" className="ml-2 text-sm text-gray-700">
+              Send notification email to parent
+            </label>
+          </div>
+        </div>
+
+        <div className="flex gap-4 mt-6">
+          <button
+            onClick={handleLinkStudentParent}
+            disabled={!selectedStudent || !selectedParent || isLinking}
+            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+          >
+            {isLinking ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Linking...
+              </>
+            ) : (
+              <>
+                <Link className="w-5 h-5" />
+                Link Student to Parent
+              </>
+            )}
+          </button>
+
+          {selectedStudent && (() => {
+            const student = selectedStudent; // Create a local variable
+            const isLinked = student.parent_id !== null || parentStudentLinks.some(link => link.student_id === student.id);
+            return isLinked && (
+              <button
+                onClick={() => setShowUnlinkDialog(true)}
+                disabled={isUnlinking}
+                className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+              >
+                {isUnlinking ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Unlinking...
+                  </>
+                ) : (
+                  <>
+                    <Unlink className="w-5 h-5" />
+                    Unlink Student
+                  </>
+                )}
+              </button>
+            );
+          })()}
+        </div>
+      </div>
 
       {/* Unlink Confirmation Dialog */}
-      <AlertDialog open={showUnlinkDialog} onOpenChange={setShowUnlinkDialog}>
-        <AlertDialogContent className="rounded-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#0A2540]">Unlink Child?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to unlink <strong>{unlinkData?.studentName}</strong>? 
-              The parent will lose access to this child's information.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmUnlink}
-              className="bg-red-600 hover:bg-red-700 rounded-xl"
-            >
-              Unlink
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {showUnlinkDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Confirm Unlink</h3>
+                  <p className="text-sm text-gray-500">
+                  Are you sure you want to unlink {selectedStudent?.firstName} {selectedStudent?.lastName} from their parent?
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowUnlinkDialog(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnlinkChild}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+              >
+                Unlink
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export { LinkStudentParentPage };

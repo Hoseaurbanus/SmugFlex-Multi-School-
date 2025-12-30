@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
-import { Plus, Search, Edit, Trash2, BookOpen, Users, X, Check, AlertCircle, Award, Clock, Activity, UserCheck, Calendar, Filter, ChevronDown, ChevronUp, Grid3x3, List, User } from 'lucide-react';
+import { api } from '../../services/api';
+import { API_CONFIG } from '../../config/api';
+import { Plus, Search, Edit, Trash2, BookOpen, Users, X, Check, AlertCircle, Award, Clock, Activity, UserCheck, Calendar, Filter, ChevronDown, ChevronUp, Grid3x3, List, User, Loader2, Save } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -29,20 +31,24 @@ export function ManageTeacherAssignmentsPage() {
     updateTeacher,
     getTeacherAssignments,
     loadSubjectAssignmentsFromAPI,
+    loadClassTeacherAssignmentsFromAPI,
     loadTeachersFromAPI,
     loadClassesFromAPI,
     validateClassTeacherAssignment,
+    loadCurrentTermAndYear,
   } = useSchool();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTeacher, setFilterTeacher] = useState('All');
   const [filterClass, setFilterClass] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
+  const [activeTab, setActiveTab] = useState<'subjects' | 'class-teachers'>('subjects');
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isClassTeacherDialogOpen, setIsClassTeacherDialogOpen] = useState(false);
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
   const [selectedAssignments, setSelectedAssignments] = useState<{ subject_id: number; class_id: number }[]>([]);
   const [selectedClassForTeacher, setSelectedClassForTeacher] = useState<string>('');
+  const [classTeacherAssignments, setClassTeacherAssignments] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<Array<{
     id: string;
     action: string;
@@ -53,6 +59,10 @@ export function ManageTeacherAssignmentsPage() {
   }>>([]);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [removingAssignmentId, setRemovingAssignmentId] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Statistics
   const stats = {
@@ -97,11 +107,14 @@ export function ManageTeacherAssignmentsPage() {
   };
 
   const handleAddAssignment = (subject_id: number, class_id: number) => {
+    console.log('handleAddAssignment called:', { subject_id, class_id, currentAssignments: selectedAssignments.length });
     const exists = selectedAssignments.some((a) => a.subject_id === subject_id && a.class_id === class_id);
 
     if (exists) {
+      console.log('Removing existing assignment');
       setSelectedAssignments(selectedAssignments.filter((a) => !(a.subject_id === subject_id && a.class_id === class_id)));
     } else {
+      console.log('Adding new assignment');
       setSelectedAssignments([...selectedAssignments, { subject_id, class_id }]);
     }
   };
@@ -112,7 +125,9 @@ export function ManageTeacherAssignmentsPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSaving(true);
+    setSaveStatus('saving');
+
     try {
       let successCount = 0;
       let failureCount = 0;
@@ -157,18 +172,26 @@ export function ManageTeacherAssignmentsPage() {
 
       if (successCount > 0) {
         toast.success(`${successCount} assignments created successfully`);
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
         setSelectedAssignments([]);
         setSelectedTeacherId(null);
         setIsAssignDialogOpen(false);
+        // Refresh data to show new assignments
+        await loadSubjectAssignmentsFromAPI();
       }
       
       if (failureCount > 0) {
         toast.error(`${failureCount} assignments failed - some may already exist`);
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 2000);
       }
     } catch (error) {
       toast.error('An error occurred while saving assignments');
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 2000);
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -180,49 +203,69 @@ export function ManageTeacherAssignmentsPage() {
   };
 
   const handleAssignClassTeacher = async () => {
+    console.log('handleAssignClassTeacher called:', { 
+      selectedTeacherId, 
+      selectedClassForTeacher, 
+      teachers: teachers?.length,
+      classes: classes?.length 
+    });
+    
     if (!selectedTeacherId || !selectedClassForTeacher) {
       toast.error('Please select both teacher and class');
       return;
     }
 
-    const teacher = teachers?.find(t => t.id === selectedTeacherId);
-    const cls = classes?.find(c => c.id === parseInt(selectedClassForTeacher));
+    const teacher = teachers?.find(t => t.id.toString() === selectedTeacherId.toString());
+    const cls = classes?.find(c => c.id.toString() === selectedClassForTeacher.toString());
 
-    if (!teacher || !cls) return;
+    console.log('Teacher and class found:', { teacher, cls });
+    console.log('Selected IDs:', { selectedTeacherId, selectedClassForTeacher: parseInt(selectedClassForTeacher) });
+    console.log('Available teachers:', teachers?.map(t => ({ id: t.id, name: `${t.firstName} ${t.lastName}` })));
+    console.log('Available classes:', classes?.map(c => ({ id: c.id, name: c.name })));
 
-    // Check if class already has a class teacher
-    if (cls.classTeacherId && cls.classTeacherId !== selectedTeacherId) {
-      const currentTeacher = teachers?.find(t => t.id === cls.classTeacherId);
-      toast.error(`${cls.name} already has a class teacher: ${currentTeacher?.firstName} ${currentTeacher?.lastName}`);
+    if (!teacher || !cls) {
+      console.error('Teacher or class not found');
+      toast.error('Invalid teacher or class selection');
       return;
     }
 
     try {
-      // Update class to set class teacher
-      await updateClass(parseInt(selectedClassForTeacher), {
-        classTeacherId: selectedTeacherId,
-        classTeacher: `${teacher.firstName} ${teacher.lastName}`,
-      });
-
-      // Update teacher to mark as class teacher
-      await updateTeacher(selectedTeacherId, {
-        is_class_teacher: true,
-      });
-
-      toast.success(`${teacher.firstName} ${teacher.lastName} assigned as class teacher of ${cls.name}`);
+      console.log('Making API call to assign class teacher...');
       
-      // Add activity log
-      addActivityLog(
-        'Class Teacher Assigned',
-        `${teacher.firstName} ${teacher.lastName}`,
-        `Assigned as class teacher to ${cls.name}`,
-        'class_teacher'
-      );
+      // Create term-specific class teacher assignment
+      const response = await api.post(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.CREATE, {
+        teacher_id: selectedTeacherId,
+        class_id: parseInt(selectedClassForTeacher),
+        academic_year: currentAcademicYear,
+        term: currentTerm
+      });
 
-      setSelectedTeacherId(null);
-      setSelectedClassForTeacher('');
-      setIsClassTeacherDialogOpen(false);
+      console.log('API response:', response);
+
+      if (response && response.success) {
+        toast.success(`${teacher.firstName} ${teacher.lastName} assigned as class teacher of ${cls.name} for ${currentTerm} ${currentAcademicYear}`);
+        
+        // Add activity log
+        addActivityLog(
+          'Class Teacher Assigned',
+          `${teacher.firstName} ${teacher.lastName}`,
+          `Assigned as class teacher to ${cls.name} for ${currentTerm} ${currentAcademicYear}`,
+          'class_teacher'
+        );
+
+        // Refresh class teacher assignments
+        console.log('Refreshing class teacher assignments...');
+        await loadClassTeacherAssignmentsFromAPI();
+
+        setSelectedTeacherId(null);
+        setSelectedClassForTeacher('');
+        setIsClassTeacherDialogOpen(false);
+      } else {
+        console.error('API response unsuccessful:', response);
+        toast.error(response?.message || 'Failed to assign class teacher');
+      }
     } catch (error) {
+      console.error('Error assigning class teacher:', error);
       toast.error('An error occurred while assigning class teacher');
     }
   };
@@ -231,37 +274,39 @@ export function ManageTeacherAssignmentsPage() {
     const cls = classes?.find(c => c.id === classId);
     if (!cls || !cls.classTeacherId) return;
 
-    const teacherId = cls.classTeacherId;
-
     try {
-      // Update class to remove class teacher
-      await updateClass(classId, {
-        classTeacherId: null,
-        classTeacher: '',
-      });
-
-      // Check if teacher still has other class teacher assignments
-      const remainingClasses = classes?.filter(c => 
-        c.classTeacherId === teacherId && c.id !== classId
-      );
-
-      if (remainingClasses && remainingClasses.length === 0) {
-        // Update teacher to remove class teacher status
-        await updateTeacher(teacherId, {
-          is_class_teacher: false,
-        });
-      }
-
-      toast.success(`Class teacher removed from ${cls.name}`);
+      // Find the assignment ID for current term
+      const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear, currentTerm));
       
-      // Add activity log
-      addActivityLog(
-        'Class Teacher Removed',
-        cls.classTeacher || 'Unknown Teacher',
-        `Removed as class teacher from ${cls.name}`,
-        'class_teacher'
-      );
+      if (response && response.success) {
+        const assignments = (response.data as any[]) || [];
+        const assignment = (assignments as any[]).find((a: any) => a.class_id === classId);
+        
+        if (assignment) {
+          // Delete the assignment
+          const deleteResponse = await api.delete(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.DELETE(assignment.id));
+          
+          if (deleteResponse && deleteResponse.success) {
+            const teacher = teachers?.find(t => t.id === cls.classTeacherId);
+            toast.success(`Class teacher removed from ${cls.name}`);
+            
+            // Add activity log
+            addActivityLog(
+              'Class Teacher Removed',
+              teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown',
+              `Removed as class teacher from ${cls.name} for ${currentTerm} ${currentAcademicYear}`,
+              'class_teacher'
+            );
+
+            // Refresh class teacher assignments
+            await loadClassTeacherAssignmentsFromAPI();
+          } else {
+            toast.error('Failed to remove class teacher');
+          }
+        }
+      }
     } catch (error) {
+      console.error('Error removing class teacher:', error);
       toast.error('An error occurred while removing class teacher');
     }
   };
@@ -271,8 +316,12 @@ export function ManageTeacherAssignmentsPage() {
     const loadData = async () => {
       setIsLoading(true);
       try {
+        // Ensure current term and year are loaded
+        await loadCurrentTermAndYear();
+        
         await Promise.all([
           loadSubjectAssignmentsFromAPI(),
+          loadClassTeacherAssignmentsFromAPI(),
           loadTeachersFromAPI(),
           loadClassesFromAPI(),
         ]);
@@ -285,6 +334,24 @@ export function ManageTeacherAssignmentsPage() {
 
     loadData();
   }, []);
+
+  // Load class teacher assignments when tab changes or term/year changes
+  useEffect(() => {
+    const loadClassTeacherData = async () => {
+      if (activeTab === 'class-teachers') {
+        try {
+          const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear, currentTerm));
+          if (response && response.success) {
+            setClassTeacherAssignments((response.data as any[]) || []);
+          }
+        } catch (error) {
+          console.error('Error loading class teacher assignments:', error);
+        }
+      }
+    };
+
+    loadClassTeacherData();
+  }, [activeTab, currentAcademicYear, currentTerm]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
@@ -472,61 +539,72 @@ export function ManageTeacherAssignmentsPage() {
         </Card>
 
         {/* Main Content Area */}
-        {viewMode === 'table' ? (
-          /* Modern Table View */
-          <Card className="bg-white border-0 shadow-lg rounded-2xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-gray-900 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-blue-600" />
-                  Subject Assignments
-                </CardTitle>
-                <Badge className="bg-blue-100 text-blue-800 px-3 py-1">
-                  {currentTerm} - {currentAcademicYear}
-                </Badge>
+        <Card className="bg-white border-0 shadow-lg rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'subjects' | 'class-teachers')} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 bg-gray-100/50 p-1 rounded-xl">
+                    <TabsTrigger value="subjects" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                      <BookOpen className="w-4 h-4" />
+                      Subject Assignments
+                    </TabsTrigger>
+                    <TabsTrigger value="class-teachers" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                      <UserCheck className="w-4 h-4" />
+                      Class Teachers
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50 border-b border-gray-200">
-                      <TableHead className="text-gray-700 font-semibold">Teacher</TableHead>
-                      <TableHead className="text-gray-700 font-semibold">Subject</TableHead>
-                      <TableHead className="text-gray-700 font-semibold">Class</TableHead>
-                      <TableHead className="text-gray-700 font-semibold">Term</TableHead>
-                      <TableHead className="text-gray-700 font-semibold text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredAssignments.length === 0 ? (
-                      <TableRow className="hover:bg-gray-50">
-                        <TableCell colSpan={5} className="text-center py-16">
-                          <div className="flex flex-col items-center gap-4">
-                            <div className="p-4 bg-gray-100 rounded-full">
-                              <BookOpen className="w-8 h-8 text-gray-400" />
-                            </div>
-                            <div>
-                              <p className="text-gray-900 font-medium">No assignments found</p>
-                              <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
-                            </div>
-                            <Button
-                              onClick={handleOpenAssignDialog}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              <Plus className="w-4 h-4 mr-2" />
-                              Create First Assignment
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+              <Badge className="bg-blue-100 text-blue-800 px-3 py-1">
+                {currentTerm} - {currentAcademicYear}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Tabs value={activeTab} className="w-full">
+              <TabsContent value="subjects" className="m-0">
+                {viewMode === 'table' ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50 border-b border-gray-200">
+                          <TableHead className="text-gray-700 font-semibold">Teacher</TableHead>
+                          <TableHead className="text-gray-700 font-semibold">Subject</TableHead>
+                          <TableHead className="text-gray-700 font-semibold">Class</TableHead>
+                          <TableHead className="text-gray-700 font-semibold">Term</TableHead>
+                          <TableHead className="text-gray-700 font-semibold text-center">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredAssignments.length === 0 ? (
+                          <TableRow className="hover:bg-gray-50">
+                            <TableCell colSpan={5} className="text-center py-16">
+                              <div className="flex flex-col items-center gap-4">
+                                <div className="p-4 bg-gray-100 rounded-full">
+                                  <BookOpen className="w-8 h-8 text-gray-400" />
+                                </div>
+                                <div>
+                                  <p className="text-gray-900 font-medium">No assignments found</p>
+                                  <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
+                                </div>
+                                <Button
+                                  onClick={handleOpenAssignDialog}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                  <Plus className="w-4 h-4 mr-2" />
+                                  Create First Assignment
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
                     ) : (
                       filteredAssignments.map((assignment) => (
                         <TableRow key={assignment.id} className="hover:bg-gray-50 border-b border-gray-100">
                           <TableCell className="py-4">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                {assignment.teacher_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                               </div>
                               <div>
                                 <p className="font-medium text-gray-900">{assignment.teacher_name}</p>
@@ -589,106 +667,215 @@ export function ManageTeacherAssignmentsPage() {
                   </TableBody>
                 </Table>
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          /* Modern Grid View */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAssignments.length === 0 ? (
-              <div className="col-span-full">
-                <Card className="bg-white border-0 shadow-lg rounded-2xl">
-                  <CardContent className="p-12 text-center">
-                    <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                      <BookOpen className="w-8 h-8 text-gray-400" />
+                ) : (
+                  /* Grid View for Subject Assignments */
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+                    {filteredAssignments.length === 0 ? (
+                      <div className="col-span-full">
+                        <Card className="bg-white border-0 shadow-lg rounded-2xl">
+                          <CardContent className="p-12 text-center">
+                            <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                              <BookOpen className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <p className="text-gray-900 font-medium text-lg mb-2">No assignments found</p>
+                            <p className="text-gray-500 text-sm mb-6">Try adjusting your search or filters</p>
+                            <Button
+                              onClick={handleOpenAssignDialog}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Create First Assignment
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    ) : (
+                      filteredAssignments.map((assignment) => (
+                        <Card key={assignment.id} className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                                  {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{assignment.teacher_name}</p>
+                                  <p className="text-sm text-gray-500">ID: {assignment.teacher_id}</p>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  removeSubjectAssignmentAPI(
+                                    assignment.teacher_id,
+                                    assignment.subject_id,
+                                    assignment.class_id,
+                                    assignment.academic_year,
+                                    assignment.term
+                                  ).then(() => {
+                                    toast.success('Assignment removed successfully');
+                                    loadSubjectAssignmentsFromAPI();
+                                  });
+                                }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-orange-100 rounded-lg">
+                                  <BookOpen className="w-4 h-4 text-orange-600" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{assignment.subject_name}</p>
+                                  <p className="text-sm text-gray-500">ID: {assignment.subject_id}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-green-100 rounded-lg">
+                                  <Users className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{assignment.class_name}</p>
+                                  <p className="text-sm text-gray-500">ID: {assignment.class_id}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-blue-100 text-blue-800">
+                                  {assignment.term}
+                                </Badge>
+                                <Badge className="bg-blue-100 text-blue-800">
+                                  {assignment.academic_year}
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="class-teachers" className="m-0">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Class Teacher Assignments</h3>
+                      <p className="text-sm text-gray-500">Manage class teachers for {currentTerm} {currentAcademicYear}</p>
                     </div>
-                    <p className="text-gray-900 font-medium text-lg mb-2">No assignments found</p>
-                    <p className="text-gray-500 text-sm mb-6">Try adjusting your search or filters</p>
                     <Button
-                      onClick={handleOpenAssignDialog}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => setIsClassTeacherDialogOpen(true)}
+                      className="bg-green-600 hover:bg-green-700 text-white"
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Create First Assignment
+                      Assign Class Teacher
                     </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              filteredAssignments.map((assignment) => (
-                <Card key={assignment.id} className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                          {assignment.teacher_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{assignment.teacher_name}</p>
-                          <p className="text-sm text-gray-500">Teacher ID: {assignment.teacher_id}</p>
-                        </div>
+                  </div>
+
+                  {classTeacherAssignments.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                        <UserCheck className="w-8 h-8 text-gray-400" />
                       </div>
+                      <p className="text-gray-900 font-medium text-lg mb-2">No class teachers assigned</p>
+                      <p className="text-gray-500 text-sm mb-6">Assign class teachers to manage classes</p>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          removeSubjectAssignmentAPI(
-                            assignment.teacher_id,
-                            assignment.subject_id,
-                            assignment.class_id,
-                            assignment.academic_year,
-                            assignment.term
-                          ).then(() => {
-                            toast.success('Assignment removed successfully');
-                            loadSubjectAssignmentsFromAPI();
-                          });
-                        }}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => setIsClassTeacherDialogOpen(true)}
+                        className="bg-green-600 hover:bg-green-700 text-white"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Plus className="w-4 h-4 mr-2" />
+                        Assign First Class Teacher
                       </Button>
                     </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
-                        <BookOpen className="w-5 h-5 text-orange-600" />
-                        <div>
-                          <p className="font-medium text-gray-900">{assignment.subject_name}</p>
-                          <p className="text-sm text-gray-500">ID: {assignment.subject_id}</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {classTeacherAssignments.map((assignment) => (
+                        <div key={assignment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-semibold">
+                              {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{assignment.teacher_name}</p>
+                              <p className="text-sm text-gray-500">{assignment.teacher_email}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <Users className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{assignment.class_name}</p>
+                              <p className="text-sm text-gray-500">{assignment.class_level}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-green-100 text-green-800">
+                              {assignment.term}
+                            </Badge>
+                            <Badge className="bg-green-100 text-green-800">
+                              {assignment.academic_year}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveClassTeacher(assignment.class_id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                        <Users className="w-5 h-5 text-green-600" />
-                        <div>
-                          <p className="font-medium text-gray-900">{assignment.class_name}</p>
-                          <p className="text-sm text-gray-500">ID: {assignment.class_id}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <Badge variant="outline" className="bg-gray-50">
-                          {assignment.term}
-                        </Badge>
-                        <Badge className="bg-blue-100 text-blue-800">
-                          {assignment.academic_year}
-                        </Badge>
-                      </div>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        )}
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
 
         {/* Assignment Dialog */}
         <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-gray-900">Create Subject Assignments</DialogTitle>
-              <DialogDescription>
-                Assign subjects to teachers for specific classes
-              </DialogDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-xl font-bold text-gray-900">Create Subject Assignments</DialogTitle>
+                  <DialogDescription>
+                    Assign subjects to teachers for specific classes
+                  </DialogDescription>
+                </div>
+                {saveStatus !== 'idle' && (
+                  <div className="flex items-center gap-2">
+                    {saveStatus === 'saving' && (
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Saving...</span>
+                      </div>
+                    )}
+                    {saveStatus === 'saved' && (
+                      <div className="flex items-center gap-1 text-green-600">
+                        <Check className="w-4 h-4" />
+                        <span className="text-sm">Saved</span>
+                      </div>
+                    )}
+                    {saveStatus === 'error' && (
+                      <div className="flex items-center gap-1 text-red-600">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="text-sm">Error</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </DialogHeader>
             
             <div className="space-y-6 mt-6">
@@ -752,7 +939,6 @@ export function ManageTeacherAssignmentsPage() {
                                       <Checkbox
                                         checked={isSelected}
                                         className="w-3 h-3"
-                                        readOnly
                                       />
                                       <span className="text-xs font-medium">{cls.name}</span>
                                     </div>
@@ -799,10 +985,26 @@ export function ManageTeacherAssignmentsPage() {
               </Button>
               <Button
                 onClick={handleSaveAssignments}
-                disabled={!selectedTeacherId || selectedAssignments.length === 0 || isLoading}
+                disabled={!selectedTeacherId || selectedAssignments.length === 0 || isSaving}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6"
               >
-                {isLoading ? 'Saving...' : `Save ${selectedAssignments.length} Assignment${selectedAssignments.length > 1 ? 's' : ''}`}
+                {/* Debug info */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="text-xs mr-2">
+                    T:{selectedTeacherId} A:{selectedAssignments.length}
+                  </div>
+                )}
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Assignments ({selectedAssignments.length})
+                  </>
+                )}
               </Button>
             </div>
           </DialogContent>
@@ -865,6 +1067,12 @@ export function ManageTeacherAssignmentsPage() {
                 disabled={!selectedTeacherId || !selectedClassForTeacher}
                 className="bg-green-600 hover:bg-green-700 text-white px-6"
               >
+                {/* Debug info */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="text-xs mr-2">
+                    T:{selectedTeacherId} C:{selectedClassForTeacher}
+                  </div>
+                )}
                 Assign Class Teacher
               </Button>
             </div>

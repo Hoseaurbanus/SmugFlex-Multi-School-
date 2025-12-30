@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { UserPlus, CheckCircle, Download, Users, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Badge } from "../ui/badge";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 // The staff data you provided
 const GRACELAND_STAFF_DATA = [
@@ -29,7 +29,7 @@ const GRACELAND_STAFF_DATA = [
 ];
 
 export function QuickStaffImportPage() {
-  const { addTeacher, addUser, teachers, users } = useSchool();
+  const { addTeacher, teachers, users } = useSchool();
   const [importing, setImporting] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
   const [importResults, setImportResults] = useState({ success: 0, failed: 0, skipped: 0 });
@@ -67,31 +67,15 @@ export function QuickStaffImportPage() {
 
         // Create teacher record
         const teacherId = await addTeacher({
-          first_name: staff.firstName,
-          last_name: staff.lastName,
-          employee_id: employeeId,
+          firstName: staff.firstName,
+          lastName: staff.lastName,
+          employeeId: employeeId,
           email: staff.email || `${staff.username}`,
           phone: staff.phone,
-          gender: null, // Required field
-          qualification: "B.Ed",
-          specialization: specialization.join(", "),
+          department: staff.role.includes("MEDICAL") ? "Medical" : "General",
           status: "Active",
-          is_class_teacher: isClassTeacher,
-          department_id: null, // Required field
-          created_at: new Date().toISOString(), // Required field
-          updated_at: new Date().toISOString(), // Required field
-        });
-
-        // Create user account
-        await addUser({
-          username: staff.username,
-          role: "teacher",
-          linked_id: teacherId,
-          email: staff.email || `${staff.username}`,
-          status: "Active",
-          last_login: null, // Required field
-          created_at: new Date().toISOString(), // Required field
-          updated_at: new Date().toISOString(), // Required field
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
 
         existingUsernames.push(staff.username);
@@ -154,7 +138,7 @@ export function QuickStaffImportPage() {
       <Card className="border-[#0A2540]/10 rounded-xl">
         <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl">
           <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
+            <span className="w-5 h-5" />
             Staff Members to Import ({GRACELAND_STAFF_DATA.length})
           </CardTitle>
         </CardHeader>
@@ -206,13 +190,13 @@ export function QuickStaffImportPage() {
       <Card className="border-[#0A2540]/10 rounded-xl">
         <CardHeader className="bg-gradient-to-r from-[#10B981] to-[#059669] text-white rounded-t-xl">
           <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" />
+            <span className="w-5 h-5" />
             Import Information
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-4">
           <Alert className="border-blue-200 bg-blue-50 rounded-xl">
-            <AlertTriangle className="h-4 w-4 text-blue-600" />
+            <span className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-900">
               <strong>Default Settings:</strong>
               <ul className="list-disc list-inside mt-2 space-y-1">
@@ -263,17 +247,17 @@ export function QuickStaffImportPage() {
             >
               {importing ? (
                 <>
-                  <UserPlus className="w-5 h-5 mr-2 animate-spin" />
+                  <Plus className="w-5 h-5 mr-2 animate-spin" />
                   Importing...
                 </>
               ) : importComplete ? (
                 <>
-                  <CheckCircle className="w-5 h-5 mr-2" />
+                  <span className="w-5 h-5 mr-2" />
                   Import Complete
                 </>
               ) : (
                 <>
-                  <UserPlus className="w-5 h-5 mr-2" />
+                  <Plus className="w-5 h-5 mr-2" />
                   Import All {GRACELAND_STAFF_DATA.length} Staff Members
                 </>
               )}
@@ -284,7 +268,7 @@ export function QuickStaffImportPage() {
               variant="outline"
               className="rounded-xl border-[#10B981] text-[#10B981] hover:bg-[#10B981] hover:text-white"
             >
-              <Download className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Download CSV
             </Button>
           </div>
@@ -296,7 +280,7 @@ export function QuickStaffImportPage() {
         <Card className="border-[#0A2540]/10 rounded-xl">
           <CardHeader className="bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-white rounded-t-xl">
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5" />
+              <span className="w-5 h-5" />
               Import Results
             </CardTitle>
           </CardHeader>
@@ -304,7 +288,7 @@ export function QuickStaffImportPage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span className="w-5 h-5 text-green-600" />
                   <span className="font-medium text-green-900">Successful</span>
                 </div>
                 <p className="text-2xl font-bold text-green-600">{importResults.success}</p>
@@ -312,7 +296,7 @@ export function QuickStaffImportPage() {
 
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                  <span className="w-5 h-5 text-yellow-600" />
                   <span className="font-medium text-yellow-900">Skipped</span>
                 </div>
                 <p className="text-2xl font-bold text-yellow-600">{importResults.skipped}</p>
@@ -320,7 +304,7 @@ export function QuickStaffImportPage() {
 
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                  <span className="w-5 h-5 text-red-600" />
                   <span className="font-medium text-red-900">Failed</span>
                 </div>
                 <p className="text-2xl font-bold text-red-600">{importResults.failed}</p>
@@ -329,7 +313,7 @@ export function QuickStaffImportPage() {
 
             {importResults.success > 0 && (
               <Alert className="border-green-200 bg-green-50 rounded-xl mt-4">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <span className="h-4 w-4 text-green-600" />
                 <AlertDescription className="text-green-900">
                   <strong>Success!</strong> {importResults.success} staff member(s) have been imported successfully. 
                   All imported staff have been assigned the default password: <strong>gra2024</strong>. 

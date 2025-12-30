@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { LayoutDashboard, Edit, FileText, Bell, BookOpen, Users, FileSpreadsheet, Lock, LogOut, Calendar, Clock, MessageSquare, CheckCircle } from "lucide-react";
+import { LogOut, Book, LayoutDashboard, BookOpen, FileSpreadsheet, Users, MessageSquare, Calendar, PenTool, Award, Heart, Activity } from 'lucide-react';
+import { useState, useEffect } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
 import { Card, CardContent, CardHeader } from "./ui/card";
@@ -9,21 +9,24 @@ import { ScoreEntryPage } from "./teacher/ScoreEntryPage";
 import { CompileResultsPage } from "./teacher/CompileResultsPage";
 import { ClassListPage } from "./teacher/ClassListPage";
 import { MarkAttendancePage } from "./teacher/MarkAttendancePage";
+import { DomainsPage } from "./teacher/DomainsPage";
 import { MessageParentsPage } from "./teacher/MessageParentsPage";
 import { ScoreApprovalPage } from "./teacher/ScoreApprovalPage";
 import { ViewExamTimetablePage } from "./shared/ViewExamTimetablePage";
 import { ChangePasswordPage } from "./ChangePasswordPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
-import { Dialog, DialogContent } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { useSchool } from "../contexts/SchoolContext";
 import { useNotificationListener } from "../contexts/NotificationService";
+import { connectionMonitor } from "../utils/connectionMonitor";
+import { toast } from "sonner";
 
 interface TeacherDashboardProps {
   onLogout: () => void;
 }
 
 export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
-  const { currentUser, teachers, getTeacherAssignments, getTeacherClasses, getTeacherResponsibilities, getUnreadNotifications, getActivityLogs } = useSchool();
+  const { currentUser, teachers, classes, getTeacherAssignments, getTeacherClasses, getTeacherResponsibilities, getUnreadNotifications, getActivityLogs, subjectAssignments, classTeacherAssignments, currentTerm, currentAcademicYear } = useSchool();
   const [activeItem, setActiveItem] = useState("dashboard");
   
   // Notification dialog state
@@ -32,10 +35,48 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   // Real-time notification listener for teachers
   useNotificationListener(currentUser?.role, currentUser?.id);
 
+  // Connection monitoring for teachers
+  useEffect(() => {
+    let isMounted = true;
+    
+    const checkConnection = () => {
+      if (!isMounted) return;
+      
+      if (!connectionMonitor.isHealthy()) {
+        toast.warning('Connection issues detected. Attempting to reconnect...');
+        connectionMonitor.forceReconnect().then(success => {
+          if (isMounted && success) {
+            toast.success('Connection restored');
+          } else if (isMounted) {
+            toast.error('Connection failed. Please refresh the page.');
+          }
+        });
+      }
+    };
+    
+    // Check connection every 2 minutes
+    const interval = setInterval(checkConnection, 120000);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Get current teacher data
-  const currentTeacher = currentUser ? teachers.find(t => t.id === currentUser.linked_id) : null;
+  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
   const teacherId = currentTeacher?.id;
-  const responsibilities = teacherId ? getTeacherResponsibilities(teacherId) : {
+  
+  // Only calculate responsibilities when classes are loaded to avoid race conditions
+  console.log('🎯 TEACHER DASHBOARD: Calculating responsibilities', {
+    hasTeacherId: !!teacherId,
+    teacherId: teacherId,
+    hasClasses: !!classes,
+    classesLength: classes?.length || 0,
+    shouldCalculate: teacherId && classes && classes.length > 0
+  });
+  
+  const responsibilities = teacherId && classes && classes.length > 0 ? getTeacherResponsibilities(Number(teacherId)) : {
     isClassTeacher: false,
     assignedClassesCount: 0,
     totalStudentsCount: 0,
@@ -48,8 +89,32 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     departments: []
   };
   
-  const teacherClasses = teacherId ? getTeacherClasses(teacherId) : [];
-  const isClassTeacher = responsibilities.isClassTeacher;
+  const teacherClasses = teacherId ? getTeacherClasses(Number(teacherId)) : [];
+  // Calculate class teacher status directly from teacherClasses and classTeacherAssignments
+  const isClassTeacherDirect = teacherId && classTeacherAssignments && Array.isArray(classTeacherAssignments) && classTeacherAssignments.length > 0 && classTeacherAssignments.some(
+    (cta: any) => String(cta.teacher_id) === String(teacherId) && 
+    cta.academic_year === currentAcademicYear && 
+    cta.term === currentTerm
+  );
+  
+  const classTeacherClassesCount = teacherClasses.filter((tc: any) => 
+    classTeacherAssignments && Array.isArray(classTeacherAssignments) && classTeacherAssignments.some((cta: any) => 
+      String(cta.teacher_id) === String(teacherId) && 
+      cta.class_id === tc.classId &&
+      cta.academic_year === currentAcademicYear && 
+      cta.term === currentTerm
+    )
+  ).length;
+  
+  console.log('🎯 TEACHER DASHBOARD: Direct calculation', {
+    teacherId,
+    isClassTeacherDirect,
+    classTeacherClassesCount,
+    teacherClassesCount: teacherClasses.length,
+    classTeacherAssignments: Array.isArray(classTeacherAssignments) ? classTeacherAssignments.length : 0
+  });
+  
+  const isClassTeacher = isClassTeacherDirect;
   const teacherName = currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'Teacher';
   
   // Get unread notifications count
@@ -57,21 +122,40 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
 
   const sidebarItems = [
     { icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard", id: "dashboard" },
-    { icon: <Users className="w-5 h-5" />, label: "Class List", id: "class-list" },
-    { icon: <Edit className="w-5 h-5" />, label: "Enter Scores", id: "enter-scores" },
+    { icon: <Users className="w-5 h-5" />, label: "Class List", id: "class-list", classTeacherOnly: true },
+    { icon: <PenTool className="w-5 h-5" />, label: "Enter Scores", id: "enter-scores" },
     { icon: <FileSpreadsheet className="w-5 h-5" />, label: "Compile Results", id: "compile-results", classTeacherOnly: true },
-    { icon: <CheckCircle className="w-5 h-5" />, label: "Approve Scores", id: "approve-scores", classTeacherOnly: true },
+    { icon: <Award className="w-5 h-5" />, label: "Approve Scores", id: "approve-scores", classTeacherOnly: true },
     { icon: <MessageSquare className="w-5 h-5" />, label: "Message Parents", id: "message-parents" },
-    { icon: <Lock className="w-5 h-5" />, label: "Change Password", id: "change-password" },
+    { icon: <Calendar className="w-5 h-5" />, label: "Change Password", id: "change-password" },
     { icon: <Calendar className="w-5 h-5" />, label: "Exam Timetable", id: "exam-timetable" },
-    { icon: <Clock className="w-5 h-5" />, label: "Mark Attendance", id: "mark-attendance" },
+    { icon: <Calendar className="w-5 h-5" />, label: "Mark Attendance", id: "mark-attendance", classTeacherOnly: true },
+    { icon: <Heart className="w-5 h-5" />, label: "Student Domains", id: "domains", classTeacherOnly: true },
     { icon: <LogOut className="w-5 h-5" />, label: "Logout", id: "logout" },
   ].filter(item => !item.classTeacherOnly || isClassTeacher);
 
   const handleItemClick = (id: string) => {
     if (id === "logout") {
+      toast.success("Logged out successfully");
       onLogout();
     } else {
+      // Add toast messages for navigation
+      const toastMessages: Record<string, string> = {
+        "dashboard": "Opening Dashboard",
+        "class-list": "Opening Class List",
+        "enter-scores": "Opening Score Entry",
+        "compile-results": "Opening Results Compilation",
+        "approve-scores": "Opening Score Approval",
+        "message-parents": "Opening Parent Messaging",
+        "change-password": "Opening Password Change",
+        "exam-timetable": "Opening Exam Timetable",
+        "mark-attendance": "Opening Attendance Marking",
+        "domains": "Opening Student Domains"
+      };
+      
+      if (toastMessages[id]) {
+        toast.success(toastMessages[id]);
+      }
       setActiveItem(id);
     }
   };
@@ -113,7 +197,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                       <p className="text-[#6B7280] text-sm">Classes Assigned</p>
                       <BookOpen className="w-5 h-5 text-[#3B82F6]" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{responsibilities.assignedClassesCount}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{teacherClasses.length}</p>
                     <p className="text-xs text-[#6B7280]">Total classes</p>
                   </CardContent>
                 </Card>
@@ -122,9 +206,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[#6B7280] text-sm">Total Students</p>
-                      <Users className="w-5 h-5 text-[#3B82F6]" />
+                      <span className="w-5 h-5 text-[#3B82F6]" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{responsibilities.totalStudentsCount}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{teacherClasses.reduce((total: number, tc: any) => total + (tc.studentCount || 0), 0)}</p>
                     <p className="text-xs text-[#6B7280]">Across all classes</p>
                   </CardContent>
                 </Card>
@@ -133,9 +217,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[#6B7280] text-sm">Class Teacher Role</p>
-                      <Users className="w-5 h-5 text-[#10B981]" />
+                      <span className="w-5 h-5 text-[#10B981]" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{responsibilities.classTeacherClassesCount}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{classTeacherClassesCount}</p>
                     <p className="text-xs text-[#6B7280]">Classes managed</p>
                   </CardContent>
                 </Card>
@@ -149,7 +233,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                       <p className="text-[#6B7280] text-sm">Subject Assignments</p>
                       <BookOpen className="w-5 h-5 text-blue-600" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{responsibilities.subjectsCount}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{teacherClasses.reduce((total: number, tc: any) => total + (tc.subjects?.length || 0), 0)}</p>
                     <p className="text-xs text-[#6B7280]">Subjects teaching</p>
                   </CardContent>
                 </Card>
@@ -158,11 +242,11 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[#6B7280] text-sm">Class Teacher Status</p>
-                      <Users className="w-5 h-5 text-green-600" />
+                      <span className="w-5 h-5 text-green-600" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{responsibilities.isClassTeacher ? 'Active' : 'Not Assigned'}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{isClassTeacher ? 'Active' : 'Not Assigned'}</p>
                     <p className="text-xs text-[#6B7280]">
-                      {responsibilities.isClassTeacher ? 'Managing classes' : 'No class teacher role'}
+                      {isClassTeacher ? 'Managing classes' : 'No class teacher role'}
                     </p>
                   </CardContent>
                 </Card>
@@ -190,13 +274,14 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                             {classInfo.subjects.length} subjects
                           </Badge>
                         </div>
-                        <div className="space-y-2">
-                          <p className="text-xs text-[#6B7280] mb-2">Assigned Subjects:</p>
-                          <div className="flex flex-wrap gap-1">
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-[#374151] mb-3">Assigned Subjects:</p>
+                          <div className="grid grid-cols-2 gap-2">
                             {classInfo.subjects.map((subject) => (
-                              <Badge key={subject.subjectId} className="bg-gray-100 text-gray-800 border-0 text-xs">
-                                {subject.subjectName}
-                              </Badge>
+                              <div key={subject.subjectId} className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-[#F3F4F6] to-[#E5E7EB] border border-[#D1D5DB] rounded-lg hover:from-[#E5E7EB] hover:to-[#D1D5DB] transition-colors">
+                                <div className="w-2 h-2 bg-[#3B82F6] rounded-full flex-shrink-0"></div>
+                                <span className="text-sm font-medium text-[#1F2937] truncate">{subject.subjectName}</span>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -207,7 +292,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                             size="sm"
                             className="rounded-lg border-[#E5E7EB] text-[#6B7280]"
                           >
-                            <Users className="w-4 h-4 mr-1" />
+                            <span className="w-4 h-4 mr-1" />
                             View Students
                           </Button>
                           {classInfo.subjects.length > 0 && (
@@ -216,7 +301,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                               size="sm"
                               className="bg-[#3B82F6] text-white hover:bg-[#2563EB] rounded-lg"
                             >
-                              <Edit className="w-4 h-4 mr-1" />
+                              <span className="w-4 h-4 mr-1" />
                               Enter Scores
                             </Button>
                           )}
@@ -237,8 +322,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {activeItem === "change-password" && <ChangePasswordPage />}
           {activeItem === "exam-timetable" && <ViewExamTimetablePage userRole="teacher" />}
           {activeItem === "mark-attendance" && <MarkAttendancePage />}
+          {activeItem === "domains" && <DomainsPage />}
           
-          {!["dashboard", "class-list", "enter-scores", "compile-results", "approve-scores", "message-parents", "change-password", "mark-attendance", "exam-timetable"].includes(activeItem) && (
+          {!["dashboard", "class-list", "enter-scores", "compile-results", "approve-scores", "message-parents", "change-password", "mark-attendance", "domains", "exam-timetable"].includes(activeItem) && (
             <div className="space-y-6">
               <div className="flex items-center justify-center min-h-[400px]">
                 <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical max-w-md w-full">
@@ -263,6 +349,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
       {/* Notification Dialog */}
       <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Notifications</DialogTitle>
+          </DialogHeader>
           <ViewNotificationsPage />
         </DialogContent>
       </Dialog>

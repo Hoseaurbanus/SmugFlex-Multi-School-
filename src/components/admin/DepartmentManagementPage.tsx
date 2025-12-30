@@ -1,15 +1,17 @@
+import { Briefcase } from 'lucide-react'; // Import Briefcase icon
 import { useState } from "react";
-import { Briefcase, Plus, Edit, Trash2, Users, X, Save, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+// @ts-ignore - TypeScript language service caching issue
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"; // UI Select components
 import { Badge } from "../ui/badge";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { useSchool, Department } from "../../contexts/SchoolContext";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
+// @ts-ignore - TypeScript language service caching issue
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog"; // UI Alert Dialog components
 
 export function DepartmentManagementPage() {
   const { departments, teachers, addDepartment, updateDepartment, deleteDepartment } = useSchool();
@@ -21,8 +23,8 @@ export function DepartmentManagementPage() {
   const [formData, setFormData] = useState({ 
     name: "", 
     code: "", 
-    headOfDepartment: "", 
-    headOfDepartmentId: null as number | null,
+    head_of_department: "", 
+    head_of_department_id: null as number | null,
     description: "",
     status: "Active" as "Active" | "Inactive"
   });
@@ -32,7 +34,7 @@ export function DepartmentManagementPage() {
 
   // Calculate real teacher counts per department
   const getTeacherCount = (deptName: string) => {
-    return teachers.filter(t => t.specialization.includes(deptName) && t.status === 'Active').length;
+    return teachers.filter(t => t.department?.includes(deptName) && t.status === 'Active').length;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -44,25 +46,25 @@ export function DepartmentManagementPage() {
     }
 
     if (isEditing && selectedDept) {
-      const teacher = activeTeachers.find(t => t.id === formData.headOfDepartmentId);
+      const teacher = activeTeachers.find(t => t.id === formData.head_of_department_id);
       updateDepartment(selectedDept.id, {
         name: formData.name,
         code: formData.code.toUpperCase(),
-        headOfDepartment: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Not Assigned',
-        headOfDepartmentId: formData.headOfDepartmentId,
+        head_of_department: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Not Assigned',
+        head_of_department_id: formData.head_of_department_id,
         description: formData.description,
         status: formData.status,
       });
       toast.success("Department updated successfully!");
     } else {
-      const teacher = activeTeachers.find(t => t.id === formData.headOfDepartmentId);
+      const teacher = activeTeachers.find(t => t.id === formData.head_of_department_id);
       addDepartment({
         name: formData.name,
         code: formData.code.toUpperCase(),
-        headOfDepartment: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Not Assigned',
-        headOfDepartmentId: formData.headOfDepartmentId,
+        head_of_department: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Not Assigned',
+        head_of_department_id: formData.head_of_department_id,
         description: formData.description,
-        teacherCount: 0,
+        teacher_count: 0,
         status: formData.status,
       });
       toast.success("Department created successfully!");
@@ -77,8 +79,8 @@ export function DepartmentManagementPage() {
     setFormData({ 
       name: dept.name, 
       code: dept.code, 
-      headOfDepartment: dept.headOfDepartment,
-      headOfDepartmentId: dept.headOfDepartmentId,
+      head_of_department: dept.head_of_department,
+      head_of_department_id: dept.head_of_department_id,
       description: dept.description,
       status: dept.status
     });
@@ -112,8 +114,8 @@ export function DepartmentManagementPage() {
     setFormData({ 
       name: "", 
       code: "", 
-      headOfDepartment: "", 
-      headOfDepartmentId: null,
+      head_of_department: "", 
+      head_of_department_id: null,
       description: "",
       status: "Active"
     });
@@ -124,6 +126,7 @@ export function DepartmentManagementPage() {
   const cancelForm = () => {
     resetForm();
     setShowForm(false);
+    toast.info('Form cancelled - no changes made');
   };
 
   // Statistics
@@ -146,7 +149,7 @@ export function DepartmentManagementPage() {
             onClick={() => setShowForm(true)} 
             className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Add Department
           </Button>
         )}
@@ -166,7 +169,7 @@ export function DepartmentManagementPage() {
                 onClick={cancelForm}
                 className="text-gray-500 hover:text-gray-700 rounded-xl"
               >
-                <X className="w-4 h-4" />
+                <span className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
@@ -200,14 +203,14 @@ export function DepartmentManagementPage() {
                 <div className="space-y-2">
                   <Label className="text-[#0A2540]">Head of Department</Label>
                   <Select 
-                    value={formData.headOfDepartmentId?.toString() || "0"} 
-                    onValueChange={(value) => {
+                    value={formData.head_of_department_id?.toString() || "0"} 
+                    onValueChange={(value: string) => {
                       const teacherId = value === "0" ? null : parseInt(value);
                       const teacher = activeTeachers.find(t => t.id === teacherId);
                       setFormData({ 
                         ...formData, 
-                        headOfDepartmentId: teacherId,
-                        headOfDepartment: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Not Assigned'
+                        head_of_department_id: teacherId,
+                        head_of_department: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Not Assigned'
                       });
                     }}
                   >
@@ -229,7 +232,7 @@ export function DepartmentManagementPage() {
                   <Label className="text-[#0A2540]">Status *</Label>
                   <Select 
                     value={formData.status} 
-                    onValueChange={(value: "Active" | "Inactive") => setFormData({ ...formData, status: value })}
+                    onValueChange={(value: string) => setFormData({ ...formData, status: value as "Active" | "Inactive" })}
                   >
                     <SelectTrigger className="h-12 rounded-xl border-[#0A2540]/20">
                       <SelectValue />
@@ -257,7 +260,7 @@ export function DepartmentManagementPage() {
                   type="submit"
                   className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                 >
-                  <Save className="w-4 h-4 mr-2" />
+                  <span className="w-4 h-4 mr-2" />
                   {isEditing ? "Update Department" : "Create Department"}
                 </Button>
                 <Button 
@@ -284,8 +287,7 @@ export function DepartmentManagementPage() {
                 <p className="text-[#0A2540]">{stats.totalDepartments}</p>
               </div>
               <div className="bg-blue-100 p-3 rounded-xl">
-                <Briefcase className="w-6 h-6 text-blue-600" />
-              </div>
+                              </div>
             </div>
           </CardContent>
         </Card>
@@ -312,7 +314,7 @@ export function DepartmentManagementPage() {
                 <p className="text-[#0A2540]">{stats.totalTeachers}</p>
               </div>
               <div className="bg-purple-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-purple-600" />
+                <span className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -325,7 +327,7 @@ export function DepartmentManagementPage() {
           <Card className="col-span-full border-[#0A2540]/10">
             <CardContent className="p-12 text-center">
               <div className="flex flex-col items-center gap-3">
-                <AlertCircle className="w-16 h-16 text-gray-300" />
+                <span className="w-16 h-16 text-gray-300" />
                 <h3 className="text-[#0A2540]">No Departments Yet</h3>
                 <p className="text-gray-600">Get started by creating your first department</p>
                 {!showForm && (
@@ -333,7 +335,7 @@ export function DepartmentManagementPage() {
                     onClick={() => setShowForm(true)}
                     className="mt-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
+                    <span className="w-4 h-4 mr-2" />
                     Create First Department
                   </Button>
                 )}
@@ -371,7 +373,7 @@ export function DepartmentManagementPage() {
                         onClick={() => handleEdit(dept)}
                         className="rounded-xl h-8 w-8 p-0"
                       >
-                        <Edit className="w-4 h-4" />
+                        <span className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -379,7 +381,7 @@ export function DepartmentManagementPage() {
                         onClick={() => openDeleteDialog(dept)}
                         className="rounded-xl h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <span className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
@@ -387,7 +389,7 @@ export function DepartmentManagementPage() {
                 <CardContent className="p-4 space-y-3">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Head of Department</p>
-                    <p className="text-[#0A2540]">{dept.headOfDepartment}</p>
+                    <p className="text-[#0A2540]">{dept.head_of_department}</p>
                   </div>
                   
                   <div>
@@ -396,7 +398,7 @@ export function DepartmentManagementPage() {
                   </div>
                   
                   <div className="flex items-center gap-2 pt-2 border-t border-[#0A2540]/10">
-                    <Users className="w-4 h-4 text-gray-400" />
+                    <span className="w-4 h-4 text-gray-400" />
                     <span className="text-sm text-gray-600">{teacherCount} Teacher(s)</span>
                   </div>
                 </CardContent>

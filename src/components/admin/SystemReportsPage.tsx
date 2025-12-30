@@ -1,9 +1,9 @@
 import { useState } from "react";
+import { GraduationCap } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { useSchool } from "../../contexts/SchoolContext";
-import { BarChart3, Download, TrendingUp, Users, GraduationCap, DollarSign, FileText, CheckCircle } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function SystemReportsPage() {
   const { students, teachers, classes, payments, compiledResults, subjects } = useSchool();
@@ -24,7 +24,7 @@ export function SystemReportsPage() {
       id: "enrollment",
       title: "Enrollment Report",
       description: "Student enrollment statistics by class and term",
-      icon: <Users className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       color: "bg-[#3B82F6]",
     },
     {
@@ -38,28 +38,28 @@ export function SystemReportsPage() {
       id: "financial",
       title: "Financial Report",
       description: "Revenue, payments, and outstanding balances",
-      icon: <DollarSign className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       color: "bg-[#F59E0B]",
     },
     {
       id: "staff",
       title: "Staff Report",
       description: "Teacher assignments and workload analysis",
-      icon: <Users className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       color: "bg-[#8B5CF6]",
     },
     {
       id: "results",
       title: "Results Summary",
       description: "Compiled results and approval status",
-      icon: <CheckCircle className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       color: "bg-[#EF4444]",
     },
     {
       id: "custom",
       title: "Custom Report",
       description: "Generate custom reports with filters",
-      icon: <FileText className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       color: "bg-[#6B7280]",
     },
   ];
@@ -77,7 +77,7 @@ export function SystemReportsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Total Students</p>
-              <Users className="w-5 h-5 text-[#3B82F6]" />
+              <span className="w-5 h-5 text-[#3B82F6]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{activeStudents}</p>
             <p className="text-xs text-[#10B981]">Active enrollment</p>
@@ -99,7 +99,7 @@ export function SystemReportsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Total Revenue</p>
-              <DollarSign className="w-5 h-5 text-[#F59E0B]" />
+              <span className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">₦{totalRevenue.toLocaleString()}</p>
             <p className="text-xs text-[#10B981]">Verified payments</p>
@@ -110,7 +110,7 @@ export function SystemReportsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Approved Results</p>
-              <CheckCircle className="w-5 h-5 text-[#EF4444]" />
+              <span className="w-5 h-5 text-[#EF4444]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{approvedResults}</p>
             <p className="text-xs text-[#6B7280]">This term</p>
@@ -141,7 +141,7 @@ export function SystemReportsPage() {
                 }}
                 className="w-full bg-[#3B82F6] text-white hover:bg-[#2563EB] h-10 rounded-lg shadow-clinical transition-all"
               >
-                <Download className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Generate Report
               </Button>
             </CardContent>
@@ -155,7 +155,7 @@ export function SystemReportsPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-white font-semibold">Enrollment by Class</h3>
             <Button className="h-8 px-4 bg-white text-[#3B82F6] hover:bg-[#F9FAFB] rounded-lg">
-              <Download className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Export
             </Button>
           </div>
@@ -163,7 +163,7 @@ export function SystemReportsPage() {
         <CardContent className="p-6">
           <div className="space-y-4">
             {classes.map((cls) => {
-              const classStudents = students.filter(s => s.classId === cls.id && s.status === 'Active');
+              const classStudents = students.filter(s => s.class_id === cls.id && s.status === 'Active');
               const percentage = cls.capacity > 0 ? (classStudents.length / cls.capacity) * 100 : 0;
 
               return (
@@ -206,7 +206,7 @@ export function SystemReportsPage() {
                   <p className="text-[#1F2937] font-medium">{subject.name}</p>
                   <p className="text-xs text-[#6B7280]">{subject.code} • {subject.department}</p>
                 </div>
-                <div className={`w-2 h-2 rounded-full ${subject.isCore ? "bg-[#10B981]" : "bg-[#F59E0B]"}`} />
+                <div className={`w-2 h-2 rounded-full ${subject.is_core ? "bg-[#10B981]" : "bg-[#F59E0B]"}`} />
               </div>
             ))}
           </CardContent>

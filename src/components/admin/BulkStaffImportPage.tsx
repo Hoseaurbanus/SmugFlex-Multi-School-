@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Upload, Download, UserPlus, CheckCircle, XCircle, AlertTriangle, FileText, Users2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
@@ -285,13 +284,13 @@ export function BulkStaffImportPage() {
       <Card className="border-[#0A2540]/10 rounded-xl">
         <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl">
           <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
+            <span className="w-5 h-5" />
             Instructions
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-4">
           <Alert className="border-blue-200 bg-blue-50 rounded-xl">
-            <AlertTriangle className="h-4 w-4 text-blue-600" />
+            <span className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-900">
               <strong>Important:</strong> Please ensure your CSV file follows the correct format. Download the template below to get started.
             </AlertDescription>
@@ -325,7 +324,7 @@ export function BulkStaffImportPage() {
             onClick={handleDownloadTemplate}
             className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
           >
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Download CSV Template
           </Button>
         </CardContent>
@@ -335,7 +334,7 @@ export function BulkStaffImportPage() {
       <Card className="border-[#0A2540]/10 rounded-xl">
         <CardHeader className="bg-gradient-to-r from-[#10B981] to-[#059669] text-white rounded-t-xl">
           <CardTitle className="flex items-center gap-2">
-            <Upload className="w-5 h-5" />
+            <span className="w-5 h-5" />
             Upload CSV File
           </CardTitle>
         </CardHeader>
@@ -394,12 +393,12 @@ export function BulkStaffImportPage() {
           >
             {importing ? (
               <>
-                <Upload className="w-4 h-4 mr-2 animate-spin" />
+                <span className="w-4 h-4 mr-2 animate-spin" />
                 Importing...
               </>
             ) : (
               <>
-                <UserPlus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 Import Staff Members
               </>
             )}
@@ -412,7 +411,7 @@ export function BulkStaffImportPage() {
         <Card className="border-[#0A2540]/10 rounded-xl">
           <CardHeader className="bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-white rounded-t-xl">
             <CardTitle className="flex items-center gap-2">
-              <Users2 className="w-5 h-5" />
+              <span2 className="w-5 h-5" />
               Import Results
             </CardTitle>
           </CardHeader>
@@ -420,7 +419,7 @@ export function BulkStaffImportPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span className="w-5 h-5 text-green-600" />
                   <span className="font-medium text-green-900">Successful</span>
                 </div>
                 <p className="text-2xl font-bold text-green-600">{importResult.success}</p>
@@ -428,7 +427,7 @@ export function BulkStaffImportPage() {
 
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <XCircle className="w-5 h-5 text-red-600" />
+                  <span className="w-5 h-5 text-red-600" />
                   <span className="font-medium text-red-900">Failed</span>
                 </div>
                 <p className="text-2xl font-bold text-red-600">{importResult.failed}</p>
@@ -441,7 +440,7 @@ export function BulkStaffImportPage() {
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {importResult.errors.map((error, idx) => (
                     <Alert key={idx} className="border-red-200 bg-red-50 rounded-xl">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <span className="h-4 w-4 text-red-600" />
                       <AlertDescription className="text-red-900">
                         <strong>Row {error.row}:</strong> {error.error}
                         <br />
@@ -457,7 +456,7 @@ export function BulkStaffImportPage() {
 
             {importResult.success > 0 && (
               <Alert className="border-green-200 bg-green-50 rounded-xl">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <span className="h-4 w-4 text-green-600" />
                 <AlertDescription className="text-green-900">
                   <strong>Success!</strong> {importResult.success} staff member(s) have been imported successfully. 
                   All imported staff have been assigned the default password: <strong>gra2024</strong>. 

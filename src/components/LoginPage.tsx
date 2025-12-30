@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { School, User, Lock, AlertCircle } from "lucide-react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -7,23 +7,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { Alert, AlertDescription } from "./ui/alert";
 import { useSchool } from "../contexts/SchoolContext";
+import { toast } from "sonner";
 import schoolLogo from "../assets/images/school-logo.jpg";
 
-interface LoginPageProps {
-  onLogin: (role: string) => void;
-  onNavigateToLanding: () => void;
-}
-
-export function LoginPage({ onLogin, onNavigateToLanding }: LoginPageProps) {
+export function LoginPage() {
   const [role, setRole] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login } = useSchool();
+  const { login, currentUser } = useSchool();
+  const navigate = useNavigate();
+
+  // Reset form when currentUser changes (logout)
+  React.useEffect(() => {
+    if (!currentUser) {
+      setRole("");
+      setUsername("");
+      setPassword("");
+      setError("");
+    }
+  }, [currentUser]);
 
   const handleLogin = async () => {
     if (!role || !username || !password) {
+      toast.error("Please fill in all fields");
       setError("Please fill in all fields");
       return;
     }
@@ -35,11 +43,15 @@ export function LoginPage({ onLogin, onNavigateToLanding }: LoginPageProps) {
       const user = await login(username, password, role);
       
       if (user) {
-        onLogin(role);
+        toast.success(`Welcome back! Logged in as ${role}`);
+        const target = ["admin", "teacher", "accountant", "parent"].includes(role) ? `/${role}` : "/";
+        navigate(target);
       } else {
+        toast.error("Invalid username, password, or role");
         setError("Invalid username, password, or role");
       }
     } catch (error) {
+      toast.error("Login failed. Please try again.");
       setError("Login failed. Please try again.");
     } finally {
       setIsLoading(false);
@@ -58,7 +70,7 @@ export function LoginPage({ onLogin, onNavigateToLanding }: LoginPageProps) {
         {/* Logo and Header */}
         <div className="text-center mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
           <div 
-              onClick={onNavigateToLanding}
+              onClick={() => navigate("/")}
               className="w-24 h-24 rounded-full bg-white flex items-center justify-center mx-auto mb-4 cursor-pointer hover:shadow-2xl transition-all hover:scale-110 shadow-xl p-2.5 ring-4 ring-[#FFD700]/30"
             >
               <img 
@@ -82,7 +94,7 @@ export function LoginPage({ onLogin, onNavigateToLanding }: LoginPageProps) {
             {/* Error Display */}
             {error && (
               <Alert className="border-red-200 bg-red-50">
-                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span className="h-4 w-4 text-red-600" />
                 <AlertDescription className="text-red-700">{error}</AlertDescription>
               </Alert>
             )}
@@ -110,7 +122,7 @@ export function LoginPage({ onLogin, onNavigateToLanding }: LoginPageProps) {
             <div className="space-y-2">
               <Label htmlFor="username" className="text-[#0A2540]">Username</Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   id="username"
                   type="text"
@@ -126,7 +138,7 @@ export function LoginPage({ onLogin, onNavigateToLanding }: LoginPageProps) {
             <div className="space-y-2">
               <Label htmlFor="password" className="text-[#0A2540]">Password</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   id="password"
                   type="password"
@@ -150,7 +162,7 @@ export function LoginPage({ onLogin, onNavigateToLanding }: LoginPageProps) {
             {/* Back to Home */}
             <div className="text-center pt-4">
               <button
-                onClick={onNavigateToLanding}
+                onClick={() => navigate("/")}
                 className="text-sm text-[#0A2540] hover:text-[#FFD700] transition-colors hover:underline"
               >
                 ← Back to Home

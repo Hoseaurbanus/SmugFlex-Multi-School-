@@ -1,24 +1,41 @@
 import { useState, useEffect } from "react";
-import {
-  Download,
-  Printer,
-  FileText,
-  User,
-  Calendar,
-  Award,
-  TrendingUp,
-  Eye,
-  CheckCircle,
-  XCircle,
-  AlertCircle
-} from "lucide-react";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { useSchool } from "../../contexts/SchoolContext";
 import { StudentResultCardProps } from './types/resultCard';
-import schoolLogo from '../../assets/images/school-logo.jpg';
+
+// Add print styles
+const printStyles = `
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-content, .print-content * {
+    visibility: visible;
+  }
+  .print-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    padding: 0;
+    border: none;
+    overflow: hidden;
+  }
+  @page {
+    size: A4;
+    margin: 0;
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+`;
 
 export function StudentResultCard({
   student: propStudent,
@@ -31,17 +48,40 @@ export function StudentResultCard({
   onApprovePrint,
   currentUser
 }: StudentResultCardProps) {
-  const { schoolSettings } = useSchool();
+  const { schoolSettings, loadSchoolSettings } = useSchool();
   const { students, classes, teachers, scores, subjectAssignments, subjects, loadScoresFromAPI, loadSubjectAssignmentsFromAPI, loadSubjectsFromAPI } = useSchool();
   const [showDetails, setShowDetails] = useState(false);
   const [detailedScoresData, setDetailedScoresData] = useState<any[]>([]);
+
+  // Ensure school settings are loaded for next term begins date
+  useEffect(() => {
+    if (!schoolSettings?.resumption_date) {
+      loadSchoolSettings();
+    }
+  }, [schoolSettings?.resumption_date, loadSchoolSettings]);
+
+  // Add print styles to document head
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = printStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+
+  // Handle print function
+  const handlePrint = () => {
+    window.print();
+  };
 
   // Load detailed scores when component mounts or result changes
   useEffect(() => {
     if (result && result.student_id) {
       loadDetailedScores();
     }
-  }, [result, scores]);
+  }, [result]); // Remove scores from dependencies to prevent infinite loop
 
   const loadDetailedScores = async () => {
     if (!result || !result.student_id) return;
@@ -142,7 +182,12 @@ export function StudentResultCard({
 
   // Get class teacher name
   const getClassTeacherName = () => {
-    // The class teacher name is already loaded in the class data as 'classTeacher'
+    // First priority: Use the teacher name from compiled results (already stored in DB)
+    if (result?.class_teacher_name) {
+      return result.class_teacher_name;
+    }
+    
+    // Second priority: The class teacher name is already loaded in the class data as 'classTeacher'
     if (studentClassData?.classTeacher) {
       return studentClassData.classTeacher;
     }
@@ -155,7 +200,8 @@ export function StudentResultCard({
       }
     }
     
-    return 'CLASS TEACHER';
+    // Final fallback: Return placeholder
+    return '_________________';
   };
 
   // Calculate grade based on score - matching your design scale
@@ -175,6 +221,31 @@ export function StudentResultCard({
     if (score === 3) return 'Good';
     if (score === 2) return 'Fair';
     return 'Poor';
+  };
+
+  // Helper function to convert database field names to complete readable names
+  const getDomainName = (key: string): string => {
+    // Affective domain mappings
+    const affectiveMappings: Record<string, string> = {
+      'attentiveness': 'Attentiveness',
+      'honesty': 'Honesty',
+      'neatness': 'Neatness',
+      'obedience': 'Obedience',
+      'sense_of_responsibility': 'Sense of Responsibility'
+    };
+
+    // Psychomotor domain mappings
+    const psychomotorMappings: Record<string, string> = {
+      'attention_to_direction': 'Attention to Direction',
+      'considerate_of_others': 'Considerate of Others',
+      'handwriting': 'Handwriting',
+      'sports': 'Sports',
+      'verbal_fluency': 'Verbal Fluency',
+      'works_well_independently': 'Works Well Independently'
+    };
+
+    // Return the mapped name or format the key as fallback
+    return affectiveMappings[key] || psychomotorMappings[key] || key.replace(/_/g, ' ').replace(/(?:^|\s)\S/g, a => a.toUpperCase());
   };
 
   // Check if user can download/print (admin only or approved for parents)
@@ -209,13 +280,13 @@ export function StudentResultCard({
           .print-container {
             width: 100%;
             max-width: 190mm;
-            height: 277mm;
+            min-height: 277mm;
             margin: 0 auto;
             box-sizing: border-box;
             overflow: hidden;
             page-break-after: always;
             page-break-inside: avoid;
-            padding: 5mm;
+            padding: 4mm;
             background: white;
           }
           
@@ -242,13 +313,17 @@ export function StudentResultCard({
           
           .print-watermark {
             position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            opacity: 0.1 !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: 140mm !important;
+            height: 140mm !important;
+            opacity: 0.12 !important;
             z-index: 0 !important;
             pointer-events: none !important;
+            background-size: contain !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
           }
           
           .print-content {
@@ -285,7 +360,7 @@ export function StudentResultCard({
         }
       `}</style>
       
-      <div className="print-container bg-white" style={{ 
+      <div className="print-container bg-white no-print" style={{ 
         fontFamily: '"Times New Roman", serif',
         width: '210mm',
         height: '297mm',
@@ -295,80 +370,115 @@ export function StudentResultCard({
         backgroundColor: 'white',
         overflow: 'hidden',
         position: 'relative',
-        border: '3px double #333'
+        border: '3px double #2c3e50',
+        boxShadow: '0 0 20px rgba(0,0,0,0.1)',
+        background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)'
       }}>
-      {/* Watermark */}
-      <div className="print-watermark" style={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '120mm',
-        height: '120mm',
-        backgroundImage: `url(${schoolLogo})`,
-        backgroundSize: 'contain',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        opacity: 0.08,
-        zIndex: 0
-      }} />
       
-      <div className="print-content" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="print-content" style={{ 
+        position: 'absolute', 
+        left: '-8mm',
+        top: '-8mm',
+        width: '210mm',
+        height: '297mm',
+        zIndex: 1,
+        textRendering: 'geometricPrecision',
+        fontSmooth: 'always',
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale',
+        WebkitTextStroke: '0.01px transparent',
+        textShadow: '0 0 0.01px rgba(0,0,0,0.01)',
+        letterSpacing: '0.01px',
+        lineHeight: '1.1',
+        fontWeight: '500',
+        backgroundColor: 'white',
+        padding: '8mm',
+        boxSizing: 'border-box',
+        border: '3px double #2c3e50'
+      }}>
       {/* School Header */}
-      <div className="print-header" style={{ textAlign: 'center', marginBottom: '2mm' }}>
-        <div style={{ marginBottom: '0.5mm' }}>
-          <img src={schoolLogo} alt="School Logo" style={{ width: '12mm', height: '12mm', display: 'block', margin: '0 auto' }} />
+      <div className="print-header" style={{ textAlign: 'center', marginBottom: '3mm', padding: '2mm 0' }}>
+        <div style={{ marginBottom: '1mm' }}>
+          <img 
+            src="./assets/images/school-logo.jpg" 
+            alt="School Logo" 
+            style={{ 
+              width: '18mm', 
+              height: '18mm', 
+              display: 'block', 
+              margin: '0 auto', 
+              borderRadius: '50%', 
+              border: '2px solid #2c3e50', 
+              objectFit: 'cover',
+              backgroundColor: '#ffffff',
+              imageRendering: 'auto',
+              WebkitImageRendering: 'auto'
+            } as React.CSSProperties} 
+            onError={(e) => {
+              console.error('School logo failed to load:', e);
+              // Try alternative logo path
+              const target = e.target as HTMLImageElement;
+              target.src = './assets/images/graceland-logo.jpg';
+            }}
+            onLoad={(e) => {
+              console.log('School logo loaded successfully');
+            }}
+          />
         </div>
-        <h1 style={{ fontSize: '11pt', fontWeight: 'bold', margin: '0.5mm 0', textTransform: 'uppercase' }}>{schoolSettings.school_name || 'GRACELAND ROYAL ACADEMY'}</h1>
-        <p style={{ fontSize: '6pt', margin: '0.3mm 0', fontStyle: 'italic' }}>{schoolSettings.school_address || 'BEHIND HAKIMI PALACE OPPOSITE NNPC DEPOT TUNFUFE, GOMBE'}</p>
-        <p style={{ fontSize: '6pt', margin: '0.3mm 0' }}>{schoolSettings.school_email || 'gracelandroyalacademy09@gmail.com'}</p>
+        <h1 style={{ fontSize: '14pt', fontWeight: 'bold', margin: '0.5mm 0', textTransform: 'uppercase', color: '#2c3e50', letterSpacing: '1px', textRendering: 'geometricPrecision', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{schoolSettings.school_name || 'SCHOOL NAME'}</h1>
+        <p style={{ fontSize: '8pt', margin: '0.3mm 0', fontStyle: 'italic', color: '#555', textRendering: 'geometricPrecision', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{schoolSettings.school_address || 'SCHOOL ADDRESS'}</p>
+        <p style={{ fontSize: '8pt', margin: '0.3mm 0', color: '#555', textRendering: 'geometricPrecision', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{schoolSettings.school_email || 'school@email.com'}</p>
+        <div style={{ marginTop: '1mm', borderBottom: '2px solid #2c3e50', width: '80%', margin: '1mm auto 0' }}></div>
       </div>
 
-      <hr className="border border-black" />
-
       {/* Student Information Section with Photo */}
-      <div className="print-section" style={{ marginBottom: '2mm', display: 'flex', gap: '0mm' }}>
+      <div className="print-section" style={{ marginBottom: '2mm', display: 'flex', gap: '1mm', justifyContent: 'center', alignItems: 'stretch' }}>
         <div style={{ width: '75%' }}>
-          <table className="w-full border-collapse border border-black" style={{ 
-          fontSize: '6pt', 
-          height: '22mm',
-          pageBreakInside: 'avoid'
-        }}>
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            border: '2px solid #2c3e50',
+            backgroundColor: '#f8f9fa',
+            height: '18mm',
+            pageBreakInside: 'avoid'
+          }}>
             <tbody>
               <tr>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>NAME:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{studentData ? `${studentData.firstName} ${studentData.lastName}`.toUpperCase() : 'STUDENT NAME'}</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>SESSION:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{result.academic_year || '2024/2025'}</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>NO. IN CLASS:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{result.position || '___'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Name:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{studentData ? `${studentData.firstName} ${studentData.lastName}`.toUpperCase() : 'STUDENT NAME'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Session:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{result.academic_year || '2024/2025'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{studentClassData?.name || 'CLASS NAME'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{studentData?.gender || 'MALE'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>Next Term Begins:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }} colSpan={5}>{result?.next_term_begin || schoolSettings?.resumption_date || ''}</td>
               </tr>
               <tr>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>ADM NO:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{studentData?.admissionNumber || 'GRA/XXXXX'}</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>TERM:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{result.term || 'THIRD TERM'}</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>TERM END:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{result.term_end || '25-JUL-2025'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Admission No:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{studentData?.admissionNumber || 'GRA/XXXXX'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Term:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{result.term || 'THIRD TERM'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Attendance:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{result.times_present || 0} / {result.total_attendance_days || 0} days</td>
               </tr>
               <tr>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>GENDER:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{studentData?.gender || 'MALE'}</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>CLASS:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{studentClassData?.name || 'CLASS NAME'}</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontWeight: 'bold', fontSize: '6pt' }}>NEXT TERM:</td>
-                <td className="border border-black" style={{ padding: '0.8mm', fontSize: '6pt' }}>{schoolSettings?.resumption_date || '_________________'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Class:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{studentClassData?.name || 'CLASS NAME'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Gender:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{studentData?.gender || 'MALE'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Next Term Begins:</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }} colSpan={5}>{result?.next_term_begin || schoolSettings?.resumption_date || ''}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <div style={{ width: '25%' }}>
-          <div className="border border-black" style={{ height: '22mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="border border-black" style={{ height: '18mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {studentData?.photo_url ? (
               <img src={studentData.photo_url} alt="Student Photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <div style={{ width: '100%', height: '100%', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '7pt', color: '#666' }}>No Photo</span>
+                <span style={{ fontSize: '9pt', color: '#666' }}>No Photo</span>
               </div>
             )}
           </div>
@@ -376,32 +486,37 @@ export function StudentResultCard({
       </div>
 
       {/* Result Title */}
-      <div style={{ textAlign: 'center', marginBottom: '1mm' }}>
-        <h2 style={{ fontSize: '10pt', fontWeight: 'bold', textDecoration: 'underline', margin: '0.5mm 0', textTransform: 'uppercase' }}>
+      <div style={{ textAlign: 'center', marginBottom: '1mm', padding: '1mm 0' }}>
+        <h2 style={{ fontSize: '13pt', fontWeight: 'bold', textDecoration: 'underline', margin: '0.5mm 0', textTransform: 'uppercase', color: '#2c3e50', letterSpacing: '2px', textRendering: 'geometricPrecision', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
           {result.term || 'THIRD TERM'} RESULT SHEET
         </h2>
       </div>
 
       {/* Result Table */}
-      <table className="print-table w-full border-collapse border border-black" style={{ 
-        fontSize: '6pt', 
-        marginBottom: '1mm',
-        pageBreakInside: 'avoid',
-        pageBreakAfter: 'auto'
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1mm' }}>
+        <table className="print-table" style={{ 
+          fontSize: '7pt', 
+          width: '95%',
+          borderCollapse: 'collapse',
+          border: '2px solid #2c3e50',
+          backgroundColor: 'white',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          pageBreakInside: 'avoid',
+          pageBreakAfter: 'auto',
+          textRendering: 'geometricPrecision',
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale'
+        }}>
         <thead>
-          <tr>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '3%', fontWeight: 'bold', fontSize: '5pt' }}>SN</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '16%', fontWeight: 'bold', fontSize: '5pt' }}>SUBJECT</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '6%', fontWeight: 'bold', fontSize: '5pt' }}>1st CA</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '6%', fontWeight: 'bold', fontSize: '5pt' }}>2nd CA</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '6%', fontWeight: 'bold', fontSize: '5pt' }}>Exams</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '6%', fontWeight: 'bold', fontSize: '5pt' }}>Total</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '7%', fontWeight: 'bold', fontSize: '5pt' }}>Avg</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '5%', fontWeight: 'bold', fontSize: '5pt' }}>Grd</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '8%', fontWeight: 'bold', fontSize: '5pt' }}>Remark</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '6%', fontWeight: 'bold', fontSize: '5pt' }}>Min</th>
-            <th className="border border-black" style={{ padding: '0.5mm', width: '6%', fontWeight: 'bold', fontSize: '5pt' }}>Max</th>
+          <tr style={{ backgroundColor: '#2c3e50', color: 'white' }}>
+            <th className="border border-black" style={{ padding: '0.6mm', width: '3%', fontWeight: 'bold', fontSize: '7pt', backgroundColor: '#2c3e50', color: 'white' }}>SN</th>
+            <th className="border border-black" style={{ padding: '0.6mm', width: '16%', fontWeight: 'bold', fontSize: '7pt', backgroundColor: '#2c3e50', color: 'white' }}>SUBJECT</th>
+            <th className="border border-black" style={{ padding: '0.6mm', width: '6%', fontWeight: 'bold', fontSize: '7pt', backgroundColor: '#2c3e50', color: 'white' }}>1st CA</th>
+            <th className="border border-black" style={{ padding: '0.6mm', width: '6%', fontWeight: 'bold', fontSize: '7pt', backgroundColor: '#2c3e50', color: 'white' }}>2nd CA</th>
+            <th className="border border-black" style={{ padding: '0.6mm', width: '6%', fontWeight: 'bold', fontSize: '7pt', backgroundColor: '#2c3e50', color: 'white' }}>Exams</th>
+            <th className="border border-black" style={{ padding: '0.6mm', width: '6%', fontWeight: 'bold', fontSize: '7pt', backgroundColor: '#2c3e50', color: 'white' }}>Total</th>
+            <th className="border border-black" style={{ padding: '0.6mm', width: '5%', fontWeight: 'bold', fontSize: '7pt', backgroundColor: '#2c3e50', color: 'white' }}>Grd</th>
+            <th className="border border-black" style={{ padding: '0.6mm', width: '8%', fontWeight: 'bold', fontSize: '7pt', backgroundColor: '#2c3e50', color: 'white' }}>Remark</th>
                       </tr>
         </thead>
         <tbody>
@@ -410,77 +525,151 @@ export function StudentResultCard({
               const gradeInfo = getGrade(score.total || 0);
               return (
                 <tr key={index}>
-                  <td className="border border-black text-center" style={{ padding: '0.5mm', textAlign: 'center', fontSize: '6pt' }}>{index + 1}</td>
-                  <td className="border border-black" style={{ padding: '0.5mm', fontSize: '6pt' }}>{score.subject_name || 'Subject'}</td>
-                  <td className="border border-black text-center" style={{ padding: '0.5mm', textAlign: 'center', fontSize: '6pt' }}>{score.ca1 || 0}</td>
-                  <td className="border border-black text-center" style={{ padding: '0.5mm', textAlign: 'center', fontSize: '6pt' }}>{score.ca2 || 0}</td>
-                  <td className="border border-black text-center" style={{ padding: '0.5mm', textAlign: 'center', fontSize: '6pt' }}>{score.exam || 0}</td>
-                  <td className="border border-black text-center font-bold" style={{ padding: '0.5mm', textAlign: 'center', fontWeight: 'bold', fontSize: '6pt' }}>{score.total || 0}</td>
-                  <td className="border border-black text-center" style={{ padding: '0.5mm', textAlign: 'center', fontSize: '6pt' }}>{score.class_average || '0.0'}</td>
-                  <td className="border border-black text-center font-bold" style={{ padding: '0.5mm', textAlign: 'center', fontWeight: 'bold', fontSize: '6pt' }}>{gradeInfo.grade}</td>
-                  <td className="border border-black text-center" style={{ padding: '0.5mm', textAlign: 'center', fontSize: '5pt' }}>{gradeInfo.remark}</td>
-                  <td className="border border-black text-center" style={{ padding: '0.5mm', textAlign: 'center', fontSize: '6pt' }}>{score.class_minimum || '0'}</td>
-                  <td className="border border-black text-center" style={{ padding: '0.5mm', textAlign: 'center', fontSize: '6pt' }}>{score.class_maximum || '0'}</td>
+                  <td className="border border-black text-center" style={{ padding: '0.4mm', textAlign: 'center', fontSize: '7pt' }}>{index + 1}</td>
+                  <td className="border border-black" style={{ padding: '0.4mm', fontSize: '7pt' }}>{score.subject_name || 'Subject'}</td>
+                  <td className="border border-black text-center" style={{ padding: '0.4mm', textAlign: 'center', fontSize: '7pt' }}>{score.ca1 || 0}</td>
+                  <td className="border border-black text-center" style={{ padding: '0.4mm', textAlign: 'center', fontSize: '7pt' }}>{score.ca2 || 0}</td>
+                  <td className="border border-black text-center" style={{ padding: '0.4mm', textAlign: 'center', fontSize: '7pt' }}>{score.exam || 0}</td>
+                  <td className="border border-black text-center font-bold" style={{ padding: '0.4mm', textAlign: 'center', fontWeight: 'bold', fontSize: '7pt' }}>{score.total || 0}</td>
+                  <td className="border border-black text-center font-bold" style={{ padding: '0.4mm', textAlign: 'center', fontWeight: 'bold', fontSize: '7pt' }}>{gradeInfo.grade}</td>
+                  <td className="border border-black text-center" style={{ padding: '0.4mm', textAlign: 'center', fontSize: '4pt' }}>{gradeInfo.remark}</td>
                 </tr>
               );
             })
           ) : (
             <tr>
-              <td colSpan={12} className="border border-black p-2 text-center text-gray-500" style={{ padding: '2mm', fontSize: '8pt' }}>
+              <td colSpan={9} className="border border-black p-2 text-center text-gray-500" style={{ padding: '1.5mm', fontSize: '7pt' }}>
                 No scores available
               </td>
             </tr>
           )}
         </tbody>
       </table>
+      </div>
 
       {/* Score Summary */}
-      <table className="print-table w-full border-collapse border border-black" style={{ 
-        marginTop: '1mm', 
-        fontSize: '7pt',
-        pageBreakInside: 'avoid'
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1mm' }}>
+        <table className="print-table" style={{ 
+          marginTop: '0.8mm', 
+          fontSize: '6pt',
+          width: '95%',
+          borderCollapse: 'collapse',
+          border: '2px solid #2c3e50',
+          backgroundColor: '#f8f9fa',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          pageBreakInside: 'avoid'
+        }}>
         <tbody>
           <tr>
-            <td className="border border-black p-1" style={{ padding: '1mm', width: '25%', fontSize: '6pt' }}><b>TOTAL:</b> {result.total_score || '0.00'}</td>
-            <td className="border border-black p-1" style={{ padding: '1mm', width: '25%', fontSize: '6pt' }}><b>AVG:</b> {result.average_score || '0.00'}</td>
-            <td className="border border-black p-1" style={{ padding: '1mm', width: '25%', fontSize: '6pt' }}><b>CLASS AVG:</b> {result.class_average || '0.00'}</td>
-            <td className="border border-black p-1" style={{ padding: '1mm', width: '25%', fontSize: '6pt' }}><b>POS:</b> {result.position ? `${result.position}${result.position === 1 ? 'st' : result.position === 2 ? 'nd' : result.position === 3 ? 'rd' : 'th'}` : '___'}</td>
+            <td className="border border-black p-1" style={{ padding: '0.8mm', width: '25%', fontSize: '7pt' }}><b>TOTAL:</b> {result.total_score || '0.00'}</td>
+            <td className="border border-black p-1" style={{ padding: '0.8mm', width: '25%', fontSize: '7pt' }}><b>AVG:</b> {result.average_score || '0.00'}</td>
+            <td className="border border-black p-1" style={{ padding: '0.8mm', width: '25%', fontSize: '7pt' }}><b>CLASS AVG:</b> {result.class_average || '0.00'}</td>
+            {!studentClassData?.name?.toUpperCase().includes('CRECHE') && 
+             !studentClassData?.name?.toUpperCase().includes('KG1') && 
+             !studentClassData?.name?.toUpperCase().includes('KG2') &&
+             !studentClassData?.name?.toUpperCase().includes('KG 1') &&
+             !studentClassData?.name?.toUpperCase().includes('KG 2') &&
+             !studentClassData?.name?.toUpperCase().includes('KINDERGARTEN') && (
+              <td className="border border-black p-1" style={{ padding: '0.8mm', width: '25%', fontSize: '7pt' }}><b>POS:</b> {result.position ? `${result.position}${result.position === 1 ? 'st' : result.position === 2 ? 'nd' : result.position === 3 ? 'rd' : 'th'}` : '___'}</td>
+            )}
           </tr>
         </tbody>
       </table>
+      </div>
 
-      {/* Signature Section */}
-      <div className="print-section" style={{ marginTop: '3mm', marginBottom: '2mm' }}>
-        <div className="border border-black p-1" style={{ padding: '1mm', fontSize: '7pt' }}>
-          <p style={{ margin: '0.5mm 0', fontSize: '6pt' }}>
-            <b>CLASS TEACHER:</b> {getClassTeacherName()}
+      {/* Signature Section - Split Layout */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2mm', marginBottom: '1.5mm', gap: '2mm' }}>
+        {/* Class Teacher Section - Left Side */}
+        <div className="border border-black p-1" style={{ 
+          padding: '2mm', 
+          fontSize: '6pt',
+          width: '47%',
+          minHeight: '25mm',
+          border: '2px solid #2c3e50',
+          backgroundColor: '#f8f9fa',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          pageBreakInside: 'avoid',
+          overflow: 'visible'
+        }}>
+          <p style={{ margin: '0.3mm 0', fontSize: '7pt', fontWeight: 'bold', color: '#2c3e50' }}>
+            CLASS TEACHER
           </p>
-          <p style={{ margin: '0.5mm 0', fontSize: '6pt' }}>
-            <b>COMMENT:</b> {
-              // Class teacher comment should come from the compiled results or assessment
-              result?.class_teacher_comment || result?.comment || 'Good performance. Keep up the effort.'
+          <p style={{ margin: '0.3mm 0', fontSize: '7pt' }}>
+            <b>Name:</b> {getClassTeacherName()}
+          </p>
+          <p style={{ margin: '0.3mm 0', fontSize: '7pt', whiteSpace: 'pre-wrap', wordWrap: 'break-word', maxWidth: '100%', overflow: 'visible', lineHeight: '1.2' }}>
+            <b>Comment:</b> {
+              result?.class_teacher_comment || result?.comment || 'Teacher comment will appear here.'
             }
           </p>
-          <p style={{ margin: '0.5mm 0', fontSize: '6pt' }}>
-            <b>{studentClassData?.category === 'Primary' ? 'HEAD TEACHER:' : 'PRINCIPAL:'}</b> 
+        </div>
+
+        {/* Principal/Head Teacher Section - Right Side */}
+        <div className="border border-black p-1" style={{ 
+          padding: '2mm', 
+          fontSize: '6pt',
+          width: '47%',
+          minHeight: '30mm',
+          border: '2px solid #2c3e50',
+          backgroundColor: '#f8f9fa',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          pageBreakInside: 'avoid',
+          overflow: 'visible'
+        }}>
+          <p style={{ margin: '0.3mm 0', fontSize: '7pt', fontWeight: 'bold', color: '#2c3e50' }}>
+            {studentClassData?.category === 'Primary' ? 'HEAD TEACHER' : 'PRINCIPAL'}
+          </p>
+          <p style={{ margin: '0.3mm 0', fontSize: '7pt' }}>
+            <b>Name:</b> 
             {studentClassData?.category === 'Primary' 
-              ? ` ${schoolSettings?.head_teacher_name || '_________________'}`
+              ? ` ${schoolSettings?.head_teacher_name || '_________________'}` 
               : ` ${schoolSettings?.principal_name || '_________________'}`
             }
           </p>
-          <div style={{ margin: '0.5mm 0', fontSize: '6pt', display: 'flex', alignItems: 'center' }}>
-            <b style={{ marginRight: '2mm' }}>SIGNATURE:</b>
+          <p style={{ margin: '0.3mm 0', fontSize: '7pt', whiteSpace: 'pre-wrap', wordWrap: 'break-word', maxWidth: '100%', overflow: 'visible', lineHeight: '1.2' }}>
+            <b>Comment:</b> {
+              studentClassData?.category === 'Primary' 
+                ? (result?.principal_comment || schoolSettings?.head_teacher_comment || 'Head teacher comment will appear here.')
+                : (result?.principal_comment || schoolSettings?.principal_comment || 'Principal comment will appear here.')
+            }
+          </p>
+          <div style={{ marginTop: '1mm', marginBottom: '0.5mm', fontSize: '7pt' }}>
+            <b>Signature:</b>
+          </div>
+          <div style={{ 
+            borderBottom: '1px solid black', 
+            height: '8mm', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            position: 'relative'
+          }}>
             {studentClassData?.category === 'Primary' 
               ? (schoolSettings?.head_teacher_signature ? (
-                  <img src={schoolSettings.head_teacher_signature} alt="Head Teacher Signature" style={{ height: '8mm', maxHeight: '8mm' }} />
+                  <img 
+                    src={schoolSettings.head_teacher_signature} 
+                    alt="Head Teacher Signature" 
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '6mm', 
+                      objectFit: 'contain' 
+                    }} 
+                  />
                 ) : (
-                  <span>______________________</span>
+                  <span style={{ color: '#999', fontSize: '4pt' }}></span>
                 ))
               : (schoolSettings?.principal_signature ? (
-                  <img src={schoolSettings.principal_signature} alt="Principal Signature" style={{ height: '8mm', maxHeight: '8mm' }} />
+                  <img 
+                    src={schoolSettings.principal_signature} 
+                    alt="Principal Signature" 
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '6mm', 
+                      objectFit: 'contain' 
+                    }} 
+                  />
                 ) : (
-                  <span>______________________</span>
+                  <span style={{ color: '#999', fontSize: '4pt' }}></span>
                 ))
             }
           </div>
@@ -488,175 +677,138 @@ export function StudentResultCard({
       </div>
 
       {/* Affective and Psychomotor Domains */}
-      <div className="print-affective-psychomotor flex gap-1" style={{ 
-        padding: '1mm',
-        pageBreakInside: 'avoid'
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '2mm', marginBottom: '1mm', alignItems: 'flex-start' }}>
         {/* Affective Areas */}
-        <div className="flex-1">
+        <div style={{ width: '48%' }}>
           <div className="text-center mb-1">
-            <h3 className="font-bold underline" style={{ fontSize: '7pt', marginBottom: '0.5mm' }}>AFFECTIVE</h3>
+            <h3 className="font-bold underline" style={{ fontSize: '10pt', marginBottom: '0.5mm', color: '#2c3e50', letterSpacing: '1px' }}>AFFECTIVE</h3>
           </div>
-          <table className="print-table w-full border-collapse border border-black" style={{ 
-            fontSize: '5pt',
-            pageBreakInside: 'avoid'
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            border: '1px solid black',
+            fontSize: '6pt',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+            pageBreakInside: 'avoid',
+            tableLayout: 'fixed'
           }}>
             <thead>
-              <tr>
-                <th className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>QUALITY</th>
-                <th className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>SCORE</th>
-                <th className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>REMARK</th>
+              <tr style={{ backgroundColor: '#1a252f', color: 'white' }}>
+                <th className="border border-black" style={{ padding: '0.6mm', fontSize: '6pt', backgroundColor: '#1a252f', color: 'white', fontWeight: 'bold', width: '50%' }}>QUALITY</th>
+                <th className="border border-black" style={{ padding: '0.6mm', fontSize: '6pt', backgroundColor: '#1a252f', color: 'white', fontWeight: 'bold', width: '20%' }}>SCORE</th>
+                <th className="border border-black" style={{ padding: '0.6mm', fontSize: '6pt', backgroundColor: '#1a252f', color: 'white', fontWeight: 'bold', width: '30%' }}>REMARK</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>ATTENTIVE</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.affective?.attentiveness || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.affective?.attentiveness || 4)}</td>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('attentiveness')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.attentiveness || '4'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.attentiveness || 4)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>HONESTY</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.affective?.honesty || '3'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.affective?.honesty || 3)}</td>
+              <tr style={{ backgroundColor: 'white' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('honesty')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.honesty || '3'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.honesty || 3)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>NEATNESS</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.affective?.neatness || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.affective?.neatness || 4)}</td>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('neatness')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.neatness || '4'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.neatness || 4)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>OBEDIENT</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.affective?.obedience || '2'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.affective?.obedience || 2)}</td>
+              <tr style={{ backgroundColor: 'white' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('obedience')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.obedience || '2'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.obedience || 2)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>RESPONSIBLE</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.affective?.responsibility || '3'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.affective?.responsibility || 3)}</td>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('sense_of_responsibility')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.sense_of_responsibility || '3'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.sense_of_responsibility || 3)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* Psychomotor Skills */}
-        <div className="flex-1">
+        <div style={{ width: '48%' }}>
           <div className="text-center mb-1">
-            <h3 className="font-bold underline" style={{ fontSize: '7pt', marginBottom: '0.5mm' }}>PSYCHOMOTOR</h3>
+            <h3 className="font-bold underline" style={{ fontSize: '10pt', marginBottom: '0.5mm', color: '#2c3e50', letterSpacing: '1px' }}>PSYCHOMOTOR</h3>
           </div>
-          <table className="print-table w-full border-collapse border border-black" style={{ 
-            fontSize: '5pt',
-            pageBreakInside: 'avoid'
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            border: '1px solid black',
+            fontSize: '7pt',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+            pageBreakInside: 'avoid',
+            tableLayout: 'fixed'
           }}>
             <thead>
-              <tr>
-                <th className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>SKILL</th>
-                <th className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>SCORE</th>
-                <th className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>REMARK</th>
+              <tr style={{ backgroundColor: '#1a252f', color: 'white' }}>
+                <th className="border border-black" style={{ padding: '0.6mm', fontSize: '6pt', backgroundColor: '#1a252f', color: 'white', fontWeight: 'bold', width: '50%' }}>SKILL</th>
+                <th className="border border-black" style={{ padding: '0.6mm', fontSize: '6pt', backgroundColor: '#1a252f', color: 'white', fontWeight: 'bold', width: '20%' }}>SCORE</th>
+                <th className="border border-black" style={{ padding: '0.6mm', fontSize: '6pt', backgroundColor: '#1a252f', color: 'white', fontWeight: 'bold', width: '30%' }}>REMARK</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>ATTENTION</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.psychomotor?.attention_direction || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.psychomotor?.attention_direction || 4)}</td>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('attention_to_direction')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.attention_to_direction || '4'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.attention_to_direction || 4)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>CONSIDERATE</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.psychomotor?.considerate_others || '2'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.psychomotor?.considerate_others || 2)}</td>
+              <tr style={{ backgroundColor: 'white' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('considerate_of_others')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.considerate_of_others || '2'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.considerate_of_others || 2)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>HANDWRITING</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.psychomotor?.handwriting || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.psychomotor?.handwriting || 4)}</td>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('handwriting')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.handwriting || '4'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.handwriting || 4)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>SPORTS</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.psychomotor?.sports || '3'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.psychomotor?.sports || 3)}</td>
+              <tr style={{ backgroundColor: 'white' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('sports')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.sports || '3'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.sports || 3)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>VERBAL</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.psychomotor?.verbal_fluency || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.psychomotor?.verbal_fluency || 4)}</td>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('verbal_fluency')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.verbal_fluency || '4'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.verbal_fluency || 4)}</td>
               </tr>
-              <tr>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>INDEPENDENT</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '4pt' }}>{result.psychomotor?.independent_work || '5'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '4pt' }}>{getAffectiveRemark(result.psychomotor?.independent_work || 5)}</td>
+              <tr style={{ backgroundColor: 'white' }}>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('works_well_independently')}</td>
+                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.independent_work || '5'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.independent_work || 5)}</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Status and Actions */}
-      {showActions && (
-        <div className="p-4 bg-white border-t no-print">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Badge className={
-                result.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                result.status === 'Submitted' ? 'bg-blue-100 text-blue-800' :
-                result.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                'bg-gray-100 text-gray-800'
-              }>
-                {result.status || 'Draft'}
-              </Badge>
-              {!result.print_approved && currentUser?.role === 'admin' && (
-                <Badge className="bg-yellow-100 text-yellow-800">
-                  <AlertCircle className="w-3 h-3 mr-1" />
-                  Print Not Approved
-                </Badge>
-              )}
-              {result.print_approved && (
-                <Badge className="bg-green-100 text-green-800">
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                  Print Approved
-                </Badge>
-              )}
             </div>
-
-            <div className="flex items-center space-x-2 no-print">
-              {currentUser?.role === 'admin' && (
-                <>
-                  {!result.print_approved && onApprovePrint && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onApprovePrint?.(result.id)}
-                      className="text-purple-600 border-purple-600 hover:bg-purple-50"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Approve Print
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDownload?.(result.id)}
-                    className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download PDF
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onPrint?.(result.id)}
-                    className="text-green-600 border-green-600 hover:bg-green-50"
-                  >
-                    <Printer className="w-4 h-4 mr-2" />
-                    Print
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
     </div>
+    
+    {/* Action Buttons - Outside Print View */}
+    {showActions && (
+      <div className="no-print" style={{ textAlign: 'center', marginTop: '20px', marginBottom: '20px', padding: '10px' }}>
+        <Button 
+          onClick={handlePrint}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          style={{ marginRight: '8px' }}
+        >
+          Print Result (Ctrl+P)
+        </Button>
+        {onDownload && (
+          <Button 
+            onClick={() => onDownload(result.id)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+          >
+            Download PDF
+          </Button>
+        )}
+      </div>
+    )}
     </>
   );
 }

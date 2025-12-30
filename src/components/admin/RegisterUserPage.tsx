@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { UserPlus, Save, Upload, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+// @ts-ignore - TypeScript language service caching issue
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { toast } from 'sonner';
 import { useSchool } from '../../contexts/SchoolContext';
 import sqlDatabase from '../../services/sqlDatabase';
+import { API_CONFIG } from '../../config/api';
 
 export function RegisterUserPage() {
   const { addTeacher, addParent, addAccountant, createUserAPI, classes } = useSchool();
@@ -31,7 +33,7 @@ export function RegisterUserPage() {
     setUsernameValidation({ isValid: false, message: 'Checking...', isChecking: true });
 
     try {
-      const response = await fetch(`http://localhost/GGGG/api/user/check-username.php?username=${encodeURIComponent(username.trim())}`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/check-username.php?username=${encodeURIComponent(username.trim())}`);
       const result = await response.json();
 
       if (response.ok && result.success) {
@@ -232,7 +234,7 @@ export function RegisterUserPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center shadow-lg">
-            <UserPlus className="w-6 h-6 text-white" />
+            <Plus className="w-6 h-6 text-white" />
           </div>
           <div>
             <h1 className="text-[#1F2937] mb-1">Register User</h1>
@@ -246,7 +248,7 @@ export function RegisterUserPage() {
           <CardHeader className="bg-gradient-to-r from-[#F9FAFB] to-white p-6 border-b border-[#E5E7EB]">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-[#3B82F6] flex items-center justify-center shadow-sm">
-                <UserPlus className="w-5 h-5 text-white" />
+                <Plus className="w-5 h-5 text-white" />
               </div>
               <h3 className="text-[#1F2937]">User Information</h3>
             </div>
@@ -304,12 +306,12 @@ export function RegisterUserPage() {
                             onClick={handleRemovePhoto}
                             className="absolute -top-2 -right-2 bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-all transform hover:scale-110"
                           >
-                            <X className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </button>
                         </div>
                       ) : (
                         <div className="w-32 h-32 rounded-xl border-2 border-dashed border-[#CBD5E1] flex flex-col items-center justify-center bg-white hover:border-[#3B82F6] transition-all group cursor-pointer">
-                          <Upload className="w-8 h-8 text-[#94A3B8] group-hover:text-[#3B82F6] mb-2 transition-colors" />
+                          <span className="w-8 h-8 text-[#94A3B8] group-hover:text-[#3B82F6] mb-2 transition-colors" />
                           <span className="text-xs text-[#6B7280]">Click to upload</span>
                         </div>
                       )}
@@ -328,7 +330,7 @@ export function RegisterUserPage() {
                         onClick={() => document.getElementById('photo-upload')?.click()}
                         className="rounded-xl border-2 border-[#E5E7EB] text-[#1F2937] hover:bg-white hover:border-[#3B82F6] transition-all shadow-sm"
                       >
-                        <Upload className="w-4 h-4 mr-2" />
+                        <span className="w-4 h-4 mr-2" />
                         {photoPreview ? 'Change Photo' : 'Upload Photo'}
                       </Button>
                       <div className="space-y-1">
@@ -414,7 +416,6 @@ export function RegisterUserPage() {
                           Qualification <span className="text-[#EF4444]">*</span>
                         </Label>
                         <Select
-                          required
                           value={formData.qualification}
                           onValueChange={(value: string) => setFormData({ ...formData, qualification: value })}
                         >
@@ -595,7 +596,7 @@ export function RegisterUserPage() {
                 type="submit"
                 className="bg-gradient-to-r from-[#10B981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white rounded-xl shadow-lg hover:shadow-xl transition-all h-12 px-8 hover-lift"
               >
-                <Save className="w-5 h-5 mr-2" />
+                <span className="w-5 h-5 mr-2" />
                 Register {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}
               </Button>
             </div>

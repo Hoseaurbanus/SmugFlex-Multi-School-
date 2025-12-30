@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useEffect } from "react";
 import { useSchool } from "../contexts/SchoolContext";
 
 interface StudentResultSheetProps {
@@ -20,8 +20,17 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
       subjectAssignments,
       schoolSettings,
       subjectRegistrations,
+      subjects,
       teachers,
+      loadSchoolSettings,
     } = useSchool();
+
+    // Ensure school settings are loaded
+    useEffect(() => {
+      if (!schoolSettings?.resumption_date) {
+        loadSchoolSettings();
+      }
+    }, [schoolSettings?.resumption_date, loadSchoolSettings]);
 
     // Get student
     const student = students.find((s) => s.id === studentId);
@@ -33,19 +42,23 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
         r.student_id === studentId &&
         r.term === term &&
         r.academic_year === academicYear &&
-        r.status === "Approved"
+        (r.status === "Approved" || r.status === "Submitted")
     );
 
     if (!compiledResult) {
       return (
         <div className="p-8 text-center bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-600">No approved result available for this term</p>
+          <p className="text-gray-600">No result available for this term</p>
         </div>
       );
     }
 
     // Get class info
     const studentClass = classes.find((c) => c.id === student.class_id);
+
+    // Check if class should show position (not for early childhood classes)
+    const shouldShowPosition = studentClass?.name && 
+      !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 1 (SARDIUS)', 'KG 1 (SARDONYX)', 'KG 2 (SARDIUS)', 'KG 2 (SARDONYX)'].includes(studentClass.name.toUpperCase());
 
     // Get all registered subjects for this student's class and term
     const registeredSubjects = subjectRegistrations.filter(
@@ -55,36 +68,16 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
             sr.status === 'Active'
     );
 
-    // Get all scores for this student and term, but only include registered subjects
-    const allStudentScores = compiledResult.scores || [];
-    const studentScores = allStudentScores.filter(score => 
-      registeredSubjects.some((rs: any) => 
-        subjectAssignments.some(sa => 
-          sa.id === score.subject_assignment_id && 
-          sa.subject_id === rs.subject_id
-        )
-      )
-    );
+    // Get student scores from compiled result (approved real data)
+    const studentScores = compiledResult.scores || [];
 
-    // Get affective and psychomotor domains for this student
-    const affectiveDomain = affectiveDomains.find(ad => 
-      ad.student_id === studentId && 
-      ad.term === term && 
-      ad.academic_year === academicYear
-    );
-    const psychomotorDomain = psychomotorDomains.find(pd => 
-      pd.student_id === studentId && 
-      pd.term === term && 
-      pd.academic_year === academicYear
-    );
-    const totalScore = studentScores.reduce((sum, s) => sum + s.total, 0);
-    const studentAverage = (studentScores || []).length > 0
-      ? Math.round((totalScore / (studentScores || []).length) * 100) / 100
-      : 0;
-
-    // Get affective and psychomotor
+    // Get affective and psychomotor from approved compiled result only
     const affective = compiledResult.affective;
     const psychomotor = compiledResult.psychomotor;
+    
+    // Calculate total score and average from compiled result data
+    const totalScore = compiledResult.total_score || 0;
+    const studentAverage = compiledResult.average_score || 0;
 
     // Format dates
     const formatDate = (dateStr: string) => {
@@ -106,452 +99,512 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
       return "";
     };
 
-    // Calculate next term dates
+    // Helper function to convert database field names to complete readable names
+    const getDomainName = (key: string): string => {
+      // Affective domain mappings
+      const affectiveMappings: Record<string, string> = {
+        'attentiveness': 'Attentiveness',
+        'honesty': 'Honesty',
+        'neatness': 'Neatness',
+        'obedience': 'Obedience',
+        'sense_of_responsibility': 'Sense of Responsibility'
+      };
+
+      // Psychomotor domain mappings
+      const psychomotorMappings: Record<string, string> = {
+        'attention_to_direction': 'Attention to Direction',
+        'considerate_of_others': 'Considerate of Others',
+        'handwriting': 'Handwriting',
+        'sports': 'Sports',
+        'verbal_fluency': 'Verbal Fluency',
+        'works_well_independently': 'Works Well Independently'
+      };
+
+      // Return the mapped name or format the key as fallback
+      return affectiveMappings[key] || psychomotorMappings[key] || key.replace(/_/g, ' ').replace(/(?:^|\s)\S/g, a => a.toUpperCase());
+    };
+
+    // Get next term date from database
     const getNextTermBegin = () => {
-      if (term === "First Term") return "15-SEP-2025";
-      if (term === "Second Term") return "08-JAN-2026";
-      if (term === "Third Term") return "15-APR-2026";
-      return "";
+      return schoolSettings?.resumption_date || '';
     };
 
     return (
-      <div ref={ref} className={`bg-white p-8 ${className}`} style={{ fontFamily: "Arial, sans-serif" }}>
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap');
+          
+          @media print {
+            @page {
+              size: A4;
+              margin: 0mm;
+            }
+            
+            body {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: white !important;
+              font-size: 8pt !important;
+            }
+            
+            .print-container {
+              box-shadow: none !important;
+              border: 1px solid #000 !important;
+              margin: 0 !important;
+              padding: 8mm !important;
+              width: 210mm !important;
+              height: 297mm !important;
+              overflow: hidden !important;
+              background: white !important;
+              position: relative !important;
+              font-size: 7pt !important;
+              line-height: 0.9 !important;
+              box-sizing: border-box !important;
+            }
+            
+            .print-container * {
+              font-size: 8pt !important;
+              line-height: 1.0 !important;
+            }
+            
+            .print-container table {
+              font-size: 7pt !important;
+            }
+            
+            .print-container th,
+            .print-container td {
+              padding: 2px !important;
+              font-size: 7pt !important;
+            }
+            
+            .no-print {
+              display: none !important;
+            }
+            
+            /* Ensure all sections maintain their layout */
+            header {
+              display: flex !important;
+              justify-content: space-between !important;
+              align-items: center !important;
+              border-bottom: 4px solid #4A90E2 !important;
+              padding-bottom: 12px !important;
+              margin-bottom: 16px !important;
+              page-break-inside: avoid !important;
+            }
+            
+            header > div:first-child {
+              display: flex !important;
+              align-items: center !important;
+            }
+            
+            header img {
+              width: 60px !important;
+              height: 60px !important;
+              margin-right: 16px !important;
+            }
+            
+            header h1 {
+              font-family: 'Playfair Display', serif !important;
+              color: #333 !important;
+              font-size: 20pt !important;
+              font-weight: 700 !important;
+              margin: 0 !important;
+            }
+            
+            header p {
+              color: #555 !important;
+              font-size: 10pt !important;
+              margin: 4px 0 0 !important;
+            }
+            
+            /* Student info section */
+            section:first-of-type {
+              display: flex !important;
+              justify-content: space-between !important;
+              align-items: flex-start !important;
+              margin-bottom: 16px !important;
+              page-break-inside: avoid !important;
+            }
+            
+            section:first-of-type > div:first-child {
+              display: flex !important;
+              align-items: center !important;
+            }
+            
+            section:first-of-type img {
+              width: 70px !important;
+              height: 90px !important;
+              border-radius: 8px !important;
+              margin-right: 16px !important;
+              border: 2px solid #4A90E2 !important;
+            }
+            
+            section:first-of-type h2 {
+              font-family: 'Inter', sans-serif !important;
+              color: #333 !important;
+              font-size: 16pt !important;
+              font-weight: 600 !important;
+              margin: 0 0 4px !important;
+            }
+            
+            section:first-of-type p {
+              color: #666 !important;
+              font-size: 9pt !important;
+              margin: 2px 0 !important;
+            }
+            
+            section:first-of-type div:last-child {
+              font-size: 9pt !important;
+              color: #333 !important;
+              text-align: right !important;
+            }
+            
+            /* Tables maintain their structure */
+            table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              font-size: 9pt !important;
+              page-break-inside: avoid !important;
+            }
+            
+            th {
+              background-color: #4A90E2 !important;
+              color: white !important;
+              padding: 5px !important;
+              border: 1px solid #ddd !important;
+              text-align: left !important;
+              font-weight: 600 !important;
+              font-size: 9pt !important;
+            }
+            
+            td {
+              padding: 4px 5px !important;
+              border: 1px solid #ddd !important;
+              vertical-align: top !important;
+              font-size: 9pt !important;
+            }
+            
+            /* Psychomotor and Affective tables */
+            .psychomotor-affective {
+              display: flex !important;
+              gap: 16px !important;
+              margin-bottom: 16px !important;
+              page-break-inside: avoid !important;
+            }
+            
+            .psychomotor-affective > div {
+              flex: 1 !important;
+            }
+            
+            .psychomotor-affective table {
+              font-size: 8pt !important;
+            }
+            
+            .psychomotor-affective th {
+              padding: 3px !important;
+              font-size: 8pt !important;
+            }
+            
+            .psychomotor-affective td {
+              padding: 2px 3px !important;
+              font-size: 8pt !important;
+            }
+            
+            /* Comments section */
+            .comments-section {
+              margin-bottom: 16px !important;
+              page-break-inside: avoid !important;
+            }
+            
+            .comments-section table {
+              font-size: 9pt !important;
+            }
+            
+            .comments-section th {
+              background-color: #4A90E2 !important;
+              color: white !important;
+              padding: 5px !important;
+              font-size: 9pt !important;
+            }
+            
+            .comments-section td {
+              padding: 5px !important;
+              font-size: 9pt !important;
+            }
+            
+            /* Footer section */
+            footer {
+              display: flex !important;
+              justify-content: space-between !important;
+              align-items: flex-end !important;
+              margin-top: 16px !important;
+              page-break-inside: avoid !important;
+            }
+            
+            footer > div {
+              width: 33% !important;
+              text-align: center !important;
+            }
+            
+            footer img {
+              height: 35px !important;
+              margin: 0 auto 8px !important;
+            }
+            
+            footer p {
+              border-top: 1px solid #333 !important;
+              padding-top: 4px !important;
+              margin: 0 !important;
+              font-size: 8pt !important;
+            }
+            
+            footer div:last-child p {
+              margin: 0 !important;
+              font-style: italic !important;
+              border-top: 2px solid #4A90E2 !important;
+              padding-top: 6px !important;
+            }
+            
+            /* Watermark */
+            .print-container > div:first-child {
+              position: absolute !important;
+              top: 50% !important;
+              left: 50% !important;
+              transform: translate(-50%, -50%) !important;
+              width: 100% !important;
+              height: 100% !important;
+              z-index: 0 !important;
+            }
+            
+            .print-container > div:nth-child(2) {
+              position: relative !important;
+              z-index: 1 !important;
+            }
+            
+            /* Prevent page breaks inside important elements */
+            h1, h2, h3, table, .psychomotor-affective, .comments-section, header, footer {
+              page-break-inside: avoid !important;
+            }
+          }
+        `}</style>
+        <div id={`student-result-${studentId}-${term}-${academicYear}`} ref={ref} className={`print-container bg-white ${className}`} style={{ fontFamily: "'Inter', sans-serif", width: '210mm', height: '297mm', margin: '0', padding: '8mm', fontSize: '11px', boxSizing: 'border-box', border: '1px solid #000' }}>
+          {/* Watermark */}
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            backgroundImage: `url("${schoolSettings?.school_logo_url || "/assets/school-logo.svg"}")`,
+            backgroundSize: '120mm',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            opacity: 0.05,
+            zIndex: 0,
+            width: '100%',
+            height: '100%'
+          }} />
+          
+          <div style={{ position: 'relative', zIndex: 1 }}>
         {/* Header Section */}
-        <div className="text-center mb-6 border-b-2 border-green-600 pb-4">
-          <div className="flex justify-center mb-2">
-            <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center">
-              <span className="text-2xl">🎓</span>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '4px solid #4A90E2', paddingBottom: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {/* School Logo with robust error handling */}
+            <div style={{ 
+              width: '70px', 
+              height: '70px', 
+              marginRight: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#f8f9fa',
+              border: '1px solid #e9ecef',
+              borderRadius: '4px'
+            }}>
+              <img 
+                src={schoolSettings?.school_logo_url || "/assets/school-logo.svg"} 
+                alt="School Logo" 
+                style={{ 
+                  width: '60px', 
+                  height: '60px', 
+                  objectFit: 'contain',
+                  backgroundColor: 'transparent'
+                }} 
+                onError={(e) => {
+                  console.error('Logo load error:', e);
+                  const target = e.target as HTMLImageElement;
+                  // Remove error state and show fallback
+                  target.style.display = 'none';
+                  // Create text fallback
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector('.logo-fallback')) {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'logo-fallback';
+                    fallback.style.cssText = `
+                      font-size: 12px;
+                      font-weight: bold;
+                      color: #333;
+                      text-align: center;
+                      line-height: 60px;
+                    `;
+                    fallback.textContent = 'SCHOOL LOGO';
+                    parent.appendChild(fallback);
+                  }
+                }}
+                onLoad={() => {
+                  console.log('Logo loaded successfully from:', schoolSettings?.school_logo_url || "/assets/school-logo.svg");
+                }}
+              />
+            </div>
+            <div>
+              <h1 style={{ fontFamily: "'Playfair Display', serif", color: '#333', fontSize: '24px', fontWeight: 700, margin: 0 }}>{schoolSettings?.school_name || ''}</h1>
+              <p style={{ color: '#555', fontSize: '12px', margin: '4px 0 0' }}>{schoolSettings?.school_address || ''}</p>
             </div>
           </div>
-          <h1 className="text-green-600 font-bold text-2xl mb-1">
-            {schoolSettings?.school_name || 'GRACELAND ROYAL ACADEMY'}
-          </h1>
-          <p className="text-sm text-gray-700 mb-1">
-            {schoolSettings?.school_address || 'BEHIND HAKIM PALACE OPPOSITE NNPC DEPOT TUNFURE, GOMBE'}
-          </p>
-          <p className="text-sm text-gray-600">
-            {schoolSettings?.school_email || 'gracelandroyalacademy05@gmail.com'}
-          </p>
-        </div>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ color: '#333', fontSize: '14px', fontWeight: 600, margin: 0 }}>Student Progress Report</p>
+            <p style={{ color: '#555', fontSize: '12px', margin: '4px 0 0' }}>{schoolSettings?.school_email || ''} | {schoolSettings?.school_phone || ''}</p>
+          </div>
+        </header>
 
         {/* Student Info Section */}
-        <div className="grid grid-cols-12 gap-4 mb-6">
-          {/* Student Photo */}
-          <div className="col-span-2">
-            <div className="w-24 h-28 border-2 border-gray-300 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-              {student.photo_url ? (
-                <img
-                  src={student.photo_url}
-                  alt={`${student.firstName} ${student.lastName}`}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-4xl text-gray-400">👤</span>
-              )}
+        <section style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <div style={{ display: 'flex' }}>
+            <div style={{ width: '80px', height: '100px', border: '2px solid #ddd', borderRadius: '8px', overflow: 'hidden', marginRight: '8px' }}>
+              <img src={student.photo_url || ''} alt="Student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+            <div style={{ fontSize: '11px', color: '#333' }}>
+              <p style={{ margin: '0 0 3px' }}><strong>Name:</strong> {student.firstName} {student.lastName}</p>
+              <p style={{ margin: '0 0 3px' }}><strong>Admission No:</strong> {student.admissionNumber}</p>
+              <p style={{ margin: '0 0 3px' }}><strong>Class:</strong> {studentClass?.name || student.className}</p>
+              <p style={{ margin: '0 0 3px' }}><strong>Gender:</strong> {student.gender}</p>
+              <p style={{ margin: 0 }}><strong>Date of Birth:</strong> {formatDate(student.date_of_birth)}</p>
             </div>
           </div>
-
-          {/* Student Details - Left Column */}
-          <div className="col-span-5">
-            <table className="w-full text-sm">
-              <tbody>
-                <tr>
-                  <td className="py-1 font-medium">NAME:</td>
-                  <td className="py-1 font-bold">
-                    {student.firstName.toUpperCase()} {student.lastName.toUpperCase()}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-1 font-medium">ADM NO:</td>
-                  <td className="py-1">{student.admissionNumber}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 font-medium">GENDER:</td>
-                  <td className="py-1">{student.gender.toUpperCase()}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 font-medium">AGE:</td>
-                  <td className="py-1">{student.date_of_birth ? new Date().getFullYear() - new Date(student.date_of_birth).getFullYear() : 'N/A'}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 font-medium">DOB:</td>
-                  <td className="py-1">{formatDate(student.date_of_birth)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div style={{ fontSize: '11px', color: '#333', textAlign: 'right' }}>
+            <p style={{ margin: '0 0 3px' }}><strong>Session:</strong> {academicYear}</p>
+            <p style={{ margin: '0 0 3px' }}><strong>Term:</strong> {term}</p>
+            <p style={{ margin: '0 0 3px' }}><strong>No. in Class:</strong> {compiledResult.total_students}</p>
+            <p style={{ margin: '0 0 3px' }}><strong>Attendance:</strong> {compiledResult.times_present || 0} / {compiledResult.total_attendance_days || 0} days</p>
+            <p style={{ margin: 0 }}><strong>Next Term Begins:</strong> {getNextTermBegin()}</p>
           </div>
-
-          {/* Student Details - Right Column */}
-          <div className="col-span-5">
-            <table className="w-full text-sm">
-              <tbody>
-                <tr>
-                  <td className="py-1 font-medium">SESSION:</td>
-                  <td className="py-1">{academicYear}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 font-medium">TERM:</td>
-                  <td className="py-1 uppercase">{term}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 font-medium">CLASS:</td>
-                  <td className="py-1">{studentClass?.name || student.className}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 font-medium">NO. OF TIMES PRESENT:</td>
-                  <td className="py-1">
-                    Attendance: {compiledResult.times_present || 0}/{compiledResult.total_attendance_days || 0}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="col-span-12 text-right text-sm">
-            <span className="font-medium">NO. IN CLASS:</span>{" "}
-            <span className="font-bold">{compiledResult.total_students}</span>
-            <br />
-            <span className="font-medium">TERM END:</span>{" "}
-            <span>{formatDate(compiledResult.term_end) || "25-JUL-2025"}</span>
-            <br />
-            <span className="font-medium">NEXT TERM BEGIN:</span>{" "}
-            <span>{compiledResult.next_term_begin || getNextTermBegin()}</span>
-          </div>
-        </div>
-
-        {/* Result Table Header */}
-        <div className="text-center mb-2">
-          <h2 className="font-bold text-sm uppercase">{term} Result Sheet</h2>
-        </div>
+        </section>
 
         {/* Main Result Table */}
-        <div className="mb-6 border border-gray-800">
-          <table className="w-full text-xs border-collapse">
+        <section style={{ marginBottom: '12px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
             <thead>
-              <tr className="bg-gray-100 border-b border-gray-800">
-                <th className="border-r border-gray-800 p-1 text-left" style={{ width: "3%" }}>
-                  S/N
-                </th>
-                <th className="border-r border-gray-800 p-1 text-left" style={{ width: "15%" }}>
-                  SUBJECT
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "5%" }}>
-                  1st CA
-                  <br />
-                  <span className="font-normal">20</span>
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "5%" }}>
-                  2nd CA
-                  <br />
-                  <span className="font-normal">20</span>
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "5%" }}>
-                  Exams
-                  <br />
-                  <span className="font-normal">60</span>
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "6%" }}>
-                  TOTAL
-                  <br />
-                  <span className="font-normal">100</span>
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "6%" }}>
-                  CLASS AVG
-                  <br />
-                  <span className="font-normal">100%</span>
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "5%" }}>
-                  GRADE
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "10%" }}>
-                  REMARK
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "6%" }}>
-                  CLASS MIN
-                  <br />
-                  <span className="font-normal">0</span>
-                </th>
-                <th className="border-r border-gray-800 p-1 text-center" style={{ width: "6%" }}>
-                  CLASS MAX
-                  <br />
-                  <span className="font-normal">100</span>
-                </th>
-                <th className="border-gray-800 p-1 text-center" style={{ width: "18%" }}>
-                  SUBJECT
-                  <br />
-                  TEACHERS
-                </th>
+              <tr style={{ backgroundColor: '#4A90E2', color: 'white' }}>
+                <th style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'left' }}>Subject</th>
+                {!studentClass?.name?.toUpperCase().includes('CRECHE') && (
+                  <>
+                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>CA1 (20)</th>
+                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>CA2 (20)</th>
+                  </>
+                )}
+                <th style={{ padding: '8px', border: '1px solid #ddd' }}>Exam ({studentClass?.name?.toUpperCase().includes('CRECHE') ? '100' : '60'})</th>
+                <th style={{ padding: '8px', border: '1px solid #ddd' }}>Total (100)</th>
+                <th style={{ padding: '8px', border: '1px solid #ddd' }}>Grade</th>
+                <th style={{ padding: '8px', border: '1px solid #ddd' }}>Remark</th>
               </tr>
             </thead>
             <tbody>
               {studentScores.map((score, index) => (
-                <tr key={index} className="border-b border-gray-800">
-                  <td className="border-r border-gray-800 p-1 text-center">{index + 1}</td>
-                  <td className="border-r border-gray-800 p-1 font-medium">
-                    {score.subject_name?.toUpperCase() || 'UNKNOWN'}
-                  </td>
-                  <td className="border-r border-gray-800 p-1 text-center">{score.ca1}</td>
-                  <td className="border-r border-gray-800 p-1 text-center">{score.ca2}</td>
-                  <td className="border-r border-gray-800 p-1 text-center">{score.exam}</td>
-                  <td className="border-r border-gray-800 p-1 text-center font-bold">
-                    {score.total}
-                  </td>
-                  <td className="border-r border-gray-800 p-1 text-center">
-                    {score.class_average}
-                  </td>
-                  <td className="border-r border-gray-800 p-1 text-center font-bold">
-                    {score.grade}
-                  </td>
-                  <td className="border-r border-gray-800 p-1 text-center">{score.remark}</td>
-                  <td className="border-r border-gray-800 p-1 text-center">
-                    {score.class_min}
-                  </td>
-                  <td className="border-r border-gray-800 p-1 text-center">
-                    {score.class_max}
-                  </td>
-                  <td className="border-gray-800 p-1 text-center">
-                    {score.entered_by ? (() => {
-                      const teacher = teachers.find(t => t.id === score.entered_by);
-                      return teacher ? `${teacher.firstName} ${teacher.lastName}` : 'N/A';
-                    })() : 'N/A'}
-                  </td>
+                <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white' }}>
+                  <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 500, fontSize: '10px' }}>{score.subject_name || 'UNKNOWN'}</td>
+                  {!studentClass?.name?.toUpperCase().includes('CRECHE') && (
+                    <>
+                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.ca1}</td>
+                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.ca2}</td>
+                    </>
+                  )}
+                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.exam}</td>
+                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 700, fontSize: '10px' }}>{score.total}</td>
+                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 700, fontSize: '10px' }}>{score.grade}</td>
+                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.remark}</td>
                 </tr>
               ))}
-
-              {/* Total Row */}
-              <tr className="bg-gray-100 font-bold border-b border-gray-800">
-                <td colSpan={5} className="border-r border-gray-800 p-1">
-                  TOTAL SCORE: <span className="ml-2">{totalScore.toFixed(1)}</span>
-                </td>
-                <td colSpan={2} className="border-r border-gray-800 p-1">
-                  STUDENT AVERAGE: <span className="ml-2">{studentAverage}</span>
-                </td>
-                <td colSpan={3} className="border-r border-gray-800 p-1">
-                  CLASS AVERAGE: <span className="ml-2">{compiledResult.class_average.toFixed(1)}</span>
-                </td>
-                <td colSpan={2} className="border-gray-800 p-1">
-                  STUDENT POSITION:{" "}
-                  <span className="ml-2">
-                    {compiledResult.position}
-                    {compiledResult.position === 1
-                      ? "st"
-                      : compiledResult.position === 2
-                      ? "nd"
-                      : compiledResult.position === 3
-                      ? "rd"
-                      : "th"}
-                  </span>
-                </td>
-              </tr>
             </tbody>
           </table>
-        </div>
+        </section>
 
-        {/* Comments Section */}
-        <div className="mb-6 border border-gray-800">
-          <table className="w-full text-xs">
-            <tbody>
-              <tr className="border-b border-gray-800">
-                <td className="border-r border-gray-800 p-2 font-bold bg-gray-100" style={{ width: "20%" }}>
-                  CLASS TEACHER
-                </td>
-                <td className="p-2 font-medium">{compiledResult.class_teacher_name}</td>
-              </tr>
-              <tr className="border-b border-gray-800">
-                <td className="border-r border-gray-800 p-2 font-bold bg-gray-100">
-                  CLASS TEACHER'S COMMENT
-                </td>
-                <td className="p-2">{compiledResult.class_teacher_comment}</td>
-              </tr>
-              <tr className="border-b border-gray-800">
-                <td className="border-r border-gray-800 p-2 font-bold bg-gray-100">
-                  PRINCIPAL
-                </td>
-                <td className="p-2 font-medium">{compiledResult.principal_name || "PRINCIPAL"}</td>
-              </tr>
-              <tr className="border-b border-gray-800">
-                <td className="border-r border-gray-800 p-2 font-bold bg-gray-100">
-                  PRINCIPAL'S COMMENT
-                </td>
-                <td className="p-2">{compiledResult.principal_comment || "Keep up the good work."}</td>
-              </tr>
-              <tr className="border-b border-gray-800">
-                <td className="border-r border-gray-800 p-2 font-bold bg-gray-100">
-                  PRINCIPAL'S SIGNATURE
-                </td>
-                <td className="p-2">
-                  {compiledResult.principal_signature ? (
-                    <img
-                      src={compiledResult.principal_signature}
-                      alt="Signature"
-                      className="h-8"
-                    />
-                  ) : (
-                    <div className="h-8 flex items-center">
-                      <span className="text-gray-400 italic">_________________</span>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        {/* Summary & Comments Section */}
+        <section style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '11px' }}>
+          <div style={{ width: '65%' }}>
+            <div style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '10px' }}>
+              <p style={{ margin: '0 0 6px' }}><strong>Class Teacher's Comment:</strong> <span style={{ fontStyle: 'italic' }}>{compiledResult.class_teacher_comment}</span></p>
+              <p style={{ margin: 0 }}><strong>{studentClass?.name?.includes('JSS') ? 'Principal' : 'Head Teacher'}'s Comment:</strong> <span style={{ fontStyle: 'italic' }}>{studentClass?.name?.includes('JSS') ? (compiledResult.principal_comment || '') : (compiledResult.principal_comment || '')}</span></p>
+            </div>
+          </div>
+          <div style={{ width: '33%', border: '1px solid #ddd', borderRadius: '8px', padding: '10px', backgroundColor: '#f9f9f9' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: 600, color: '#333' }}>Performance Summary</h3>
+            <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Total Score:</span> <strong>{totalScore.toFixed(1)}</strong></p>
+            <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Student Average:</span> <strong>{studentAverage.toFixed(1)}%</strong></p>
+            <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Class Average:</span> <strong>{compiledResult.class_average.toFixed(1)}%</strong></p>
+            {shouldShowPosition && (
+              <p style={{ margin: 0, display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Position in Class:</span> <strong>{compiledResult.position} / {compiledResult.total_students}</strong></p>
+            )}
+          </div>
+        </section>
 
         {/* Affective and Psychomotor Section */}
-        <div className="grid grid-cols-2 gap-4">
-          {/* Affective Areas */}
-          <div className="border border-gray-800">
-            <div className="bg-gray-100 border-b border-gray-800 p-2 text-center font-bold text-xs">
-              AFFECTIVE AREAS
-            </div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-800 bg-gray-50">
-                  <th className="border-r border-gray-800 p-1 text-left">
-                    PERSONAL & SOCIAL QUALITIES
-                  </th>
-                  <th className="border-r border-gray-800 p-1 text-center" style={{ width: "15%" }}>
-                    SCORES
-                  </th>
-                  <th className="p-1 text-center" style={{ width: "25%" }}>
-                    REMARK
-                  </th>
-                </tr>
-              </thead>
+        <section style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '11px' }}>
+          {/* Affective */}
+          <div style={{ width: '49%' }}>
+            <h3 style={{ backgroundColor: '#2c3e50', color: 'white', padding: '6px', borderRadius: '4px 4px 0 0', margin: 0, fontSize: '11px', textAlign: 'center', fontWeight: 'bold' }}>Affective Domain</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #2c3e50', fontSize: '10px' }}>
+              <thead><tr style={{ backgroundColor: '#34495e', color: 'white' }}><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'left', fontSize: '10px', fontWeight: 'bold' }}>Trait</th><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>Rating</th></tr></thead>
               <tbody>
-                {affective && (
-                  <>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">ATTENTIVENESS</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {affective.attentiveness}
-                      </td>
-                      <td className="p-1 text-center">
-                        {getRatingRemark(affective.attentiveness)}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">HONESTY</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {affective.honesty}
-                      </td>
-                      <td className="p-1 text-center">{getRatingRemark(affective.honesty)}</td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">NEATNESS</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {affective.neatness}
-                      </td>
-                      <td className="p-1 text-center">{getRatingRemark(affective.neatness)}</td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">OBEDIENCE</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {affective.obedience}
-                      </td>
-                      <td className="p-1 text-center">{getRatingRemark(affective.obedience)}</td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">SENSE OF RESPONSIBILITY</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {affective.sense_of_responsibility}
-                      </td>
-                      <td className="p-1 text-center">
-                        {getRatingRemark(affective.sense_of_responsibility)}
-                      </td>
-                    </tr>
-                  </>
-                )}
+                {affective ? Object.entries(affective).filter(([key]) => !['_remark', 'id', 'student_id', 'class_id', 'term', 'academic_year', 'entered_by', 'entered_date'].some(k => key.includes(k))).map(([key, value], i) => (
+                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f8f9fa' : 'white' }}><td style={{ padding: '3px 6px', border: '1px solid #ddd', fontSize: '9px', fontWeight: '500' }}>{getDomainName(key)}</td><td style={{ padding: '3px 6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '9px', fontWeight: 'bold' }}>{value}</td></tr>
+                )) : <tr><td colSpan={2} style={{ padding: '6px', textAlign: 'center', fontSize: '9px', color: '#666' }}>No data</td></tr>}
               </tbody>
             </table>
           </div>
-
-          {/* Psychomotor Skills */}
-          <div className="border border-gray-800">
-            <div className="bg-gray-100 border-b border-gray-800 p-2 text-center font-bold text-xs">
-              PSYCHOMOTOR SKILLS
-            </div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-800 bg-gray-50">
-                  <th className="border-r border-gray-800 p-1 text-left">
-                    PERSONAL & SOCIAL QUALITIES
-                  </th>
-                  <th className="border-r border-gray-800 p-1 text-center" style={{ width: "15%" }}>
-                    SCORES
-                  </th>
-                  <th className="p-1 text-center" style={{ width: "25%" }}>
-                    REMARK
-                  </th>
-                </tr>
-              </thead>
+          {/* Psychomotor */}
+          <div style={{ width: '49%' }}>
+            <h3 style={{ backgroundColor: '#2c3e50', color: 'white', padding: '6px', borderRadius: '4px 4px 0 0', margin: 0, fontSize: '11px', textAlign: 'center', fontWeight: 'bold' }}>Psychomotor Domain</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #2c3e50', fontSize: '10px' }}>
+              <thead><tr style={{ backgroundColor: '#34495e', color: 'white' }}><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'left', fontSize: '10px', fontWeight: 'bold' }}>Skill</th><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>Rating</th></tr></thead>
               <tbody>
-                {psychomotor && (
-                  <>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">ATTENTION TO DIRECTION</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {psychomotor.attention_to_direction}
-                      </td>
-                      <td className="p-1 text-center">
-                        {getRatingRemark(psychomotor.attention_to_direction)}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">CONSIDERATE OF OTHERS</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {psychomotor.considerate_of_others}
-                      </td>
-                      <td className="p-1 text-center">
-                        {getRatingRemark(psychomotor.considerate_of_others)}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">HANDWRITING</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {psychomotor.handwriting}
-                      </td>
-                      <td className="p-1 text-center">
-                        {getRatingRemark(psychomotor.handwriting)}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">SPORTS</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {psychomotor.sports}
-                      </td>
-                      <td className="p-1 text-center">{getRatingRemark(psychomotor.sports)}</td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">VERBAL FLUENCY</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {psychomotor.verbal_fluency}
-                      </td>
-                      <td className="p-1 text-center">
-                        {getRatingRemark(psychomotor.verbal_fluency)}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-800">
-                      <td className="border-r border-gray-800 p-1">WORKS WELL INDEPENDENTLY</td>
-                      <td className="border-r border-gray-800 p-1 text-center">
-                        {psychomotor.works_well_independently}
-                      </td>
-                      <td className="p-1 text-center">
-                        {getRatingRemark(psychomotor.works_well_independently)}
-                      </td>
-                    </tr>
-                  </>
-                )}
+                {psychomotor ? Object.entries(psychomotor).filter(([key]) => !['_remark', 'id', 'student_id', 'class_id', 'term', 'academic_year', 'entered_by', 'entered_date'].some(k => key.includes(k))).map(([key, value], i) => (
+                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f8f9fa' : 'white' }}><td style={{ padding: '3px 6px', border: '1px solid #ddd', fontSize: '9px', fontWeight: '500' }}>{getDomainName(key)}</td><td style={{ padding: '3px 6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '9px', fontWeight: 'bold' }}>{value}</td></tr>
+                )) : <tr><td colSpan={2} style={{ padding: '6px', textAlign: 'center', fontSize: '9px', color: '#666' }}>No data</td></tr>}
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
 
-        {/* Footer/Watermark */}
-        <div className="text-center text-xs text-gray-500 mt-4">
-          <p className="italic">{schoolSettings?.school_motto || 'Wisdom & Illumination'}</p>
+        {/* Grading Key and Footer */}
+        <footer style={{ marginTop: '16px', fontSize: '10px', color: '#333' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ width: '65%' }}>
+              <h3 style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: 600 }}>Grading Key</h3>
+              <p style={{ margin: '0 0 4px' }}>A: 80-100 (Excellent)</p>
+              <p style={{ margin: '0 0 4px' }}>B: 70-79 (Very Good)</p>
+              <p style={{ margin: '0 0 4px' }}>C: 60-69 (Good)</p>
+              <p style={{ margin: '0 0 4px' }}>D: 50-59 (Fair)</p>
+              <p style={{ margin: '0 0 4px' }}>E: 40-49 (Pass)</p>
+              <p style={{ margin: 0 }}>F: 0-39 (Fail)</p>
+            </div>
+            <div style={{ width: '33%', textAlign: 'center' }}>
+              <div style={{ marginBottom: '40px' }}>
+                <img src={schoolSettings?.principal_signature || ''} alt={`${studentClass?.name?.includes('JSS') ? 'Principal' : 'Head Teacher'}'s Signature`} style={{ height: '40px', margin: '0 auto -10px' }} />
+                <p style={{ borderTop: '1px solid #333', paddingTop: '4px', margin: 0 }}>{studentClass?.name?.includes('JSS') ? 'Principal' : 'Head Teacher'}'s Signature</p>
+              </div>
+              <div>
+                <p style={{ borderTop: '1px solid #333', paddingTop: '4px', margin: 0 }}>Class Teacher's Signature</p>
+              </div>
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: '24px', borderTop: '2px solid #4A90E2', paddingTop: '8px' }}>
+            <p style={{ margin: 0, fontStyle: 'italic' }}>{schoolSettings?.school_motto || ''}</p>
+          </div>
+        </footer>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 );

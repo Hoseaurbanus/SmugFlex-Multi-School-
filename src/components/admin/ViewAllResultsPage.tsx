@@ -5,7 +5,6 @@ import { Badge } from "../ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { useSchool } from "../../contexts/SchoolContext";
-import { Eye, Download, Filter, FileText, TrendingUp, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export function ViewAllResultsPage() {
@@ -16,7 +15,7 @@ export function ViewAllResultsPage() {
 
   // Filter results
   const filteredResults = compiledResults.filter((result) => {
-    if (selectedClass !== "all" && result.classId !== parseInt(selectedClass)) return false;
+    if (selectedClass !== "all" && result.class_id !== parseInt(selectedClass)) return false;
     if (selectedStatus !== "all" && result.status !== selectedStatus) return false;
     if (selectedTerm !== "all" && result.term !== selectedTerm) return false;
     return true;
@@ -49,7 +48,7 @@ export function ViewAllResultsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Total Results</p>
-              <FileText className="w-5 h-5 text-[#3B82F6]" />
+              <span className="w-5 h-5 text-[#3B82F6]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{totalResults}</p>
             <p className="text-xs text-[#6B7280]">Compiled results</p>
@@ -60,7 +59,7 @@ export function ViewAllResultsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Approved</p>
-              <TrendingUp className="w-5 h-5 text-[#10B981]" />
+              <span className="w-5 h-5 text-[#10B981]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{approvedResults}</p>
             <p className="text-xs text-[#10B981]">Ready for distribution</p>
@@ -71,7 +70,7 @@ export function ViewAllResultsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Pending</p>
-              <AlertCircle className="w-5 h-5 text-[#F59E0B]" />
+              <span className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{pendingResults}</p>
             <p className="text-xs text-[#F59E0B]">Awaiting approval</p>
@@ -82,7 +81,7 @@ export function ViewAllResultsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Draft</p>
-              <FileText className="w-5 h-5 text-[#6B7280]" />
+              <span className="w-5 h-5 text-[#6B7280]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{draftResults}</p>
             <p className="text-xs text-[#6B7280]">In progress</p>
@@ -94,7 +93,7 @@ export function ViewAllResultsPage() {
       <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical">
         <CardHeader className="p-4 border-b border-[#E5E7EB]">
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-[#3B82F6]" />
+            <span className="w-5 h-5 text-[#3B82F6]" />
             <h3 className="text-[#1F2937] font-semibold">Filters</h3>
           </div>
         </CardHeader>
@@ -157,7 +156,7 @@ export function ViewAllResultsPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-[#1F2937] font-semibold">Compiled Results ({filteredResults.length})</h3>
             <Button className="h-10 px-4 bg-[#10B981] text-white hover:bg-[#059669] rounded-lg shadow-clinical">
-              <Download className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Export All
             </Button>
           </div>
@@ -180,8 +179,8 @@ export function ViewAllResultsPage() {
               </TableHeader>
               <TableBody>
                 {filteredResults.map((result) => {
-                  const student = students.find(s => s.id === result.studentId);
-                  const cls = classes.find(c => c.id === result.classId);
+                  const student = students.find(s => s.id === result.student_id);
+                  const cls = classes.find(c => c.id === result.class_id);
 
                   return (
                     <TableRow key={result.id} className="border-b border-[#E5E7EB]">
@@ -191,9 +190,9 @@ export function ViewAllResultsPage() {
                       <TableCell className="text-[#1F2937]">{student?.admissionNumber}</TableCell>
                       <TableCell className="text-[#1F2937]">{cls?.name}</TableCell>
                       <TableCell className="text-[#1F2937]">{result.term}</TableCell>
-                      <TableCell className="text-[#1F2937] font-medium">{result.averageScore.toFixed(2)}%</TableCell>
+                      <TableCell className="text-[#1F2937] font-medium">{result.average_score.toFixed(2)}%</TableCell>
                       <TableCell className="text-[#1F2937]">
-                        {result.position}/{result.totalStudents}
+                        {result.position}/{result.total_students}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -210,20 +209,20 @@ export function ViewAllResultsPage() {
                           {result.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-[#6B7280]">{result.compiledDate}</TableCell>
+                      <TableCell className="text-[#1F2937]">{result.compiled_date}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Button
                             onClick={() => handleViewResult(result.id)}
                             className="h-8 px-3 bg-[#3B82F6] text-white hover:bg-[#2563EB] rounded-lg"
                           >
-                            <Eye className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                           <Button
                             onClick={() => handleDownloadResult(result.id)}
                             className="h-8 px-3 bg-[#10B981] text-white hover:bg-[#059669] rounded-lg"
                           >
-                            <Download className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>

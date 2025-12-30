@@ -1,5 +1,5 @@
+import { Database, GraduationCap, HardDrive } from 'lucide-react';
 import { useState, useRef } from "react";
-import { Download, Database, FileText, Users, DollarSign, GraduationCap, CheckCircle, AlertCircle, Upload, HardDrive, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -428,7 +428,7 @@ export function DataBackupPage() {
     },
     {
       title: 'Staff Data',
-      icon: <Users className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       items: [
         { name: 'Teachers', count: teachers.length, export: handleExportTeachers, color: 'bg-green-50 text-green-600' },
         { name: 'Parents', count: parents.length, export: handleExportParents, color: 'bg-green-50 text-green-600' },
@@ -442,7 +442,7 @@ export function DataBackupPage() {
     },
     {
       title: 'Academic Data',
-      icon: <FileText className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       items: [
         { name: 'Classes', count: classes.length, export: handleExportClasses, color: 'bg-purple-50 text-purple-600' },
         { name: 'Subjects', count: subjects.length, export: handleExportSubjects, color: 'bg-purple-50 text-purple-600' },
@@ -452,7 +452,7 @@ export function DataBackupPage() {
     },
     {
       title: 'Financial Data',
-      icon: <DollarSign className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       items: [
         { name: 'Payments', count: payments.length, export: handleExportPayments, color: 'bg-yellow-50 text-yellow-600' },
         { name: 'Fee Balances', count: studentFeeBalances.length, export: handleExportFeeBalances, color: 'bg-yellow-50 text-yellow-600' },
@@ -510,7 +510,7 @@ export function DataBackupPage() {
               onClick={handleCompleteBackup}
               className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl h-auto py-4 flex-col gap-2"
             >
-              <Download className="w-6 h-6" />
+              <span className="w-6 h-6" />
               <div className="text-center">
                 <div className="font-medium">Backup All Data</div>
                 <div className="text-xs opacity-90">Download as JSON</div>
@@ -522,7 +522,7 @@ export function DataBackupPage() {
               variant="outline"
               className="rounded-xl h-auto py-4 flex-col gap-2 border-2 hover:border-[#3B82F6] hover:bg-blue-50"
             >
-              <Upload className="w-6 h-6" />
+              <span className="w-6 h-6" />
               <div className="text-center">
                 <div className="font-medium">Import Data</div>
                 <div className="text-xs opacity-70">Restore from JSON</div>
@@ -541,7 +541,7 @@ export function DataBackupPage() {
               variant="outline"
               className="rounded-xl h-auto py-4 flex-col gap-2 border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
             >
-              <Trash2 className="w-6 h-6" />
+              <span className="w-6 h-6" />
               <div className="text-center">
                 <div className="font-medium">Clear Storage</div>
                 <div className="text-xs opacity-70">Reset all data</div>
@@ -565,7 +565,7 @@ export function DataBackupPage() {
               </p>
               <div className="flex items-center gap-4 mb-4">
                 <Badge className="bg-white/20 text-white border-0 text-sm">
-                  <CheckCircle className="w-4 h-4 mr-1" />
+                  <span className="w-4 h-4 mr-1" />
                   {totalRecords.toLocaleString()} Total Records
                 </Badge>
                 <Badge className="bg-white/20 text-white border-0 text-sm">
@@ -579,7 +579,7 @@ export function DataBackupPage() {
 
       {/* Information Alert */}
       <Alert className="bg-blue-50 border-blue-200 rounded-xl">
-        <AlertCircle className="h-4 w-4 text-blue-600" />
+        <span className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-[#1F2937]">
           <strong>Backup Best Practices:</strong> Download regular backups to prevent data loss. 
           Store backups in a secure location. Complete backup includes all system data in JSON format 
@@ -615,7 +615,7 @@ export function DataBackupPage() {
                     variant="ghost"
                     className="hover:bg-white/50 rounded-lg"
                   >
-                    <Download className="w-4 h-4 mr-1" />
+                    <span className="w-4 h-4 mr-1" />
                     CSV
                   </Button>
                 </div>
@@ -629,7 +629,7 @@ export function DataBackupPage() {
       <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-sm">
         <CardContent className="p-5">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-[#6B7280] mt-0.5" />
+            <span className="w-5 h-5 text-[#6B7280] mt-0.5" />
             <div>
               <p className="text-[#1F2937] mb-2">
                 <strong>About Data Export:</strong>
@@ -651,7 +651,7 @@ export function DataBackupPage() {
         <DialogContent className="rounded-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertCircle className="w-5 h-5" />
+              <span className="w-5 h-5" />
               Clear Local Storage?
             </DialogTitle>
             <DialogDescription>
@@ -672,7 +672,7 @@ export function DataBackupPage() {
               onClick={handleClearStorage}
               className="rounded-xl bg-red-600 hover:bg-red-700"
             >
-              <Trash2 className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Clear All Data
             </Button>
           </DialogFooter>

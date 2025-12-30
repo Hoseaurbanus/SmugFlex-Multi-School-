@@ -1,5 +1,5 @@
+import { Calculator, GraduationCap, Users } from 'lucide-react';
 import { useState } from "react";
-import { Send, Bell, Users as UsersIcon, GraduationCap, Calculator } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -94,6 +94,9 @@ export function NotificationSystemPage() {
       type: typeMap[formData.priority as keyof typeof typeMap] || 'info',
       targetAudience,
       sentBy: currentUser.id,
+      sentDate: new Date().toISOString(),
+      isRead: false,
+      readBy: [],
     });
 
     toast.success("Notification sent successfully!");
@@ -138,7 +141,7 @@ export function NotificationSystemPage() {
           <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
             <CardHeader className="p-5 border-b border-white/10">
               <h3 className="text-white flex items-center gap-2">
-                <Send className="w-5 h-5" />
+                <span className="w-5 h-5" />
                 Create New Notification
               </h3>
             </CardHeader>
@@ -206,7 +209,7 @@ export function NotificationSystemPage() {
                           className="border-white/20"
                         />
                         <Label htmlFor="parents" className="text-white cursor-pointer flex items-center gap-2">
-                          <UsersIcon className="w-4 h-4" />
+                          <Users className="w-4 h-4" />
                           Parents
                         </Label>
                       </div>
@@ -228,7 +231,7 @@ export function NotificationSystemPage() {
 
                 <div className="space-y-2">
                   <Label className="text-white">Priority Level</Label>
-                  <Select value={formData.priority} onValueChange={(value: 'info' | 'warning' | 'success' | 'error') => setFormData({ ...formData, priority: value })}>
+                  <Select value={formData.priority} onValueChange={(value: string) => setFormData({ ...formData, priority: value as 'info' | 'warning' | 'success' | 'error' })}>
                     <SelectTrigger className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white">
                       <SelectValue />
                     </SelectTrigger>
@@ -246,7 +249,7 @@ export function NotificationSystemPage() {
                     type="submit"
                     className="flex-1 h-12 bg-[#1E90FF] hover:bg-[#00BFFF] text-white rounded-xl shadow-md hover:scale-105 transition-all"
                   >
-                    <Send className="w-5 h-5 mr-2" />
+                    <span className="w-5 h-5 mr-2" />
                     Send Notification
                   </Button>
                 </div>
@@ -260,14 +263,14 @@ export function NotificationSystemPage() {
           <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
             <CardHeader className="p-5 border-b border-white/10">
               <h3 className="text-white flex items-center gap-2">
-                <Bell className="w-5 h-5" />
+                <span className="w-5 h-5" />
                 Recent Notifications
               </h3>
             </CardHeader>
             <CardContent className="p-5 space-y-3">
               {recentNotifications.length === 0 ? (
                 <div className="text-center py-8">
-                  <Bell className="w-12 h-12 mx-auto mb-3 text-[#C0C8D3]" />
+                  <span className="w-12 h-12 mx-auto mb-3 text-[#C0C8D3]" />
                   <p className="text-white mb-1">No notifications yet</p>
                   <p className="text-sm text-[#C0C8D3]">Send your first notification above</p>
                 </div>

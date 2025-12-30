@@ -1,16 +1,16 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useSchool } from '../../contexts/SchoolContext';
-import { UserPlus, Save, AlertCircle, Users, Phone, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Checkbox } from '../ui/checkbox';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function AddParentPage() {
-  const { students, parents, addParent, addUser, linkParentToStudent } = useSchool();
+  const { students, parents, addParent, createUser, linkParentToStudent } = useSchool();
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -64,12 +64,14 @@ export function AddParentPage() {
     try {
       // Add parent
       const newParentId = await addParent({
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
+        first_name: formData.firstName.trim(),
+        last_name: formData.lastName.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
-        studentIds: [],
+        student_ids: [],
         status: 'Active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       });
 
       if (newParentId === -1) {
@@ -77,8 +79,15 @@ export function AddParentPage() {
         return;
       }
 
+      // Verify parent was created successfully
+      const createdParent = parents.find(p => p.id === newParentId);
+      if (!createdParent) {
+        toast.error('Parent creation verification failed. Please try again.');
+        return;
+      }
+
       // Create user account
-      addUser({
+      const newUser = await createUser({
         username: formData.username.trim(),
         password: formData.password,
         role: 'parent',
@@ -86,6 +95,12 @@ export function AddParentPage() {
         email: formData.email.trim(),
         status: 'Active',
       });
+
+      // Verify user was created and linked correctly
+      if (!newUser || newUser.linked_id !== newParentId) {
+        toast.error('User creation or linking failed. Please try again.');
+        return;
+      }
 
       // Link selected students to this parent
       if (formData.selectedStudentIds.length > 0) {
@@ -139,8 +154,8 @@ export function AddParentPage() {
   };
 
   // Filter students without parents for easier selection
-  const studentsWithoutParents = students.filter((s) => !s.parentId);
-  const studentsWithParents = students.filter((s) => s.parentId);
+  const studentsWithoutParents = students.filter((s) => !s.parent_id);
+  const studentsWithParents = students.filter((s) => s.parent_id);
 
   return (
     <div className="space-y-6">
@@ -151,7 +166,7 @@ export function AddParentPage() {
 
       {/* Info Alert */}
       <Alert className="bg-blue-50 border-blue-200 rounded-xl">
-        <AlertCircle className="h-4 w-4 text-blue-600" />
+        <span className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-gray-900">
           <strong>Parent Registration Process:</strong>
           <br />
@@ -171,7 +186,7 @@ export function AddParentPage() {
         <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
           <CardHeader className="p-5 border-b border-gray-200">
             <div className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-[#2563EB]" />
+              <Plus className="w-5 h-5 text-[#2563EB]" />
               <h3 className="text-lg text-gray-900">Parent/Guardian Information</h3>
             </div>
           </CardHeader>
@@ -225,7 +240,7 @@ export function AddParentPage() {
                     Email Address <span className="text-red-500">*</span>
                   </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <Input
                       type="email"
                       placeholder="parent@example.com"
@@ -247,7 +262,7 @@ export function AddParentPage() {
                     Phone Number <span className="text-red-500">*</span>
                   </Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <Input
                       type="tel"
                       placeholder="08012345678"
@@ -356,7 +371,7 @@ export function AddParentPage() {
                   <div className="border border-gray-200 rounded-xl p-4 max-h-48 overflow-y-auto bg-gray-50">
                     <div className="space-y-2">
                       {studentsWithParents.map((student) => {
-                        const parent = parents.find((p) => p.id === student.parentId);
+                        const parent = parents.find((p) => p.id === student.parent_id);
                         return (
                           <div key={student.id} className="flex items-center justify-between p-2 bg-white rounded-lg">
                             <div>
@@ -386,7 +401,7 @@ export function AddParentPage() {
 
               {students.length === 0 && (
                 <div className="p-4 bg-gray-50 rounded-xl text-center">
-                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                  <span className="w-12 h-12 text-gray-400 mx-auto mb-2" />
                   <p className="text-gray-600">No students registered yet</p>
                   <p className="text-xs text-gray-500">Register students first to link them to parents</p>
                 </div>
@@ -436,7 +451,7 @@ export function AddParentPage() {
             type="submit"
             className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl shadow-sm"
           >
-            <Save className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Register Parent
           </Button>
         </div>
@@ -448,7 +463,7 @@ export function AddParentPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Parents</p>
-              <Users className="w-5 h-5 text-[#2563EB]" />
+              <span className="w-5 h-5 text-[#2563EB]" />
             </div>
             <p className="text-2xl text-gray-900">{parents.length}</p>
           </CardContent>
@@ -458,7 +473,7 @@ export function AddParentPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Students Without Parents</p>
-              <Users className="w-5 h-5 text-[#F59E0B]" />
+              <span className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <p className="text-2xl text-gray-900">{studentsWithoutParents.length}</p>
           </CardContent>
@@ -468,7 +483,7 @@ export function AddParentPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Students</p>
-              <Users className="w-5 h-5 text-[#10B981]" />
+              <span className="w-5 h-5 text-[#10B981]" />
             </div>
             <p className="text-2xl text-gray-900">{students.length}</p>
           </CardContent>

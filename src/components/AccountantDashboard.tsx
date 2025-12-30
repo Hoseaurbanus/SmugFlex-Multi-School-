@@ -1,20 +1,5 @@
-import { useState } from "react";
-import { 
-  LayoutDashboard, 
-  Receipt, 
-  CheckCircle, 
-  Bell, 
-  FileText, 
-  TrendingUp, 
-  DollarSign, 
-  Eye,
-  CreditCard,
-  BarChart3,
-  Building2,
-  MessageSquare,
-  Lock,
-  LogOut
-} from "lucide-react";
+import { LogOut, BarChart, Building, LayoutDashboard, BarChart3, Building2, DollarSign, Receipt, FileText, Clock, MessageSquare, Settings } from 'lucide-react';
+import { useState, useEffect } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -31,8 +16,10 @@ import { ManualPaymentEntryPage } from "./admin/ManualPaymentEntryPage";
 import { ChangePasswordPage } from "./ChangePasswordPage";
 import { AccountantMessagePage } from "./accountant/MessageParentsPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
-import { Dialog, DialogContent } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { useSchool } from "../contexts/SchoolContext";
+import { connectionMonitor } from "../utils/connectionMonitor";
+import { toast } from "sonner";
 
 interface AccountantDashboardProps {
   onLogout: () => void;
@@ -52,28 +39,74 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
   } = useSchool();
   const [activeItem, setActiveItem] = useState("dashboard");
 
+  // Connection monitoring for accountants
+  useEffect(() => {
+    let isMounted = true;
+    
+    const checkConnection = () => {
+      if (!isMounted) return;
+      
+      if (!connectionMonitor.isHealthy()) {
+        toast.warning('Connection issues detected. Attempting to reconnect...');
+        connectionMonitor.forceReconnect().then(success => {
+          if (isMounted && success) {
+            toast.success('Connection restored');
+          } else if (isMounted) {
+            toast.error('Connection failed. Please refresh the page.');
+          }
+        });
+      }
+    };
+    
+    // Check connection every 2 minutes
+    const interval = setInterval(checkConnection, 120000);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Get current accountant
   const currentAccountant = currentUser && accountants.length > 0 ? accountants.find(a => a.id === currentUser.linked_id) : null;
   const accountantName = currentAccountant ? `${currentAccountant.firstName || ''} ${currentAccountant.lastName || ''}`.trim() : 'Accountant';
 
   const sidebarItems = [
     { icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard", id: "dashboard" },
-    { icon: <CreditCard className="w-5 h-5" />, label: "Set Fees", id: "set-fees" },
+    { icon: <DollarSign className="w-5 h-5" />, label: "Set Fees", id: "set-fees" },
     { icon: <Receipt className="w-5 h-5" />, label: "Record Payments", id: "record-payments" },
-    { icon: <DollarSign className="w-5 h-5" />, label: "Manual Payment Entry", id: "manual-payment-entry" },
-    { icon: <CheckCircle className="w-5 h-5" />, label: "Verify Receipts", id: "verify-receipts" },
+    { icon: <FileText className="w-5 h-5" />, label: "Manual Payment Entry", id: "manual-payment-entry" },
+    { icon: <Clock className="w-5 h-5" />, label: "Verify Receipts", id: "verify-receipts" },
     { icon: <BarChart3 className="w-5 h-5" />, label: "Payment Reports", id: "payment-reports" },
-    { icon: <FileText className="w-5 h-5" />, label: "Payment History", id: "payment-history" },
+    { icon: <BarChart className="w-5 h-5" />, label: "Payment History", id: "payment-history" },
     { icon: <Building2 className="w-5 h-5" />, label: "Bank Settings", id: "bank-settings" },
     { icon: <MessageSquare className="w-5 h-5" />, label: "Message Parents", id: "message-parents" },
-    { icon: <Lock className="w-5 h-5" />, label: "Change Password", id: "change-password" },
+    { icon: <Settings className="w-5 h-5" />, label: "Change Password", id: "change-password" },
     { icon: <LogOut className="w-5 h-5" />, label: "Logout", id: "logout" },
   ];
 
   const handleItemClick = (id: string) => {
     if (id === "logout") {
+      toast.success("Logged out successfully");
       onLogout();
     } else {
+      // Add toast messages for navigation
+      const toastMessages: Record<string, string> = {
+        "dashboard": "Opening Dashboard",
+        "set-fees": "Opening Fee Settings",
+        "record-payments": "Opening Payment Recording",
+        "manual-payment-entry": "Opening Manual Payment Entry",
+        "verify-receipts": "Opening Receipt Verification",
+        "payment-reports": "Opening Payment Reports",
+        "payment-history": "Opening Payment History",
+        "bank-settings": "Opening Bank Settings",
+        "message-parents": "Opening Parent Messaging",
+        "change-password": "Opening Password Change"
+      };
+      
+      if (toastMessages[id]) {
+        toast.success(toastMessages[id]);
+      }
       setActiveItem(id);
     }
   };
@@ -124,7 +157,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
           {activeItem === "dashboard" ? (
             <div className="space-y-6">
               <div className="mb-6">
-                <h1 className="text-[#1F2937] mb-2">Accountant Dashboard</h1>
+                <h1 className="text-[#1F2937] mb-2">Welcome, {accountantName}</h1>
                 <p className="text-[#6B7280]">Financial Management & Fee Collection</p>
               </div>
 
@@ -134,7 +167,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                        <TrendingUp className="w-6 h-6" />
+                        <span className="w-6 h-6" />
                       </div>
                       <span className="text-sm opacity-80">{collectionRate}%</span>
                     </div>
@@ -148,7 +181,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                        <DollarSign className="w-6 h-6" />
+                        <span className="w-6 h-6" />
                       </div>
                       <span className="text-sm opacity-80">Today</span>
                     </div>
@@ -162,7 +195,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                        <Receipt className="w-6 h-6" />
+                        <span className="w-6 h-6" />
                       </div>
                       <Badge className="bg-white/20 text-white border-0">{pendingPayments.length}</Badge>
                     </div>
@@ -176,7 +209,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                        <DollarSign className="w-6 h-6" />
+                        <span className="w-6 h-6" />
                       </div>
                     </div>
                     <p className="text-white/80 text-sm mb-1">Outstanding</p>
@@ -259,10 +292,13 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                               <TableCell className="text-[#6B7280]">{payment.payment_method}</TableCell>
                               <TableCell className="text-center">
                                 <Button 
-                                  onClick={() => setActiveItem('verify-receipts')}
+                                  onClick={() => {
+                                    toast.success("Opening receipt verification");
+                                    setActiveItem('verify-receipts');
+                                  }}
                                   className="bg-[#007C91] hover:bg-[#006073] text-white rounded-xl text-xs h-9 shadow-clinical hover:shadow-clinical-lg transition-all"
                                 >
-                                  <Eye className="w-3 h-3 mr-1" />
+                                  <span className="w-3 h-3 mr-1" />
                                   Verify
                                 </Button>
                               </TableCell>
@@ -309,11 +345,14 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
             <div className="grid md:grid-cols-3 gap-4">
               <Card 
                 className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical hover:shadow-clinical-lg transition-all cursor-pointer group"
-                onClick={() => setActiveItem('set-fees')}
+                onClick={() => {
+                  toast.success("Opening fee structure settings");
+                  setActiveItem('set-fees');
+                }}
               >
                 <CardContent className="p-6 text-center">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#007C91]/10 flex items-center justify-center group-hover:bg-[#007C91]/20 transition-all">
-                    <CreditCard className="w-8 h-8 text-[#007C91]" />
+                    <span className="w-8 h-8 text-[#007C91]" />
                   </div>
                   <h3 className="text-[#1F2937] mb-2">Set Fee Structure</h3>
                   <p className="text-sm text-[#6B7280]">Configure fees for classes</p>
@@ -322,20 +361,26 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
 
               <Card 
                 className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical hover:shadow-clinical-lg transition-all cursor-pointer group"
-                onClick={() => setActiveItem('record-payments')}
+                onClick={() => {
+                  toast.success("Opening payment recording");
+                  setActiveItem('record-payments');
+                }}
               >
                 <CardContent className="p-6 text-center">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#10B981]/10 flex items-center justify-center group-hover:bg-[#10B981]/20 transition-all">
-                    <Receipt className="w-8 h-8 text-[#10B981]" />
+                    <span className="w-8 h-8 text-[#10B981]" />
                   </div>
                   <h3 className="text-[#1F2937] mb-2">Record Payment</h3>
                   <p className="text-sm text-[#6B7280]">Record payments</p>
                 </CardContent>
-                            </Card>
+              </Card>
 
               <Card 
                 className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical hover:shadow-clinical-lg transition-all cursor-pointer group"
-                onClick={() => setActiveItem('payment-reports')}
+                onClick={() => {
+                  toast.success("Opening payment reports");
+                  setActiveItem('payment-reports');
+                }}
               >
                 <CardContent className="p-6 text-center">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#F4B400]/10 flex items-center justify-center group-hover:bg-[#F4B400]/20 transition-all">
@@ -367,6 +412,9 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
 
       {/* Notification Dialog */}
       <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>Notifications</DialogTitle>
+        </DialogHeader>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <ViewNotificationsPage />
         </DialogContent>

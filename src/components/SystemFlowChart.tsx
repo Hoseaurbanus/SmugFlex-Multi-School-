@@ -1,37 +1,5 @@
+import { Settings, LogIn, BarChart, Clipboard, ClipboardList, School, Book, BookOpen, GraduationCap, ChevronRight, ArrowLeft, Plus, Unlock, Maximize2, Minimize2 } from 'lucide-react';
 import React, { useState } from 'react';
-import { 
-  ChevronDown, 
-  ChevronRight, 
-  LogIn, 
-  Shield, 
-  DollarSign, 
-  GraduationCap, 
-  Users,
-  UserPlus,
-  FileText,
-  Settings,
-  BookOpen,
-  Calendar,
-  Bell,
-  BarChart,
-  CreditCard,
-  ClipboardList,
-  Mail,
-  Download,
-  Check,
-  X,
-  AlertCircle,
-  Eye,
-  Edit,
-  Trash2,
-  Send,
-  Lock,
-  Unlock,
-  ArrowLeft,
-  School,
-  Maximize2,
-  Minimize2
-} from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -95,12 +63,12 @@ export function SystemFlowChart() {
       role: 'Admin',
       color: '#0A2540',
       bgColor: '#E8F0FE',
-      icon: <Shield className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       flows: [
         {
           id: 'admin-student',
           title: 'Student Management',
-          icon: <Users className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'admin-student-add',
@@ -140,7 +108,7 @@ export function SystemFlowChart() {
         {
           id: 'admin-staff',
           title: 'Staff Management',
-          icon: <UserPlus className="w-4 h-4" />,
+          icon: <Plus className="w-4 h-4" />,
           children: [
             {
               id: 'admin-staff-add',
@@ -205,7 +173,7 @@ export function SystemFlowChart() {
         {
           id: 'admin-session',
           title: 'Session & Term Management',
-          icon: <Calendar className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'admin-session-add',
@@ -242,7 +210,7 @@ export function SystemFlowChart() {
         {
           id: 'admin-results',
           title: 'Result Management',
-          icon: <FileText className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'admin-results-review',
@@ -271,7 +239,7 @@ export function SystemFlowChart() {
         {
           id: 'admin-notifications',
           title: 'Notification System',
-          icon: <Bell className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'admin-notif-send',
@@ -354,12 +322,12 @@ export function SystemFlowChart() {
       role: 'Accountant',
       color: '#059669',
       bgColor: '#D1FAE5',
-      icon: <DollarSign className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       flows: [
         {
           id: 'acc-fee',
           title: 'Fee Management',
-          icon: <CreditCard className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'acc-fee-set',
@@ -386,7 +354,7 @@ export function SystemFlowChart() {
         {
           id: 'acc-payment',
           title: 'Payment Handling',
-          icon: <DollarSign className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'acc-payment-record',
@@ -475,7 +443,7 @@ export function SystemFlowChart() {
         {
           id: 'teacher-class',
           title: 'Class Teacher Flow',
-          icon: <Users className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'teacher-class-view',
@@ -571,12 +539,12 @@ export function SystemFlowChart() {
       role: 'Parent',
       color: '#DC2626',
       bgColor: '#FEE2E2',
-      icon: <Users className="w-5 h-5" />,
+      icon: <span className="w-5 h-5" />,
       flows: [
         {
           id: 'parent-children',
           title: 'Children Management',
-          icon: <Users className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'parent-children-view',
@@ -593,7 +561,7 @@ export function SystemFlowChart() {
         {
           id: 'parent-results',
           title: 'Academic Results',
-          icon: <FileText className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'parent-results-check',
@@ -612,7 +580,7 @@ export function SystemFlowChart() {
         {
           id: 'parent-fees',
           title: 'Fee Management',
-          icon: <CreditCard className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'parent-fees-view',
@@ -641,7 +609,7 @@ export function SystemFlowChart() {
         {
           id: 'parent-notifications',
           title: 'Notifications',
-          icon: <Bell className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'parent-notif-view',
@@ -658,7 +626,7 @@ export function SystemFlowChart() {
         {
           id: 'parent-contact',
           title: 'Contact School',
-          icon: <Mail className="w-4 h-4" />,
+          icon: <span className="w-4 h-4" />,
           children: [
             {
               id: 'parent-contact-send',
@@ -700,7 +668,7 @@ export function SystemFlowChart() {
           <div className="mt-0.5">
             {hasChildren ? (
               isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-[#C0C8D3]" />
+                <span className="w-4 h-4 text-[#C0C8D3]" />
               ) : (
                 <ChevronRight className="w-4 h-4 text-[#C0C8D3]" />
               )
@@ -728,9 +696,9 @@ export function SystemFlowChart() {
                   }`}
                 >
                   {node.status === 'active' && <Unlock className="w-3 h-3 mr-1" />}
-                  {node.status === 'locked' && <Lock className="w-3 h-3 mr-1" />}
-                  {node.status === 'approved' && <Check className="w-3 h-3 mr-1" />}
-                  {node.status === 'pending' && <AlertCircle className="w-3 h-3 mr-1" />}
+                  {node.status === 'locked' && <span className="w-3 h-3 mr-1" />}
+                  {node.status === 'approved' && <span className="w-3 h-3 mr-1" />}
+                  {node.status === 'pending' && <span className="w-3 h-3 mr-1" />}
                   {node.status}
                 </Badge>
               )}
@@ -810,15 +778,15 @@ export function SystemFlowChart() {
                   <span>User Login → Username + Password + Role Selection</span>
                 </div>
                 <div className="flex items-center gap-2 text-[#C0C8D3]">
-                  <Check className="w-4 h-4 text-[#28A745]" />
+                  <span className="w-4 h-4 text-[#28A745]" />
                   <span>Valid Credentials → Redirect to Role-Based Dashboard</span>
                 </div>
                 <div className="flex items-center gap-2 text-[#C0C8D3]">
-                  <X className="w-4 h-4 text-[#DC3545]" />
+                  <span className="w-4 h-4 text-[#DC3545]" />
                   <span>Invalid Credentials → Show Error Message</span>
                 </div>
                 <div className="flex items-center gap-2 text-[#C0C8D3]">
-                  <AlertCircle className="w-4 h-4 text-[#FFC107]" />
+                  <span className="w-4 h-4 text-[#FFC107]" />
                   <span>Forgot Password → Password Reset Page (Admin can reset from dashboard)</span>
                 </div>
               </div>
@@ -834,7 +802,7 @@ export function SystemFlowChart() {
               onClick={() => setSelectedRole(null)}
               className="gap-2"
             >
-              <Eye className="w-4 h-4" />
+              <span className="w-4 h-4" />
               Show All Roles
             </Button>
           {roleFlows.map((flow) => (
@@ -907,29 +875,29 @@ export function SystemFlowChart() {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
                 <span>Each dashboard has a <strong>top navigation bar</strong> with role-based home icon, notifications, and profile dropdown</span>
               </p>
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
                 <span>Left sidebar displays <strong>role-specific buttons</strong> with restricted access</span>
               </p>
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
                 <span>Every button connects to a <strong>page or modal</strong></span>
               </p>
             </div>
             <div className="space-y-2">
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
                 <span>Status indicators: <Badge variant="default" className="text-xs">Draft</Badge> <Badge variant="secondary" className="text-xs">Submitted</Badge> <Badge variant="default" className="text-xs">Approved</Badge> <Badge variant="destructive" className="text-xs">Locked</Badge></span>
               </p>
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
                 <span>Loop arrows show users returning to dashboard after completing actions</span>
               </p>
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5 text-orange-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-orange-600 flex-shrink-0" />
                 <span>Subject Teachers <strong>cannot</strong> edit Affective/Psychomotor traits</span>
               </p>
             </div>
@@ -985,35 +953,35 @@ export function SystemFlowChart() {
         {/* How to Use */}
         <Card className="mt-6 p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200">
           <h3 className="text-[#0A2540] mb-4 flex items-center gap-2">
-            <Eye className="w-5 h-5" />
+            <span className="w-5 h-5" />
             💡 How to Use This Flow Chart
           </h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
                 <span><strong>Click on any section</strong> to expand and view detailed action steps</span>
               </p>
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
                 <span><strong>Filter by role</strong> to see specific workflows for Admin, Teacher, Accountant, or Parent</span>
               </p>
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <Check className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
                 <span><strong>Use Expand/Collapse All</strong> buttons to view everything at once or reset the view</span>
               </p>
             </div>
             <div className="space-y-2">
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5 text-blue-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-blue-600 flex-shrink-0" />
                 <span><strong>Color-coded borders</strong> on each card represent the role responsible for that action</span>
               </p>
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5 text-blue-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-blue-600 flex-shrink-0" />
                 <span><strong>Status badges</strong> indicate workflow states: Active, Locked, Pending, or Approved</span>
               </p>
               <p className="text-sm text-gray-700 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5 text-blue-600 flex-shrink-0" />
+                <span className="w-4 h-4 mt-0.5 text-blue-600 flex-shrink-0" />
                 <span><strong>Arrow icons (→)</strong> show sequential steps in each workflow process</span>
               </p>
             </div>

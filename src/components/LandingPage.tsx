@@ -202,31 +202,11 @@ export function LandingPage({ onNavigateToLogin }: LandingPageProps) {
       <section className="py-20 bg-[#0A2540] text-white">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-4xl mb-6">Our Mission</h2>
-          <div className="max-w-4xl mx-auto space-y-4 text-lg">
-            <p className="text-white/90">
-              To build mental, social and moral capacity in learners,
-            </p>
-            <p className="text-white/90">
-              To build competent minds and tenacity for maximum impact.
-            </p>
-            <p className="text-white/90">
-              To build on the foundation Christ has laid for the church
-            </p>
-            <p className="text-white/90">
-              To birth agents of Illumination.
-            </p>
-          </div>
-          
-          <div className="mt-12">
-            <h3 className="text-2xl mb-6 text-[#FFD700]">Core Values</h3>
-            <div className="flex flex-wrap justify-center gap-6">
-              {["Excellence", "Sound Character", "Impact"].map((value, index) => (
-                <div key={index} className="px-6 py-3 bg-[#FFD700] text-[#0A2540] rounded-full font-semibold">
-                  {value}
-                </div>
-              ))}
-            </div>
-          </div>
+          <p className="max-w-3xl mx-auto text-lg text-white/90">
+            To provide holistic education that develops intellectual, physical, social, and moral capabilities 
+            of our students, preparing them to be responsible citizens and leaders who will contribute positively 
+            to society with wisdom and illumination.
+          </p>
         </div>
       </section>
 
@@ -298,7 +278,7 @@ export function LandingPage({ onNavigateToLogin }: LandingPageProps) {
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-5 h-5 text-[#FFD700]" />
-                  <p className="text-sm text-white/80">+2348036379511</p>
+                  <p className="text-sm text-white/80">+234 XXX XXX XXXX</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <Mail className="w-5 h-5 text-[#FFD700]" />

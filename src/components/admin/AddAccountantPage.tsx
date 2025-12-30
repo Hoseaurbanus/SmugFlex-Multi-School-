@@ -1,15 +1,14 @@
+import { Briefcase } from 'lucide-react';
 import { useState } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
-import { Briefcase, Mail, Phone, User, Shield, Save } from "lucide-react";
-
 export function AddAccountantPage() {
-  const { addAccountant, addUser } = useSchool();
+  const { addAccountant } = useSchool();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -39,16 +38,8 @@ export function AddAccountantPage() {
       phone: formData.phone,
       employeeId: formData.employeeId,
       status: formData.status,
-    });
-
-    // Create user account
-    addUser({
-      username: formData.username,
-      password: formData.password,
-      role: "accountant",
-      linkedId: accountantId,
-      email: formData.email,
-      status: "Active",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     });
 
     toast.success(`Accountant ${formData.firstName} ${formData.lastName} added successfully!`);
@@ -87,7 +78,7 @@ export function AddAccountantPage() {
             {/* Personal Information */}
             <div className="space-y-4">
               <h4 className="text-[#1F2937] font-medium flex items-center gap-2">
-                <User className="w-4 h-4 text-[#3B82F6]" />
+                <span className="w-4 h-4 text-[#3B82F6]" />
                 Personal Information
               </h4>
               <div className="grid md:grid-cols-2 gap-4">
@@ -116,7 +107,7 @@ export function AddAccountantPage() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-[#1F2937] flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
+                    <span className="w-4 h-4" />
                     Email Address *
                   </Label>
                   <Input
@@ -130,7 +121,7 @@ export function AddAccountantPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[#1F2937] flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
+                    <span className="w-4 h-4" />
                     Phone Number *
                   </Label>
                   <Input
@@ -159,7 +150,7 @@ export function AddAccountantPage() {
             {/* User Account Information */}
             <div className="space-y-4 pt-4 border-t border-[#E5E7EB]">
               <h4 className="text-[#1F2937] font-medium flex items-center gap-2">
-                <Shield className="w-4 h-4 text-[#3B82F6]" />
+                <span className="w-4 h-4 text-[#3B82F6]" />
                 User Account Credentials
               </h4>
               <div className="grid md:grid-cols-2 gap-4">
@@ -208,7 +199,7 @@ export function AddAccountantPage() {
                 type="submit"
                 className="flex-1 bg-[#3B82F6] text-white hover:bg-[#2563EB] h-12 rounded-lg shadow-clinical hover:shadow-clinical-lg transition-all hover-lift"
               >
-                <Save className="w-5 h-5 mr-2" />
+                <span className="w-5 h-5 mr-2" />
                 Add Accountant
               </Button>
               <Button

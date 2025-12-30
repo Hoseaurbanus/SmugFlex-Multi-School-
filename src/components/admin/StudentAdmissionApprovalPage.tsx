@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { CheckCircle, XCircle, Eye, User, Calendar, Mail, Phone, MapPin, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { useSchool } from "../../contexts/SchoolContext";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -54,7 +53,7 @@ export function StudentAdmissionApprovalPage() {
                 <p className="text-sm text-[#6B7280]">Pending Admissions</p>
                 <p className="text-2xl font-semibold text-[#1F2937] mt-1">{pendingAdmissions.length}</p>
               </div>
-              <Clock className="w-8 h-8 text-[#F59E0B]" />
+              <span className="w-8 h-8 text-[#F59E0B]" />
             </div>
           </CardContent>
         </Card>
@@ -66,7 +65,7 @@ export function StudentAdmissionApprovalPage() {
                 <p className="text-sm text-[#6B7280]">Approved Today</p>
                 <p className="text-2xl font-semibold text-[#1F2937] mt-1">0</p>
               </div>
-              <CheckCircle className="w-8 h-8 text-[#10B981]" />
+              <span className="w-8 h-8 text-[#10B981]" />
             </div>
           </CardContent>
         </Card>
@@ -80,7 +79,7 @@ export function StudentAdmissionApprovalPage() {
                   {students.filter(s => s.status === 'Active').length}
                 </p>
               </div>
-              <User className="w-8 h-8 text-[#3B82F6]" />
+              <span className="w-8 h-8 text-[#3B82F6]" />
             </div>
           </CardContent>
         </Card>
@@ -94,7 +93,7 @@ export function StudentAdmissionApprovalPage() {
         <CardContent className="p-6">
           {pendingAdmissions.length === 0 ? (
             <div className="text-center py-12">
-              <CheckCircle className="w-16 h-16 text-[#10B981] mx-auto mb-4 opacity-50" />
+              <span className="w-16 h-16 text-[#10B981] mx-auto mb-4 opacity-50" />
               <p className="text-[#6B7280]">No pending admissions</p>
               <p className="text-sm text-[#9CA3AF] mt-1">All applications have been processed</p>
             </div>
@@ -116,17 +115,17 @@ export function StudentAdmissionApprovalPage() {
                           
                           <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-3">
                             <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="w-4 h-4 text-[#6B7280]" />
+                              <span className="w-4 h-4 text-[#6B7280]" />
                               <span className="text-[#6B7280]">DOB:</span>
                               <span className="text-[#1F2937]">{student.dateOfBirth}</span>
                             </div>
                             <div className="flex items-center gap-2 text-sm">
-                              <User className="w-4 h-4 text-[#6B7280]" />
+                              <span className="w-4 h-4 text-[#6B7280]" />
                               <span className="text-[#6B7280]">Gender:</span>
                               <span className="text-[#1F2937]">{student.gender}</span>
                             </div>
                             <div className="flex items-center gap-2 text-sm">
-                              <FileText className="w-4 h-4 text-[#6B7280]" />
+                              <span className="w-4 h-4 text-[#6B7280]" />
                               <span className="text-[#6B7280]">Class:</span>
                               <span className="text-[#1F2937]">{getClassName(student.classId)}</span>
                             </div>
@@ -146,7 +145,7 @@ export function StudentAdmissionApprovalPage() {
                           onClick={() => setViewStudent(student)}
                           className="rounded-lg"
                         >
-                          <Eye className="w-4 h-4 mr-1" />
+                          <span className="w-4 h-4 mr-1" />
                           View
                         </Button>
                         <Button
@@ -154,7 +153,7 @@ export function StudentAdmissionApprovalPage() {
                           onClick={() => handleApprove(student.id)}
                           className="rounded-lg bg-[#10B981] hover:bg-[#059669]"
                         >
-                          <CheckCircle className="w-4 h-4 mr-1" />
+                          <span className="w-4 h-4 mr-1" />
                           Approve
                         </Button>
                         <Button
@@ -163,7 +162,7 @@ export function StudentAdmissionApprovalPage() {
                           onClick={() => handleReject(student.id)}
                           className="rounded-lg"
                         >
-                          <XCircle className="w-4 h-4 mr-1" />
+                          <span className="w-4 h-4 mr-1" />
                           Reject
                         </Button>
                       </div>
@@ -223,7 +222,7 @@ export function StudentAdmissionApprovalPage() {
                   }}
                   className="flex-1 rounded-lg bg-[#10B981] hover:bg-[#059669]"
                 >
-                  <CheckCircle className="w-4 h-4 mr-2" />
+                  <span className="w-4 h-4 mr-2" />
                   Approve Admission
                 </Button>
                 <Button
@@ -234,7 +233,7 @@ export function StudentAdmissionApprovalPage() {
                   }}
                   className="flex-1 rounded-lg"
                 >
-                  <XCircle className="w-4 h-4 mr-2" />
+                  <span className="w-4 h-4 mr-2" />
                   Reject Application
                 </Button>
               </div>
@@ -246,4 +245,3 @@ export function StudentAdmissionApprovalPage() {
   );
 }
 
-import { Clock } from "lucide-react";

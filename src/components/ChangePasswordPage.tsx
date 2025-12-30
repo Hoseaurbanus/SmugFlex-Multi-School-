@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Lock, Eye, EyeOff, Save } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Alert, AlertDescription } from './ui/alert';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { useSchool } from '../contexts/SchoolContext';
 
 export function ChangePasswordPage() {
@@ -43,7 +43,7 @@ export function ChangePasswordPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) {
@@ -56,8 +56,7 @@ export function ChangePasswordPage() {
       return;
     }
 
-    const success = changePassword(
-      currentUser.id,
+    const success = await changePassword(
       formData.currentPassword,
       formData.newPassword
     );
@@ -93,7 +92,7 @@ export function ChangePasswordPage() {
       </div>
 
       <Alert className="bg-blue-50 border-blue-200 rounded-xl">
-        <Lock className="h-4 w-4 text-blue-600" />
+        <span className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-gray-900">
           <strong>Password Security Tips:</strong>
           <br />
@@ -111,7 +110,7 @@ export function ChangePasswordPage() {
         <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical max-w-2xl">
           <CardHeader className="p-5 border-b border-[#E5E7EB]">
             <div className="flex items-center gap-2">
-              <Lock className="w-5 h-5 text-[#3B82F6]" />
+              <span className="w-5 h-5 text-[#3B82F6]" />
               <h3 className="text-lg text-[#1F2937]">Update Password</h3>
             </div>
           </CardHeader>
@@ -139,9 +138,9 @@ export function ChangePasswordPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1F2937]"
                 >
                   {showCurrentPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
                     <Eye className="w-5 h-5" />
+                  ) : (
+                    <EyeOff className="w-5 h-5" />
                   )}
                 </button>
               </div>
@@ -173,9 +172,9 @@ export function ChangePasswordPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1F2937]"
                 >
                   {showNewPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
                     <Eye className="w-5 h-5" />
+                  ) : (
+                    <EyeOff className="w-5 h-5" />
                   )}
                 </button>
               </div>
@@ -208,9 +207,9 @@ export function ChangePasswordPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1F2937]"
                 >
                   {showConfirmPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
                     <Eye className="w-5 h-5" />
+                  ) : (
+                    <EyeOff className="w-5 h-5" />
                   )}
                 </button>
               </div>
@@ -233,7 +232,7 @@ export function ChangePasswordPage() {
                 type="submit"
                 className="flex-1 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-lg shadow-clinical hover:shadow-clinical-lg transition-all"
               >
-                <Save className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Change Password
               </Button>
             </div>

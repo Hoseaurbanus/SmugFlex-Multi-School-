@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { FileText, Download, Filter, TrendingUp, DollarSign, Users, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -9,6 +8,7 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { TrendingUp, DollarSign, Users, CheckCircle, AlertCircle, Clock, Download, FileText, Filter, Search } from 'lucide-react';
 
 export function PaymentReportsPage() {
   const {
@@ -174,15 +174,152 @@ export function PaymentReportsPage() {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-[#1F2937] mb-2">Payment Reports</h1>
-        <p className="text-[#6B7280]">Generate and export comprehensive payment reports</p>
+        <h1 className="text-2xl font-bold text-gray-800">Payment Reports & Analytics</h1>
+        <p className="text-gray-600">Generate comprehensive payment reports and track collection performance</p>
+      </div>
+
+      {/* Enhanced Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-50 to-blue-100 hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-600">Total Expected</p>
+                <p className="text-2xl font-bold text-blue-800">â‚¦{stats.totalExpected.toLocaleString()}</p>
+                <p className="text-xs text-blue-500 mt-1">This term</p>
+              </div>
+              <div className="p-3 rounded-full bg-blue-100">
+                <DollarSign className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm bg-gradient-to-r from-green-50 to-green-100 hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-600">Total Collected</p>
+                <p className="text-2xl font-bold text-green-800">â‚¦{stats.totalCollected.toLocaleString()}</p>
+                <p className="text-xs text-green-500 mt-1">Received payments</p>
+              </div>
+              <div className="p-3 rounded-full bg-green-100">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm bg-gradient-to-r from-orange-50 to-orange-100 hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-orange-600">Outstanding</p>
+                <p className="text-2xl font-bold text-orange-800">â‚¦{stats.totalOutstanding.toLocaleString()}</p>
+                <p className="text-xs text-orange-500 mt-1">Pending payments</p>
+              </div>
+              <div className="p-3 rounded-full bg-orange-100">
+                <AlertCircle className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm bg-gradient-to-r from-purple-50 to-purple-100 hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-purple-600">Collection Rate</p>
+                <p className="text-2xl font-bold text-purple-800">{stats.collectionRate}%</p>
+                <p className="text-xs text-purple-500 mt-1">Performance</p>
+              </div>
+              <div className="p-3 rounded-full bg-purple-100">
+                <TrendingUp className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Payment Status Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-600">Payment Status</h3>
+              <Users className="h-4 w-4 text-gray-400" />
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Fully Paid</span>
+                <Badge variant="default" className="bg-green-100 text-green-800">
+                  {stats.fullyPaid} students
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Partially Paid</span>
+                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                  {stats.partiallyPaid} students
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Unpaid</span>
+                <Badge variant="destructive" className="bg-red-100 text-red-800">
+                  {stats.unpaid} students
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-600">Quick Actions</h3>
+              <FileText className="h-4 w-4 text-gray-400" />
+            </div>
+            <div className="space-y-2">
+              <Button onClick={exportToPDF} className="w-full justify-start" variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export PDF Report
+              </Button>
+              <Button onClick={exportToCSV} className="w-full justify-start" variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV Data
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-600">Summary</h3>
+              <Clock className="h-4 w-4 text-gray-400" />
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total Students:</span>
+                <span className="font-medium">{stats.totalStudents}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Collection Rate:</span>
+                <span className="font-medium">{stats.collectionRate}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Outstanding:</span>
+                <span className="font-medium text-red-600">â‚¦{stats.totalOutstanding.toLocaleString()}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
       <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
         <CardHeader className="p-6 border-b border-[#E5E7EB]">
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-[#007C91]" />
+            <span className="w-5 h-5 text-[#007C91]" />
             <CardTitle className="text-[#1F2937]">Report Filters</CardTitle>
           </div>
         </CardHeader>
@@ -254,7 +391,7 @@ export function PaymentReportsPage() {
               onClick={exportToPDF}
               className="bg-[#007C91] hover:bg-[#006073] text-white rounded-xl shadow-clinical"
             >
-              <Download className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Export PDF
             </Button>
             <Button
@@ -262,7 +399,7 @@ export function PaymentReportsPage() {
               variant="outline"
               className="border-[#007C91] text-[#007C91] hover:bg-[#007C91]/10 rounded-xl"
             >
-              <Download className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Export CSV
             </Button>
           </div>
@@ -275,9 +412,9 @@ export function PaymentReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                <DollarSign className="w-6 h-6" />
+                <span className="w-6 h-6" />
               </div>
-              <TrendingUp className="w-5 h-5 opacity-70" />
+              <span className="w-5 h-5 opacity-70" />
             </div>
             <p className="text-white/80 text-sm mb-1">Total Expected</p>
             <h3 className="text-white">₦{stats.totalExpected.toLocaleString()}</h3>
@@ -288,7 +425,7 @@ export function PaymentReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                <DollarSign className="w-6 h-6" />
+                <span className="w-6 h-6" />
               </div>
               <span className="text-sm opacity-80">{stats.collectionRate}%</span>
             </div>
@@ -301,7 +438,7 @@ export function PaymentReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6" />
+                <span className="w-6 h-6" />
               </div>
             </div>
             <p className="text-white/80 text-sm mb-1">Outstanding</p>
@@ -313,7 +450,7 @@ export function PaymentReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                <Users className="w-6 h-6" />
+                <span className="w-6 h-6" />
               </div>
             </div>
             <p className="text-white/80 text-sm mb-1">Total Students</p>
@@ -371,7 +508,7 @@ export function PaymentReportsPage() {
       <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
         <CardHeader className="p-6 border-b border-[#E5E7EB]">
           <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-[#007C91]" />
+            <span className="w-5 h-5 text-[#007C91]" />
             <CardTitle className="text-[#1F2937]">Detailed Payment Report</CardTitle>
           </div>
         </CardHeader>

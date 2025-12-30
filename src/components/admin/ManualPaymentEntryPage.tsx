@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { DollarSign, Save, Search, User, CreditCard, Calendar, FileText, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -28,7 +27,7 @@ export function ManualPaymentEntryPage() {
 
   // Filter students by selected class and search
   const filteredStudents = students.filter((s) => {
-    const matchesClass = !selectedClassId || s.classId === Number(selectedClassId);
+    const matchesClass = !selectedClassId || s.class_id === Number(selectedClassId);
     if (!searchQuery) return matchesClass;
     const query = searchQuery.toLowerCase();
     const matchesSearch = (
@@ -41,7 +40,7 @@ export function ManualPaymentEntryPage() {
 
   // Get students count per class
   const getStudentCount = (classId: number) => {
-    return students.filter(s => s.classId === classId && s.status === 'Active').length;
+    return students.filter(s => s.class_id === classId && s.status === 'Active').length;
   };
 
   const selectedStudent = students.find((s) => s.id === Number(selectedStudentId));
@@ -83,18 +82,22 @@ export function ManualPaymentEntryPage() {
     const receipt = receiptNumber || generateReceiptNumber();
 
     addPayment({
-      studentId: Number(selectedStudentId),
+      student_id: Number(selectedStudentId),
+      student_name: selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : "",
       amount: Number(amount),
-      recordedDate: paymentDate,
+      payment_type: "School Fees",
       term,
-      academicYear: currentAcademicYear,
-      paymentMethod: "Cash",
+      academic_year: currentAcademicYear,
+      payment_method: "Cash",
+      reference: receipt,
+      recorded_by: 1, // Admin user
+      recorded_date: paymentDate,
       status: "Verified",
-      verifiedBy: 1, // Admin user
-      verifiedDate: new Date().toISOString(),
-      receiptNumber: receipt,
-      description: description || `School fees payment - ${term} ${currentAcademicYear}`,
-      proofOfPayment: "",
+      receipt_number: receipt,
+      verified_by: 1,
+      verified_date: new Date().toISOString(),
+      notes: description || `School fees payment - ${term} ${currentAcademicYear}`,
+      transaction_reference: receipt,
     });
 
     toast.success(
@@ -124,7 +127,7 @@ export function ManualPaymentEntryPage() {
         <Card className="border-[#0A2540]/10">
           <CardHeader className="bg-gradient-to-r from-[#10B981] to-[#059669] text-white rounded-t-xl">
             <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
+              <span className="w-5 h-5" />
               Enter Payment Details
             </CardTitle>
           </CardHeader>
@@ -154,7 +157,7 @@ export function ManualPaymentEntryPage() {
                 Search Student *
               </Label>
               <div className="relative mb-2">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -251,7 +254,7 @@ export function ManualPaymentEntryPage() {
               onClick={handleSubmit}
               className="w-full h-12 bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
             >
-              <Save className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Record Payment
             </Button>
           </CardContent>
@@ -264,7 +267,7 @@ export function ManualPaymentEntryPage() {
             <Card className="border-[#0A2540]/10">
               <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl">
                 <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5" />
+                  <span className="w-5 h-5" />
                   Student Information
                 </CardTitle>
               </CardHeader>
@@ -317,7 +320,7 @@ export function ManualPaymentEntryPage() {
             <Card className="border-[#0A2540]/10">
               <CardHeader className="bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-white rounded-t-xl">
                 <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5" />
+                  <span className="w-5 h-5" />
                   Payment Summary
                 </CardTitle>
               </CardHeader>
@@ -377,7 +380,7 @@ export function ManualPaymentEntryPage() {
           <Card className="border-blue-200 bg-blue-50">
             <CardContent className="p-6">
               <div className="flex gap-3">
-                <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-1" />
+                <span className="w-5 h-5 text-blue-600 flex-shrink-0 mt-1" />
                 <div>
                   <h3 className="text-blue-900 font-medium mb-2">Instructions</h3>
                   <ul className="text-sm text-blue-800 space-y-1">

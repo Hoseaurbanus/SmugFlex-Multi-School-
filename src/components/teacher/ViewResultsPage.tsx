@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { FileText, Download, Eye, Filter, Search, Calendar, Award } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -7,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Badge } from "../ui/badge";
 import { useSchool } from "../../contexts/SchoolContext";
 import { StudentResultSheet } from "../StudentResultSheet";
-import { Dialog, DialogContent } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 
 export function ViewResultsPage() {
   const { 
@@ -28,10 +27,10 @@ export function ViewResultsPage() {
   const [viewingResult, setViewingResult] = useState<any>(null);
 
   // Get current teacher data
-  const currentTeacher = currentUser ? teachers.find(t => t.id === currentUser.linked_id) : null;
+  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
   
   // Only include classes where teacher is assigned as class_teacher
-  const teacherClasses = classes.filter((c: any) => c.classTeacherId === currentTeacher?.id);
+  const teacherClasses = classes.filter((c: any) => Number(c.classTeacherId) === Number(currentTeacher?.id));
   
   // Filter results for teacher's classes
   const teacherResults = compiledResults.filter(result => {
@@ -128,7 +127,7 @@ export function ViewResultsPage() {
       <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical">
         <CardHeader className="p-5 border-b border-[#E5E7EB]">
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-[#3B82F6]" />
+            <span className="w-5 h-5 text-[#3B82F6]" />
             <h3 className="text-[#1F2937]">Filters</h3>
           </div>
         </CardHeader>
@@ -136,7 +135,7 @@ export function ViewResultsPage() {
           <div className="grid md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
               <Input
                 type="text"
                 placeholder="Search student..."
@@ -197,7 +196,7 @@ export function ViewResultsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[#6B7280] text-sm">Total Results</p>
-              <FileText className="w-5 h-5 text-[#3B82F6]" />
+              <span className="w-5 h-5 text-[#3B82F6]" />
             </div>
             <p className="text-[#1F2937] font-semibold">{teacherResults.length}</p>
           </CardContent>
@@ -207,7 +206,7 @@ export function ViewResultsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[#6B7280] text-sm">Approved</p>
-              <Award className="w-5 h-5 text-[#10B981]" />
+              <span className="w-5 h-5 text-[#10B981]" />
             </div>
             <p className="text-[#1F2937] font-semibold">
               {(teacherResults || []).filter(r => r.status === 'Approved').length}
@@ -219,7 +218,7 @@ export function ViewResultsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[#6B7280] text-sm">Pending</p>
-              <Calendar className="w-5 h-5 text-[#F59E0B]" />
+              <span className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <p className="text-[#1F2937] font-semibold">
               {(teacherResults || []).filter(r => r.status === 'Submitted').length}
@@ -231,7 +230,7 @@ export function ViewResultsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[#6B7280] text-sm">Your Classes</p>
-              <FileText className="w-5 h-5 text-[#3B82F6]" />
+              <span className="w-5 h-5 text-[#3B82F6]" />
             </div>
             <p className="text-[#1F2937] font-semibold">{teacherClasses.length}</p>
           </CardContent>
@@ -251,7 +250,7 @@ export function ViewResultsPage() {
         <CardContent className="p-0">
           {sortedResults.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="w-16 h-16 text-[#9CA3AF] mx-auto mb-4" />
+              <span className="w-16 h-16 text-[#9CA3AF] mx-auto mb-4" />
               <h3 className="text-[#1F2937] mb-2">No Results Found</h3>
               <p className="text-[#6B7280] mb-4">
                 {teacherResults.length === 0 
@@ -337,17 +336,17 @@ export function ViewResultsPage() {
                           size="sm"
                           className="rounded-lg border-[#3B82F6] text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white"
                         >
-                          <Eye className="w-4 h-4 mr-2" />
+                          <span className="w-4 h-4 mr-2" />
                           View
                         </Button>
                         {result.status === 'Approved' && (
                           <Button
                             onClick={() => handlePrintResult(result)}
-                            size="sm"
-                            className="bg-[#10B981] text-white hover:bg-[#059669] rounded-lg"
+                            className="bg-gray-400 text-white rounded-xl cursor-not-allowed opacity-50"
+                            disabled
                           >
-                            <Download className="w-4 h-4 mr-2" />
-                            Print
+                            <span className="w-4 h-4 mr-2" />
+                            Print (PDF Only)
                           </Button>
                         )}
                       </div>
@@ -363,6 +362,9 @@ export function ViewResultsPage() {
       {/* Result View Dialog */}
       {viewingResult && (
         <Dialog open={!!viewingResult} onOpenChange={() => setViewingResult(null)}>
+          <DialogHeader className="sr-only">
+            <DialogTitle>Result Sheet</DialogTitle>
+          </DialogHeader>
           <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -373,7 +375,7 @@ export function ViewResultsPage() {
                   onClick={() => window.print()}
                   className="bg-[#3B82F6] text-white hover:bg-[#2563EB] rounded-lg"
                 >
-                  <Download className="w-4 h-4 mr-2" />
+                  <span className="w-4 h-4 mr-2" />
                   Print PDF
                 </Button>
               </div>

@@ -1,18 +1,19 @@
-import { useMemo } from "react";
-import { User, Phone, Mail, Calendar, GraduationCap, MapPin, Heart, FileText, CreditCard, Eye } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { useState, useEffect, useMemo } from "react";
+import { User, Calendar, Award, TrendingUp, Download, Eye, Search, MoreVertical, Filter } from 'lucide-react';
+import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { Avatar, AvatarFallback } from "../ui/avatar";
+import { toast } from "sonner";
+import { generatePDFFromData } from '../../utils/pdfGenerator';
+import { FullPageResultView } from "../shared/FullPageResultView";
 import { useSchool } from "../../contexts/SchoolContext";
 
-interface ChildData {
+interface Child {
   id: number;
   firstName: string;
   lastName: string;
   fullName: string;
   admissionNumber: string;
-  classId: number;
   className: string;
   classLevel: string;
   gender: string;
@@ -27,371 +28,388 @@ interface ChildData {
   totalFees: number;
 }
 
-interface MyChildrenPageProps {
-  onNavigateToResults?: () => void;
-  onNavigateToFees?: () => void;
+interface CompiledResult {
+  id: number;
+  student_id: number;
+  class_id: number;
+  term: string;
+  academic_year: string;
+  total_score: number;
+  average_score: number;
+  class_average: number;
+  position: number;
+  total_students: number;
+  times_present: number;
+  times_absent: number;
+  status: string;
+  compiled_date: string;
+  scores: any[];
 }
 
-export function MyChildrenPage({ onNavigateToResults, onNavigateToFees }: MyChildrenPageProps) {
-  const { currentUser, parents, students, classes, compiledResults, payments, currentTerm, currentAcademicYear, getParentChildren } = useSchool();
+export function MyChildrenPage() {
+  const { 
+    currentUser, 
+    parents, 
+    getParentChildren,
+    compiledResults,
+    loadParentsFromAPI,
+    loadParentStudentLinksFromAPI,
+    loadStudentsFromAPI,
+    loadCompiledResultsFromAPI,
+    currentTerm,
+    currentAcademicYear,
+    students,
+    classes,
+    schoolSettings,
+    teachers,
+    scores,
+    loadScoresFromAPI
+  } = useSchool();
+  
+  const [children, setChildren] = useState<Child[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedChild, setSelectedChild] = useState<Child | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [fullPageView, setFullPageView] = useState<{ studentId: number; resultId: number } | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Get current parent
-  const currentParent = currentUser ? parents.find(p => p.id === currentUser.linked_id) : null;
+  const currentParent = currentUser && parents.length > 0 ? parents.find((p) => p.id === currentUser?.linked_id) : null;
+  
+  let parentName = currentUser?.username || "Parent";
+  if (currentParent && currentParent.firstName && currentParent.lastName) {
+    parentName = `${currentParent.firstName} ${currentParent.lastName}`;
+  }
 
-  // Get parent's linked children using the enhanced system
-  const myChildren = useMemo(() => {
-    if (!currentParent) {
-      return [];
-    }
-    
-    // Use the real parent-student linking system
-    const childrenData = getParentChildren(currentParent.id) as any[];
-    
-    return childrenData.map(child => {
-      // Get latest result for current term
-      const latestResult = compiledResults.find(r => 
-        r.student_id === child.id &&
+  // Get approved results for a specific child - same logic as admin
+  const getChildApprovedResults = (childId: number) => {
+    return compiledResults.filter(result => 
+      result.student_id === childId && 
+      result.status === 'Approved'
+    );
+  };
+
+  // Get students with results - EXACT same as admin ResultsManagementPage
+  const filteredResults = useMemo(() => {
+    // Use same filtering as admin for current term/year
+    let allResults = compiledResults;
+
+    let results = allResults.filter(
+      (r: any) =>
         r.term === currentTerm &&
-        r.academic_year === currentAcademicYear &&
-        r.status === 'Approved'
-      );
+        r.academic_year === currentAcademicYear
+    );
 
-      // Get payment balance
-      const studentPayments = payments.filter(p => p.student_id === child.id);
-      const totalPaid = studentPayments.reduce((sum, p) => sum + p.amount, 0);
-      const totalFee = 150000; // This should come from fee structure
-      const balance = totalFee - totalPaid;
+    // Filter by status - same as admin approved tab
+    results = results.filter((r: any) => r.status === "Approved");
 
-      return {
-        id: child.id,
-        firstName: child.firstName,
-        lastName: child.lastName,
-        fullName: child.fullName,
-        admissionNumber: child.admissionNumber,
-        className: child.className,
-        level: child.classLevel,
-        gender: child.gender,
-        dateOfBirth: child.dateOfBirth,
-        photoUrl: child.photoUrl,
-        status: child.status || 'Active',
-        classTeacher: classes.find(c => c.id === child.classId)?.classTeacher || 'Not Assigned',
-        hasResult: latestResult !== undefined,
-        averageScore: latestResult?.average_score || 0,
-        position: latestResult?.position || 0,
-        totalStudents: latestResult?.total_students || 0,
-        feeBalance: balance,
-        totalFee,
-        paymentStatus: balance > 0 ? 'Pending' : 'Paid'
+    return results;
+  }, [compiledResults, currentTerm, currentAcademicYear]);
+
+  // Get students with results - EXACT same as admin
+  const studentsWithResults = useMemo(() => {
+    return filteredResults
+      .map((result: any) => {
+        const student = students.find((s: any) => s.id === result.student_id);
+        return student ? { ...student, result } : null;
+      })
+      .filter(Boolean);
+  }, [filteredResults, students]);
+
+  useEffect(() => {
+    const loadParentData = async () => {
+      if (currentUser && currentUser.role === "parent") {
+        setLoading(true);
+        try {
+          console.log('MyChildrenPage: Loading parent data...');
+          await Promise.all([
+            loadParentsFromAPI(),
+            loadParentStudentLinksFromAPI(),
+            loadStudentsFromAPI(),
+            loadCompiledResultsFromAPI(),
+            loadScoresFromAPI() // ← IMPORTANT: Load scores like admin
+          ]);
+          
+          console.log('MyChildrenPage: Data loaded, compiledResults length:', compiledResults.length);
+
+          const parentId = currentUser?.linked_id;
+          
+          if (parentId) {
+            const childrenData = getParentChildren(parentId);
+            
+            if (childrenData && childrenData.length > 0) {
+              const transformedChildren = childrenData.map((child: any) => ({
+                ...child,
+                dateOfBirth: child.dateOfBirth || "",
+                address: child.address || "",
+                parentContact: child.parentContact || "",
+                enrollmentDate: child.enrollmentDate || "",
+                recentActivities: child.recentActivities || [],
+                feeBalance: child.feeBalance || 0,
+                totalFees: child.totalFees || 0
+              }));
+              setChildren(transformedChildren);
+              
+              // Auto-select first child if none selected
+              if (!selectedChild && transformedChildren.length > 0) {
+                setSelectedChild(transformedChildren[0]);
+              }
+            } else {
+              setChildren([]);
+              toast.info(`No linked students found for ${parentName}. Please contact administration to link students.`);
+            }
+          } else {
+            setChildren([]);
+            toast.error("Parent account not properly linked");
+          }
+        } catch (error) {
+          console.error("Error loading parent data:", error);
+          toast.error("Failed to load parent data");
+          setChildren([]);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadParentData();
+  }, [currentUser?.id, currentUser?.linked_id, parents.length]);
+
+  // Filter children based on search
+  const filteredChildren = children.filter(child =>
+    child.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    child.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    child.className.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleViewResult = (resultId: number) => {
+    // Use the same result viewing as admin - FullPageResultView
+    const result = compiledResults.find(r => r.id === resultId);
+    const student = students.find(s => s.id === result?.student_id);
+    
+    if (result && student) {
+      // Open the same FullPageResultView that admin uses
+      setFullPageView({ studentId: student.id, resultId: result.id });
+    } else {
+      toast.error("Result not found");
+    }
+  };
+
+  const handleDownloadResult = async (student: any, result: any) => {
+    try {
+      if (!student || !result) {
+        toast.error("Student or result not found");
+        return;
+      }
+
+      console.log('=== PARENT PDF DOWNLOAD STARTED ===');
+      console.log('Student:', student.firstName, student.lastName);
+      console.log('Student ID:', student.id);
+      console.log('Result ID:', result.id);
+      
+      // Use the EXACT same admin PDF function from shared utility
+      
+      // Pass the exact same context that admin uses
+      const context = {
+        schoolSettings: schoolSettings,
+        teachers: teachers,
+        classes: classes,
+        scores: scores // ← IMPORTANT: Pass scores context
       };
-    });
-  }, [currentParent, getParentChildren, compiledResults, payments, currentTerm, currentAcademicYear, classes]);
+      
+      console.log('Parent context being passed:', context);
+      console.log('School settings from context:', schoolSettings);
+      console.log('Scores from context:', scores.length);
+      
+      await generatePDFFromData(student, result, context);
+      
+      console.log('=== PARENT PDF COMPLETED SUCCESSFULLY ===');
+      toast.success('PDF downloaded successfully!');
+    } catch (error) {
+      console.error('=== PARENT PDF GENERATION FAILED ===');
+      console.error('Error:', error);
+      toast.error('Failed to download PDF');
+    }
+  };
 
-  if (!currentParent) {
+  if (fullPageView) {
     return (
-      <div className="p-6">
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-6 text-center">
-            <p className="text-red-800">Unable to load parent information</p>
-          </CardContent>
-        </Card>
-      </div>
+      <FullPageResultView
+        studentId={fullPageView.studentId}
+        resultId={fullPageView.resultId}
+        onClose={() => setFullPageView(null)}
+      />
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-[#0A2540] mb-2">My Children</h1>
-        <p className="text-gray-600">View and manage information for your linked children</p>
-      </div>
-
-      {/* Parent Info */}
-      <Card className="border-[#0A2540]/10">
-        <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl">
-          <CardTitle className="flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Parent/Guardian Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <User className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Name</p>
-                <p className="text-[#0A2540] font-medium">{currentParent.firstName} {currentParent.lastName}</p>
-              </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">My Children</h1>
+              <p className="text-sm text-gray-500 mt-1">Welcome, {parentName}</p>
             </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                <Phone className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Phone</p>
-                <p className="text-[#0A2540] font-medium">{currentParent.phone}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                <Mail className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Email</p>
-                <p className="text-[#0A2540] font-medium">{currentParent.email}</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                {children.length} Children
+              </Badge>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                {filteredResults.length} Results
+              </Badge>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Children Count */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Total Children</p>
-                <p className="text-[#0A2540] text-2xl font-bold">{myChildren.length}</p>
+      {/* Search and Filters */}
+      <div className="mb-6">
+        <Card className="border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search children..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <Heart className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Active Students</p>
-                <p className="text-[#0A2540] text-2xl font-bold">
-                  {myChildren.filter(c => c.status === 'Active').length}
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Current Term</p>
-                <p className="text-[#0A2540] font-medium">{currentTerm}</p>
-                <p className="text-gray-600 text-sm">{currentAcademicYear}</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-purple-600" />
+              <div className="flex gap-2">
+                <Button
+                  variant={viewMode === 'grid' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('grid')}
+                  className="shrink-0"
+                >
+                  Grid
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className="shrink-0"
+                >
+                  List
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Children List */}
-      {myChildren.length === 0 ? (
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-12 text-center">
-            <GraduationCap className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-[#0A2540] text-lg mb-2">No Children Linked</h3>
-            <p className="text-gray-600">
-              You don't have any children linked to your account yet.
-            </p>
-            <p className="text-gray-600 text-sm mt-2">
-              Please contact the school administration to link your children to your parent portal.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {myChildren.map((child) => (
-            <Card key={child.id} className="border-[#0A2540]/10 hover:shadow-lg transition-all">
-              <CardHeader className="bg-gradient-to-r from-[#10B981] to-[#059669] text-white rounded-t-xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="w-16 h-16 border-4 border-white">
-                      {child.photoUrl ? (
-                        <img src={child.photoUrl} alt={child.fullName} className="w-full h-full object-cover" />
-                      ) : (
-                        <AvatarFallback className="bg-white text-[#10B981] text-xl">
-                          {child.firstName[0]}{child.lastName[0]}
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-white mb-1">{child.fullName}</CardTitle>
-                      <p className="text-white/90 text-sm">{child.admissionNumber}</p>
-                    </div>
-                  </div>
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Loading children...</span>
+        </div>
+      )}
 
-                  <Badge 
-                    className={`rounded-xl ${
-                      child.status === 'Active' 
-                        ? 'bg-white text-[#10B981]' 
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
-                  >
-                    {child.status}
-                  </Badge>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-6">
-                {/* Basic Info */}
-                <div className="grid md:grid-cols-4 gap-6 mb-6">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Class</p>
-                    <div className="flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4 text-blue-600" />
-                      <p className="text-[#0A2540] font-medium">{child.className}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Level</p>
-                    <Badge variant="outline" className="rounded-xl">
-                      {child.level}
-                    </Badge>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Gender</p>
-                    <p className="text-[#0A2540] font-medium">{child.gender}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Date of Birth</p>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-purple-600" />
-                      <p className="text-[#0A2540] font-medium">
-                        {new Date(child.dateOfBirth).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Class Teacher */}
-                <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                  <p className="text-sm text-gray-600 mb-1">Class Teacher</p>
-                  <p className="text-[#0A2540] font-medium">{child.classTeacher}</p>
-                </div>
-
-                {/* Academic Performance */}
-                <div className="grid md:grid-cols-2 gap-4 mb-6">
-                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm text-blue-900">Latest Result ({currentTerm})</p>
-                      {child.hasResult && (
-                        <Badge className="bg-green-100 text-green-800 border-green-300 rounded-xl">
-                          Available
-                        </Badge>
-                      )}
-                    </div>
-                    {child.hasResult ? (
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-blue-900">Average Score:</span>
-                          <span className="text-blue-900 font-bold">{child.averageScore}%</span>
+      {/* Children Grid/List */}
+      {!loading && (
+        <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-4'}>
+          {filteredChildren.length === 0 ? (
+            <div className="col-span-full">
+              <Card className="border-gray-200">
+                <CardContent className="p-8 text-center">
+                  <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Children Found</h3>
+                  <p className="text-gray-500 mb-4">
+                    {searchTerm ? 'No children match your search criteria.' : 'No children are linked to your account.'}
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    Please contact the school administration to link students to your account.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            filteredChildren.map((child) => {
+              const approvedResults = getChildApprovedResults(child.id);
+              const isSelected = selectedChild?.id === child.id;
+              
+              return (
+                <Card 
+                  key={child.id} 
+                  className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${
+                    isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'bg-white'
+                  } border-gray-200`}
+                  onClick={() => setSelectedChild(child)}
+                >
+                  <CardContent className="p-4">
+                    {/* Child Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
+                          {child.firstName.charAt(0)}{child.lastName.charAt(0)}
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-900">Position:</span>
-                          <span className="text-blue-900 font-bold">
-                            {child.position}/{child.totalStudents}
-                          </span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-sm">{child.fullName}</h3>
+                          <p className="text-xs text-gray-500">{child.admissionNumber}</p>
                         </div>
-                        <Button
-                          onClick={onNavigateToResults}
-                          size="sm"
-                          className="w-full mt-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
-                        >
-                          <FileText className="w-4 h-4 mr-2" />
-                          View Full Result
-                        </Button>
                       </div>
-                    ) : (
-                      <div className="text-center py-4">
-                        <p className="text-blue-800 text-sm">No result available yet</p>
-                        <p className="text-blue-700 text-xs mt-1">Result pending approval</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-4 bg-green-50 rounded-xl border border-green-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm text-green-900">Fee Status</p>
                       <Badge 
-                        className={`rounded-xl ${
-                          child.paymentStatus === 'Paid' 
-                            ? 'bg-green-100 text-green-800 border-green-300' 
-                            : 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                        }`}
+                        variant={child.status === "Active" ? "default" : "secondary"} 
+                        className="text-xs shrink-0"
                       >
-                        {child.paymentStatus}
+                        {child.status}
                       </Badge>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-green-900">Total Fee:</span>
-                        <span className="text-green-900 font-bold">₦{child.totalFee.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-green-900">Balance:</span>
-                        <span className={`font-bold ${child.feeBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          ₦{child.feeBalance.toLocaleString()}
-                        </span>
-                      </div>
-                      {child.feeBalance > 0 && (
-                        <Button
-                          onClick={onNavigateToFees}
-                          size="sm"
-                          className="w-full mt-2 bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
-                        >
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Pay Fees
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Quick Actions */}
-                <div className="flex gap-3 flex-wrap">
-                  <Button
-                    onClick={onNavigateToResults}
-                    variant="outline"
-                    className="rounded-xl border-[#0A2540]/20"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    View Results
-                  </Button>
-                  <Button
-                    onClick={onNavigateToFees}
-                    variant="outline"
-                    className="rounded-xl border-[#0A2540]/20"
-                  >
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    Fee History
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="rounded-xl border-[#0A2540]/20"
-                  >
-                    <Calendar className="w-4 h-4 mr-2" />
-                    View Attendance
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    {/* Child Info */}
+                    <div className="space-y-2 mb-3">
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <Award className="w-3 h-3" />
+                        <span>{child.className}</span>
+                      </div>
+                      {child.gender && (
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <User className="w-3 h-3" />
+                          <span>{child.gender}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <Calendar className="w-3 h-3" />
+                        <span>Class: {child.classLevel}</span>
+                      </div>
+                    </div>
+
+                    {/* Results Badge */}
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        {approvedResults.length} Approved Results
+                      </Badge>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewResult(approvedResults[0]?.id)}
+                          className="h-8 px-2 text-xs"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleDownloadResult(child, approvedResults[0])}
+                          className="h-8 px-2 text-xs bg-blue-600 hover:bg-blue-700"
+                          disabled={!approvedResults[0]}
+                        >
+                          <Download className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
         </div>
       )}
     </div>

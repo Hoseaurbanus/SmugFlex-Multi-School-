@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { Table, Download, Printer, Filter } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Label } from "../ui/label";
 import { useSchool } from "../../contexts/SchoolContext";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function BroadsheetViewPage() {
   const { classes, students, scores, subjects, subjectAssignments } = useSchool();
@@ -56,7 +55,7 @@ export function BroadsheetViewPage() {
               variant="outline"
               className="rounded-lg"
             >
-              <Printer className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Print
             </Button>
             <Button
@@ -65,7 +64,7 @@ export function BroadsheetViewPage() {
               variant="outline"
               className="rounded-lg"
             >
-              <Download className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Export Excel
             </Button>
           </div>

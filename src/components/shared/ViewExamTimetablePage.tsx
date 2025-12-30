@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Calendar, Clock, Download, MapPin, FileText } from 'lucide-react';
-
 interface ViewExamTimetablePageProps {
   userRole: 'teacher' | 'parent' | 'student';
 }
@@ -109,7 +107,7 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
         </div>
         {(filteredTimetables || []).length > 0 && (
           <Button onClick={handleDownload} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Download
           </Button>
         )}
@@ -137,7 +135,7 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
       {/* Timetable Display */}
       {sortedDates.length === 0 ? (
         <Card className="p-12 bg-white rounded-xl shadow-sm border border-slate-200 text-center">
-          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <span className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <h3 className="text-slate-900 mb-2">No Exams Scheduled</h3>
           <p className="text-slate-600">
             There are no exams scheduled for this class in the current term
@@ -184,7 +182,7 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
             return (
               <Card key={date} className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-200">
-                  <Calendar className="w-6 h-6 text-blue-600" />
+                  <span className="w-6 h-6 text-blue-600" />
                   <div>
                     <h3 className="text-slate-900">{dayName}</h3>
                     <p className="text-slate-600 text-sm">{formattedDate}</p>
@@ -219,20 +217,20 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="flex items-center gap-2 text-slate-600">
-                              <Clock className="w-4 h-4" />
+                              <span className="w-4 h-4" />
                               <span className="text-sm">
                                 {exam.start_time} - {exam.end_time}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 text-slate-600">
-                              <MapPin className="w-4 h-4" />
+                              <span className="w-4 h-4" />
                               <span className="text-sm">{exam.venue}</span>
                             </div>
                           </div>
 
                           {exam.instructions && (
                             <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
-                              <FileText className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                              <span className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
                               <div>
                                 <p className="text-yellow-800 text-sm">{exam.instructions}</p>
                               </div>
@@ -250,7 +248,7 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
           {/* Important Notes */}
           <Card className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
             <h3 className="text-purple-900 mb-3 flex items-center gap-2">
-              <FileText className="w-5 h-5" />
+              <span className="w-5 h-5" />
               Important Examination Guidelines
             </h3>
             <ul className="space-y-2 text-purple-800 text-sm">

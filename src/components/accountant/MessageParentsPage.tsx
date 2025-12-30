@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Send, MessageSquare, Users, DollarSign, Reply, X, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -190,7 +189,7 @@ export function AccountantMessagePage() {
                 </div>
 
                 <Button type="submit" className="w-full rounded-lg bg-[#007C91] hover:bg-[#005A6B] text-white">
-                  <Send className="w-4 h-4 mr-2" />
+                  <span className="w-4 h-4 mr-2" />
                   Send Message to Parents
                 </Button>
               </form>
@@ -205,21 +204,21 @@ export function AccountantMessagePage() {
             </CardHeader>
             <CardContent className="p-4 space-y-4 text-sm text-[#6B7280]">
               <div className="flex gap-3">
-                <DollarSign className="w-5 h-5 text-[#007C91] flex-shrink-0 mt-0.5" />
+                <span className="w-5 h-5 text-[#007C91] flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-[#1F2937] mb-1">Fee Related Messages</p>
                   <p>Use this for fee reminders, payment confirmations, and financial notices.</p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <Users className="w-5 h-5 text-[#007C91] flex-shrink-0 mt-0.5" />
+                <span className="w-5 h-5 text-[#007C91] flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-[#1F2937] mb-1">Targeted Communication</p>
                   <p>Send to all parents for general announcements or specific parents for individual matters.</p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <MessageSquare className="w-5 h-5 text-[#007C91] flex-shrink-0 mt-0.5" />
+                <span className="w-5 h-5 text-[#007C91] flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-[#1F2937] mb-1">Clear Subject Line</p>
                   <p>Use descriptive subjects to help parents understand the message purpose quickly.</p>
@@ -234,14 +233,14 @@ export function AccountantMessagePage() {
       <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
         <CardHeader className="border-b border-[#E5E7EB] bg-[#F9FAFB] p-4">
           <CardTitle className="text-[#1F2937] flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
+            <span className="w-5 h-5" />
             Parent Messages ({parentMessages.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
           {parentMessages.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <span className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No parent messages received</p>
             </div>
           ) : (
@@ -255,7 +254,7 @@ export function AccountantMessagePage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge className="bg-purple-100 text-purple-800 border-purple-300">
-                          <MessageSquare className="w-3 h-3 mr-1" />
+                          <span className="w-3 h-3 mr-1" />
                           Parent Message
                         </Badge>
                         <span className="text-xs text-gray-500">
@@ -271,7 +270,7 @@ export function AccountantMessagePage() {
                       onClick={() => handleReply(notification)}
                       className="flex-shrink-0"
                     >
-                      <Reply className="w-4 h-4 mr-1" />
+                      <span className="w-4 h-4 mr-1" />
                       Reply
                     </Button>
                   </div>
@@ -313,7 +312,7 @@ export function AccountantMessagePage() {
                 disabled={!replyMessage.trim()}
                 className="bg-[#007C91] hover:bg-[#005A6B] text-white"
               >
-                <Send className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Send Reply
               </Button>
               <Button

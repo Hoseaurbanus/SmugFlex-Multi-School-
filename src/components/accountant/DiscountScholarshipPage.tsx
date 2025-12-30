@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Award, Plus, Edit, Trash2, Percent, DollarSign, X, Save, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { useSchool, Scholarship } from "../../contexts/SchoolContext";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 
 export function DiscountScholarshipPage() {
@@ -23,8 +22,8 @@ export function DiscountScholarshipPage() {
     type: "Percentage" as 'Percentage' | 'Fixed Amount',
     value: "",
     description: "",
-    eligibilityCriteria: "",
-    totalBudget: "",
+    eligibility_criteria: "",
+    total_budget: "",
     status: "Active" as "Active" | "Inactive"
   });
 
@@ -42,8 +41,8 @@ export function DiscountScholarshipPage() {
         type: formData.type,
         value: Number(formData.value),
         description: formData.description,
-        eligibilityCriteria: formData.eligibilityCriteria,
-        totalBudget: Number(formData.totalBudget) || 0,
+        eligibility_criteria: formData.eligibility_criteria,
+        total_budget: Number(formData.total_budget) || 0,
         status: formData.status,
       });
       toast.success("Scholarship updated successfully!");
@@ -53,11 +52,11 @@ export function DiscountScholarshipPage() {
         type: formData.type,
         value: Number(formData.value),
         description: formData.description,
-        eligibilityCriteria: formData.eligibilityCriteria,
+        eligibility_criteria: formData.eligibility_criteria,
+        total_budget: Number(formData.total_budget) || 0,
         beneficiaries: 0,
-        totalBudget: Number(formData.totalBudget) || 0,
         status: formData.status,
-        academicYear: currentAcademicYear,
+        academic_year: currentAcademicYear,
       });
       toast.success("Scholarship created successfully!");
     }
@@ -73,8 +72,8 @@ export function DiscountScholarshipPage() {
       type: scholarship.type,
       value: scholarship.value.toString(),
       description: scholarship.description,
-      eligibilityCriteria: scholarship.eligibilityCriteria,
-      totalBudget: scholarship.totalBudget.toString(),
+      eligibility_criteria: scholarship.eligibility_criteria,
+      total_budget: scholarship.total_budget.toString(),
       status: scholarship.status
     });
     setIsEditing(true);
@@ -108,8 +107,8 @@ export function DiscountScholarshipPage() {
       type: "Percentage",
       value: "",
       description: "",
-      eligibilityCriteria: "",
-      totalBudget: "",
+      eligibility_criteria: "",
+      total_budget: "",
       status: "Active"
     });
     setIsEditing(false);
@@ -119,11 +118,12 @@ export function DiscountScholarshipPage() {
   const cancelForm = () => {
     resetForm();
     setShowForm(false);
+    toast.info('Form cancelled - no changes made');
   };
 
   // Statistics
   const totalBeneficiaries = scholarships.reduce((sum, s) => sum + s.beneficiaries, 0);
-  const totalBudget = scholarships.reduce((sum, s) => sum + s.totalBudget, 0);
+  const totalBudget = scholarships.reduce((sum, s) => sum + s.total_budget, 0);
   const activeScholarships = scholarships.filter(s => s.status === 'Active').length;
 
   return (
@@ -139,7 +139,7 @@ export function DiscountScholarshipPage() {
             onClick={() => setShowForm(true)} 
             className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Add Scholarship
           </Button>
         )}
@@ -159,7 +159,7 @@ export function DiscountScholarshipPage() {
                 onClick={cancelForm}
                 className="text-gray-500 hover:text-gray-700 rounded-xl"
               >
-                <X className="w-4 h-4" />
+                <span className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
@@ -214,8 +214,8 @@ export function DiscountScholarshipPage() {
                   <Input
                     type="number"
                     placeholder="e.g., 500000"
-                    value={formData.totalBudget}
-                    onChange={(e) => setFormData({ ...formData, totalBudget: e.target.value })}
+                    value={formData.total_budget}
+                    onChange={(e) => setFormData({ ...formData, total_budget: e.target.value })}
                     className="h-12 rounded-xl border-[#0A2540]/20"
                   />
                 </div>
@@ -225,8 +225,8 @@ export function DiscountScholarshipPage() {
                 <Label className="text-[#0A2540]">Eligibility Criteria</Label>
                 <Textarea
                   placeholder="e.g., Students with 90% and above, Children of staff members"
-                  value={formData.eligibilityCriteria}
-                  onChange={(e) => setFormData({ ...formData, eligibilityCriteria: e.target.value })}
+                  value={formData.eligibility_criteria}
+                  onChange={(e) => setFormData({ ...formData, eligibility_criteria: e.target.value })}
                   className="rounded-xl border-[#0A2540]/20 min-h-[80px]"
                 />
               </div>
@@ -262,7 +262,7 @@ export function DiscountScholarshipPage() {
                   type="submit"
                   className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                 >
-                  <Save className="w-4 h-4 mr-2" />
+                  <span className="w-4 h-4 mr-2" />
                   {isEditing ? "Update Scholarship" : "Create Scholarship"}
                 </Button>
                 <Button 
@@ -289,7 +289,7 @@ export function DiscountScholarshipPage() {
                 <p className="text-[#0A2540]">{scholarships.length}</p>
               </div>
               <div className="bg-blue-100 p-3 rounded-xl">
-                <Award className="w-6 h-6 text-blue-600" />
+                <span className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -303,7 +303,7 @@ export function DiscountScholarshipPage() {
                 <p className="text-[#0A2540]">{activeScholarships}</p>
               </div>
               <div className="bg-green-100 p-3 rounded-xl">
-                <Award className="w-6 h-6 text-green-600" />
+                <span className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -317,7 +317,7 @@ export function DiscountScholarshipPage() {
                 <p className="text-[#0A2540]">{totalBeneficiaries}</p>
               </div>
               <div className="bg-purple-100 p-3 rounded-xl">
-                <Award className="w-6 h-6 text-purple-600" />
+                <span className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -331,7 +331,7 @@ export function DiscountScholarshipPage() {
                 <p className="text-[#0A2540]">₦{totalBudget.toLocaleString()}</p>
               </div>
               <div className="bg-yellow-100 p-3 rounded-xl">
-                <DollarSign className="w-6 h-6 text-yellow-600" />
+                <span className="w-6 h-6 text-yellow-600" />
               </div>
             </div>
           </CardContent>
@@ -344,7 +344,7 @@ export function DiscountScholarshipPage() {
           <Card className="col-span-full border-[#0A2540]/10">
             <CardContent className="p-12 text-center">
               <div className="flex flex-col items-center gap-3">
-                <AlertCircle className="w-16 h-16 text-gray-300" />
+                <span className="w-16 h-16 text-gray-300" />
                 <h3 className="text-[#0A2540]">No Scholarships Yet</h3>
                 <p className="text-gray-600">Get started by creating your first scholarship</p>
                 {!showForm && (
@@ -352,7 +352,7 @@ export function DiscountScholarshipPage() {
                     onClick={() => setShowForm(true)}
                     className="mt-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
+                    <span className="w-4 h-4 mr-2" />
                     Create First Scholarship
                   </Button>
                 )}
@@ -372,7 +372,7 @@ export function DiscountScholarshipPage() {
                         {scholarship.type === 'Percentage' ? (
                           <Percent className="w-5 h-5 text-purple-600" />
                         ) : (
-                          <DollarSign className="w-5 h-5 text-green-600" />
+                          <span className="w-5 h-5 text-green-600" />
                         )}
                       </div>
                       <div>
@@ -396,7 +396,7 @@ export function DiscountScholarshipPage() {
                       onClick={() => handleEdit(scholarship)}
                       className="rounded-xl h-8 w-8 p-0"
                     >
-                      <Edit className="w-4 h-4" />
+                      <span className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -404,7 +404,7 @@ export function DiscountScholarshipPage() {
                       onClick={() => openDeleteDialog(scholarship)}
                       className="rounded-xl h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <span className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -421,7 +421,7 @@ export function DiscountScholarshipPage() {
                 
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Eligibility Criteria</p>
-                  <p className="text-[#0A2540] text-sm">{scholarship.eligibilityCriteria || 'Not specified'}</p>
+                  <p className="text-[#0A2540] text-sm">{scholarship.eligibility_criteria || 'Not specified'}</p>
                 </div>
                 
                 <div>
@@ -436,7 +436,7 @@ export function DiscountScholarshipPage() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Budget</p>
-                    <p className="text-[#0A2540]">₦{scholarship.totalBudget.toLocaleString()}</p>
+                    <p className="text-[#0A2540]">₦{scholarship.total_budget.toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>

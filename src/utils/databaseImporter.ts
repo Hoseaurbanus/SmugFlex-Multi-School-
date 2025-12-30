@@ -198,8 +198,8 @@ export class StudentDatabaseImporter {
               email: studentData.email || '',
               role: 'student',
               linkedId: student.id,
-              first_name: student.first_name,
-              last_name: student.last_name,
+              firstName: student.firstName,
+              lastName: student.lastName,
               status: 'Active',
             });
           }
@@ -309,12 +309,12 @@ export class TeacherDatabaseImporter {
           // Create teacher user account
           await batchProcessor.addOperation(async () => {
             await sqlDatabase.createUser({
-              username: teacherData.username || `${teacher.first_name.toLowerCase()}${teacher.last_name.toLowerCase()}`,
+              username: teacherData.username || `${teacher.firstName.toLowerCase()}${teacher.lastName.toLowerCase()}`,
               email: teacherData.email,
               role: 'teacher',
               linkedId: teacher.id,
-              first_name: teacher.first_name,
-              last_name: teacher.last_name,
+              firstName: teacher.firstName,
+              lastName: teacher.lastName,
               status: 'Active',
             });
           });

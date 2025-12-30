@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { UserPlus, Mail, Phone, Eye, EyeOff, Copy, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -8,10 +7,11 @@ import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
+import { Plus, Copy, X, Eye, EyeOff } from "lucide-react";
 
 // CreateUserPage.tsx - User creation form with firstName validation fix - v2.0
 export function CreateUserPage() {
-  const { createUserAPI } = useSchool();
+  const { createUserAPI, parents } = useSchool();
   const [role, setRole] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -55,14 +55,22 @@ export function CreateUserPage() {
     toast.success("Strong password generated");
   };
 
-  const handleCopyPassword = () => {
-    navigator.clipboard.writeText(password);
-    toast.success("Password copied to clipboard");
+  const handleCopyPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(password);
+      toast.success("Password copied to clipboard");
+    } catch (error) {
+      toast.error("Failed to copy password");
+    }
   };
 
-  const handleCopyUsername = () => {
-    navigator.clipboard.writeText(username);
-    toast.success("Username copied to clipboard");
+  const handleCopyUsername = async () => {
+    try {
+      await navigator.clipboard.writeText(username);
+      toast.success("Username copied to clipboard");
+    } catch (error) {
+      toast.error("Failed to copy username");
+    }
   };
 
   const handleSubmit = async () => {
@@ -161,9 +169,28 @@ export function CreateUserPage() {
       console.log('=====================================');
 
       // Create user through API
+      console.log('Calling createUserAPI with userData:', userData);
       const newUser = await createUserAPI(userData);
+      console.log('createUserAPI response:', newUser);
       
-      if (newUser) {
+      if (newUser && newUser.id) {
+        // Additional validation for parent users to ensure proper linked_id
+        if (role === 'parent' && (!newUser.linked_id || newUser.linked_id === 0)) {
+          console.error('Parent user created without valid linked_id');
+          toast.error("Parent user created without proper linking. Please contact administrator.");
+          return;
+        }
+        
+        // Verify parent record exists for parent users
+        if (role === 'parent' && newUser.linked_id) {
+          const parentRecord = parents.find(p => p.id === newUser.linked_id);
+          if (!parentRecord) {
+            console.error('Parent user linked to non-existent parent record:', newUser.linked_id);
+            toast.error("Parent user linked to invalid record. Please contact administrator.");
+            return;
+          }
+        }
+        
         const credentialMethod = sendCredentialsEmail && sendCredentialsSMS 
           ? "Email & SMS" 
           : sendCredentialsEmail 
@@ -188,7 +215,8 @@ export function CreateUserPage() {
         setAssignedClass("");
         setAssignedSubjects([]);
       } else {
-        toast.error("Failed to create user");
+        console.error('User creation failed - no user returned from API');
+        toast.error("Failed to create user - please check all fields and try again");
       }
     } catch (error: any) {
       console.error('Create user error:', error);
@@ -211,7 +239,7 @@ export function CreateUserPage() {
           <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
             <CardHeader className="p-5 border-b border-white/10">
               <h3 className="text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5" />
+                <Plus className="w-5 h-5" />
                 User Information
               </h3>
             </CardHeader>
@@ -249,7 +277,7 @@ export function CreateUserPage() {
                 <div className="space-y-2">
                   <Label className="text-white">Email Address *</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#C0C8D3]" />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#C0C8D3]" />
                     <Input
                       type="email"
                       value={email}
@@ -264,7 +292,7 @@ export function CreateUserPage() {
                 <div className="space-y-2">
                   <Label className="text-white">Phone Number *</Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#C0C8D3]" />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#C0C8D3]" />
                     <Input
                       type="tel"
                       value={phone}
@@ -334,7 +362,15 @@ export function CreateUserPage() {
                       <Label className="text-xs text-[#C0C8D3]">Auto-generate</Label>
                       <Switch 
                         checked={autoGenerateUsername} 
-                        onCheckedChange={setAutoGenerateUsername}
+                        onCheckedChange={(checked) => {
+                          setAutoGenerateUsername(checked);
+                          if (checked && fullName) {
+                            handleNameChange(fullName);
+                            toast.info("Auto-generation enabled");
+                          } else {
+                            toast.info("Auto-generation disabled");
+                          }
+                        }}
                       />
                     </div>
                   </div>
@@ -350,7 +386,8 @@ export function CreateUserPage() {
                       type="button"
                       onClick={handleCopyUsername}
                       disabled={!username}
-                      className="h-12 px-4 bg-[#1E90FF] hover:bg-[#00BFFF] rounded-xl"
+                      className="h-12 px-4 bg-[#1E90FF] hover:bg-[#00BFFF] rounded-xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Copy username to clipboard"
                     >
                       <Copy className="w-4 h-4" />
                     </Button>
@@ -372,7 +409,7 @@ export function CreateUserPage() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#C0C8D3] hover:text-white"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#C0C8D3] hover:text-white transition-colors"
                       >
                         {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
@@ -380,15 +417,17 @@ export function CreateUserPage() {
                     <Button
                       type="button"
                       onClick={generatePassword}
-                      className="h-12 px-4 bg-[#FFC107] hover:bg-[#FFC107]/90 rounded-xl"
+                      className="h-12 px-4 bg-[#FFC107] hover:bg-[#FFC107]/90 rounded-xl transition-all hover:scale-105"
+                      title="Generate strong password"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <Plus className="w-4 h-4" />
                     </Button>
                     <Button
                       type="button"
                       onClick={handleCopyPassword}
                       disabled={!password}
-                      className="h-12 px-4 bg-[#1E90FF] hover:bg-[#00BFFF] rounded-xl"
+                      className="h-12 px-4 bg-[#1E90FF] hover:bg-[#00BFFF] rounded-xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Copy password to clipboard"
                     >
                       <Copy className="w-4 h-4" />
                     </Button>
@@ -406,17 +445,29 @@ export function CreateUserPage() {
                 <Label className="text-white">Send Credentials</Label>
                 <div className="flex items-center justify-between p-3 bg-[#132C4A] rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Mail className="w-5 h-5 text-[#1E90FF]" />
+                    <span className="w-5 h-5 text-[#1E90FF]" />
                     <span className="text-white">Send via Email</span>
                   </div>
-                  <Switch checked={sendCredentialsEmail} onCheckedChange={setSendCredentialsEmail} />
+                  <Switch 
+                    checked={sendCredentialsEmail} 
+                    onCheckedChange={(checked) => {
+                      setSendCredentialsEmail(checked);
+                      toast.info(checked ? "Email delivery enabled" : "Email delivery disabled");
+                    }}
+                  />
                 </div>
                 <div className="flex items-center justify-between p-3 bg-[#132C4A] rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Phone className="w-5 h-5 text-[#28A745]" />
+                    <span className="w-5 h-5 text-[#28A745]" />
                     <span className="text-white">Send via SMS</span>
                   </div>
-                  <Switch checked={sendCredentialsSMS} onCheckedChange={setSendCredentialsSMS} />
+                  <Switch 
+                    checked={sendCredentialsSMS} 
+                    onCheckedChange={(checked) => {
+                      setSendCredentialsSMS(checked);
+                      toast.info(checked ? "SMS delivery enabled" : "SMS delivery disabled");
+                    }}
+                  />
                 </div>
               </div>
 
@@ -427,7 +478,7 @@ export function CreateUserPage() {
                   disabled={isLoading}
                   className="flex-1 h-12 bg-[#28A745] hover:bg-[#28A745]/90 text-white rounded-xl shadow-md hover:scale-105 transition-all disabled:opacity-50"
                 >
-                  <UserPlus className="w-5 h-5 mr-2" />
+                  <Plus className="w-5 h-5 mr-2" />
                   {isLoading ? 'Creating User...' : 'Create User'}
                 </Button>
                 <Button

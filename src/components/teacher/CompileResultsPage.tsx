@@ -1,5 +1,5 @@
  import { useState, useMemo, useCallback, useEffect } from "react";
-import { FileText, Send, Eye, Download, AlertCircle, CheckCircle, Edit, BookOpen, Users, ChevronLeft, Award, RefreshCw, ArrowLeft, XCircle, Clock } from "lucide-react";
+import { Book, BookOpen, ArrowLeft, CheckCircle, XCircle, AlertTriangle, Sparkles, Users, Calendar, Award, Calculator, FileText, TrendingUp, Heart, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -10,7 +10,8 @@ import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
-import { useSchool } from "../../contexts/SchoolContext";
+import { Save } from "lucide-react";
+import { useSchool, Score, Subject, SubjectAssignment } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 
 // Auto-comment generation system
@@ -178,19 +179,21 @@ const constructiveFeedback = {
 };
 
 function generateAutoComment(averageScore: number, position: number, totalStudents: number): string {
-  // Generate comment based on specified ranges
-  if (averageScore >= 90) {
-    return 'Excellent';
-  } else if (averageScore >= 80) {
-    return 'A very good result';
-  } else if (averageScore >= 70) {
-    return 'Good result';
-  } else if (averageScore >= 60) {
-    return 'A satisfaction result';
-  } else if (averageScore >= 50) {
-    return 'A fair result';
+  // Generate comment based on specific average score ranges
+  if (averageScore >= 90 && averageScore <= 100) {
+    return 'An excellent result Keep it up.';
+  } else if (averageScore >= 80 && averageScore < 90) {
+    return 'A very good result, Keep it up.';
+  } else if (averageScore >= 70 && averageScore < 80) {
+    return 'A good result, You can do better.';
+  } else if (averageScore >= 60 && averageScore < 70) {
+    return 'A satisfactory result, you can do better.';
+  } else if (averageScore >= 50 && averageScore < 60) {
+    return 'A Fair result you have it in you to do better.';
+  } else if (averageScore >= 0 && averageScore < 50) {
+    return 'It is well';
   } else {
-    return 'it is well';
+    return 'It is well';
   }
 }
 
@@ -271,6 +274,7 @@ export function CompileResultsPage() {
     affectiveDomains,
     psychomotorDomains,
     compiledResults,
+    subjects,
     addCompiledResult,
     updateCompiledResult,
     currentTerm,
@@ -291,104 +295,52 @@ export function CompileResultsPage() {
     createAffectiveDomain,
     createPsychomotorDomain,
     getAttendanceByStudent,
+    addAttendance,
+    updateAttendance,
     getAttendanceRequirements,
-    addNotification
+    loadAttendanceRequirements,
+    addNotification,
+    classTeacherAssignments
   } = useSchool();
 
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
-  const [classTeacherComment, setClassTeacherComment] = useState<string>("");
-  const [useAutoComment, setUseAutoComment] = useState<boolean>(false);
+  const [customComment, setCustomComment] = useState<string>("");
   const [showCommentOptions, setShowCommentOptions] = useState<boolean>(false);
   const [commentOptions, setCommentOptions] = useState<string[]>([]);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [resultsGenerated, setResultsGenerated] = useState<boolean>(false);
-  const [studentAttendanceInput, setStudentAttendanceInput] = useState<Record<number, number>>({});
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     
   // Affective and Psychomotor form states
   const [affectiveData, setAffectiveData] = useState({
     attentiveness: 3,
-    honesty: 3,
-    punctuality: 3,
-    neatness: 3,
     attentiveness_remark: '',
+    honesty: 3,
     honesty_remark: '',
-    punctuality_remark: '',
-    neatness_remark: ''
+    neatness: 3,
+    neatness_remark: '',
+    obedience: 3,
+    obedience_remark: '',
+    sense_of_responsibility: 3,
+    sense_of_responsibility_remark: ''
   });
   
   const [psychomotorData, setPsychomotorData] = useState({
+    attention_to_direction: 3,
+    attention_to_direction_remark: '',
+    considerate_of_others: 3,
+    considerate_of_others_remark: '',
+    handwriting: 3,
+    handwriting_remark: '',
     sports: 3,
-    handwork: 3,
-    drawing: 3,
-    music: 3,
     sports_remark: '',
-    handwork_remark: '',
-    drawing_remark: '',
-    music_remark: ''
+    verbal_fluency: 3,
+    verbal_fluency_remark: '',
+    works_well_independently: 3,
+    works_well_independently_remark: ''
   });
-
-  // Handle affective domain save
-  const handleSaveAffective = async () => {
-    if (!selectedStudent) {
-      toast.error('No student selected');
-      return;
-    }
-
-    try {
-      const affectivePayload = {
-        student_id: selectedStudent.id,
-        class_id: Number(selectedClassId),
-        term: currentTerm,
-        academic_year: currentAcademicYear,
-        ...affectiveData,
-        entered_by: currentUser?.id
-      };
-      
-      const existingId = studentResultData?.affective?.id;
-      if (existingId) {
-        await updateAffectiveDomain(existingId, affectivePayload);
-      } else {
-        // Create new affective domain record
-        await createAffectiveDomain(affectivePayload);
-      }
-      
-      toast.success('Affective domain assessment saved');
-    } catch (error) {
-      toast.error('Failed to save affective domain assessment');
-    }
-  };
-
-  // Handle psychomotor domain save
-  const handleSavePsychomotor = async () => {
-    if (!selectedStudent) {
-      toast.error('No student selected');
-      return;
-    }
-
-    try {
-      const psychomotorPayload = {
-        student_id: selectedStudent.id,
-        class_id: Number(selectedClassId),
-        term: currentTerm,
-        academic_year: currentAcademicYear,
-        ...psychomotorData,
-        entered_by: currentUser?.id
-      };
-      
-      const existingId = studentResultData?.psychomotor?.id;
-      if (existingId) {
-        await updatePsychomotorDomain(existingId, psychomotorPayload);
-      } else {
-        // Create new psychomotor domain record
-        await createPsychomotorDomain(psychomotorPayload);
-      }
-      
-      toast.success('Psychomotor domain assessment saved');
-    } catch (error) {
-      toast.error('Failed to save psychomotor domain assessment');
-    }
-  };
 
   // Refresh data function with optimized class-specific refresh
   const refreshData = useCallback(async () => {
@@ -414,7 +366,7 @@ export function CompileResultsPage() {
     }
   }, [selectedClassId, refreshClassData, loadScoresFromAPI, loadAttendancesFromAPI, loadCompiledResultsFromAPI]);
 
-  // Auto-refresh compiled results to check for admin rejections
+  // Auto-refresh compiled results to check for admin rejections and new scores
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -422,10 +374,34 @@ export function CompileResultsPage() {
       } catch (error) {
         console.error('Error auto-refreshing compiled results:', error);
       }
-    }, 30000); // Check every 30 seconds
+    }, 5000); // Check every 5 seconds for real-time updates
 
     return () => clearInterval(interval);
   }, [loadCompiledResultsFromAPI]);
+
+  // Attendance requirements monitoring (disabled to prevent console spam)
+  // useEffect(() => {
+  //   let previousRequirements = JSON.stringify(getAttendanceRequirements());
+    
+  //   const checkAttendanceRequirements = () => {
+  //     const currentRequirements = JSON.stringify(getAttendanceRequirements());
+      
+  //     // If requirements changed, refresh data and recalculate
+  //     if (currentRequirements !== previousRequirements) {
+  //       // Attendance requirements changed, refreshing data
+  //       previousRequirements = currentRequirements;
+        
+  //       // Refresh compiled results to get updated calculations
+  //       loadCompiledResultsFromAPI().then(() => {
+  //         toast.info('Attendance requirements updated - calculations refreshed');
+  //       });
+  //     }
+  //   };
+    
+  //   const interval = setInterval(checkAttendanceRequirements, 2000); // Check every 2 seconds
+    
+  //   return () => clearInterval(interval);
+  // }, [getAttendanceRequirements, loadCompiledResultsFromAPI]);
 
   // Refresh when window gains focus (in case admin rejected in another tab)
   useEffect(() => {
@@ -454,19 +430,58 @@ export function CompileResultsPage() {
     }
   };
 
-  
   // Generate Results function
   const handleGenerateResults = async () => {
+    setIsGenerating(true);
     try {
-      // First refresh scores to get latest data
+      toast.info("Generating results... Please wait.", { id: "generate-results" });
+      
+      // 1. VALIDATION: Check required data
+      if (!selectedClassId || !currentTeacher) {
+        toast.error('Please select a class and ensure teacher is assigned', { id: "generate-results" });
+        return;
+      }
+
+      const attendanceRequirements = getAttendanceRequirements();
+      const requiredDays = attendanceRequirements[currentTerm] || 0;
+      
+      if (requiredDays === 0) {
+        toast.error('Attendance requirements not set for current term. Please configure attendance settings.', { id: "generate-results" });
+        return;
+      }
+
+      // 2. SCORES: Refresh latest score data
+      toast.info("Refreshing score data...", { id: "generate-results" });
       await loadScoresFromAPI();
       
-      // Force recalculation of positions and averages
+      // 3. AFFECTIVE/PSYCHOMOTOR: Ensure data is loaded
+      await loadAffectiveDomainsFromAPI();
+      await loadPsychomotorDomainsFromAPI();
+      
+      // 4. COMPILED RESULTS: Refresh to get latest data
+      await loadCompiledResultsFromAPI();
+      
+      // 5. FORCE RECALCULATION: Update resultsGenerated flag to trigger position recalculation
       setResultsGenerated(true);
-      toast.success("Results generated successfully! Positions and averages calculated.");
+      
+      // 6. VALIDATION SUMMARY: Report results
+      const totalStudents = classStudents.length;
+      const studentsWithScores = studentsCompletion.filter(s => s.totalScore > 0).length;
+      const studentsComplete = studentsCompletion.filter(s => s.isComplete).length;
+      
+      toast.success(
+        `Results generated successfully!\n` +
+        `Scores: ${studentsWithScores}/${totalStudents} students\n` +
+        `Complete: ${studentsComplete}/${totalStudents} students\n` +
+        `(Attendance is now managed separately in Mark Attendance page)`,
+        { id: "generate-results" }
+      );
+      
     } catch (error) {
       console.error('Error generating results:', error);
-      toast.error('Failed to generate results. Please try again.');
+      toast.error('Failed to generate results. Please try again.', { id: "generate-results" });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -484,14 +499,14 @@ export function CompileResultsPage() {
     const interval = setInterval(async () => {
       try {
         await loadScoresFromAPI();
-        console.log('Scores refreshed automatically');
+        // Scores refreshed automatically
       } catch (error) {
         console.error('Auto refresh scores failed:', error);
       }
     }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
-  }, [selectedClassId, loadScoresFromAPI]);
+  }, [selectedClassId]); // Remove loadScoresFromAPI from dependencies
 
   // Check permissions
   useEffect(() => {
@@ -510,35 +525,77 @@ export function CompileResultsPage() {
           return;
         }
       }
+      
+      // Attendance requirements will be loaded by other components
     };
     
     checkPermissions();
-  }, [currentUser, canViewResults, canManageScores]);
+  }, [currentUser, canViewResults, canManageScores]); // Remove loadAttendanceRequirements from dependencies
 
   // Get current teacher
-  const currentTeacher = currentUser ? teachers.find(t => t.id === currentUser.linked_id) : null;
+  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
   // Check if teacher has class teacher assignments
   const hasClassTeacherAssignments = useMemo(() => {
     if (!currentTeacher) return false;
-    return classes.some((c: any) => c.classTeacherId === currentTeacher.id && c.status === 'Active');
-  }, [currentTeacher, classes]);
+    return classes.some((c: any) => {
+      const assignment = classTeacherAssignments.find((cta: any) => 
+        String(cta.teacher_id) === String(currentTeacher.id) && 
+        String(cta.class_id) === String(c.id) &&
+        cta.academic_year === currentAcademicYear && 
+        cta.term === currentTerm &&
+        cta.status === 'Active'
+      );
+      return !!assignment;
+    });
+  }, [currentTeacher, classes, classTeacherAssignments, currentAcademicYear, currentTerm]);
 
-  // Only show classes where teacher is the class teacher
+  // Only show classes where teacher is assigned as class teacher
   const classTeacherClasses = useMemo(() => {
     if (!currentTeacher) {
       return [];
     }
     
-    return classes.filter((c: any) => c.classTeacherId === currentTeacher.id && c.status === 'Active');
-  }, [currentTeacher, classes]);
+    return classes.filter((c: any) => {
+      const assignment = classTeacherAssignments.find((cta: any) => 
+        String(cta.teacher_id) === String(currentTeacher.id) && 
+        String(cta.class_id) === String(c.id) &&
+        cta.academic_year === currentAcademicYear && 
+        cta.term === currentTerm &&
+        cta.status === 'Active'
+      );
+      return !!assignment;
+    });
+  }, [currentTeacher, classes, classTeacherAssignments, currentAcademicYear, currentTerm]);
 
   // Get students in selected class
   const classStudents = useMemo(() => {
     if (!selectedClassId) return [];
     return students
-      .filter(s => s.class_id === Number(selectedClassId) && s.status === 'Active')
+      .filter(s => String(s.class_id) === selectedClassId && s.status === 'Active')
       .sort((a, b) => a.lastName.localeCompare(b.lastName));
   }, [selectedClassId, students]);
+
+  // Check if generate results should be enabled
+  const canGenerateResults = useMemo(() => {
+    if (!selectedClassId || !currentTeacher || isGenerating || resultsGenerated) {
+      return false;
+    }
+    
+    const attendanceRequirements = getAttendanceRequirements();
+    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    
+    // Check if attendance requirements are set
+    if (requiredDays === 0) {
+      return false;
+    }
+    
+    // Check if there are students in the class
+    if (classStudents.length === 0) {
+      return false;
+    }
+    
+    return true;
+  }, [selectedClassId, currentTeacher, isGenerating, resultsGenerated, classStudents.length, currentTerm]);
 
   // Get all registered subjects for the class (these are the subjects that should appear in results)
   const classSubjects = useMemo(() => {
@@ -552,7 +609,20 @@ export function CompileResultsPage() {
             sa.status === 'Active'
     );
     
-    return subjectAssignmentsForClass;
+    // Map assignments to subject objects with proper names
+    const mappedSubjects = subjectAssignmentsForClass.map(assignment => {
+      return {
+        id: assignment.id, // Use assignment ID for score matching
+        subject_id: assignment.subject_id,
+        name: assignment.subject_name || 'Unknown Subject',
+        subject_code: '', // Not available in SubjectAssignment interface
+        category: '', // Not available in SubjectAssignment interface
+        teacher_name: assignment.teacher_name || '',
+        class_name: assignment.class_name || ''
+      };
+    });
+    
+    return mappedSubjects;
   }, [selectedClassId, subjectAssignments, currentTerm, currentAcademicYear]);
 
   // Get selected student details
@@ -575,8 +645,9 @@ export function CompileResultsPage() {
     
     if (existingResult) {
       // Use attendance data from compiled result
-      const requiredDays = existingResult.total_attendance_days || getAttendanceRequirements()[currentTerm] || 60;
-      const attendedDays = existingResult.times_present || 0;
+      const attendanceRequirements = getAttendanceRequirements();
+      const requiredDays = existingResult.total_attendance_days || attendanceRequirements[currentTerm] || 0;
+      const attendedDays = Number(existingResult.times_present) || 0;
       
       return {
         requiredDays,
@@ -587,10 +658,10 @@ export function CompileResultsPage() {
       };
     }
     
-    // Fallback to input-based calculation for new results
+    // Fallback to compiled results for new results
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm] || 60;
-    const attendedDays = studentAttendanceInput[selectedStudent.id] || 0;
+    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    const attendedDays = 0; // No existing result found, default to 0
     
     return {
       requiredDays,
@@ -599,7 +670,7 @@ export function CompileResultsPage() {
       ratio: `${attendedDays}/${requiredDays}`,
       timesAbsent: 0
     };
-  }, [selectedStudent, selectedClassId, currentTerm, currentAcademicYear, compiledResults, studentAttendanceInput, getAttendanceRequirements]);
+  }, [selectedStudent, selectedClassId, currentTerm, currentAcademicYear, compiledResults, getAttendanceRequirements]);
 
   // Reset affective and psychomotor data when student changes
   useEffect(() => {
@@ -615,25 +686,29 @@ export function CompileResultsPage() {
       if (existingAffective) {
         setAffectiveData({
           attentiveness: existingAffective.attentiveness || 3,
-          honesty: existingAffective.honesty || 3,
-          punctuality: existingAffective.punctuality || 3,
-          neatness: existingAffective.neatness || 3,
           attentiveness_remark: existingAffective.attentiveness_remark || '',
+          honesty: existingAffective.honesty || 3,
           honesty_remark: existingAffective.honesty_remark || '',
-          punctuality_remark: existingAffective.punctuality_remark || '',
-          neatness_remark: existingAffective.neatness_remark || ''
+          neatness: existingAffective.neatness || 3,
+          neatness_remark: existingAffective.neatness_remark || '',
+          obedience: existingAffective.obedience || 3,
+          obedience_remark: existingAffective.obedience_remark || '',
+          sense_of_responsibility: existingAffective.sense_of_responsibility || 3,
+          sense_of_responsibility_remark: existingAffective.sense_of_responsibility_remark || ''
         });
       } else {
         // Reset to defaults
         setAffectiveData({
           attentiveness: 3,
-          honesty: 3,
-          punctuality: 3,
-          neatness: 3,
           attentiveness_remark: '',
+          honesty: 3,
           honesty_remark: '',
-          punctuality_remark: '',
-          neatness_remark: ''
+          neatness: 3,
+          neatness_remark: '',
+          obedience: 3,
+          obedience_remark: '',
+          sense_of_responsibility: 3,
+          sense_of_responsibility_remark: ''
         });
       }
       
@@ -647,26 +722,34 @@ export function CompileResultsPage() {
       
       if (existingPsychomotor) {
         setPsychomotorData({
+          attention_to_direction: existingPsychomotor.attention_to_direction || 3,
+          attention_to_direction_remark: existingPsychomotor.attention_to_direction_remark || '',
+          considerate_of_others: existingPsychomotor.considerate_of_others || 3,
+          considerate_of_others_remark: existingPsychomotor.considerate_of_others_remark || '',
+          handwriting: existingPsychomotor.handwriting || 3,
+          handwriting_remark: existingPsychomotor.handwriting_remark || '',
           sports: existingPsychomotor.sports || 3,
-          handwork: existingPsychomotor.handwork || 3,
-          drawing: existingPsychomotor.drawing || 3,
-          music: existingPsychomotor.music || 3,
           sports_remark: existingPsychomotor.sports_remark || '',
-          handwork_remark: existingPsychomotor.handwork_remark || '',
-          drawing_remark: existingPsychomotor.drawing_remark || '',
-          music_remark: existingPsychomotor.music_remark || ''
+          verbal_fluency: existingPsychomotor.verbal_fluency || 3,
+          verbal_fluency_remark: existingPsychomotor.verbal_fluency_remark || '',
+          works_well_independently: existingPsychomotor.works_well_independently || 3,
+          works_well_independently_remark: existingPsychomotor.works_well_independently_remark || ''
         });
       } else {
         // Reset to defaults
         setPsychomotorData({
+          attention_to_direction: 3,
+          attention_to_direction_remark: '',
+          considerate_of_others: 3,
+          considerate_of_others_remark: '',
+          handwriting: 3,
+          handwriting_remark: '',
           sports: 3,
-          handwork: 3,
-          drawing: 3,
-          music: 3,
           sports_remark: '',
-          handwork_remark: '',
-          drawing_remark: '',
-          music_remark: ''
+          verbal_fluency: 3,
+          verbal_fluency_remark: '',
+          works_well_independently: 3,
+          works_well_independently_remark: ''
         });
       }
       
@@ -679,10 +762,36 @@ export function CompileResultsPage() {
       );
       
       if (existingResult) {
-        setStudentAttendanceInput(prev => ({
-          ...prev,
-          [selectedStudent.id]: existingResult.times_present || 0
-        }));
+        // Load existing class teacher comment but always validate it's correct for current average
+        if (existingResult.class_teacher_comment) {
+          console.log('Existing comment found:', existingResult.class_teacher_comment);
+          
+          // Always generate the expected comment for current average
+          const expectedComment = generateAutoComment(
+            existingResult.average_score || 0,
+            existingResult.position || 1,
+            existingResult.total_students || 1
+          );
+          console.log('Expected comment:', expectedComment);
+          
+          // Only use existing comment if it's not generic and matches expected
+          if (existingResult.class_teacher_comment !== 'Submitted successfully' && 
+              !existingResult.class_teacher_comment.includes('fake') &&
+              !existingResult.class_teacher_comment.includes('undefined') &&
+              existingResult.class_teacher_comment === expectedComment) {
+            console.log('Using existing valid comment');
+            setCustomComment(existingResult.class_teacher_comment);
+          } else {
+            console.log('Replacing with new auto-comment');
+            setCustomComment(expectedComment);
+          }
+        } else {
+          // Reset comment when no existing result
+          setCustomComment("");
+        }
+      } else {
+        // Reset comment when no existing result
+        setCustomComment("");
       }
     }
   }, [selectedStudent?.id, selectedClassId, affectiveDomains, psychomotorDomains, compiledResults, currentTerm, currentAcademicYear]);
@@ -698,40 +807,25 @@ export function CompileResultsPage() {
       // Get all scores for this student
       const studentScores = scores.filter(s => s.student_id === student.id);
       
-      // IMPORTANT: Only use scores that match this class's subject assignments
+      // Filter for relevant scores that match current class subjects
       // This prevents mixing scores from other classes
       const relevantScores = studentScores.filter(s => 
-        s.status === 'Submitted' && 
+        (s.status === 'Submitted' || s.status === 'Draft') && 
         classSubjects.some((cs: any) => cs && Number(cs.id) === Number(s.subject_assignment_id))
       );
       
-      // Debug: Show matching info for first student only to avoid spam
-      if (student.id === classStudents[0]?.id) {
-        console.log(`=== DEBUG for ${student.firstName} ${student.lastName} ===`);
-        console.log('Class Subjects:', classSubjects.map(cs => ({ id: cs.id, subject_name: cs.subject_name })));
-        console.log('Student Scores:', studentScores.map(s => ({ 
-          id: s.id, 
-          subject_assignment_id: s.subject_assignment_id, 
-          total: s.total, 
-          status: s.status 
-        })));
-        console.log('Relevant Scores (matching class):', relevantScores.map(s => ({ 
-          id: s.id, 
-          subject_assignment_id: s.subject_assignment_id, 
-          total: s.total 
-        })));
-      }
-
       const affective = affectiveDomains.find(a => 
         a.student_id === student.id &&
         a.class_id === Number(selectedClassId) &&
-        a.term === currentTerm
+        a.term === currentTerm &&
+        a.academic_year === currentAcademicYear
       );
 
       const psychomotor = psychomotorDomains.find(p => 
         p.student_id === student.id &&
         p.class_id === Number(selectedClassId) &&
-        p.term === currentTerm
+        p.term === currentTerm &&
+        p.academic_year === currentAcademicYear
       );
 
       const existingResult = compiledResults.find(r =>
@@ -745,6 +839,7 @@ export function CompileResultsPage() {
       const totalSubjects = classSubjects.length > 0 ? classSubjects.length : relevantScores.length;
       const hasAffective = affective !== undefined;
       const hasPsychomotor = psychomotor !== undefined;
+      const hasAttendance = existingResult && Number(existingResult.times_present) > 0;
       const isSubmitted = existingResult?.status === 'Submitted' || existingResult?.status === 'Approved';
       const isRejected = existingResult?.status === 'Rejected';
 
@@ -756,11 +851,7 @@ export function CompileResultsPage() {
       
       // Debug: Show calculation for first student
       if (student.id === classStudents[0]?.id) {
-        console.log(`SCORE DEBUG for ${student.firstName}:`, {
-          relevantScoresCount: relevantScores.length,
-          relevantScores: relevantScores.map(s => ({ id: s.id, total: s.total, type: typeof s.total })),
-          calculatedTotal: totalScore
-        });
+        // Score debug processed
       }
       
       // Calculate average score from relevant scores
@@ -777,19 +868,20 @@ export function CompileResultsPage() {
         hasAffective,
         hasPsychomotor,
         isSubmitted,
+        isRejected,
         averageScore,
         totalScore,
-        isComplete: completedSubjects === totalSubjects && hasAffective && hasPsychomotor,
+        isComplete: isSubmitted || (completedSubjects === totalSubjects && hasAffective && hasPsychomotor && hasAttendance),
         studentScores: relevantScores
       };
     });
 
-    // Calculate positions based on total scores (highest to lowest)
-    // Include ALL students, even those with 0 scores
+    // Calculate positions based on total scores - ALL students with submitted scores
     const studentsWithScores = studentsData
+      .filter(student => student.totalScore > 0) // Include all students with scores
       .sort((a, b) => Number(b.totalScore) - Number(a.totalScore)); // Sort by highest total first
 
-    // Assign positions
+    // Assign positions to all students with scores
     let currentPosition = 1;
     const positionedStudents = studentsWithScores.map((student, index) => {
       if (index > 0 && Number(student.totalScore) < Number(studentsWithScores[index - 1].totalScore)) {
@@ -798,15 +890,29 @@ export function CompileResultsPage() {
       const positionedStudent = {
         ...student,
         position: currentPosition,
-        totalStudents: studentsWithScores.length
+        totalStudents: studentsData.length // Total students in class
       };
       return positionedStudent;
     });
 
-    const finalResult = positionedStudents;
+    // For students without scores, assign position at the end
+    const studentsWithoutScores = studentsData
+      .filter(student => student.totalScore === 0)
+      .map(student => ({
+        ...student,
+        position: studentsWithScores.length + 1,
+        totalStudents: studentsData.length // Total students in class
+      }));
+
+    const finalResult = [...positionedStudents, ...studentsWithoutScores];
     
     return finalResult;
   }, [classStudents, scores, classSubjects, affectiveDomains, psychomotorDomains, compiledResults, selectedClassId, currentTerm, resultsGenerated]);
+
+  // Calculate submit button state
+  const eligibleForSubmission = (studentsCompletion || []).filter(s => s.isComplete && (!s.isSubmitted || s.isRejected));
+  const allSubmitted = (studentsCompletion || []).filter(s => s.isComplete).every(s => s.isSubmitted && !s.isRejected);
+  const submittedCount = (studentsCompletion || []).filter(s => s.isSubmitted && !s.isRejected).length;
 
   // Get student's result data
   const studentResultData = useMemo(() => {
@@ -817,19 +923,24 @@ export function CompileResultsPage() {
     
     // Filter for relevant scores that match current class subjects
     const relevantScores = studentScores.filter(s => 
-      s.status === 'Submitted' &&
+      (s.status === 'Submitted' || s.status === 'Draft') &&
       classSubjects.some((cs: any) => cs && Number(cs.id) === Number(s.subject_assignment_id))
     );
+
+    // DEBUG: Log filtering details
+    // Score filtering details processed
 
     const affective = affectiveDomains.find(a => 
       a.student_id === selectedStudent.id &&
       a.class_id === Number(selectedClassId) &&
+      a.term === currentTerm &&
       a.academic_year === currentAcademicYear
     );
 
     const psychomotor = psychomotorDomains.find(p => 
       p.student_id === selectedStudent.id &&
       p.class_id === Number(selectedClassId) &&
+      p.term === currentTerm &&
       p.academic_year === currentAcademicYear
     );
 
@@ -844,14 +955,7 @@ export function CompileResultsPage() {
     const isRejected = existingResult?.status === 'Rejected';
 
     // Debug logging
-    console.log('Student Result Debug:', {
-      studentId: selectedStudent?.id,
-      existingResult,
-      isSubmitted,
-      isRejected,
-      status: existingResult?.status,
-      rejectionReason: existingResult?.rejection_reason
-    });
+    // Student result debug processed
 
     // Calculate totals using same logic as studentsCompletion
     const totalScoreRaw = relevantScores.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
@@ -865,12 +969,34 @@ export function CompileResultsPage() {
     const position = studentCompletionData?.position || 0;
     const totalStudents = studentCompletionData?.totalStudents || 0;
 
-    // Check completion
+    // Get attendance data for this student
+    const studentAttendance = attendances.filter((a: any) => 
+      a.student_id === selectedStudent.id && 
+      a.term === currentTerm && 
+      a.academic_year === currentAcademicYear
+    );
+    const attendanceDays = studentAttendance.length;
+    const requiredAttendanceDays = 1; // Adjust based onrlen school settings
+
+    // Check completion - use individual student validation
+    console.log('=== COMPLETION CHECK FOR STUDENT ===');
+    console.log('Student:', selectedStudent?.firstName, selectedStudent?.lastName);
+    console.log('Relevant Scores:', relevantScores.length, 'of', (classSubjects || []).length);
+    console.log('All scores submitted:', relevantScores.every(s => s.status === 'Submitted'));
+    console.log('Has affective:', !!affective);
+    console.log('Has psychomotor:', !!psychomotor);
+    
     const isComplete = 
       relevantScores.length === (classSubjects || []).length &&
       relevantScores.every(s => s.status === 'Submitted') &&
       affective !== undefined &&
       psychomotor !== undefined;
+      // Removed attendance requirement as it might be blocking submission
+    
+    console.log('Is Complete:', isComplete);
+
+    // Debug logging
+    // Individual student validation processed
 
     return {
       student: selectedStudent,
@@ -888,7 +1014,14 @@ export function CompileResultsPage() {
       isSubmitted,
       isRejected
     };
-  }, [selectedStudent, scores, classSubjects, affectiveDomains, psychomotorDomains, compiledResults, selectedClassId, currentTerm, currentAcademicYear, studentsCompletion]);
+  }, [selectedStudent, scores, classSubjects, affectiveDomains, psychomotorDomains, compiledResults, selectedClassId, currentTerm, currentAcademicYear, studentsCompletion, resultsGenerated]);
+
+  // Validation variables for submit button
+  const hasAllScores = (studentResultData?.scores?.length ?? 0) > 0;
+  const hasAffective = !!studentResultData?.affective;
+  const hasPsychomotor = !!studentResultData?.psychomotor;
+  const hasAttendance = studentResultData?.existingResult && Number(studentResultData.existingResult.times_present) > 0;
+  const canSubmit = hasAllScores && hasAffective && hasPsychomotor && hasAttendance && !studentResultData?.isSubmitted;
 
   // Calculate class statistics
   const classStatistics = useMemo(() => {
@@ -913,88 +1046,195 @@ export function CompileResultsPage() {
   }, [studentsCompletion]);
 
   // Submit result for selected student
-  const handleSubmitResult = () => {
-    if (!selectedStudent || !studentResultData || !currentTeacher) {
-      toast.error('Missing required data');
-      return;
+  const handleSubmitResult = async () => {
+    setIsSubmitting(true);
+    try {
+      toast.info("Submitting result... Please wait.", { id: "submit-result" });
+      
+      // 1. COMPREHENSIVE VALIDATION
+      if (!selectedStudent || !currentTeacher || !selectedClassId) {
+        toast.error('Missing required data', { id: "submit-result" });
+        return;
+      }
+
+      // Check if result is already approved
+      const existingApprovedResult = compiledResults.find(cr => 
+        cr.student_id === selectedStudent.id &&
+        cr.class_id === Number(selectedClassId) &&
+        cr.term === currentTerm &&
+        cr.academic_year === currentAcademicYear &&
+        cr.status === 'Approved'
+      );
+
+      if (existingApprovedResult) {
+        toast.error('This result has already been approved and cannot be modified.', { id: "submit-result" });
+        return;
+      }
+
+      // 2. VALIDATE STUDENT SCORES
+      const studentScores = scores.filter(s => 
+        s.student_id === selectedStudent.id && 
+        (s.status === 'Submitted' || s.status === 'Draft')
+      );
+      
+      if (studentScores.length === 0) {
+        toast.error('No scores found for this student', { id: "submit-result" });
+        return;
+      }
+
+      // Check if student has submitted scores for all class subjects
+      const requiredSubjects = classSubjects.length;
+      const submittedScores = studentScores.filter(s => s.status === 'Submitted').length;
+      
+      if (submittedScores < requiredSubjects) {
+        toast.error(`Student has ${submittedScores}/${requiredSubjects} subjects submitted. All subjects must be submitted first.`, { id: "submit-result" });
+        return;
+      }
+
+      // 3. VALIDATE AFFECTIVE AND PSYCHOMOTOR DATA
+      const affective = affectiveDomains.find(a => 
+        a.student_id === selectedStudent.id &&
+        a.class_id === Number(selectedClassId) &&
+        a.term === currentTerm &&
+        a.academic_year === currentAcademicYear
+      );
+
+      const psychomotor = psychomotorDomains.find(p => 
+        p.student_id === selectedStudent.id &&
+        p.class_id === Number(selectedClassId) &&
+        p.term === currentTerm &&
+        p.academic_year === currentAcademicYear
+      );
+
+      if (!affective) {
+        toast.error('Affective domain assessment is required', { id: "submit-result" });
+        return;
+      }
+
+      if (!psychomotor) {
+        toast.error('Psychomotor domain assessment is required', { id: "submit-result" });
+        return;
+      }
+
+      // 4. VALIDATE ATTENDANCE DATA
+      const attendanceRequirementsForValidation = getAttendanceRequirements();
+      const requiredDaysForValidation = attendanceRequirementsForValidation[currentTerm] || 0;
+      
+      if (requiredDaysForValidation === 0) {
+        toast.error('Attendance requirements not set for this term. Please configure attendance settings first.', { id: "submit-result" });
+        return;
+      }
+      
+      const existingResultForValidation = compiledResults.find(cr => 
+        cr.student_id === selectedStudent.id &&
+        cr.class_id === Number(selectedClassId) &&
+        cr.term === currentTerm &&
+        cr.academic_year === currentAcademicYear
+      );
+      
+      const attendedDaysForValidation = Number(existingResultForValidation?.times_present) || 0;
+      
+      if (attendedDaysForValidation === 0) {
+        toast.error('Attendance data is required. Please mark attendance in the Mark Attendance page first.', { id: "submit-result" });
+        return;
+      }
+
+      // 5. ENHANCE SCORES WITH SUBJECT NAMES
+      const enhancedScores = studentScores.map((score: Score) => {
+        const assignment = subjectAssignments.find((sa: SubjectAssignment) => sa.id === score.subject_assignment_id);
+        const subject = subjects.find((s: Subject) => s.id === assignment?.subject_id);
+        
+        return {
+          ...score,
+          subject_name: subject?.name || assignment?.subject_name || score.subject_name || 'Unknown Subject'
+        };
+      });
+
+      // 5. ACCURATE SCORE CALCULATION
+      const totalScore = studentScores.reduce((sum, score) => {
+        const scoreTotal = Number(score.total) || 0;
+        return sum + scoreTotal;
+      }, 0);
+      
+      const averageScore = studentScores.length > 0 
+        ? Math.round((totalScore / studentScores.length) * 100) / 100 
+        : 0;
+
+      // 6. POSITION CALCULATION
+      const completeStudents = studentsCompletion.filter(s => s.isComplete && s.averageScore > 0);
+      const allStudentAverages = completeStudents.map(s => s.averageScore);
+      const sortedStudents = [...allStudentAverages].sort((a, b) => b - a);
+      const actualPosition = sortedStudents.indexOf(averageScore) + 1;
+      const totalStudents = completeStudents.length;
+
+      // 7. ATTENDANCE DATA INTEGRATION
+      // Note: attendance data already validated above, just integrate it
+      const attendanceRequirements = getAttendanceRequirements();
+      const requiredDays = attendanceRequirements[currentTerm] || 0;
+      const attendedDays = attendedDaysForValidation;
+      const timesAbsent = requiredDays - attendedDays;
+      const attendanceRate = requiredDays > 0 ? Math.round((attendedDays / requiredDays) * 100) : 0;
+
+      // 8. COMPILE COMPLETE RESULT DATA
+      const compiledData = {
+        student_id: selectedStudent.id,
+        class_id: Number(selectedClassId),
+        term: currentTerm,
+        academic_year: currentAcademicYear,
+        scores: enhancedScores,
+        affective: affective || null,
+        psychomotor: psychomotor || null,
+        total_score: totalScore,
+        average_score: averageScore,
+        class_average: averageScore,
+        position: actualPosition,
+        total_students: totalStudents,
+        times_present: attendedDays,
+        times_absent: timesAbsent,
+        total_attendance_days: requiredDays,
+        term_begin: '',
+        term_end: '',
+        next_term_begin: '',
+        class_teacher_name: currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'System Administrator',
+        class_teacher_comment: customComment || generateAutoComment(averageScore, actualPosition, totalStudents),
+        principal_name: 'Dr. Ibrahim Musa',
+        principal_comment: '',
+        principal_signature: '',
+        compiled_by: currentUser?.id || 1,
+        compiled_date: new Date().toISOString(),
+        status: 'Submitted' as const,
+        approved_by: null,
+        approved_date: null,
+        rejection_reason: null,
+        print_approved: 0
+      };
+
+      // 9. SUBMIT TO DATABASE
+      await addCompiledResult(compiledData);
+      
+      // 10. SUCCESS FEEDBACK
+      toast.success(
+        `Result submitted for ${selectedStudent.firstName} ${selectedStudent.lastName}\n` +
+        `Position: ${actualPosition}/${totalStudents} | Average: ${averageScore}% | Attendance: ${attendanceRate}%`,
+        { id: "submit-result" }
+      );
+      
+      // 11. CLEANUP AND NAVIGATION
+      setCustomComment("");
+      setSelectedStudentId(null);
+      
+      // 12. REFRESH DATA
+      await loadCompiledResultsFromAPI();
+      
+    } catch (error) {
+      console.error('Error submitting result:', error);
+      toast.error('Failed to submit result. Please try again.', { id: "submit-result" });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const selectedClass = classes.find(c => c.id === Number(selectedClassId));
-    if (!selectedClass || selectedClass.classTeacherId !== currentTeacher.id) {
-      toast.error('You can only compile results for your assigned class');
-      return;
-    }
-
-    if (!studentResultData.isComplete) {
-      toast.error("Cannot submit incomplete result. Ensure all scores and assessments are entered.");
-      return;
-    }
-
-    // Get student's position from calculated data
-    const studentCompletionData = studentsCompletion.find(s => s.studentId === selectedStudent.id);
-    const position = studentCompletionData?.position || 0;
-    const totalStudents = studentCompletionData?.totalStudents || 0;
-
-    // Generate auto-comment if enabled, or use manual comment
-    let finalComment = classTeacherComment;
-    if (useAutoComment && !finalComment.trim()) {
-      // If auto-comment is enabled but no comment selected, generate one
-      finalComment = generateAutoComment(studentResultData.averageScore, position, totalStudents);
-    }
-
-    if (!finalComment.trim()) {
-      toast.error("Please enter a class teacher comment or enable auto-comment");
-      return;
-    }
-
-    const resultData = {
-      student_id: selectedStudent.id,
-      class_id: Number(selectedClassId),
-      term: currentTerm,
-      academic_year: currentAcademicYear,
-      scores: studentResultData.scores,
-      affective: studentResultData.affective || null,
-      psychomotor: studentResultData.psychomotor || null,
-      total_score: studentResultData.totalScore,
-      average_score: studentResultData.averageScore,
-      class_average: classStatistics.classAverage,
-      position: position,
-      total_students: totalStudents,
-      times_present: studentAttendance?.attendedDays || 0,
-      times_absent: studentAttendance?.timesAbsent || 0,
-      total_attendance_days: studentAttendance?.requiredDays || getAttendanceRequirements()[currentTerm] || 60,
-      term_begin: '',
-      term_end: '',
-      next_term_begin: '',
-      class_teacher_name: `${currentTeacher.firstName} ${currentTeacher.lastName}`,
-      class_teacher_comment: finalComment,
-      principal_name: '',
-      principal_comment: generatePrincipalComment(studentResultData.averageScore),
-      principal_signature: '',
-      compiled_by: 1, // Use admin user ID (1) to satisfy foreign key constraint
-      compiled_date: new Date().toISOString(),
-      status: 'Submitted' as const,
-      approved_by: null,
-      approved_date: null,
-      rejection_reason: null
-    };
-
-    if (studentResultData.existingResult) {
-      updateCompiledResult(studentResultData.existingResult.id, resultData);
-      toast.success(`Result updated for ${selectedStudent.firstName} ${selectedStudent.lastName}`);
-    } else {
-      addCompiledResult(resultData);
-      toast.success(`Result submitted for ${selectedStudent.firstName} ${selectedStudent.lastName}`);
-    }
-
-    // Clear and go back to list
-    setClassTeacherComment("");
-    setSelectedStudentId(null);
-    setUseAutoComment(false);
   };
 
-  // Submit all complete results
-  const handleSubmitAllResults = () => {
+  const handleSubmitAllResults = async () => {
     if (!selectedClassId || !currentTeacher) {
       toast.error("Please select a class");
       return;
@@ -1007,159 +1247,322 @@ export function CompileResultsPage() {
       return;
     }
 
-    const completeStudents = studentsCompletion.filter(s => s.isComplete && !s.isSubmitted);
-    
-    if (completeStudents.length === 0) {
-      toast.error("No complete results to submit");
+    // Check if there are any results to submit (only non-submitted or rejected ones)
+    const eligibleResults = (studentsCompletion || []).filter(s => s.isComplete && (!s.isSubmitted || s.isRejected));
+    if (eligibleResults.length === 0) {
+      toast.info("All eligible results have already been submitted");
       return;
     }
 
-    let submittedCount = 0;
+    try {
+      toast.info("Saving attendance, psychomotor, and affectives data...");
+      
+      // Save attendance, psychomotor, and affectives data for all students first
+      for (const studentComp of studentsCompletion || []) {
+        if (!studentComp.isComplete) continue;
+        
+        const student = classStudents.find(s => s.id === studentComp.studentId);
+        if (!student) continue;
 
-    completeStudents.forEach((studentComp) => {
-      const student = classStudents.find(s => s.id === studentComp.studentId);
-      if (!student) return;
+        // Get existing result for this student
+        const existingResult = compiledResults.find(cr => 
+          cr.student_id === student.id &&
+          cr.class_id === Number(selectedClassId) &&
+          cr.term === currentTerm &&
+          cr.academic_year === currentAcademicYear
+        );
 
-      const studentScores = scores.filter(s => 
-        s.student_id === student.id &&
-        classSubjects.some((cs: any) => cs && cs.id === s.subject_assignment_id)
-      );
+        // Save attendance data to attendance table
+        const attendancePayload = {
+          student_id: student.id,
+          class_id: Number(selectedClassId),
+          term: currentTerm,
+          academic_year: currentAcademicYear,
+          date: new Date().toISOString().split('T')[0], // Current date
+          status: 'Present' as const,
+          marked_by: currentUser?.id || 1,
+          marked_date: new Date().toISOString(),
+          remarks: `Attended ${existingResult?.times_present || 0} out of ${getAttendanceRequirements()[currentTerm] || 0} days`
+        };
+        
+        const existingAttendance = attendances.find(a => 
+          a.student_id === student.id &&
+          a.class_id === Number(selectedClassId) &&
+          a.term === currentTerm &&
+          a.academic_year === currentAcademicYear
+        );
+        
+        if (existingAttendance) {
+          await updateAttendance(existingAttendance.id, attendancePayload);
+        } else {
+          await addAttendance(attendancePayload);
+        }
 
-      const affective = affectiveDomains.find(a => 
-        a.student_id === student.id &&
-        a.class_id === Number(selectedClassId) &&
-        a.term === currentTerm
-      );
+        // Save affective data if it has been modified
+        const affectivePayload = {
+          student_id: student.id,
+          class_id: Number(selectedClassId),
+          term: currentTerm,
+          academic_year: currentAcademicYear,
+          ...affectiveData,
+          entered_by: currentUser?.id
+        };
+        
+        const existingAffective = affectiveDomains.find(a => 
+          a.student_id === student.id &&
+          a.class_id === Number(selectedClassId) &&
+          a.term === currentTerm &&
+          a.academic_year === currentAcademicYear
+        );
+        
+        if (existingAffective) {
+          await updateAffectiveDomain(existingAffective.id, affectivePayload);
+        } else {
+          await createAffectiveDomain(affectivePayload);
+        }
 
-      const psychomotor = psychomotorDomains.find(p => 
-        p.student_id === student.id &&
-        p.class_id === Number(selectedClassId) &&
-        p.term === currentTerm
-      );
-
-      const totalScore = studentScores.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
-      const averageScore = Math.round((totalScore / (studentScores || []).length) * 100) / 100;
-
-      // Calculate class average
-      const allAverages = studentsCompletion
-        .filter(s => s.averageScore > 0)
-        .map(s => s.averageScore);
-      const classAverage = Math.round(((allAverages || []).reduce((sum, a) => sum + a, 0) / (allAverages || []).length) * 100) / 100;
-
-      // Calculate position
-      const sortedStudents = [...allAverages].sort((a, b) => b - a);
-      const position = sortedStudents.indexOf(averageScore) + 1;
-
-      let autoComment = '';
-      if (averageScore >= 90) {
-        autoComment = 'Excellent';
-      } else if (averageScore >= 80) {
-        autoComment = 'A very good result';
-      } else if (averageScore >= 70) {
-        autoComment = 'Good result';
-      } else if (averageScore >= 60) {
-        autoComment = 'A satisfaction result';
-      } else if (averageScore >= 50) {
-        autoComment = 'A fair result';
-      } else {
-        autoComment = 'it is well';
+        // Save psychomotor data if it has been modified
+        const psychomotorPayload = {
+          student_id: student.id,
+          class_id: Number(selectedClassId),
+          term: currentTerm,
+          academic_year: currentAcademicYear,
+          ...psychomotorData,
+          entered_by: currentUser?.id
+        };
+        
+        const existingPsychomotor = psychomotorDomains.find(p => 
+          p.student_id === student.id &&
+          p.class_id === Number(selectedClassId) &&
+          p.term === currentTerm &&
+          p.academic_year === currentAcademicYear
+        );
+        
+        if (existingPsychomotor) {
+          await updatePsychomotorDomain(existingPsychomotor.id, psychomotorPayload);
+        } else {
+          await createPsychomotorDomain(psychomotorPayload);
+        }
       }
 
-      const compiledData = {
-        student_id: student.id,
-        class_id: Number(selectedClassId),
-        term: currentTerm,
-        academic_year: currentAcademicYear,
-        scores: studentScores,
-        affective: affective || null,
-        psychomotor: psychomotor || null,
-        total_score: totalScore,
-        average_score: averageScore,
-        class_average: classAverage,
-        position: position,
-        total_students: classStudents.length,
-        times_present: studentAttendanceInput[student.id] || 0,
-        times_absent: 0, // Will be calculated as required - present
-        total_attendance_days: getAttendanceRequirements()[currentTerm] || 60,
-        term_begin: '',
-        term_end: '',
-        next_term_begin: '',
-        class_teacher_name: `${currentTeacher.firstName} ${currentTeacher.lastName}`,
-        class_teacher_comment: autoComment,
-        principal_name: 'Dr. Ibrahim Musa',
-        principal_comment: '',
-        principal_signature: '',
-        compiled_by: 1, // Use admin user ID (1) to satisfy foreign key constraint
-        compiled_date: new Date().toISOString(),
-        status: 'Submitted' as const,
-        approved_by: null,
-        approved_date: null,
-        rejection_reason: null
-      };
+      // Refresh data to get the latest saved records
+      await loadAffectiveDomainsFromAPI();
+      await loadPsychomotorDomainsFromAPI();
+      await loadAttendancesFromAPI(); // Refresh attendance data
+      
+      toast.success("All data saved successfully!");
+      
+      // Now proceed with generating and submitting results
+      let submittedCount = 0;
+      
+      for (const studentComp of studentsCompletion || []) {
+        if (!studentComp.isComplete) continue;
+        
+        const student = classStudents.find(s => s.id === studentComp.studentId);
+        if (!student) continue;
 
-      addCompiledResult(compiledData);
-      submittedCount++;
-    });
+        // Get existing result for this student
+        const existingResult = compiledResults.find(cr => 
+          cr.student_id === student.id &&
+          cr.class_id === Number(selectedClassId) &&
+          cr.term === currentTerm &&
+          cr.academic_year === currentAcademicYear
+        );
 
-    // Notify admin
-    toast.success(`Successfully submitted ${submittedCount} results for approval`);
+        const studentScores = scores.filter(s => 
+          s.student_id === student.id &&
+          classSubjects.some((cs: any) => cs && Number(cs.id) === Number(s.subject_assignment_id))
+        );
 
-    toast.success(`${submittedCount} results submitted to admin for approval!`);
+        // Get the freshly saved affective and psychomotor data
+        const affective = affectiveDomains.find(a => 
+          a.student_id === student.id &&
+          a.class_id === Number(selectedClassId) &&
+          a.term === currentTerm
+        );
+
+        const psychomotor = psychomotorDomains.find(p => 
+          p.student_id === student.id &&
+          p.class_id === Number(selectedClassId) &&
+          p.term === currentTerm
+        );
+
+        const totalScore = studentScores.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+        const averageScore = Math.round((totalScore / (studentScores || []).length) * 100) / 100;
+
+        // Calculate class average - ONLY include students with complete submissions
+        const allAverages = studentsCompletion
+          .filter(s => s.isComplete && s.averageScore > 0)
+          .map(s => s.averageScore);
+        const classAverage = Math.round(((allAverages || []).reduce((sum, a) => sum + a, 0) / (allAverages || []).length) * 100) / 100;
+
+        // Calculate position
+        const sortedStudents = [...allAverages].sort((a, b) => b - a);
+        const position = sortedStudents.indexOf(averageScore) + 1;
+
+        let autoComment = '';
+        if (averageScore >= 90) {
+          autoComment = 'Excellent';
+        } else if (averageScore >= 80) {
+          autoComment = 'A very good result';
+        } else if (averageScore >= 70) {
+          autoComment = 'Good result';
+        } else if (averageScore >= 60) {
+          autoComment = 'A satisfaction result';
+        } else if (averageScore >= 50) {
+          autoComment = 'A fair result';
+        } else {
+          autoComment = 'it is well';
+        }
+
+        const compiledData = {
+          student_id: student.id,
+          class_id: Number(selectedClassId),
+          term: currentTerm,
+          academic_year: currentAcademicYear,
+          scores: studentScores,
+          affective: affective || null,
+          psychomotor: psychomotor || null,
+          total_score: totalScore,
+          average_score: averageScore,
+          class_average: classAverage,
+          position: position,
+          total_students: classStudents.length,
+          times_present: existingResult?.times_present || 0,
+          times_absent: 0, // Will be calculated as required - present
+          total_attendance_days: getAttendanceRequirements()[currentTerm] || 0,
+          term_begin: '',
+          term_end: '',
+          next_term_begin: '',
+          class_teacher_name: currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'System Administrator',
+          class_teacher_comment: generateAutoComment(averageScore, position, classStudents.length),
+          principal_name: 'Dr. Ibrahim Musa',
+          principal_comment: '',
+          principal_signature: '',
+          compiled_by: 1, // Use admin user ID (1) to satisfy foreign key constraint
+          compiled_date: new Date().toISOString(),
+          status: 'Submitted' as const,
+          approved_by: null,
+          approved_date: null,
+          rejection_reason: null,
+          print_approved: 0
+        };
+
+        // Use compileResult directly which handles duplicate checking in the database
+        const resultId = await addCompiledResult(compiledData);
+        submittedCount++;
+        
+        // Immediately update compiled results to reflect the submitted status
+        await loadCompiledResultsFromAPI();
+        
+        // Also refresh scores to ensure latest data
+        await loadScoresFromAPI();
+      }
+
+      // Notify admin
+      toast.success(`Successfully submitted ${submittedCount} results for approval`);
+      toast.success(`${submittedCount} results submitted to admin for approval!`);
+      
+    } catch (error) {
+      console.error('Error submitting all results:', error);
+      toast.error('Failed to submit results. Please try again.', { id: "submit-all-results" });
+    }
   };
 
-  // Restrict access to teachers with class assignments
-  if (!hasClassTeacherAssignments) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Access Restricted</h2>
-          <p className="text-gray-500 max-w-md mx-auto">
-            Only class teachers can compile results. You must be assigned as a class teacher to access this page.
-          </p>
-          <p className="text-sm text-gray-400 mt-2">
-            Contact the administrator if you believe this is an error.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-4 space-y-4">
-      {/* Header - Compact */}
-      <div className="flex justify-between items-start flex-wrap gap-2">
+    <div className="min-h-screen bg-gradient-to-br from-[#F8FAFC] to-[#F1F5F9] p-4 space-y-4">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
         <div className="flex-1 min-w-[200px]">
-          <h1 className="text-[#0A2540] text-lg mb-1">Compile Results</h1>
-          <p className="text-gray-600 text-sm">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1E40AF] mb-1 flex items-center gap-2">
+            <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-[#1E40AF]" />
+            Compile Results
+          </h1>
+          <p className="text-[#64748B] text-sm sm:font-medium">
             {selectedStudentId 
               ? "Review and compile student result" 
               : "Select a class to view students and compile their results"}
           </p>
           {lastRefresh && (
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+              <Activity className="w-3 h-3" />
               Last refreshed: {lastRefresh.toLocaleTimeString()}
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Button
             onClick={handleManualRefresh}
             variant="outline"
-            size="sm"
-            className="flex items-center gap-1 border-[#0A2540]/20 h-8"
+            className="flex items-center gap-2 border-[#1E40AF]/30 text-[#1E40AF] hover:bg-[#1E40AF]/10 rounded-xl transition-all text-sm px-3 py-2"
           >
-            <RefreshCw className="h-3 w-3" />
-            Refresh
+            <Calculator className="w-4 h-4" />
+            Refresh Data
           </Button>
           <Button
             onClick={handleGenerateResults}
-            size="sm"
-            className="bg-[#F59E0B] hover:bg-[#D97706] text-white rounded-lg flex items-center gap-1 h-8"
+            disabled={!canGenerateResults}
+            title={
+              !selectedClassId ? "Please select a class" :
+              !currentTeacher ? "Teacher not assigned" :
+              resultsGenerated ? "Results already generated" :
+              isGenerating ? "Generating results..." :
+              "Generate class results"
+            }
+            className={`${
+              resultsGenerated 
+                ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white" 
+                : canGenerateResults
+                ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            } rounded-xl flex items-center gap-2 transition-all transform hover:scale-105 text-sm px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
           >
-            <Award className="h-3 w-3" />
-            Generate
+            {isGenerating ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                {resultsGenerated ? 'Results Generated' : 'Generate Results'}
+              </>
+            )}
           </Button>
+          {selectedStudentId && (
+            <>
+              {!canSubmit && (
+                <div className="text-xs text-red-600 bg-red-50 p-2 rounded mb-2">
+                  <div className="font-medium mb-1">Missing requirements:</div>
+                  <div className="space-y-1">
+                    {!hasAllScores && <div>• Subject scores</div>}
+                    {!hasAffective && <div>• Affective domains</div>}
+                    {!hasPsychomotor && <div>• Psychomotor domains</div>}
+                    {!hasAttendance && <div>• Attendance data</div>}
+                    {studentResultData?.isSubmitted && <div>• Result already submitted</div>}
+                  </div>
+                </div>
+              )}
+              <Button
+                onClick={handleSubmitResult}
+                disabled={isSubmitting || !canSubmit}
+                className="bg-[#10B981] hover:bg-[#059669] active:bg-[#047857] text-white rounded-lg px-4 h-8 text-sm font-medium transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg active:shadow-xl flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!canSubmit ? 'Complete all requirements (scores, attendance, affective & psychomotor domains) before submitting' : ''}
+              >
+              {isSubmitting ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-3 h-3" />
+                  Submit
+                </>
+              )}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1208,35 +1611,49 @@ export function CompileResultsPage() {
 
       {/* Student List - Compact */}
       {!selectedStudentId && selectedClassId && (
-        <Card className="border-[#0A2540]/10 shadow-sm">
-          <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl px-4 py-3">
+        <Card className="border-[#0A2540]/10 shadow-lg">
+          <CardHeader className="border-b border-[#0A2540]/10 bg-gradient-to-r from-[#0A2540]/5 to-[#1E40AF]/5">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold">Students List</h2>
-                <p className="text-blue-100 text-sm">
+                <h2 className="text-xl font-bold text-[#0A2540] flex items-center gap-2">
+                  <Users className="w-6 h-6 text-[#1E40AF]" />
+                  Students List
+                </h2>
+                <p className="text-[#64748B] font-medium">
                   {classStudents.length} students in class
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleSubmitAllResults}
-                  disabled={(studentsCompletion || []).filter(s => s.isComplete && !s.isSubmitted).length === 0}
-                  className="bg-white text-[#10B981] hover:bg-gray-100 rounded-lg h-8 text-sm"
-                >
-                  <Send className="w-3 h-3 mr-1" />
-                  Submit All
-                </Button>
+              <div className="flex gap-3">
+                {allSubmitted ? (
+                  <Button
+                    disabled={true}
+                    className="bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300 rounded-xl px-4 py-2 font-semibold"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    All Submitted ({submittedCount})
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleSubmitAllResults}
+                    disabled={!resultsGenerated || eligibleForSubmission.length === 0}
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl px-4 py-2 font-semibold transition-all transform hover:scale-105"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Submit All ({eligibleForSubmission.length})
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-3">
+          <CardContent className="p-2 sm:p-3">
             {classStudents.length === 0 ? (
               <div className="text-center py-8">
-                <AlertCircle className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-500 text-sm">No students in this class</p>
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 font-semibold text-base">No students in this class</p>
+                <p className="text-gray-400 text-xs sm:text-sm">Students will appear here once they are enrolled</p>
               </div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {classStudents.map((student) => {
                   const completion = studentsCompletion.find(s => s.studentId === student.id);
                   // Don't hide students without completion data - show them with default values
@@ -1244,12 +1661,12 @@ export function CompileResultsPage() {
                   return (
                     <div
                       key={student.id}
-                      className="p-2 border border-[#0A2540]/10 rounded hover:border-blue-400 hover:bg-blue-50 transition-all cursor-pointer"
+                      className="p-3 sm:p-4 border border-[#0A2540]/10 rounded-xl hover:border-[#1E40AF]/30 hover:bg-gradient-to-r hover:from-[#0A2540]/5 hover:to-[#1E40AF]/5 transition-all cursor-pointer shadow-sm hover:shadow-md"
                       onClick={() => setSelectedStudentId(student.id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="w-8 h-8 border border-[#3B82F6]">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#1E40AF] shadow-sm">
                             {student.photo_url ? (
                               <img 
                                 src={student.photo_url} 
@@ -1262,30 +1679,30 @@ export function CompileResultsPage() {
                                 }}
                               />
                             ) : null}
-                            <AvatarFallback className="bg-[#3B82F6] text-white text-xs">
+                            <AvatarFallback className="bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] text-white text-xs sm:text-sm font-semibold">
                               {student.firstName[0]}{student.lastName[0]}
                             </AvatarFallback>
                           </Avatar>
                           
                           <div>
-                            <p className="text-[#0A2540] font-medium text-sm">
+                            <p className="text-[#0A2540] font-semibold text-sm sm:text-base">
                               {student.firstName} {student.lastName}
                             </p>
-                            <p className="text-xs text-gray-600">{student.admissionNumber}</p>
+                            <p className="text-xs text-gray-500 font-mono">{student.admissionNumber}</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 sm:gap-4">
                           {/* Scores Progress */}
                           <div className="text-right">
-                            <p className="text-xs text-gray-600">Scores</p>
+                            <p className="text-xs font-semibold text-[#64748B] mb-1">Scores</p>
                             <div className="flex items-center gap-1">
                               <Badge 
                                 variant={completion?.completedSubjects === completion?.totalSubjects ? "default" : "outline"}
-                                className={`rounded text-xs ${
+                                className={`rounded-full text-xs font-semibold px-2 py-1 ${
                                   completion?.completedSubjects === completion?.totalSubjects 
-                                    ? 'bg-green-100 text-green-800 border-green-300' 
-                                    : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                    ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300' 
+                                    : 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300'
                                 }`}
                               >
                                 {completion?.completedSubjects || 0}/{completion?.totalSubjects || 0}
@@ -1294,28 +1711,37 @@ export function CompileResultsPage() {
                           </div>
 
                           {/* Affective */}
-                          <div className="text-center">
-                            <CheckCircle className={`w-3 h-3 ${completion?.hasAffective ? 'text-green-600' : 'text-gray-300'}`} />
+                          <div className="text-center hidden sm:block">
+                            <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${completion?.hasAffective ? 'text-green-500' : 'text-gray-300'}`} />
+                            <p className="text-xs text-gray-500 mt-1 hidden sm:block">Affective</p>
                           </div>
 
                           {/* Psychomotor */}
-                          <div className="text-center">
-                            <CheckCircle className={`w-3 h-3 ${completion?.hasPsychomotor ? 'text-green-600' : 'text-gray-300'}`} />
+                          <div className="text-center hidden sm:block">
+                            <Activity className={`w-4 h-4 sm:w-5 sm:h-5 ${completion?.hasPsychomotor ? 'text-green-500' : 'text-gray-300'}`} />
+                            <p className="text-xs text-gray-500 mt-1 hidden sm:block">Psychomotor</p>
                           </div>
 
                           {/* Status */}
                           <div className="text-center">
                             {completion?.isSubmitted ? (
-                              <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">
-                                <CheckCircle className="w-2 h-2 mr-1" />
-                                Sub
+                              <Badge className="bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300 rounded-full text-xs font-semibold px-2 sm:px-3 py-1">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                <span className="hidden sm:inline">Submitted</span>
+                                <span className="sm:hidden">Sub</span>
+                              </Badge>
+                            ) : completion?.isRejected ? (
+                              <Badge className="bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border border-orange-300 rounded-full text-xs font-semibold px-2 sm:px-3 py-1">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                <span className="hidden sm:inline">Resubmit</span>
+                                <span className="sm:hidden">Res</span>
                               </Badge>
                             ) : completion?.isComplete ? (
-                              <Badge className="bg-blue-100 text-blue-800 border-blue-300 text-xs">
+                              <Badge className="bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-300 rounded-full text-xs font-semibold px-2 sm:px-3 py-1">
                                 Ready
                               </Badge>
                             ) : (
-                              <Badge className="bg-gray-100 text-gray-800 border-gray-300 text-xs">
+                              <Badge className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300 rounded-full text-xs font-semibold px-2 sm:px-3 py-1">
                                 Pending
                               </Badge>
                             )}
@@ -1334,25 +1760,24 @@ export function CompileResultsPage() {
       {/* Selected Student Detail View */}
       {selectedStudentId && selectedStudent && studentResultData && (
         <div className="space-y-4">
-          {/* Back Button - Compact */}
+          {/* Back Button */}
           <Button
             onClick={() => {
               setSelectedStudentId(null);
-              setClassTeacherComment("");
+              setCustomComment("");
             }}
             variant="outline"
-            size="sm"
-            className="rounded-lg border-[#0A2540]/20 h-8"
+            className="flex items-center gap-2 border-[#1E40AF]/30 text-[#1E40AF] hover:bg-[#1E40AF]/10 rounded-xl transition-all px-4 py-2"
           >
-            <ArrowLeft className="w-3 h-3 mr-1" />
-            Back
+            <ArrowLeft className="w-4 h-4" />
+            Back to Students
           </Button>
 
-          {/* Student Info Card - Compact */}
-          <Card className="border-[#0A2540]/10 shadow-sm">
-            <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl px-4 py-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Avatar className="w-8 h-8 border border-white">
+          {/* Student Info Card */}
+          <Card className="border-[#0A2540]/10 shadow-lg">
+            <CardHeader className="border-b border-[#0A2540]/10 bg-gradient-to-r from-[#0A2540]/5 to-[#1E40AF]/5">
+              <CardTitle className="flex items-center gap-4 text-lg font-bold text-[#0A2540]">
+                <Avatar className="w-12 h-12 border-2 border-[#1E40AF] shadow-lg">
                   {selectedStudent.photo_url ? (
                     <img 
                       src={selectedStudent.photo_url} 
@@ -1365,64 +1790,64 @@ export function CompileResultsPage() {
                       }}
                     />
                   ) : null}
-                  <AvatarFallback className="bg-white text-[#3B82F6] text-xs">
+                  <AvatarFallback className="bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] text-white text-sm font-bold">
                     {selectedStudent.firstName[0]}{selectedStudent.lastName[0]}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="text-base">{selectedStudent.firstName} {selectedStudent.lastName}</p>
-                  <p className="text-xs font-normal opacity-90">{selectedStudent.admissionNumber}</p>
+                  <p className="text-lg font-bold text-[#0A2540]">{selectedStudent.firstName} {selectedStudent.lastName}</p>
+                  <p className="text-sm text-[#64748B] font-mono font-medium">{selectedStudent.admissionNumber}</p>
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-3">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Class</p>
-                  <p className="text-[#0A2540] font-medium text-sm">{selectedStudent.className}</p>
+            <CardContent className="p-3 sm:p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-[#64748B] mb-1 uppercase tracking-wider">Class</p>
+                  <p className="text-[#0A2540] font-bold text-sm">{selectedStudent.className}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Gender</p>
-                  <p className="text-[#0A2540] font-medium text-sm">{selectedStudent.gender}</p>
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-[#64748B] mb-1 uppercase tracking-wider">Gender</p>
+                  <p className="text-[#0A2540] font-bold text-sm">{selectedStudent.gender}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Term</p>
-                  <p className="text-[#0A2540] font-medium text-sm">{currentTerm}</p>
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-[#64748B] mb-1 uppercase tracking-wider">Term</p>
+                  <p className="text-[#0A2540] font-bold text-sm">{currentTerm}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Year</p>
-                  <p className="text-[#0A2540] font-medium text-sm">{currentAcademicYear}</p>
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-[#64748B] mb-1 uppercase tracking-wider">Year</p>
+                  <p className="text-[#0A2540] font-bold text-sm">{currentAcademicYear}</p>
                 </div>
               </div>
 
-              {/* Summary Stats - Compact */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
-                <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-xs text-blue-900">Subjects</p>
-                  <p className="text-sm text-blue-900 font-bold">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mt-4">
+                <div className="p-2 sm:p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                  <p className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-1">Subjects</p>
+                  <p className="text-base sm:text-lg text-blue-900 font-bold">
                     {studentResultData.subjectsCompleted}/{studentResultData.totalSubjects}
                   </p>
                 </div>
-                <div className="p-2 bg-purple-50 rounded-lg border border-purple-200">
-                  <p className="text-xs text-purple-900">Total</p>
-                  <p className="text-sm text-purple-900 font-bold">{studentResultData.totalScore}</p>
+                <div className="p-2 sm:p-3 bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                  <p className="text-xs font-bold text-purple-900 uppercase tracking-wider mb-1">Total</p>
+                  <p className="text-base sm:text-lg text-purple-900 font-bold">{studentResultData.totalScore}</p>
                 </div>
-                <div className="p-2 bg-green-50 rounded-lg border border-green-200">
-                  <p className="text-xs text-green-900">Average</p>
-                  <p className="text-sm text-green-900 font-bold">{studentResultData.averageScore}%</p>
+                <div className="p-2 sm:p-3 bg-gradient-to-r from-green-50 to-green-100 rounded-xl border border-green-200">
+                  <p className="text-xs font-bold text-green-900 uppercase tracking-wider mb-1">Average</p>
+                  <p className="text-base sm:text-lg text-green-900 font-bold">{studentResultData.averageScore}%</p>
                 </div>
-                <div className="p-2 bg-orange-50 rounded-lg border border-orange-200">
-                  <p className="text-xs text-orange-900">Position</p>
-                  <p className="text-sm text-orange-900 font-bold">
+                <div className="p-2 sm:p-3 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border border-orange-200">
+                  <p className="text-xs font-bold text-orange-900 uppercase tracking-wider mb-1">Position</p>
+                  <p className="text-base sm:text-lg text-orange-900 font-bold">
                     {studentResultData.position > 0 ? `${studentResultData.position}/${studentResultData.totalStudents}` : 'N/A'}
                   </p>
                 </div>
-                <div className="p-2 bg-indigo-50 rounded-lg border border-indigo-200">
-                  <p className="text-xs text-indigo-900">Attendance</p>
-                  <p className="text-sm text-indigo-900 font-bold">
+                <div className="p-2 sm:p-3 bg-gradient-to-r from-indigo-50 to-indigo-100 rounded-xl border border-indigo-200">
+                  <p className="text-xs font-bold text-indigo-900 uppercase tracking-wider mb-1">Attendance</p>
+                  <p className="text-base sm:text-lg text-indigo-900 font-bold">
                     {studentAttendance?.ratio || '0/0'}
                   </p>
-                  <p className="text-xs text-indigo-700">
+                  <p className="text-xs sm:text-sm text-indigo-700 font-semibold">
                     {studentAttendance?.attendanceRate.toFixed(1) || '0'}%
                   </p>
                 </div>
@@ -1435,7 +1860,7 @@ export function CompileResultsPage() {
             <Card className="border-red-200 bg-red-50 shadow-sm">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                  <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
                   <div className="flex-1">
                     <h3 className="text-sm font-semibold text-red-800 mb-1">Result Rejected</h3>
                     <p className="text-xs text-red-700 mb-2">
@@ -1453,51 +1878,54 @@ export function CompileResultsPage() {
             </Card>
           )}
 
-          {/* Subject Scores - Compact */}
-          <Card className="border-[#0A2540]/10 shadow-sm">
-            <CardHeader className="bg-gradient-to-r from-[#10B981] to-[#059669] text-white rounded-t-xl px-4 py-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BookOpen className="w-4 h-4" />
+          {/* Subject Scores */}
+          <Card className="border-[#0A2540]/10 shadow-lg">
+            <CardHeader className="border-b border-[#0A2540]/10 bg-gradient-to-r from-[#10B981]/5 to-[#059669]/5">
+              <CardTitle className="flex items-center gap-3 text-lg font-bold text-[#0A2540]">
+                <div className="w-8 h-8 bg-gradient-to-br from-[#10B981] to-[#059669] rounded-xl flex items-center justify-center">
+                  <BookOpen className="w-4 h-4 text-white" />
+                </div>
                 Subject Scores
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-3">
+            <CardContent className="p-3 sm:p-4">
               {classSubjects.length === 0 ? (
-                <div className="text-center py-6">
-                  <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-gray-500 text-sm">No subjects assigned to this class</p>
+                <div className="text-center py-8">
+                  <Book className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-semibold text-base">No subjects assigned to this class</p>
+                  <p className="text-gray-400 text-xs sm:text-sm">Subjects will appear here once they are assigned</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {classSubjects.map((subject: any) => {
                     const score = studentResultData.scores.find(s => s.subject_assignment_id === subject.id);
                     return (
-                      <div key={subject.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                            <BookOpen className="w-4 h-4 text-green-600" />
+                      <div key={subject.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 hover:shadow-md transition-all gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-sm">
+                            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-[#0A2540]">{subject.subject_name || 'Unknown Subject'}</p>
-                            <p className="text-xs text-gray-600">{subject.subject_code || ''}</p>
+                            <p className="text-sm sm:text-base font-bold text-[#0A2540]">{subject.name || 'Unknown Subject'}</p>
+                            <p className="text-xs text-[#64748B] font-mono">{subject.subject_code || ''}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <p className="text-xs text-gray-600">CA1</p>
-                            <p className="text-sm font-medium">{score?.ca1 || 0}</p>
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
+                            <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">CA1</p>
+                            <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.ca1 || 0}</p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-600">CA2</p>
-                            <p className="text-sm font-medium">{score?.ca2 || 0}</p>
+                          <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
+                            <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">CA2</p>
+                            <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.ca2 || 0}</p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-600">Exam</p>
-                            <p className="text-sm font-medium">{score?.exam || 0}</p>
+                          <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
+                            <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Exam</p>
+                            <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.exam || 0}</p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-600">Total</p>
-                            <p className="text-sm font-bold text-green-600">{score?.total || 0}</p>
+                          <div className="text-center bg-gradient-to-r from-green-100 to-green-200 p-2 rounded-xl border border-green-300 min-w-[60px]">
+                            <p className="text-xs font-bold text-green-800 uppercase tracking-wider mb-1">Total</p>
+                            <p className="text-sm sm:text-base font-bold text-green-600">{score?.total || 0}</p>
                           </div>
                         </div>
                       </div>
@@ -1508,40 +1936,16 @@ export function CompileResultsPage() {
             </CardContent>
           </Card>
 
-          {/* Attendance Input - One Time Entry */}
+          {/* Attendance Display - Read Only */}
           <Card className="border-[#0A2540]/10 shadow-sm">
             <CardHeader className="bg-gradient-to-r from-[#6366F1] to-[#4F46E5] text-white px-4 py-3 rounded-t-xl">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="w-4 h-4" />
+                <Calendar className="w-4 h-4" />
                 Attendance Record
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-sm font-medium text-[#0A2540]">Days Present</Label>
-                    <p className="text-xs text-gray-600">
-                      Required: {studentAttendance?.requiredDays || 60} days for {currentTerm}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min="0"
-                      max={studentAttendance?.requiredDays || 60}
-                      value={studentAttendanceInput[selectedStudent?.id || 0] || 0}
-                      onChange={(e) => setStudentAttendanceInput(prev => ({
-                        ...prev,
-                        [selectedStudent?.id || 0]: parseInt(e.target.value) || 0
-                      }))}
-                      className="w-20 text-center rounded-lg"
-                      disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                    />
-                    <span className="text-sm text-gray-600">days</span>
-                  </div>
-                </div>
-                
                 <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-indigo-800">Attendance Ratio:</span>
@@ -1555,6 +1959,13 @@ export function CompileResultsPage() {
                       {studentAttendance?.attendanceRate.toFixed(1) || '0.0'}%
                     </span>
                   </div>
+                </div>
+                
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs text-blue-700 text-center">
+                    <Calendar className="w-3 h-3 inline mr-1" />
+                    Attendance is now managed in the Mark Attendance page
+                  </p>
                 </div>
                 
                 {studentResultData?.isSubmitted && !studentResultData?.isRejected && (
@@ -1573,111 +1984,102 @@ export function CompileResultsPage() {
           </Card>
 
           
-          {/* Affective & Psychomotor Forms */}
+          {/* Affective & Psychomotor Display - Read Only */}
           <div className="grid md:grid-cols-2 gap-4">
-            {/* Affective Domain Form - Compact Design */}
+            {/* Affective Domain Display */}
             <Card className="border-[#0A2540]/10 shadow-sm">
               <CardHeader className="bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white px-4 py-3 rounded-t-xl">
-                <CardTitle className="text-base">Affective Domain</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  Affective Domain
+                  <span className="text-xs bg-white/20 px-2 py-1 rounded">Managed in Student Domains</span>
+                </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { key: 'attentiveness', label: 'Attentiveness' },
                     { key: 'honesty', label: 'Honesty' },
-                    { key: 'punctuality', label: 'Punctuality' },
-                    { key: 'neatness', label: 'Neatness' }
+                    { key: 'neatness', label: 'Neatness' },
+                    { key: 'obedience', label: 'Obedience' },
+                    { key: 'sense_of_responsibility', label: 'Sense of Responsibility' }
                   ].map((field) => (
                     <div key={field.key} className="space-y-1">
                       <Label className="text-xs font-medium text-gray-700">{field.label}</Label>
-                      <div className="flex items-center space-x-1">
-                        {[1, 2, 3, 4, 5].map((rating) => (
-                          <button
-                            key={rating}
-                            type="button"
-                            onClick={() => setAffectiveData(prev => ({ ...prev, [field.key]: rating }))}
-                            className={`w-6 h-6 rounded-full border-2 text-xs font-semibold transition-all ${
-                              affectiveData[field.key as keyof typeof affectiveData] === rating
-                                ? 'bg-purple-600 border-purple-600 text-white'
-                                : 'bg-white border-gray-300 text-gray-600 hover:border-purple-400'
-                            }`}
-                            disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                          >
-                            {rating}
-                          </button>
-                        ))}
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-lg text-xs font-medium flex items-center justify-center ${
+                          Number(affectiveData[field.key as keyof typeof affectiveData]) >= 5 
+                            ? 'bg-green-100 text-green-800'
+                            : Number(affectiveData[field.key as keyof typeof affectiveData]) >= 4 
+                            ? 'bg-blue-100 text-blue-800'
+                            : Number(affectiveData[field.key as keyof typeof affectiveData]) >= 3
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {affectiveData[field.key as keyof typeof affectiveData] || 3}
+                        </div>
+                        <span className="text-xs text-gray-600">
+                          {Number(affectiveData[field.key as keyof typeof affectiveData]) >= 5 ? 'Excellent' :
+                           Number(affectiveData[field.key as keyof typeof affectiveData]) >= 4 ? 'Very Good' :
+                           Number(affectiveData[field.key as keyof typeof affectiveData]) >= 3 ? 'Good' : 'Needs Improvement'}
+                        </span>
                       </div>
-                      <Textarea
-                        value={affectiveData[`${field.key}_remark` as keyof typeof affectiveData] as string}
-                        onChange={(e) => setAffectiveData(prev => ({ ...prev, [`${field.key}_remark`]: e.target.value }))}
-                        placeholder={`${field.label} remarks...`}
-                        className="min-h-[40px] text-xs resize-none"
-                        disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                      />
                     </div>
                   ))}
                 </div>
                 
-                <Button
-                  onClick={handleSaveAffective}
-                  disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white h-8 text-sm"
-                >
-                  Save Affective Assessment
-                </Button>
+                <div className="text-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                  <Heart className="w-3 h-3 inline mr-1" />
+                  Update affective domains in Student Domains page
+                </div>
               </CardContent>
             </Card>
 
-            {/* Psychomotor Domain Form - Compact Design */}
+            {/* Psychomotor Domain Display */}
             <Card className="border-[#0A2540]/10 shadow-sm">
               <CardHeader className="bg-gradient-to-r from-[#EC4899] to-[#DB2777] text-white px-4 py-3 rounded-t-xl">
-                <CardTitle className="text-base">Psychomotor Domain</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  Psychomotor Domain
+                  <span className="text-xs bg-white/20 px-2 py-1 rounded">Managed in Student Domains</span>
+                </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { key: 'sports', label: 'Sports' },
-                    { key: 'handwork', label: 'Handwork' },
-                    { key: 'drawing', label: 'Drawing' },
-                    { key: 'music', label: 'Music' }
+                    { key: 'attention_to_direction', label: 'Attention to Direction' },
+                    { key: 'considerate_of_others', label: 'Concern for Others' },
+                    { key: 'handwriting', label: 'Handwriting' },
+                    { key: 'sport', label: 'Sport' },
+                    { key: 'verbal_fluency', label: 'Verbal Fluency' },
+                    { key: 'works_well_independently', label: 'Works Well Independently' }
                   ].map((field) => (
                     <div key={field.key} className="space-y-1">
                       <Label className="text-xs font-medium text-gray-700">{field.label}</Label>
-                      <div className="flex items-center space-x-1">
-                        {[1, 2, 3, 4, 5].map((rating) => (
-                          <button
-                            key={rating}
-                            type="button"
-                            onClick={() => setPsychomotorData(prev => ({ ...prev, [field.key]: rating }))}
-                            className={`w-6 h-6 rounded-full border-2 text-xs font-semibold transition-all ${
-                              psychomotorData[field.key as keyof typeof psychomotorData] === rating
-                                ? 'bg-pink-600 border-pink-600 text-white'
-                                : 'bg-white border-gray-300 text-gray-600 hover:border-pink-400'
-                            }`}
-                            disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                          >
-                            {rating}
-                          </button>
-                        ))}
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-lg text-xs font-medium flex items-center justify-center ${
+                          Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 5 
+                            ? 'bg-green-100 text-green-800'
+                            : Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 4 
+                            ? 'bg-blue-100 text-blue-800'
+                            : Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 3
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {psychomotorData[field.key as keyof typeof psychomotorData] || 3}
+                        </div>
+                        <span className="text-xs text-gray-600">
+                          {Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 5 ? 'Excellent' :
+                           Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 4 ? 'Very Good' :
+                           Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 3 ? 'Good' : 'Needs Improvement'}
+                        </span>
                       </div>
-                      <Textarea
-                        value={psychomotorData[`${field.key}_remark` as keyof typeof psychomotorData] as string}
-                        onChange={(e) => setPsychomotorData(prev => ({ ...prev, [`${field.key}_remark`]: e.target.value }))}
-                        placeholder={`${field.label} remarks...`}
-                        className="min-h-[40px] text-xs resize-none"
-                        disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                      />
                     </div>
                   ))}
                 </div>
                 
-                <Button
-                  onClick={handleSavePsychomotor}
-                  disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                  className="w-full bg-pink-600 hover:bg-pink-700 text-white h-8 text-sm"
-                >
-                  Save Psychomotor Assessment
-                </Button>
+                <div className="text-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                  <Activity className="w-3 h-3 inline mr-1" />
+                  Update psychomotor domains in Student Domains page
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -1688,179 +2090,23 @@ export function CompileResultsPage() {
               <CardTitle className="text-base">Class Teacher Comment</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
-              {/* Auto-comment toggle */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="auto-comment"
-                  checked={useAutoComment}
-                  onChange={(e) => setUseAutoComment(e.target.checked)}
-                  disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                />
-                <Label htmlFor="auto-comment" className="text-sm text-gray-700">
-                  Use auto-generated comment
-                </Label>
-              </div>
-
-              {/* Comment options */}
-              {useAutoComment && showCommentOptions && (
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Select a comment:</p>
-                  <div className="space-y-1">
-                    {generateMultipleCommentOptions(
-                      studentResultData?.averageScore || 0,
-                      studentsCompletion.find(s => s.studentId === selectedStudent.id)?.position || 0,
-                      studentsCompletion.find(s => s.studentId === selectedStudent.id)?.totalStudents || 0
-                    ).map((comment: string, index: number) => (
-                      <div
-                        key={index}
-                        onClick={() => {
-                          setClassTeacherComment(comment);
-                          setShowCommentOptions(false);
-                        }}
-                        className="p-2 bg-white border border-gray-200 rounded cursor-pointer hover:bg-orange-50 hover:border-orange-300 transition-colors"
-                      >
-                        <p className="text-sm text-gray-700">{comment}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    onClick={() => setShowCommentOptions(false)}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 h-6 text-xs"
-                  >
-                    Close
-                  </Button>
+              {/* Automatic Comment Header - Only show if no existing result */}
+              {!studentResultData?.existingResult && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm font-semibold text-blue-800 mb-1">
+                    <Sparkles className="w-4 h-4 mr-1 inline" />
+                    Automatic Comment Generated
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Based on student's average score. You can add a custom comment below to override.
+                  </p>
                 </div>
               )}
 
-              {/* Generate more options */}
-              {useAutoComment && !showCommentOptions && (
-                <div className="flex items-center justify-between">
-                  <Button
-                    onClick={() => setShowCommentOptions(true)}
-                    variant="outline"
-                    size="sm"
-                    className="h-6 text-xs"
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Generate Options
-                  </Button>
-                  <span className="text-xs text-gray-500">
-                    Click to select auto-comment
-                  </span>
-                </div>
-              )}
-
-            </CardContent>
-          </Card>
-
-          {/* Position and performance summary - Compact */}
-          {selectedStudent && (
-            <div className="mb-4">
-              {/* Status Indicator */}
-              {studentResultData?.existingResult && (
-            <Alert className={`mb-4 ${
-              studentResultData.existingResult.status === 'Rejected' 
-                ? 'bg-red-50 border-red-200' 
-                : studentResultData.existingResult.status === 'Approved'
-                ? 'bg-green-50 border-green-200'
-                : 'bg-yellow-50 border-yellow-200'
-            }`}>
-              {studentResultData.existingResult.status === 'Rejected' && (
-                <>
-                  <AlertCircle className="h-4 w-4 text-red-600" />
-                  <AlertDescription className="text-red-800">
-                    <strong>Result Rejected by Admin</strong>
-                    {studentResultData.existingResult.rejection_reason && (
-                      <p className="text-sm mt-1">Reason: {studentResultData.existingResult.rejection_reason}</p>
-                    )}
-                    <p className="text-sm mt-2">You can now edit and resubmit this result.</p>
-                  </AlertDescription>
-                </>
-              )}
-              {studentResultData.existingResult.status === 'Approved' && (
-                <>
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">
-                    <strong>Result Approved</strong> - This result has been approved and published.
-                  </AlertDescription>
-                </>
-              )}
-              {studentResultData.existingResult.status === 'Submitted' && (
-                <>
-                  <Clock className="h-4 w-4 text-yellow-600" />
-                  <AlertDescription className="text-yellow-800">
-                    <strong>Result Pending Approval</strong> - This result is waiting for admin approval.
-                  </AlertDescription>
-                </>
-              )}
-            </Alert>
-          )}
-          
-          {/* Position and performance summary - Compact */}
-          <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-lg">
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-blue-600">
-                      {studentsCompletion.find(s => s.studentId === selectedStudent.id)?.position || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">Position</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-green-600">
-                      {studentsCompletion.find(s => s.studentId === selectedStudent.id)?.totalStudents || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">Total Students</p>
-                  </div>
-                </div>
-            </div>
-          )}
-
-          {/* Class Teacher Comment - Compact */}
-          <Card className="border-[#0A2540]/10 shadow-sm">
-            <CardHeader className="bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-white px-4 py-3 rounded-t-xl">
-              <CardTitle className="text-base">Class Teacher Comment</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-3">
-              {/* Auto-comment toggle */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="auto-comment"
-                  checked={useAutoComment}
-                  onChange={(e) => setUseAutoComment(e.target.checked)}
-                  disabled={studentResultData?.isSubmitted && !studentResultData?.isRejected}
-                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                />
-                <Label htmlFor="auto-comment" className="text-sm text-gray-700">
-                  Use auto-generated comment
-                </Label>
-              </div>
-
-              {/* Generate more options */}
-              {useAutoComment && !showCommentOptions && (
-                <div className="flex items-center justify-between">
-                  <Button
-                    onClick={() => setShowCommentOptions(true)}
-                    variant="outline"
-                    size="sm"
-                    className="h-6 text-xs"
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Generate Options
-                  </Button>
-                  <span className="text-xs text-gray-500">
-                    Click to select auto-comment
-                  </span>
-                </div>
-              )}
-
-              {/* Auto-comment preview - Compact */}
-              {useAutoComment && selectedStudent && studentResultData && (
+              {/* Auto-comment preview - Only show if no existing result */}
+              {selectedStudent && studentResultData && !studentResultData.existingResult && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-xs font-semibold text-green-800 mb-1">Preview:</p>
+                  <p className="text-xs font-semibold text-green-800 mb-1">Auto-generated Comment:</p>
                   <p className="text-xs text-green-700">
                     {generateAutoComment(
                       studentResultData.averageScore,
@@ -1871,88 +2117,77 @@ export function CompileResultsPage() {
                 </div>
               )}
 
-              {/* Comment options */}
-              {useAutoComment && showCommentOptions && (
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Select a comment:</p>
-                  <div className="space-y-1">
-                    {generateMultipleCommentOptions(
-                      studentResultData?.averageScore || 0,
+              {/* Automatic Class Teacher Comment */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">
+                  Class Teacher Comment (Automatically Generated)
+                </Label>
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm font-medium text-blue-800">
+                    {selectedStudent && studentResultData && generateAutoComment(
+                      studentResultData.averageScore,
                       studentsCompletion.find(s => s.studentId === selectedStudent.id)?.position || 0,
                       studentsCompletion.find(s => s.studentId === selectedStudent.id)?.totalStudents || 0
-                    ).map((comment: string, index: number) => (
-                      <div
-                        key={index}
-                        onClick={() => {
-                          setClassTeacherComment(comment);
-                          setShowCommentOptions(false);
-                        }}
-                        className="p-2 bg-white border border-gray-200 rounded cursor-pointer hover:bg-orange-50 hover:border-orange-300 transition-colors"
-                      >
-                        <p className="text-sm text-gray-700">{comment}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    onClick={() => setShowCommentOptions(false)}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 h-6 text-xs"
-                  >
-                    Close
-                  </Button>
-                </div>
-              )}
-
-              <Textarea
-                value={useAutoComment 
-                  ? classTeacherComment || ""
-                  : classTeacherComment || studentResultData?.existingResult?.class_teacher_comment || ""
-                }
-                onChange={(e) => !useAutoComment && setClassTeacherComment(e.target.value)}
-                placeholder="Enter your comment for this student..."
-                className="min-h-20 rounded-lg border-[#0A2540]/20 text-sm"
-                disabled={useAutoComment || studentResultData?.existingResult?.status === 'Submitted' || studentResultData?.existingResult?.status === 'Approved'}
-              />
-              {studentResultData?.existingResult?.status === 'Submitted' && (
-                <p className="text-xs text-gray-600 mt-1">
-                  This result has been submitted and cannot be edited.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Submit Button - Compact */}
-          <Card className="border-[#0A2540]/10 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-[#0A2540] font-medium text-sm mb-1">Ready to Submit?</p>
-                  <p className="text-xs text-gray-600">
-                    {studentResultData?.isComplete 
-                      ? "All requirements met. Submit for approval." 
-                      : "Complete all requirements before submitting."}
+                    )}
                   </p>
                 </div>
-
-                <Button
-                  onClick={handleSubmitResult}
-                  disabled={!studentResultData?.isComplete || (!useAutoComment && !classTeacherComment.trim()) || (useAutoComment && !classTeacherComment.trim() && !showCommentOptions) || (studentResultData?.isSubmitted && !studentResultData?.isRejected)}
-                  className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg px-6 h-8 text-sm"
-                >
-                  <Send className="w-3 h-3 mr-1" />
-                  {studentResultData?.isSubmitted && !studentResultData?.isRejected
-                    ? 'Submitted'
-                    : studentResultData?.isRejected
-                    ? 'Resubmit'
-                    : 'Submit'}
-                </Button>
+                {studentResultData?.isSubmitted && !studentResultData?.isRejected && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    This result has been submitted and cannot be edited.
+                  </p>
+                )}
               </div>
+
             </CardContent>
           </Card>
+
+          {/* Position and performance summary - Compact */}
+          {selectedStudent && (
+            <div className="mb-4">
+              {/* Status Indicator */}
+              {studentResultData?.existingResult && (
+                <Alert className={`mb-4 ${
+                  studentResultData.existingResult.status === 'Rejected' 
+                    ? 'bg-red-50 border-red-200' 
+                    : studentResultData.existingResult.status === 'Approved'
+                    ? 'bg-green-50 border-green-200'
+                    : 'bg-yellow-50 border-yellow-200'
+                }`}>
+                  {studentResultData.existingResult.status === 'Rejected' && (
+                    <>
+                      <XCircle className="h-4 w-4 text-red-600" />
+                      <AlertDescription className="text-red-800">
+                        <strong>Result Rejected by Admin</strong>
+                        {studentResultData.existingResult.rejection_reason && (
+                          <p className="text-sm mt-1">Reason: {studentResultData.existingResult.rejection_reason}</p>
+                        )}
+                        <p className="text-sm mt-2">You can now edit and resubmit this result.</p>
+                      </AlertDescription>
+                    </>
+                  )}
+                  {studentResultData.existingResult.status === 'Approved' && (
+                    <>
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800">
+                        <strong>Result Approved</strong> - This result has been approved and published.
+                      </AlertDescription>
+                    </>
+                  )}
+                  {studentResultData.existingResult.status === 'Submitted' && (
+                    <>
+                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                      <AlertDescription className="text-yellow-800">
+                        <strong>Result Pending Approval</strong> - This result is waiting for admin approval.
+                      </AlertDescription>
+                    </>
+                  )}
+                </Alert>
+              )}
+            </div>
+          )}
+
         </div>
       )}
-
-          </div>
+    </div>
   );
 }

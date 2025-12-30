@@ -1,12 +1,14 @@
+import { Settings, Calculator, GraduationCap, KeyRound, User, CheckCircle, Edit, Trash2, Eye, Plus, Download } from 'lucide-react';
 import { useState, useEffect, useMemo } from "react";
-import { Search, Edit, Trash2, Eye, KeyRound, UserCog, Download, Upload, Users as UsersIcon, Plus, Shield, Settings, GraduationCap, UserCheck, Calculator } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
+// @ts-ignore - TypeScript language service caching issue
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
 import { toast } from "sonner";
+// @ts-ignore - TypeScript language service caching issue
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,13 +29,14 @@ import {
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
-import { useSchool, User, Teacher, Parent, Accountant } from "../../contexts/SchoolContext";
+import { useSchool, Teacher, Parent, Accountant, User as UserType } from "../../contexts/SchoolContext";
+import { User as UserIcon } from "lucide-react";
 import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 export function ManageUsersPage() {
-  const { users, teachers, parents, accountants, classes, createUserAPI, updateUserAPI, deleteUserAPI, updateUserStatusAPI, resetUserPasswordAPI, loadUsersFromAPI, loadTeachersFromAPI, loadParentsFromAPI, loadAccountantsFromAPI, deleteTeacherAPI, deleteParentAPI, deleteAccountantAPI, updateTeacherStatusAPI, updateParentStatusAPI, updateAccountantStatusAPI } = useSchool();
+  const { users, teachers, parents, accountants, classes, setUsers, setTeachers, setParents, setAccountants, createUserAPI, updateUserAPI, deleteUserAPI, updateUserStatusAPI, resetUserPasswordAPI, loadUsersFromAPI, loadTeachersFromAPI, loadParentsFromAPI, loadAccountantsFromAPI, deleteTeacherAPI, deleteParentAPI, deleteAccountantAPI, updateTeacherStatusAPI, updateParentStatusAPI, updateAccountantStatusAPI } = useSchool();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -56,13 +59,16 @@ export function ManageUsersPage() {
   // Accountant dialogs
   const [showAccountantViewDialog, setShowAccountantViewDialog] = useState(false);
   const [showAccountantEditDialog, setShowAccountantEditDialog] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
   const [selectedAccountant, setSelectedAccountant] = useState<Accountant | null>(null);
   const [resetViaEmail, setResetViaEmail] = useState(true);
   const [resetViaSMS, setResetViaSMS] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [teacherActionLoading, setTeacherActionLoading] = useState<string | null>(null);
+  const [parentActionLoading, setParentActionLoading] = useState<string | null>(null);
+  const [accountantActionLoading, setAccountantActionLoading] = useState<string | null>(null);
 
   // Form states
   const [createFormData, setCreateFormData] = useState({
@@ -90,7 +96,7 @@ export function ManageUsersPage() {
     department: ''
   });
 
-  const [editFormData, setEditFormData] = useState({
+  const [editFormData, setEditFormData] = useState<Partial<UserType>>({
     username: '',
     email: '',
     role: 'teacher' as 'admin' | 'teacher' | 'accountant' | 'parent',
@@ -122,7 +128,7 @@ export function ManageUsersPage() {
   const filteredUsers = useMemo(() => {
     if (!users || users.length === 0) return [];
     
-    return users.filter((user: User) => {
+    return users.filter((user: UserType) => {
       const matchesSearch = 
         (user.username?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
         (user.email?.toLowerCase() || '').includes((searchTerm || '').toLowerCase());
@@ -198,10 +204,10 @@ export function ManageUsersPage() {
         total: totalUsers,
         active: activeUsers,
         inactive: inactiveUsers,
-        admin: users?.filter((u: User) => u.role === 'admin').length || 0,
-        teacher: users?.filter((u: User) => u.role === 'teacher').length || 0,
-        accountant: users?.filter((u: User) => u.role === 'accountant').length || 0,
-        parent: users?.filter((u: User) => u.role === 'parent').length || 0,
+        admin: users?.filter((u: UserType) => u.role === 'admin').length || 0,
+        teacher: users?.filter((u: UserType) => u.role === 'teacher').length || 0,
+        accountant: users?.filter((u: UserType) => u.role === 'accountant').length || 0,
+        parent: users?.filter((u: UserType) => u.role === 'parent').length || 0,
       },
       teachers: {
         total: totalTeachers,
@@ -222,7 +228,7 @@ export function ManageUsersPage() {
   }, [users, teachers, parents, accountants]);
 
   // Handler functions
-  const handleResetPassword = async (user: User) => {
+  const handleResetPassword = async (user: UserType) => {
     setSelectedUser(user);
     setShowResetDialog(true);
   };
@@ -230,6 +236,7 @@ export function ManageUsersPage() {
   const confirmResetPassword = async () => {
     if (!selectedUser) return;
     
+    setIsLoading(true);
     try {
       const newPassword = await resetUserPasswordAPI(selectedUser.id);
       
@@ -244,37 +251,21 @@ export function ManageUsersPage() {
         
         toast.success(`Password reset successfully for ${selectedUser.username}. New password: ${newPassword}`);
       }
-      
+    } catch (error) {
+      toast.error(`Failed to reset password: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
       setShowResetDialog(false);
       setSelectedUser(null);
-    } catch (error) {
     }
   };
 
-  const handleDeactivate = (user: User) => {
+  const handleDeactivate = (user: UserType) => {
     setSelectedUser(user);
     setShowDeactivateDialog(true);
   };
 
-  const confirmDeactivate = async () => {
-    if (!selectedUser) return;
-    
-    try {
-      const newStatus = selectedUser.status === "Active" ? "Inactive" : "Active";
-      const success = await updateUserStatusAPI(selectedUser.id, newStatus);
-      
-      if (success) {
-        const action = selectedUser.status === "Active" ? "deactivated" : "activated";
-        toast.success(`User ${selectedUser.username} ${action} successfully`);
-      }
-      
-      setShowDeactivateDialog(false);
-      setSelectedUser(null);
-    } catch (error) {
-    }
-  };
-
-  const handleEdit = (user: User) => {
+  const handleEdit = (user: UserType) => {
     setSelectedUser(user);
     setEditFormData({
       username: user.username,
@@ -285,181 +276,7 @@ export function ManageUsersPage() {
     setShowEditDialog(true);
   };
 
-  const handleCreateUser = () => {
-    setCreateFormData({
-      username: '',
-      password: '',
-      role: 'teacher',
-      linkedId: 0,
-      email: '',
-      firstName: '',
-      lastName: '',
-      phone: '',
-      address: '',
-      occupation: '',
-      status: 'Active',
-      // Teacher specific fields
-      gender: '',
-      qualification: '',
-      specialization: [],
-      isClassTeacher: false,
-      assignedClassId: null,
-      departmentId: '',
-      // Parent specific fields
-      alternatePhone: '',
-      // Accountant specific fields
-      department: ''
-    });
-    setShowCreateDialog(true);
-  };
-
-  const confirmCreateUser = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Enhanced form validation
-      if (!createFormData.username || !createFormData.email || !createFormData.firstName || !createFormData.lastName) {
-        toast.error('Please fill all required fields (username, email, first name, and last name)');
-        return;
-      }
-      
-      // Username validation
-      const usernameRegex = /^[a-zA-Z0-9_-]+$/;
-      if (!usernameRegex.test(createFormData.username.trim())) {
-        toast.error('Username can only contain letters, numbers, underscores, and hyphens');
-        return;
-      }
-      
-      // Email validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(createFormData.email.trim())) {
-        toast.error('Please enter a valid email address');
-        return;
-      }
-      
-      // Enhanced firstName validation
-      if (!createFormData.firstName || createFormData.firstName.trim().length === 0) {
-        toast.error('First name is required');
-        return;
-      }
-      
-      // Enhanced lastName validation
-      if (!createFormData.lastName || createFormData.lastName.trim().length === 0) {
-        toast.error('Last name is required');
-        return;
-      }
-      
-      // Name format validation
-      const nameRegex = /^[a-zA-Z\s'-]+$/;
-      if (!nameRegex.test(createFormData.firstName) || (createFormData.lastName && !nameRegex.test(createFormData.lastName))) {
-        toast.error('Names can only contain letters, spaces, hyphens, and apostrophes');
-        return;
-      }
-      
-      // Class teacher validation
-      if (createFormData.isClassTeacher && (!createFormData.assignedClassId || createFormData.assignedClassId <= 0)) {
-        toast.error('Please select a class for the class teacher assignment');
-        return;
-      }
-      
-      // Prepare sanitized data with role-specific fields
-      const userData = {
-        username: createFormData.username.trim(),
-        email: createFormData.email.trim().toLowerCase(),
-        firstName: createFormData.firstName.trim(),
-        lastName: createFormData.lastName.trim(),
-        role: createFormData.role,
-        password: createFormData.password || (createFormData.role + '123'),
-        phone: createFormData.phone?.trim() || '',
-        address: createFormData.address?.trim() || '',
-        occupation: createFormData.occupation?.trim() || '',
-        status: createFormData.status || 'Active',
-        // Teacher specific fields
-        gender: createFormData.gender || '',
-        qualification: createFormData.qualification || '',
-        specialization: createFormData.specialization || [],
-        isClassTeacher: createFormData.isClassTeacher || false,
-        assignedClassId: createFormData.assignedClassId || null,
-        departmentId: createFormData.departmentId || '',
-        // Parent specific fields
-        alternatePhone: createFormData.alternatePhone || '',
-        // Accountant specific fields
-        department: createFormData.department || ''
-      };
-      
-      const newUser = await createUserAPI(userData);
-      
-      if (newUser) {
-        setShowCreateDialog(false);
-        // Reset form
-        setCreateFormData({
-          username: '',
-          password: '',
-          role: 'teacher',
-          linkedId: 0,
-          email: '',
-          firstName: '',
-          lastName: '',
-          phone: '',
-          address: '',
-          occupation: '',
-          status: 'Active',
-          // Teacher specific fields
-          gender: '',
-          qualification: '',
-          specialization: [],
-          isClassTeacher: false,
-          assignedClassId: null,
-          departmentId: '',
-          // Parent specific fields
-          alternatePhone: '',
-          // Accountant specific fields
-          department: ''
-        });
-        
-        // Show success with actual password
-        const actualPassword = userData.password;
-        toast.success(`User created successfully! Password: ${actualPassword}`, {
-          duration: 10000,
-          action: {
-            label: 'Copy',
-            onClick: () => {
-              navigator.clipboard.writeText(actualPassword);
-              toast.success('Password copied to clipboard');
-            }
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Create user error:', error);
-      toast.error(`Failed to create user: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const confirmEditUser = async () => {
-    try {
-      setIsLoading(true);
-      
-      if (!selectedUser) return;
-      
-      const updatedUser = await updateUserAPI(selectedUser.id, editFormData);
-      
-      if (updatedUser) {
-        setShowEditDialog(false);
-        setSelectedUser(null);
-        toast.success('User updated successfully');
-      }
-    } catch (error) {
-      console.error('Update user error:', error);
-      toast.error(`Failed to update user: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDelete = (user: User) => {
+  const handleDelete = (user: UserType) => {
     setSelectedUser(user);
     setShowDeleteDialog(true);
   };
@@ -467,28 +284,61 @@ export function ManageUsersPage() {
   const confirmDelete = async () => {
     if (!selectedUser) return;
     
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const success = await deleteUserAPI(selectedUser.id);
-      
-      if (success) {
-        toast.success(`User ${selectedUser.username} deleted successfully`);
-        setShowDeleteDialog(false);
-        setSelectedUser(null);
-      }
+      await deleteUserAPI(selectedUser.id);
+      toast.success(`User ${selectedUser.username} deleted successfully`);
+      setShowDeleteDialog(false);
+      setSelectedUser(null);
+      // Optimistic update - remove user from local state immediately
+      setUsers(users.filter(user => user.id !== selectedUser.id));
+      // Then refresh in background
+      await loadUsersFromAPI();
     } catch (error) {
       console.error('Delete user error:', error);
       toast.error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Refresh data on error to restore correct state
+      await loadUsersFromAPI();
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleView = (user: User) => {
-    toast.info(`Viewing details for ${user.username}`);
+  const confirmDeactivate = async () => {
+    if (!selectedUser) return;
+    
+    setIsLoading(true);
+    try {
+      const currentStatus = selectedUser.status;
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+      await updateUserStatusAPI(selectedUser.id, newStatus);
+      toast.success(`User ${selectedUser.username} ${newStatus.toLowerCase()}d successfully`);
+      setShowDeactivateDialog(false);
+      setSelectedUser(null);
+      // Optimistic update - update user status in local state immediately
+      setUsers(users.map(user => 
+        user.id === selectedUser.id 
+          ? { ...user, status: newStatus }
+          : user
+      ));
+      // Then refresh in background
+      await loadUsersFromAPI();
+    } catch (error) {
+      console.error('Deactivate user error:', error);
+      toast.error(`Failed to update user status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Refresh data on error to restore correct state
+      await loadUsersFromAPI();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResendCredentials = (user: User) => {
+  const handleView = (user: UserType) => {
+    setSelectedUser(user);
+    setShowViewDialog(true);
+  };
+
+  const handleResendCredentials = (user: UserType) => {
     toast.success(`Credentials resent to ${user.email}`);
   };
 
@@ -498,6 +348,76 @@ export function ManageUsersPage() {
 
   const handleExport = () => {
     toast.success("User list exported");
+  };
+
+  const handleCreateUser = () => {
+    setShowCreateDialog(true);
+  };
+
+  const confirmCreateUser = async () => {
+    setIsLoading(true);
+    try {
+      const newUser = await createUserAPI(createFormData);
+      toast.success("User created successfully");
+      setShowCreateDialog(false);
+      setCreateFormData({
+        username: '',
+        password: '',
+        role: 'teacher',
+        linkedId: 0,
+        email: '',
+        firstName: '',
+        lastName: '',
+        phone: '',
+        address: '',
+        occupation: '',
+        status: 'Active',
+        gender: '',
+        qualification: '',
+        specialization: [] as string[],
+        isClassTeacher: false,
+        assignedClassId: null as number | null,
+        departmentId: '',
+        alternatePhone: '',
+        department: ''
+      });
+      // Optimistic update - add new user to local state immediately if we have the data
+      if (newUser) {
+        setUsers([newUser, ...users]);
+      }
+      // Then refresh in background to get complete data
+      await loadUsersFromAPI();
+    } catch (error) {
+      toast.error(`Failed to create user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const confirmEditUser = async () => {
+    if (!selectedUser) return;
+    
+    setIsLoading(true);
+    try {
+      await updateUserAPI(selectedUser.id, editFormData);
+      toast.success("User updated successfully");
+      setShowEditDialog(false);
+      setSelectedUser(null);
+      // Optimistic update - update user in local state immediately
+      setUsers(users.map(user => 
+        user.id === selectedUser.id 
+          ? { ...user, ...editFormData }
+          : user
+      ));
+      // Then refresh in background to get complete data
+      await loadUsersFromAPI();
+    } catch (error) {
+      toast.error(`Failed to update user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Refresh data on error to restore correct state
+      await loadUsersFromAPI();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -523,14 +443,17 @@ export function ManageUsersPage() {
 
   const handleDeleteTeacher = async (teacher: Teacher) => {
     if (window.confirm(`Are you sure you want to delete teacher ${teacher.firstName} ${teacher.lastName}? This action cannot be undone.`)) {
+      setTeacherActionLoading(`delete-${teacher.id}`);
       try {
-        const success = await deleteTeacherAPI(teacher.id);
+        const success = await deleteTeacherAPI(Number(teacher.id));
         if (success) {
           toast.success(`Teacher ${teacher.firstName} ${teacher.lastName} deleted successfully`);
           // Data will automatically refresh due to API call
         }
       } catch (error) {
         toast.error('Failed to delete teacher');
+      } finally {
+        setTeacherActionLoading(null);
       }
     }
   };
@@ -586,39 +509,107 @@ export function ManageUsersPage() {
   // Status toggle handlers
   const handleToggleTeacherStatus = async (teacher: Teacher) => {
     const newStatus = teacher.status === 'Active' ? 'Inactive' : 'Active';
+    const actionKey = `status-${teacher.id}`;
+    
+    setTeacherActionLoading(actionKey);
+    
+    // Optimistic update - update UI immediately
+    setTeachers(teachers.map(t => 
+      t.id === teacher.id 
+        ? { ...t, status: newStatus }
+        : t
+    ));
+    
     try {
-      const success = await updateTeacherStatusAPI(teacher.id, newStatus);
+      const success = await updateTeacherStatusAPI(Number(teacher.id), newStatus);
       if (success) {
         toast.success(`Teacher ${teacher.firstName} ${teacher.lastName} status updated to ${newStatus}`);
-        // Data will automatically refresh due to API call
+      } else {
+        // Revert on failure
+        setTeachers(teachers.map(t => 
+          t.id === teacher.id 
+            ? { ...t, status: teacher.status }
+            : t
+        ));
+        toast.error('Failed to update teacher status');
       }
     } catch (error) {
+      // Revert on error
+      setTeachers(teachers.map(t => 
+        t.id === teacher.id 
+          ? { ...t, status: teacher.status }
+          : t
+      ));
       toast.error('Failed to update teacher status');
+    } finally {
+      setTeacherActionLoading(null);
     }
   };
 
   const handleToggleParentStatus = async (parent: Parent) => {
     const newStatus = parent.status === 'Active' ? 'Inactive' : 'Active';
+    
+    // Optimistic update - update UI immediately
+    setParents(parents.map(p => 
+      p.id === parent.id 
+        ? { ...p, status: newStatus }
+        : p
+    ));
+    
     try {
       const success = await updateParentStatusAPI(parent.id, newStatus);
       if (success) {
         toast.success(`Parent ${parent.firstName} ${parent.lastName} status updated to ${newStatus}`);
-        // Data will automatically refresh due to API call
+      } else {
+        // Revert on failure
+        setParents(parents.map(p => 
+          p.id === parent.id 
+            ? { ...p, status: parent.status }
+            : p
+        ));
+        toast.error('Failed to update parent status');
       }
     } catch (error) {
+      // Revert on error
+      setParents(parents.map(p => 
+        p.id === parent.id 
+          ? { ...p, status: parent.status }
+          : p
+      ));
       toast.error('Failed to update parent status');
     }
   };
 
   const handleToggleAccountantStatus = async (accountant: Accountant) => {
     const newStatus = accountant.status === 'Active' ? 'Inactive' : 'Active';
+    
+    // Optimistic update - update UI immediately
+    setAccountants(accountants.map(a => 
+      a.id === accountant.id 
+        ? { ...a, status: newStatus }
+        : a
+    ));
+    
     try {
       const success = await updateAccountantStatusAPI(accountant.id, newStatus);
       if (success) {
         toast.success(`Accountant ${accountant.firstName} ${accountant.lastName} status updated to ${newStatus}`);
-        // Data will automatically refresh due to API call
+      } else {
+        // Revert on failure
+        setAccountants(accountants.map(a => 
+          a.id === accountant.id 
+            ? { ...a, status: accountant.status }
+            : a
+        ));
+        toast.error('Failed to update accountant status');
       }
     } catch (error) {
+      // Revert on error
+      setAccountants(accountants.map(a => 
+        a.id === accountant.id 
+          ? { ...a, status: accountant.status }
+          : a
+      ));
       toast.error('Failed to update accountant status');
     }
   };
@@ -647,7 +638,7 @@ export function ManageUsersPage() {
               onClick={handleCreateUser}
               className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-3 h-3 mr-2" />
               Create User
           </Button>
           <Button 
@@ -655,7 +646,7 @@ export function ManageUsersPage() {
             variant="outline"
             className="border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl"
           >
-            <Download className="w-4 h-4 mr-2" />
+            <Download className="w-3 h-3 mr-2" />
             Export
           </Button>
         </div>
@@ -669,10 +660,10 @@ export function ManageUsersPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-600 text-sm font-medium">Total Users</p>
-                <p className="text-2xl font-bold text-blue-900">{stats.users.total}</p>
+                <p className="text-blue-600 text-xs font-medium">Total Users</p>
+                <p className="text-lg font-bold text-blue-900">{stats.users.total}</p>
               </div>
-              <UsersIcon className="w-8 h-8 text-blue-500" />
+              <UserIcon className="w-6 h-6 text-blue-500" />
             </div>
           </CardContent>
         </Card>
@@ -681,10 +672,10 @@ export function ManageUsersPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-600 text-sm font-medium">Active Users</p>
-                <p className="text-2xl font-bold text-green-900">{stats.users.active}</p>
+                <p className="text-green-600 text-xs font-medium">Active Users</p>
+                <p className="text-lg font-bold text-green-900">{stats.users.active}</p>
               </div>
-              <Shield className="w-8 h-8 text-green-500" />
+              <span className="w-6 h-6 text-green-500" />
             </div>
           </CardContent>
         </Card>
@@ -693,10 +684,10 @@ export function ManageUsersPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-orange-600 text-sm font-medium">Inactive Users</p>
-                <p className="text-2xl font-bold text-orange-900">{stats.users.inactive}</p>
+                <p className="text-orange-600 text-xs font-medium">Inactive Users</p>
+                <p className="text-lg font-bold text-orange-900">{stats.users.inactive}</p>
               </div>
-              <UserCog className="w-8 h-8 text-orange-500" />
+              <Settings className="w-6 h-6 text-orange-500" />
             </div>
           </CardContent>
         </Card>
@@ -705,10 +696,10 @@ export function ManageUsersPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-600 text-sm font-medium">Admin Users</p>
-                <p className="text-2xl font-bold text-purple-900">{stats.users.admin}</p>
+                <p className="text-purple-600 text-xs font-medium">Admin Users</p>
+                <p className="text-lg font-bold text-purple-900">{stats.users.admin}</p>
               </div>
-              <Settings className="w-8 h-8 text-purple-500" />
+              <Settings className="w-6 h-6 text-purple-500" />
             </div>
           </CardContent>
         </Card>
@@ -720,19 +711,19 @@ export function ManageUsersPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="users" className="flex items-center gap-2">
-            <UsersIcon className="w-4 h-4" />
+            <UserIcon className="w-3 h-3" />
             Users ({stats.users.total})
           </TabsTrigger>
           <TabsTrigger value="teachers" className="flex items-center gap-2">
-            <GraduationCap className="w-4 h-4" />
+            <GraduationCap className="w-3 h-3" />
             Teachers ({stats.teachers.total})
           </TabsTrigger>
           <TabsTrigger value="parents" className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4" />
+            <CheckCircle className="w-3 h-3" />
             Parents ({stats.parents.total})
           </TabsTrigger>
           <TabsTrigger value="accountants" className="flex items-center gap-2">
-            <Calculator className="w-4 h-4" />
+            <Calculator className="w-3 h-3" />
             Accountants ({stats.accountants.total})
           </TabsTrigger>
         </TabsList>
@@ -745,12 +736,14 @@ export function ManageUsersPage() {
               {/* Primary Filters */}
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-                  <Search className="w-4 h-4 mr-2" />
+                  <UserIcon className="w-3 h-3 mr-2" />
                   Primary Filters
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                    <UserIcon className="w-3 h-3" />
+                  </span>
                     <Input
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -769,7 +762,7 @@ export function ManageUsersPage() {
               {/* Secondary Filters */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-                  <UserCog className="w-4 h-4 mr-2" />
+                  <Settings className="w-3 h-3 mr-2" />
                   Secondary Filters
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -831,27 +824,27 @@ export function ManageUsersPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredUsers.map((user: User) => (
+                      filteredUsers.map((user: UserType) => (
                         <TableRow key={user.id} className="hover:bg-gray-50">
                           <TableCell>
                             <div>
-                              <div className="font-medium text-gray-900">
+                              <div className="font-medium text-gray-900 text-sm">
                                 {user.username}
                               </div>
-                              <div className="text-sm text-gray-500">{user.email}</div>
+                              <div className="text-xs text-gray-500">{user.email}</div>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge className={`${getRoleBadgeColor(user.role)} text-white border-0 capitalize`}>
+                            <Badge className={`${getRoleBadgeColor(user.role)} text-white border-0 capitalize text-xs`}>
                               {user.role}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge className={user.status === "Active" ? "bg-green-100 text-green-800 border-0" : "bg-red-100 text-red-800 border-0"}>
+                            <Badge className={user.status === "Active" ? "bg-green-100 text-green-800 border-0 text-xs" : "bg-red-100 text-red-800 border-0 text-xs"}>
                               {user.status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-gray-500 text-sm">
+                          <TableCell className="text-gray-500 text-xs">
                             {user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}
                           </TableCell>
                           <TableCell>
@@ -863,7 +856,7 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
                                 title="View Details"
                               >
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={() => handleEdit(user)}
@@ -872,7 +865,7 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-blue-300 hover:bg-blue-50 text-blue-600"
                                 title="Edit User"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={() => handleResetPassword(user)}
@@ -881,7 +874,7 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-orange-300 hover:bg-orange-50 text-orange-600"
                                 title="Reset Password"
                               >
-                                <KeyRound className="w-4 h-4" />
+                                <KeyRound className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={() => handleDeactivate(user)}
@@ -890,16 +883,21 @@ export function ManageUsersPage() {
                                 className={`h-8 w-8 p-0 ${user.status === 'Active' ? 'border-red-300 hover:bg-red-50 text-red-600' : 'border-green-300 hover:bg-green-50 text-green-600'}`}
                                 title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
                               >
-                                <UserCog className="w-4 h-4" />
+                                <Settings className="w-3 h-3" />
                               </Button>
                               <Button
-                                onClick={() => handleDelete(user)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDelete(user);
+                                }}
                                 size="sm"
                                 variant="outline"
                                 className="h-8 w-8 p-0 border-red-300 hover:bg-red-50 text-red-600"
                                 title="Delete User"
+                                type="button"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
                           </TableCell>
@@ -971,7 +969,7 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
                                 title="View Details"
                               >
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={() => handleEditTeacher(teacher)}
@@ -980,16 +978,21 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-blue-300 hover:bg-blue-50 text-blue-600"
                                 title="Edit Teacher"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-3 h-3" />
                               </Button>
                               <Button
-                                onClick={() => handleDeleteTeacher(teacher)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteTeacher(teacher);
+                                }}
                                 size="sm"
                                 variant="outline"
                                 className="h-8 w-8 p-0 border-red-300 hover:bg-red-50 text-red-600"
                                 title="Delete Teacher"
+                                type="button"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <span className="w-4 h-4" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1061,7 +1064,7 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
                                 title="View Details"
                               >
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={() => handleEditParent(parent)}
@@ -1070,16 +1073,21 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-blue-300 hover:bg-blue-50 text-blue-600"
                                 title="Edit Parent"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-3 h-3" />
                               </Button>
                               <Button
-                                onClick={() => handleDeleteParent(parent)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteParent(parent);
+                                }}
                                 size="sm"
                                 variant="outline"
                                 className="h-8 w-8 p-0 border-red-300 hover:bg-red-50 text-red-600"
                                 title="Delete Parent"
+                                type="button"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <span className="w-4 h-4" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1153,7 +1161,7 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
                                 title="View Details"
                               >
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={() => handleEditAccountant(accountant)}
@@ -1162,16 +1170,21 @@ export function ManageUsersPage() {
                                 className="h-8 w-8 p-0 border-blue-300 hover:bg-blue-50 text-blue-600"
                                 title="Edit Accountant"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-3 h-3" />
                               </Button>
                               <Button
-                                onClick={() => handleDeleteAccountant(accountant)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteAccountant(accountant);
+                                }}
                                 size="sm"
                                 variant="outline"
                                 className="h-8 w-8 p-0 border-red-300 hover:bg-red-50 text-red-600"
                                 title="Delete Accountant"
+                                type="button"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <span className="w-4 h-4" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1552,9 +1565,9 @@ export function ManageUsersPage() {
           
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmResetPassword}>
-              Reset Password
-            </AlertDialogAction>
+            <Button onClick={confirmResetPassword} disabled={isLoading}>
+              {isLoading ? 'Resetting...' : 'Reset Password'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1576,9 +1589,13 @@ export function ManageUsersPage() {
           
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeactivate}>
-              {selectedUser?.status === 'Active' ? 'Deactivate' : 'Activate'}
-            </AlertDialogAction>
+            <Button 
+              onClick={confirmDeactivate}
+              disabled={isLoading}
+              className={selectedUser?.status === 'Active' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
+            >
+              {isLoading ? 'Processing...' : (selectedUser?.status === 'Active' ? 'Deactivate User' : 'Activate User')}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1602,16 +1619,67 @@ export function ManageUsersPage() {
           
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <Button 
               onClick={confirmDelete} 
               disabled={isLoading}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
               {isLoading ? 'Deleting...' : 'Delete User'}
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      )}
+
+      {/* View User Dialog */}
+      {!isLoading && (
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>User Details</DialogTitle>
+            <DialogDescription>
+              View detailed information for {selectedUser?.username}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Username</Label>
+              <p className="text-sm">{selectedUser?.username}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Email</Label>
+              <p className="text-sm">{selectedUser?.email}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Role</Label>
+              <Badge variant={selectedUser?.role === 'admin' ? 'destructive' : 'secondary'}>
+                {selectedUser?.role}
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Status</Label>
+              <Badge variant={selectedUser?.status === 'Active' ? 'default' : 'secondary'}>
+                {selectedUser?.status}
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Last Login</Label>
+              <p className="text-sm">{selectedUser?.last_login || 'Never'}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Created At</Label>
+              <p className="text-sm">{new Date(selectedUser?.created_at || '').toLocaleDateString()}</p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button onClick={() => setShowViewDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       )}
     </div>
   );

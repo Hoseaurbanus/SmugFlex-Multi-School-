@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Send, Bell, Users, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,7 +6,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Alert, AlertDescription } from '../ui/alert';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { useSchool } from '../../contexts/SchoolContext';
 
 export function SendNotificationPage() {
@@ -121,7 +120,7 @@ export function SendNotificationPage() {
       </div>
 
       <Alert className="bg-blue-50 border-blue-200 rounded-xl">
-        <Bell className="h-4 w-4 text-blue-600" />
+        <span className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-gray-900">
           <strong>Notification System:</strong>
           <br />
@@ -139,7 +138,7 @@ export function SendNotificationPage() {
         <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
           <CardHeader className="p-5 border-b border-gray-200">
             <div className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-[#2563EB]" />
+              <span className="w-5 h-5 text-[#2563EB]" />
               <h3 className="text-lg text-gray-900">Notification Details</h3>
             </div>
           </CardHeader>
@@ -249,7 +248,7 @@ export function SendNotificationPage() {
                   <SelectContent className="bg-white border-gray-200">
                     <SelectItem value="all" className="text-gray-900">
                       <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
+                        <span className="w-4 h-4" />
                         All Users
                       </div>
                     </SelectItem>
@@ -286,7 +285,7 @@ export function SendNotificationPage() {
                 </div>
                 {formData.targetAudience && (
                   <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                    <Users className="w-4 h-4" />
+                    <span className="w-4 h-4" />
                     <span>
                       Will be sent to{' '}
                       <strong className="text-gray-900">{getRecipientCount()}</strong>{' '}
@@ -311,7 +310,7 @@ export function SendNotificationPage() {
                 type="submit"
                 className="flex-1 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl shadow-sm"
               >
-                <Send className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Send Notification
               </Button>
             </div>
@@ -325,7 +324,7 @@ export function SendNotificationPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Teachers</p>
-              <Users className="w-5 h-5 text-[#3B82F6]" />
+              <span className="w-5 h-5 text-[#3B82F6]" />
             </div>
             <p className="text-2xl text-gray-900">
               {teachers.filter(t => t.status === 'Active').length}
@@ -337,7 +336,7 @@ export function SendNotificationPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Parents</p>
-              <Users className="w-5 h-5 text-[#10B981]" />
+              <span className="w-5 h-5 text-[#10B981]" />
             </div>
             <p className="text-2xl text-gray-900">
               {parents.filter(p => p.status === 'Active').length}
@@ -349,7 +348,7 @@ export function SendNotificationPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Accountants</p>
-              <Users className="w-5 h-5 text-[#F59E0B]" />
+              <span className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <p className="text-2xl text-gray-900">
               {accountants.filter(a => a.status === 'Active').length}
@@ -361,7 +360,7 @@ export function SendNotificationPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Users</p>
-              <CheckCircle className="w-5 h-5 text-[#EF4444]" />
+              <span className="w-5 h-5 text-[#EF4444]" />
             </div>
             <p className="text-2xl text-gray-900">
               {teachers.filter(t => t.status === 'Active').length +

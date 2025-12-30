@@ -1,7 +1,5 @@
+import { Book, BookOpen } from 'lucide-react';
 import { useState, useRef } from "react";
-import { 
-  Plus, Search, Edit, Trash2, BookOpen, Users, Check, AlertCircle, X, Save, Upload, Download, Power, Eye
-} from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -35,6 +33,8 @@ export function ManageSubjectsPage() {
   const [selectedSubject, setSelectedSubject] = useState<any>(null);
   const [csvFile, setCSVFile] = useState<File | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -44,7 +44,7 @@ export function ManageSubjectsPage() {
     department: "",
     description: "",
     status: "Active" as "Active" | "Inactive",
-    isCore: false,
+    is_core: false,
   });
 
   // Filter subjects
@@ -65,13 +65,13 @@ export function ManageSubjectsPage() {
   const stats = {
     totalSubjects: subjects.length,
     activeSubjects: subjects.filter(s => s.status === "Active").length,
-    coreSubjects: subjects.filter(s => s.isCore).length,
+    coreSubjects: subjects.filter(s => s.is_core).length,
     assignedSubjects: subjectAssignments.length,
   };
 
   // Get assignment count for a subject
-  const getAssignmentCount = (subjectId: number) => {
-    return subjectAssignments.filter(sa => sa.subjectId === subjectId).length;
+  const getAssignmentCount = (subject_id: number) => {
+    return subjectAssignments.filter(sa => sa.subject_id === subject_id).length;
   };
 
   const handleToggleStatus = (subject: any) => {
@@ -80,16 +80,19 @@ export function ManageSubjectsPage() {
     toast.success(`Subject ${subject.name} ${newStatus === 'Active' ? 'enabled' : 'disabled'}`);
   };
 
-  const handleCreateSubject = () => {
+  const handleCreateSubject = async () => {
     if (!formData.name || !formData.code || !formData.category) {
       toast.error("Please fill all required fields");
       return;
     }
 
+    setActionLoading("create");
+
     // Check for duplicate subject code
     const duplicateCode = subjects.find(s => s.code.toLowerCase() === formData.code.toLowerCase());
     if (duplicateCode) {
       toast.error("Subject code already exists. Please use a unique code.");
+      setActionLoading(null);
       return;
     }
 
@@ -97,29 +100,38 @@ export function ManageSubjectsPage() {
     const duplicateName = subjects.find(s => s.name.toLowerCase() === formData.name.toLowerCase());
     if (duplicateName) {
       toast.error("Subject name already exists.");
+      setActionLoading(null);
       return;
     }
 
-    addSubject({
-      name: formData.name,
-      code: formData.code.toUpperCase(),
-      category: formData.category,
-      department: formData.department || formData.category,
-      description: formData.description,
-      status: formData.status,
-      isCore: formData.isCore,
-    } as any);
-    
-    toast.success(`Subject "${formData.name}" created successfully!`);
-    resetForm();
-    setShowForm(false);
+    try {
+      addSubject({
+        name: formData.name,
+        code: formData.code.toUpperCase(),
+        category: formData.category,
+        department: formData.department || formData.category,
+        description: formData.description,
+        status: formData.status,
+        is_core: formData.is_core,
+      } as any);
+      
+      toast.success(`Subject "${formData.name}" created successfully!`);
+      resetForm();
+      setShowForm(false);
+    } catch (error) {
+      toast.error('Failed to create subject');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleEditSubject = () => {
+  const handleEditSubject = async () => {
     if (!selectedSubject || !formData.name || !formData.code || !formData.category) {
       toast.error("Please fill all required fields");
       return;
     }
+
+    setActionLoading("edit");
 
     // Check for duplicate subject code (excluding current subject)
     const duplicateCode = subjects.find(s => 
@@ -127,6 +139,7 @@ export function ManageSubjectsPage() {
     );
     if (duplicateCode) {
       toast.error("Subject code already exists. Please use a unique code.");
+      setActionLoading(null);
       return;
     }
 
@@ -136,27 +149,34 @@ export function ManageSubjectsPage() {
     );
     if (duplicateName) {
       toast.error("Subject name already exists.");
+      setActionLoading(null);
       return;
     }
 
-    updateSubject(selectedSubject.id, {
-      name: formData.name,
-      code: formData.code.toUpperCase(),
-      category: formData.category,
-      department: formData.department || formData.category,
-      description: formData.description,
-      status: formData.status,
-      isCore: formData.isCore,
-    } as any);
-    
-    toast.success(`Subject "${formData.name}" updated successfully!`);
-    resetForm();
-    setShowForm(false);
-    setIsEditing(false);
-    setSelectedSubject(null);
+    try {
+      updateSubject(selectedSubject.id, {
+        name: formData.name,
+        code: formData.code.toUpperCase(),
+        category: formData.category,
+        department: formData.department || formData.category,
+        description: formData.description,
+        status: formData.status,
+        is_core: formData.is_core,
+      } as any);
+      
+      toast.success(`Subject "${formData.name}" updated successfully!`);
+      resetForm();
+      setShowForm(false);
+      setIsEditing(false);
+      setSelectedSubject(null);
+    } catch (error) {
+      toast.error('Failed to update subject');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleDeleteSubject = () => {
+  const handleDeleteSubject = async () => {
     if (selectedSubject) {
       const assignmentCount = getAssignmentCount(selectedSubject.id);
       if (assignmentCount > 0) {
@@ -165,10 +185,18 @@ export function ManageSubjectsPage() {
         return;
       }
 
-      deleteSubject(selectedSubject.id);
-      toast.success(`Subject "${selectedSubject.name}" deleted successfully!`);
-      setDeleteDialogOpen(false);
-      setSelectedSubject(null);
+      setActionLoading("delete");
+
+      try {
+        deleteSubject(selectedSubject.id);
+        toast.success(`Subject "${selectedSubject.name}" deleted successfully!`);
+        setDeleteDialogOpen(false);
+        setSelectedSubject(null);
+      } catch (error) {
+        toast.error('Failed to delete subject');
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -181,7 +209,7 @@ export function ManageSubjectsPage() {
       department: subject.department,
       description: (subject as any).description || "",
       status: subject.status,
-      isCore: subject.isCore,
+      is_core: subject.is_core,
     });
     setIsEditing(true);
     setShowForm(true);
@@ -206,7 +234,7 @@ export function ManageSubjectsPage() {
       department: "",
       description: "",
       status: "Active",
-      isCore: false,
+      is_core: false,
     });
     setIsEditing(false);
     setSelectedSubject(null);
@@ -215,6 +243,7 @@ export function ManageSubjectsPage() {
   const cancelForm = () => {
     resetForm();
     setShowForm(false);
+    toast.info('Form cancelled - no changes made');
   };
 
   const handleQuickImportGRASubjects = () => {
@@ -324,20 +353,20 @@ export function ManageSubjectsPage() {
         <div className="flex gap-3">
           <Button
             onClick={() => {
-              exportSubjectsToCSV(subjects);
+              exportSubjectsToCSV();
               toast.success("Subjects exported to CSV successfully");
             }}
             variant="outline"
             className="rounded-xl border-[#3B82F6] text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white"
           >
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
           <Button
             onClick={() => setBulkImportDialogOpen(true)}
             className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
           >
-            <Upload className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Bulk Import
           </Button>
           <Button
@@ -352,7 +381,7 @@ export function ManageSubjectsPage() {
               onClick={() => setShowForm(true)}
               className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Create New Subject
             </Button>
           )}
@@ -373,7 +402,7 @@ export function ManageSubjectsPage() {
                 onClick={cancelForm}
                 className="text-gray-500 hover:text-gray-700 rounded-xl"
               >
-                <X className="w-4 h-4" />
+                <span className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
@@ -425,7 +454,7 @@ export function ManageSubjectsPage() {
                   <Label className="text-[#0A2540]">Status *</Label>
                   <Select 
                     value={formData.status} 
-                    onValueChange={(value: "Active" | "Inactive") => setFormData({ ...formData, status: value })}
+                    onValueChange={(value: string) => setFormData({ ...formData, status: value as "Active" | "Inactive" })}
                   >
                     <SelectTrigger className="h-12 rounded-xl border-[#0A2540]/20">
                       <SelectValue />
@@ -451,12 +480,12 @@ export function ManageSubjectsPage() {
 
               <div className="flex items-center space-x-2 p-4 bg-blue-50 rounded-xl">
                 <Checkbox 
-                  id="isCore"
-                  checked={formData.isCore}
-                  onCheckedChange={(checked: boolean) => setFormData({ ...formData, isCore: checked })}
+                  id="is_core"
+                  checked={formData.is_core}
+                  onCheckedChange={(checked: boolean) => setFormData({ ...formData, is_core: checked })}
                   className="border-[#0A2540]/20"
                 />
-                <Label htmlFor="isCore" className="text-[#0A2540] cursor-pointer">
+                <Label htmlFor="is_core" className="text-[#0A2540] cursor-pointer">
                   Mark as Core Subject (Required for all students)
                 </Label>
               </div>
@@ -464,10 +493,20 @@ export function ManageSubjectsPage() {
               <div className="flex gap-3 pt-4">
                 <Button 
                   onClick={isEditing ? handleEditSubject : handleCreateSubject}
+                  disabled={actionLoading === "create" || actionLoading === "edit"}
                   className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  {isEditing ? "Update Subject" : "Create Subject"}
+                  {actionLoading === "create" || actionLoading === "edit" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      {isEditing ? "Updating..." : "Creating..."}
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-4 h-4 mr-2" />
+                      {isEditing ? "Update Subject" : "Create Subject"}
+                    </>
+                  )}
                 </Button>
                 <Button 
                   onClick={cancelForm}
@@ -506,7 +545,7 @@ export function ManageSubjectsPage() {
                 <p className="text-[#0A2540]">{stats.activeSubjects}</p>
               </div>
               <div className="bg-green-100 p-3 rounded-xl">
-                <Check className="w-6 h-6 text-green-600" />
+                <span className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -520,7 +559,7 @@ export function ManageSubjectsPage() {
                 <p className="text-[#0A2540]">{stats.coreSubjects}</p>
               </div>
               <div className="bg-purple-100 p-3 rounded-xl">
-                <AlertCircle className="w-6 h-6 text-purple-600" />
+                <span className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -534,7 +573,7 @@ export function ManageSubjectsPage() {
                 <p className="text-[#0A2540]">{stats.assignedSubjects}</p>
               </div>
               <div className="bg-yellow-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-yellow-600" />
+                <span className="w-6 h-6 text-yellow-600" />
               </div>
             </div>
           </CardContent>
@@ -546,7 +585,7 @@ export function ManageSubjectsPage() {
         <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 placeholder="Search subjects..."
                 value={searchQuery}
@@ -601,14 +640,14 @@ export function ManageSubjectsPage() {
                   <TableRow className="bg-white">
                     <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                       <div className="flex flex-col items-center gap-2">
-                        <AlertCircle className="w-12 h-12 text-gray-300" />
+                        <span className="w-12 h-12 text-gray-300" />
                         <p>No subjects found</p>
                         {!showForm && (
                           <Button 
                             onClick={() => setShowForm(true)}
                             className="mt-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                           >
-                            <Plus className="w-4 h-4 mr-2" />
+                            <span className="w-4 h-4 mr-2" />
                             Create First Subject
                           </Button>
                         )}
@@ -634,30 +673,31 @@ export function ManageSubjectsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <SimpleDropdown
-                          trigger={
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-lg">
                               <BookOpen className="h-3 w-3" />
                             </Button>
-                          }
-                        >
-                          <SimpleDropdownItem onClick={() => openEditForm(subject)}>
-                            <Edit className="h-3 w-3" />
-                            E
-                          </SimpleDropdownItem>
-                          <SimpleDropdownItem onClick={() => openViewDialog(subject)}>
-                            <Eye className="h-3 w-3" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => openEditForm(subject)}>
+                              <span className="h-3 w-3" />
+                              E
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openViewDialog(subject)}>
+                              <span className="h-3 w-3" />
                             V
-                          </SimpleDropdownItem>
-                          <SimpleDropdownSeparator />
-                          <SimpleDropdownItem 
-                            onClick={() => openDeleteDialog(subject)}
-                            danger={true}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            D
-                          </SimpleDropdownItem>
-                        </SimpleDropdown>
+                          </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => openDeleteDialog(subject)}
+                              className="text-red-600"
+                            >
+                              <span className="h-3 w-3" />
+                              D
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))
@@ -731,7 +771,7 @@ export function ManageSubjectsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Alert className="border-blue-200 bg-blue-50 rounded-xl">
-              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <span className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-900">
                 <strong>CSV Format:</strong> Category, Subject Name, Subject Type, Description, Status
               </AlertDescription>
@@ -756,7 +796,7 @@ export function ManageSubjectsPage() {
               variant="outline"
               className="w-full rounded-xl border-[#E5E7EB] text-[#1F2937]"
             >
-              <Download className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Download CSV Template
             </Button>
           </div>
@@ -772,10 +812,10 @@ export function ManageSubjectsPage() {
               Cancel
             </Button>
             <Button
-              onClick={handleCSVImport}
+              onClick={() => csvFile && handleCSVImport(csvFile)}
               className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
             >
-              <Upload className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Import Subjects
             </Button>
           </DialogFooter>
@@ -793,7 +833,7 @@ export function ManageSubjectsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Alert className="border-green-200 bg-green-50 rounded-xl">
-              <AlertCircle className="h-4 w-4 text-green-600" />
+              <span className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-900">
                 This will prepare the subject list for 50+ subjects across Creche, Nursery, and Primary categories.
               </AlertDescription>
@@ -843,9 +883,17 @@ export function ManageSubjectsPage() {
             <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDeleteSubject}
+              disabled={actionLoading === "delete"}
               className="bg-red-600 hover:bg-red-700 rounded-xl"
             >
-              Delete
+              {actionLoading === "delete" ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

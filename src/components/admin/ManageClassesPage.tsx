@@ -1,9 +1,5 @@
-import { useState } from "react";
-import { 
-  Plus, Download, Search, Edit, Trash2, Users, BookOpen, 
-  GraduationCap, Check, AlertCircle, MoreVertical, X, Save, ArrowLeft,
-  UserPlus, Award, Settings, Eye
-} from "lucide-react";
+import { Book, BookOpen, GraduationCap, ArrowLeft, Plus, X } from 'lucide-react';
+import { useState, useRef, useMemo, useEffect, lazy, Suspense, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -11,6 +7,7 @@ import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Checkbox } from "../ui/checkbox";
 import { toast } from "sonner";
@@ -20,7 +17,7 @@ import { exportClassesToCSV } from "../../utils/csvExporter";
 import { importClassesFromCSV, generateClassTemplate } from "../../utils/csvImporter";
 import { useSchool, Class, Subject, SubjectRegistration, Teacher, Student } from "../../contexts/SchoolContext";
 
-export function ManageClassesPage() {
+function ManageClassesPageDesktop() {
   const { 
     teachers, 
     students, 
@@ -37,13 +34,20 @@ export function ManageClassesPage() {
     removeSubjectRegistration
   } = useSchool();
   
+  // Debug: Monitor classes data changes
+  useEffect(() => {
+    console.log('=== MANAGE CLASSES PAGE DEBUG ===');
+    console.log('Classes data changed:', classes.length, 'classes');
+    console.log('Classes data:', classes);
+  }, [classes]);
+  
   // Get active teachers from context
   const availableTeachers = teachers.filter((t: Teacher) => t.status === 'Active');
   
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterLevel, setFilterLevel] = useState("All");
-  const [filterCategory, setFilterCategory] = useState("All");
-  const [filterStatus, setFilterStatus] = useState("All");
+  const [filterLevel, setFilterLevel] = useState<string>("All");
+  const [filterCategory, setFilterCategory] = useState<string>("All");
+  const [filterStatus, setFilterStatus] = useState<string>("All");
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -51,6 +55,8 @@ export function ManageClassesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'details'>('grid');
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
   const [registrationPreview, setRegistrationPreview] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Get students for selected class
   const classStudents = selectedClass ? students.filter((s: Student) => s.class_id === selectedClass.id) : [];
@@ -61,6 +67,20 @@ export function ManageClassesPage() {
            sr.term === currentTerm && 
            sr.academic_year === currentAcademicYear
   ) : [];
+  
+  // Debug: Log subject registration filtering
+  useEffect(() => {
+    if (selectedClass) {
+      console.log('=== SUBJECT REGISTRATION DEBUG ===');
+      console.log('Selected class:', selectedClass.name, 'ID:', selectedClass.id);
+      console.log('Current term:', currentTerm);
+      console.log('Current academic year:', currentAcademicYear);
+      console.log('Total subject registrations:', subjectRegistrations.length);
+      console.log('Subject registrations for this class:', subjectRegistrations.filter(sr => sr.class_id === selectedClass.id));
+      console.log('Filtered registrations for current term/year:', classRegisteredSubjects);
+      console.log('Filtered registrations count:', classRegisteredSubjects.length);
+    }
+  }, [selectedClass, subjectRegistrations, currentTerm, currentAcademicYear]);
   
   // Get available subjects (all subjects not yet registered for this class)
   const availableSubjects = selectedClass ? subjects.filter(
@@ -87,6 +107,8 @@ export function ManageClassesPage() {
       return;
     }
     
+    setActionLoading("register-subjects");
+    
     // Check which subjects are already registered
     const alreadyRegistered = selectedSubjects.filter(subjectId => 
       classRegisteredSubjects.some((reg: SubjectRegistration) => 
@@ -111,60 +133,80 @@ export function ManageClassesPage() {
       toast.info('No new subjects to register');
       setSelectedSubjects([]);
       setRegistrationPreview([]);
+      setActionLoading(null);
       return;
     }
     
     let successCount = 0;
     const failedSubjects = [];
     
-    for (const subjectId of newSubjects) {
-      try {
-        const success = await registerSubjectForClass(
-          subjectId,
-          selectedClass.id,
-          currentAcademicYear,
-          currentTerm,
-          true
-        );
-        
-        if (success) {
-          successCount++;
-        } else {
+    try {
+      for (const subjectId of newSubjects) {
+        try {
+          const success = await registerSubjectForClass(
+            subjectId,
+            selectedClass.id,
+            currentAcademicYear,
+            currentTerm,
+            true
+          );
+          
+          if (success) {
+            successCount++;
+          } else {
+            const subject = subjects.find(s => s.id === subjectId);
+            failedSubjects.push(subject?.name || 'Unknown');
+          }
+        } catch (error) {
           const subject = subjects.find(s => s.id === subjectId);
           failedSubjects.push(subject?.name || 'Unknown');
         }
-      } catch (error) {
-        const subject = subjects.find(s => s.id === subjectId);
-        failedSubjects.push(subject?.name || 'Unknown');
       }
-    }
-    
-    if (successCount > 0) {
-      const message = failedSubjects.length > 0 
-        ? `${successCount} subjects registered successfully. ${failedSubjects.length} failed.`
-        : `${successCount} subjects registered successfully for ${currentTerm} ${currentAcademicYear}`;
       
-      toast.success(message);
+      if (successCount > 0) {
+        const message = failedSubjects.length > 0 
+          ? `${successCount} subjects registered successfully. ${failedSubjects.length} failed.`
+          : `${successCount} subjects registered successfully for ${currentTerm} ${currentAcademicYear}`;
+        
+        toast.success(message);
+      }
+      
+      if (failedSubjects.length > 0) {
+        toast.error(`Failed to register: ${failedSubjects.join(', ')}`);
+      }
+      
       setSelectedSubjects([]);
       setRegistrationPreview([]);
-    } else if (failedSubjects.length > 0) {
+    } catch (error) {
       toast.error('Failed to register subjects');
+    } finally {
+      setActionLoading(null);
     }
   };
-  
+
   // Handle subject removal
   const handleRemoveSubject = async (subjectId: number) => {
     if (!selectedClass) return;
     
-    const success = await removeSubjectRegistration(
-      subjectId,
-      selectedClass.id,
-      currentAcademicYear,
-      currentTerm
-    );
+    setActionLoading(`remove-${subjectId}`);
     
-    if (success) {
-      toast.success('Subject removed successfully');
+    try {
+      const success = await removeSubjectRegistration(
+        subjectId,
+        selectedClass.id,
+        currentAcademicYear,
+        currentTerm
+      );
+      
+      if (success) {
+        toast.success('Subject removed successfully');
+      } else {
+        toast.error('Failed to remove subject');
+      }
+    } catch (error) {
+      toast.error('Failed to remove subject');
+    } finally {
+      setActionLoading(null);
     }
   };
   
@@ -211,8 +253,20 @@ export function ManageClassesPage() {
     const matchesCategory = filterCategory === "All" || classCategory === filterCategory;
     const matchesStatus = filterStatus === "All" || cls.status === filterStatus;
     
+    // Debug logging
+    console.log('=== CLASS FILTER DEBUG ===');
+    console.log('Class:', cls.name, 'Level:', cls.level, 'Status:', cls.status);
+    console.log('Filters - Search:', searchQuery, 'Level:', filterLevel, 'Category:', filterCategory, 'Status:', filterStatus);
+    console.log('Matches - Search:', matchesSearch, 'Level:', matchesLevel, 'Category:', matchesCategory, 'Status:', matchesStatus);
+    console.log('Class Category:', classCategory);
+    
     return matchesSearch && matchesLevel && matchesCategory && matchesStatus;
   });
+  
+  console.log('=== FILTERED CLASSES DEBUG ===');
+  console.log('Total classes:', classes.length);
+  console.log('Filtered classes:', filteredClasses.length);
+  console.log('Classes array:', classes);
 
   // Statistics
   const stats = {
@@ -222,15 +276,21 @@ export function ManageClassesPage() {
     averageCapacity: (classes || []).length > 0 ? Math.round((classes || []).reduce((sum, c) => sum + (c.currentStudents / c.capacity * 100), 0) / (classes || []).length) : 0,
   };
 
-  const handleCreateClass = () => {
+  const handleCreateClass = async () => {
+    console.log('=== CREATE CLASS DEBUG ===');
+    console.log('Form data:', formData);
+    
     if (!formData.name || !formData.capacity || !formData.classTeacherId || !formData.category || !formData.level) {
       toast.error("Please fill all required fields");
       return;
     }
 
+    setActionLoading("create");
+    
     const capacity = parseInt(formData.capacity);
     if (capacity > 50) {
       toast.error("Class capacity cannot exceed 50 students");
+      setActionLoading(null);
       return;
     }
 
@@ -251,21 +311,40 @@ export function ManageClassesPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    addClass(newClass);
-    toast.success(`Class "${newClass.name}" created successfully!`);
-    resetForm();
-    setShowForm(false);
+    console.log('New class object:', newClass);
+
+    try {
+      console.log('Calling addClass...');
+      const success = await addClass(newClass);
+      console.log('addClass result:', success);
+      
+      if (success) {
+        toast.success(`Class "${newClass.name}" created successfully!`);
+        resetForm();
+        setShowForm(false);
+      } else {
+        toast.error('Failed to create class - API returned false');
+      }
+    } catch (error) {
+      console.error('Create class error:', error);
+      toast.error('Failed to create class');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleEditClass = () => {
+  const handleEditClass = async () => {
     if (!selectedClass || !formData.name || !formData.capacity || !formData.classTeacherId || !formData.category || !formData.level) {
       toast.error("Please fill all required fields");
       return;
     }
 
+    setActionLoading("edit");
+
     const capacity = parseInt(formData.capacity);
     if (capacity > 50) {
       toast.error("Class capacity cannot exceed 50 students");
+      setActionLoading(null);
       return;
     }
 
@@ -282,15 +361,24 @@ export function ManageClassesPage() {
       status: formData.status,
     };
 
-    updateClass(selectedClass.id, updatedClass);
-    toast.success(`Class "${formData.name}" updated successfully!`);
-    resetForm();
-    setShowForm(false);
-    setIsEditing(false);
-    setSelectedClass(null);
+    try {
+      updateClass(selectedClass.id, updatedClass);
+      toast.success(`Class "${formData.name}" updated successfully!`);
+      resetForm();
+      setShowForm(false);
+      setIsEditing(false);
+      setSelectedClass(null);
+    } catch (error) {
+      toast.error('Failed to update class');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleDeleteClass = () => {
+  const handleDeleteClass = async () => {
+    console.log('=== DELETE CLASS DEBUG ===');
+    console.log('Selected class:', selectedClass);
+    
     if (selectedClass) {
       if (selectedClass.currentStudents > 0) {
         toast.error("Cannot delete class with enrolled students. Please move students first.");
@@ -298,10 +386,26 @@ export function ManageClassesPage() {
         return;
       }
 
-      deleteClass(selectedClass.id);
-      toast.success(`Class "${selectedClass.name}" deleted successfully!`);
-      setDeleteDialogOpen(false);
-      setSelectedClass(null);
+      setActionLoading("delete");
+
+      try {
+        console.log('Calling deleteClass for ID:', selectedClass.id);
+        const success = await deleteClass(selectedClass.id);
+        console.log('deleteClass result:', success);
+        
+        if (success) {
+          toast.success(`Class "${selectedClass.name}" deleted successfully!`);
+          setDeleteDialogOpen(false);
+          setSelectedClass(null);
+        } else {
+          toast.error('Failed to delete class - API returned false');
+        }
+      } catch (error) {
+        console.error('Delete class error:', error);
+        toast.error('Failed to delete class');
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -344,6 +448,7 @@ export function ManageClassesPage() {
   const cancelForm = () => {
     resetForm();
     setShowForm(false);
+    toast.info('Form cancelled - no changes made');
   };
 
   const exportCSVTemplate = () => {
@@ -404,14 +509,20 @@ export function ManageClassesPage() {
                 variant="outline"
                 className="rounded-xl border-[#3B82F6] text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white"
               >
-                <Download className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Export CSV
               </Button>
               <Button 
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  console.log('=== CREATE BUTTON CLICKED ===');
+                  console.log('showForm before:', showForm);
+                  console.log('viewMode:', viewMode);
+                  setShowForm(true);
+                  console.log('showForm after:', showForm);
+                }}
                 className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Create New Class
               </Button>
             </div>
@@ -441,7 +552,7 @@ export function ManageClassesPage() {
                     <p className="text-[#0A2540]">{stats.activeClasses}</p>
                   </div>
                   <div className="bg-green-100 p-3 rounded-xl">
-                    <Check className="w-6 h-6 text-green-600" />
+                    <span className="w-6 h-6 text-green-600" />
                   </div>
                 </div>
               </CardContent>
@@ -455,7 +566,7 @@ export function ManageClassesPage() {
                     <p className="text-[#0A2540]">{stats.totalStudents}</p>
                   </div>
                   <div className="bg-purple-100 p-3 rounded-xl">
-                    <Users className="w-6 h-6 text-purple-600" />
+                    <span className="w-6 h-6 text-purple-600" />
                   </div>
                 </div>
               </CardContent>
@@ -481,7 +592,7 @@ export function ManageClassesPage() {
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     placeholder="Search classes..."
                     value={searchQuery}
@@ -534,13 +645,13 @@ export function ManageClassesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredClasses.length === 0 ? (
               <div className="col-span-full text-center py-12">
-                <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <span className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 mb-4">No classes found</p>
                 <Button 
                   onClick={() => setShowForm(true)}
                   className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="w-4 h-4 mr-2" />
                   Create First Class
                 </Button>
               </div>
@@ -589,7 +700,7 @@ export function ManageClassesPage() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">Students:</span>
                         <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-gray-400" />
+                          <span className="w-4 h-4 text-gray-400" />
                           <span className="font-medium">{cls.currentStudents}/{cls.capacity}</span>
                         </div>
                       </div>
@@ -623,7 +734,7 @@ export function ManageClassesPage() {
                           handleClassClick(cls);
                         }}
                       >
-                        <Eye className="w-3 h-3 mr-1" />
+                        <span className="w-3 h-3 mr-1" />
                         View Details
                       </Button>
                       <Button 
@@ -635,7 +746,7 @@ export function ManageClassesPage() {
                           openEditForm(cls);
                         }}
                       >
-                        <Edit className="w-3 h-3" />
+                        <span className="w-3 h-3" />
                       </Button>
                     </div>
                   </CardContent>
@@ -704,7 +815,7 @@ export function ManageClassesPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Enrollment:</span>
                   <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-gray-400" />
+                    <span className="w-4 h-4 text-gray-400" />
                     <span className="font-medium">{selectedClass?.currentStudents}/{selectedClass?.capacity}</span>
                   </div>
                 </div>
@@ -732,7 +843,7 @@ export function ManageClassesPage() {
               <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white">
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Award className="w-5 h-5" />
+                    <span className="w-5 h-5" />
                     <span>Subject Registration Portal</span>
                   </div>
                   <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
@@ -748,7 +859,7 @@ export function ManageClassesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                     <div className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-green-600" />
+                      <span className="w-4 h-4 text-green-600" />
                       <span className="text-sm font-medium text-green-800">Registered</span>
                     </div>
                     <p className="text-2xl font-bold text-green-900">{classRegisteredSubjects.length}</p>
@@ -764,7 +875,7 @@ export function ManageClassesPage() {
                   </div>
                   <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
                     <div className="flex items-center gap-2">
-                      <Plus className="w-4 h-4 text-purple-600" />
+                      <span className="w-4 h-4 text-purple-600" />
                       <span className="text-sm font-medium text-purple-800">Selected</span>
                     </div>
                     <p className="text-2xl font-bold text-purple-900">{selectedSubjects.length}</p>
@@ -776,7 +887,7 @@ export function ManageClassesPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-lg font-semibold text-[#0A2540] flex items-center gap-2">
-                      <Check className="w-5 h-5 text-green-600" />
+                      <span className="w-5 h-5 text-green-600" />
                       Registered Subjects
                     </h4>
                     <Badge variant="outline" className="border-green-200 text-green-700">
@@ -803,18 +914,23 @@ export function ManageClassesPage() {
                               </div>
                               <p className="text-sm text-green-700">{reg.subject_category}</p>
                               <div className="flex items-center gap-1 mt-2">
-                                <Check className="w-3 h-3 text-green-600" />
+                                <span className="w-3 h-3 text-green-600" />
                                 <span className="text-xs text-green-600">Registered for {currentTerm}</span>
                               </div>
                             </div>
                             <Button 
                               size="sm" 
                               variant="outline"
+                              disabled={actionLoading === `remove-${reg.subject_id}`}
                               className="rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 opacity-0 group-hover:opacity-100 transition-opacity"
                               onClick={() => handleRemoveSubject(reg.subject_id)}
                               title="Remove subject"
                             >
-                              <X className="w-3 h-3" />
+                              {actionLoading === `remove-${reg.subject_id}` ? (
+                                <div className="w-3 h-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <X className="w-3 h-3" />
+                              )}
                             </Button>
                           </div>
                         </div>
@@ -827,7 +943,7 @@ export function ManageClassesPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-lg font-semibold text-[#0A2540] flex items-center gap-2">
-                      <Plus className="w-5 h-5 text-blue-600" />
+                      <span className="w-5 h-5 text-blue-600" />
                       Register New Subjects
                     </h4>
                     {registrationPreview.length > 0 && (
@@ -839,7 +955,7 @@ export function ManageClassesPage() {
                   <div className="max-h-96 overflow-y-auto pr-2">
                     {availableSubjects.length === 0 ? (
                       <div className="text-center py-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-dashed border-blue-300">
-                        <Check className="w-12 h-12 text-blue-300 mx-auto mb-3" />
+                        <span className="w-12 h-12 text-blue-300 mx-auto mb-3" />
                         <p className="text-blue-600 font-medium">All subjects registered</p>
                         <p className="text-sm text-blue-500 mt-1">This class has all available subjects registered</p>
                       </div>
@@ -889,7 +1005,7 @@ export function ManageClassesPage() {
                                   </div>
                                   {isPreviewed && (
                                     <div className="flex items-center gap-1 mt-2 text-blue-600">
-                                      <Check className="w-3 h-3" />
+                                      <Plus className="w-3 h-3" />
                                       <span className="text-xs font-medium">Will Register</span>
                                     </div>
                                   )}
@@ -916,11 +1032,21 @@ export function ManageClassesPage() {
                         </div>
                         <Button 
                           onClick={handleRegisterSubjects}
+                          disabled={actionLoading === "register-subjects"}
                           className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg"
                           size="lg"
                         >
-                          <Award className="w-4 h-4 mr-2" />
-                          Register Subjects
+                          {actionLoading === "register-subjects" ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                              Registering...
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-4 h-4 mr-2" />
+                              Register Subjects
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -934,14 +1060,14 @@ export function ManageClassesPage() {
           <Card className="border-[#0A2540]/10">
             <CardHeader>
               <CardTitle className="text-[#0A2540] flex items-center gap-2">
-                <Users className="w-5 h-5" />
+                <span className="w-5 h-5" />
                 Students in {selectedClass?.name} ({classStudents.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
               {classStudents.length === 0 ? (
                 <div className="text-center py-8">
-                  <UserPlus className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <Plus className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500 mb-2">No students enrolled in this class yet</p>
                   <p className="text-sm text-gray-400">Students will appear here once they are enrolled</p>
                 </div>
@@ -996,7 +1122,9 @@ export function ManageClassesPage() {
 
       {/* Inline Form (for creating/editing classes) */}
       {showForm && viewMode === 'grid' && (
-        <Card className="border-[#0A2540]/10 shadow-lg">
+        <>
+          {console.log('=== FORM RENDERING ===', { showForm, viewMode })}
+          <Card className="border-[#0A2540]/10 shadow-lg">
           <CardHeader className="border-b border-[#0A2540]/10 bg-[#0A2540]/5">
             <div className="flex items-center justify-between">
               <h3 className="text-[#0A2540]">
@@ -1008,7 +1136,7 @@ export function ManageClassesPage() {
                 onClick={cancelForm}
                 className="text-gray-500 hover:text-gray-700 rounded-xl"
               >
-                <X className="w-4 h-4" />
+                <span className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
@@ -1019,8 +1147,8 @@ export function ManageClassesPage() {
                   <Label className="text-[#0A2540]">School Category *</Label>
                   <Select 
                     value={formData.category} 
-                    onValueChange={(value: "Primary" | "Secondary") => {
-                      setFormData({ ...formData, category: value, level: "" });
+                    onValueChange={(value: string) => {
+                      setFormData({ ...formData, category: value as "Primary" | "Secondary" | "", level: "" });
                     }}
                   >
                     <SelectTrigger className="h-12 rounded-xl border-[#0A2540]/20">
@@ -1040,7 +1168,6 @@ export function ManageClassesPage() {
                     onValueChange={(value: string) => {
                       setFormData({ ...formData, level: value });
                     }}
-                    disabled={!formData.category}
                   >
                     <SelectTrigger className="h-12 rounded-xl border-[#0A2540]/20">
                       <SelectValue placeholder="Select class level" />
@@ -1139,7 +1266,7 @@ export function ManageClassesPage() {
                   <Label className="text-[#0A2540]">Status *</Label>
                   <Select 
                     value={formData.status} 
-                    onValueChange={(value: "Active" | "Inactive") => setFormData({ ...formData, status: value })}
+                    onValueChange={(value: string) => setFormData({ ...formData, status: value as "Active" | "Inactive" })}
                   >
                     <SelectTrigger className="h-12 rounded-xl border-[#0A2540]/20">
                       <SelectValue />
@@ -1155,10 +1282,20 @@ export function ManageClassesPage() {
               <div className="flex gap-3 pt-4">
                 <Button 
                   onClick={isEditing ? handleEditClass : handleCreateClass}
+                  disabled={actionLoading === "create" || actionLoading === "edit"}
                   className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  {isEditing ? "Update Class" : "Create Class"}
+                  {actionLoading === "create" || actionLoading === "edit" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      {isEditing ? "Updating..." : "Creating..."}
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-4 h-4 mr-2" />
+                      {isEditing ? "Update Class" : "Create Class"}
+                    </>
+                  )}
                 </Button>
                 <Button 
                   onClick={cancelForm}
@@ -1171,9 +1308,8 @@ export function ManageClassesPage() {
             </div>
           </CardContent>
         </Card>
+        </>
       )}
-
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
@@ -1186,16 +1322,32 @@ export function ManageClassesPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteClass}
+            <AlertDialogAction
+              onClick={async () => {
+                if (selectedClass) {
+                  await handleDeleteClass();
+                }
+              }}
+              disabled={actionLoading === "delete"}
               className="bg-red-600 hover:bg-red-700 rounded-xl"
             >
-              Delete
+              {actionLoading === "delete" ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
+}
+
+// Export the desktop component
+export function ManageClassesPage() {
+  return <ManageClassesPageDesktop />;
 }

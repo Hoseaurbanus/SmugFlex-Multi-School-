@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { UserPlus, Users, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
+import { Plus } from 'lucide-react';
 import { CreateUserPage } from "./CreateUserPage";
 import { ManageUsersPage } from "./ManageUsersPage";
 
@@ -48,7 +48,7 @@ export function UserManagementPage() {
         <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg hover:shadow-2xl transition-all hover:scale-105 cursor-pointer group">
           <CardHeader className="p-6 bg-gradient-to-r from-[#28A745] to-[#28A745]/80 rounded-t-xl">
             <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mb-4">
-              <UserPlus className="w-8 h-8 text-white" />
+              <Plus className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-white mb-2">Create User</h2>
             <p className="text-white/80 text-sm">Add new system user with role-based access</p>
@@ -77,7 +77,7 @@ export function UserManagementPage() {
               className="w-full h-12 bg-[#28A745] hover:bg-[#28A745]/90 text-white rounded-xl shadow-md group-hover:scale-105 transition-all"
             >
               Create New User
-              <ArrowRight className="w-5 h-5 ml-2" />
+              <span className="w-5 h-5 ml-2" />
             </Button>
           </CardContent>
         </Card>
@@ -86,7 +86,7 @@ export function UserManagementPage() {
         <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg hover:shadow-2xl transition-all hover:scale-105 cursor-pointer group">
           <CardHeader className="p-6 bg-gradient-to-r from-[#1E90FF] to-[#00BFFF] rounded-t-xl">
             <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mb-4">
-              <Users className="w-8 h-8 text-white" />
+              <span className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-white mb-2">Manage Users</h2>
             <p className="text-white/80 text-sm">View, edit, and manage all system users</p>
@@ -115,7 +115,7 @@ export function UserManagementPage() {
               className="w-full h-12 bg-[#1E90FF] hover:bg-[#00BFFF] text-white rounded-xl shadow-md group-hover:scale-105 transition-all"
             >
               Manage Users
-              <ArrowRight className="w-5 h-5 ml-2" />
+              <span className="w-5 h-5 ml-2" />
             </Button>
           </CardContent>
         </Card>

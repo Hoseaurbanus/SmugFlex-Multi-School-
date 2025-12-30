@@ -1,3 +1,4 @@
+import { School } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,8 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, Save, Calendar, User, School } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
+import { API_CONFIG } from '@/config/api';
 import { toast } from 'sonner';
 
 interface SignatureSettings {
@@ -53,11 +54,11 @@ export function SignatureSettingsPage() {
   const loadSignatureSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost/GGGG/api/database/query', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/database/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
         },
         body: JSON.stringify({
           query: `
@@ -162,11 +163,11 @@ export function SignatureSettingsPage() {
             signatureSettings.resumption_date
           ];
 
-      const response = await fetch('http://localhost/GGGG/api/database/query', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/database/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
         },
         body: JSON.stringify({ query, params })
       });
@@ -207,7 +208,7 @@ export function SignatureSettingsPage() {
           <p className="text-gray-600">Manage signatures and resumption dates for result sheets</p>
         </div>
         <Badge variant="outline" className="text-sm">
-          <Calendar className="w-4 h-4 mr-1" />
+          <span className="w-4 h-4 mr-1" />
           {signatureSettings.academic_year} - {signatureSettings.term}
         </Badge>
       </div>
@@ -224,7 +225,7 @@ export function SignatureSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="w-5 h-5" />
+              <span className="w-5 h-5" />
               Principal Settings (Secondary Section)
             </CardTitle>
           </CardHeader>
@@ -276,7 +277,7 @@ export function SignatureSettingsPage() {
                   </div>
                 ) : (
                   <div className="border-2 border-dashed rounded p-4 text-center">
-                    <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <span className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                     <p className="text-sm text-gray-600 mb-2">Upload principal signature</p>
                     <Input
                       type="file"
@@ -295,7 +296,7 @@ export function SignatureSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="w-5 h-5" />
+              <span className="w-5 h-5" />
               Head Teacher Settings (Primary Section)
             </CardTitle>
           </CardHeader>
@@ -347,7 +348,7 @@ export function SignatureSettingsPage() {
                   </div>
                 ) : (
                   <div className="border-2 border-dashed rounded p-4 text-center">
-                    <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <span className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                     <p className="text-sm text-gray-600 mb-2">Upload head teacher signature</p>
                     <Input
                       type="file"
@@ -367,7 +368,7 @@ export function SignatureSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
+            <span className="w-5 h-5" />
             School Resumption Date
           </CardTitle>
         </CardHeader>
@@ -394,7 +395,7 @@ export function SignatureSettingsPage() {
           disabled={saving}
           className="min-w-[120px]"
         >
-          <Save className="w-4 h-4 mr-2" />
+          <span className="w-4 h-4 mr-2" />
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>
       </div>

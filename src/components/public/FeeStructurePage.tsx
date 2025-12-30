@@ -1,4 +1,3 @@
-import { ArrowLeft, Download, CreditCard, CheckCircle } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
@@ -55,7 +54,7 @@ export function FeeStructurePage({ onBack }: FeeStructurePageProps) {
           <CardContent className="p-6">
             <div className="flex items-start gap-4">
               <div className="bg-blue-500 p-3 rounded-full">
-                <CheckCircle className="h-6 w-6 text-white" />
+                <span className="h-6 w-6 text-white" />
               </div>
               <div>
                 <h2 className="text-xl mb-2">Fee Payment Information</h2>
@@ -220,7 +219,7 @@ export function FeeStructurePage({ onBack }: FeeStructurePageProps) {
         <Card className="rounded-xl border-none shadow-md mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
+              <span className="h-5 w-5" />
               Payment Methods
             </CardTitle>
           </CardHeader>
@@ -275,7 +274,7 @@ export function FeeStructurePage({ onBack }: FeeStructurePageProps) {
               </ul>
               <div className="flex gap-4">
                 <Button className="bg-[#2563EB] hover:bg-[#1d4ed8]">
-                  <Download className="mr-2 h-4 w-4" />
+                  <span className="mr-2 h-4 w-4" />
                   Download Fee Schedule
                 </Button>
                 <Button variant="outline">

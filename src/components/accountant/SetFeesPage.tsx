@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Save, DollarSign, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -7,7 +6,7 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Alert, AlertDescription } from "../ui/alert";
 import { useSchool } from "../../contexts/SchoolContext";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function SetFeesPage() {
   const { 
@@ -17,21 +16,42 @@ export function SetFeesPage() {
     addFeeStructure, 
     updateFeeStructure, 
     getFeeStructureByClass,
-    feeStructures 
+    feeStructures,
+    students,
+    studentFeeBalances,
+    updateStudentFeeBalance,
+    getAllAcademicYears
   } = useSchool();
 
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedTerm, setSelectedTerm] = useState(currentTerm);
   const [selectedYear, setSelectedYear] = useState(currentAcademicYear);
+  const [academicYears, setAcademicYears] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load academic years on component mount
+  useEffect(() => {
+    const loadAcademicYears = async () => {
+      try {
+        const years = await getAllAcademicYears();
+        setAcademicYears(years);
+      } catch (error) {
+        console.error('Failed to load academic years:', error);
+        // Fallback to some default years if API fails
+        setAcademicYears(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028']);
+      }
+    };
+    loadAcademicYears();
+  }, [getAllAcademicYears]);
 
   const [fees, setFees] = useState({
-    tuitionFee: "",
-    developmentLevy: "",
-    sportsFee: "",
-    examFee: "",
-    booksFee: "",
-    uniformFee: "",
-    transportFee: "",
+    tuition_fee: "",
+    development_levy: "",
+    sports_fee: "",
+    exam_fee: "",
+    books_fee: "",
+    uniform_fee: "",
+    transport_fee: "",
   });
 
   const handleClassChange = (classId: string) => {
@@ -41,24 +61,24 @@ export function SetFeesPage() {
     const existing = getFeeStructureByClass(Number(classId), selectedTerm, selectedYear);
     if (existing) {
       setFees({
-        tuitionFee: existing.tuitionFee.toString(),
-        developmentLevy: existing.developmentLevy.toString(),
-        sportsFee: existing.sportsFee.toString(),
-        examFee: existing.examFee.toString(),
-        booksFee: existing.booksFee.toString(),
-        uniformFee: existing.uniformFee.toString(),
-        transportFee: existing.transportFee.toString(),
+        tuition_fee: existing.tuition_fee.toString(),
+        development_levy: existing.development_levy.toString(),
+        sports_fee: existing.sports_fee.toString(),
+        exam_fee: existing.exam_fee.toString(),
+        books_fee: existing.books_fee.toString(),
+        uniform_fee: existing.uniform_fee.toString(),
+        transport_fee: existing.transport_fee.toString(),
       });
     } else {
       // Reset fees
       setFees({
-        tuitionFee: "",
-        developmentLevy: "",
-        sportsFee: "",
-        examFee: "",
-        booksFee: "",
-        uniformFee: "",
-        transportFee: "",
+        tuition_fee: "",
+        development_levy: "",
+        sports_fee: "",
+        exam_fee: "",
+        books_fee: "",
+        uniform_fee: "",
+        transport_fee: "",
       });
     }
   };
@@ -71,10 +91,45 @@ export function SetFeesPage() {
   };
 
   const calculateTotal = () => {
-    return Object.values(fees).reduce((sum, val) => sum + (val ? parseInt(val) : 0), 0);
+    const total = Object.values(fees).reduce((sum, val) => sum + (val ? parseInt(val) : 0), 0);
+    return total || 0;
   };
 
-  const handleSave = () => {
+  const updateStudentFeeBalancesForClass = async (classId: number, newFeeStructure: any) => {
+    // Get all students in the selected class
+    const classStudents = students.filter(student => student.class_id === classId);
+    
+    // Update each student's fee balance for the new fee structure
+    for (const student of classStudents) {
+      const existingBalance = studentFeeBalances.find(
+        balance => balance.student_id === student.id && 
+        balance.term === selectedTerm && 
+        balance.academic_year === selectedYear
+      );
+      
+      if (existingBalance) {
+        // Update existing balance
+        await updateStudentFeeBalance(existingBalance.id, {
+          total_fee_required: newFeeStructure.total_fee,
+          balance: newFeeStructure.total_fee - existingBalance.total_paid
+        });
+      } else {
+        // Create new balance record
+        await updateStudentFeeBalance(0, {
+          student_id: student.id,
+          term: selectedTerm,
+          academic_year: selectedYear,
+          total_fee_required: newFeeStructure.total_fee,
+          total_paid: 0,
+          balance: newFeeStructure.total_fee
+        });
+      }
+    }
+  };
+
+  const handleSave = async () => {
+    console.log('Save button clicked');
+    
     if (!selectedClassId) {
       toast.error("Please select a class");
       return;
@@ -87,32 +142,55 @@ export function SetFeesPage() {
     }
 
     const selectedClass = classes.find(c => c.id === Number(selectedClassId));
-    if (!selectedClass) return;
+    if (!selectedClass) {
+      toast.error("Selected class not found");
+      return;
+    }
 
-    const feeData = {
-      classId: Number(selectedClassId),
-      className: selectedClass.name,
-      level: selectedClass.level,
-      term: selectedTerm,
-      academicYear: selectedYear,
-      tuitionFee: parseInt(fees.tuitionFee || "0"),
-      developmentLevy: parseInt(fees.developmentLevy || "0"),
-      sportsFee: parseInt(fees.sportsFee || "0"),
-      examFee: parseInt(fees.examFee || "0"),
-      booksFee: parseInt(fees.booksFee || "0"),
-      uniformFee: parseInt(fees.uniformFee || "0"),
-      transportFee: parseInt(fees.transportFee || "0"),
-    };
-
-    // Check if updating existing or creating new
-    const existing = getFeeStructureByClass(Number(selectedClassId), selectedTerm, selectedYear);
+    setIsSaving(true);
     
-    if (existing) {
-      updateFeeStructure(existing.id, feeData);
-      toast.success("Fee structure updated successfully!");
-    } else {
-      addFeeStructure(feeData);
-      toast.success("Fee structure created successfully!");
+    try {
+      const feeData = {
+        class_id: Number(selectedClassId),
+        class_name: selectedClass.name,
+        level: selectedClass.level,
+        term: selectedTerm,
+        academic_year: selectedYear,
+        tuition_fee: parseInt(fees.tuition_fee || "0"),
+        development_levy: parseInt(fees.development_levy || "0"),
+        sports_fee: parseInt(fees.sports_fee || "0"),
+        exam_fee: parseInt(fees.exam_fee || "0"),
+        books_fee: parseInt(fees.books_fee || "0"),
+        uniform_fee: parseInt(fees.uniform_fee || "0"),
+        transport_fee: parseInt(fees.transport_fee || "0"),
+        total_fee: calculateTotal(),
+      };
+
+      console.log('Saving fee data:', feeData);
+
+      // Check if updating existing or creating new
+      const existing = getFeeStructureByClass(Number(selectedClassId), selectedTerm, selectedYear);
+      console.log('Existing fee structure:', existing);
+      
+      if (existing) {
+        console.log('Updating existing fee structure');
+        await updateFeeStructure(existing.id, feeData);
+        toast.success("Fee structure updated successfully! Parent dashboards will reflect the changes.");
+        // Update student fee balances to reflect new fee structure
+        await updateStudentFeeBalancesForClass(Number(selectedClassId), feeData);
+      } else {
+        console.log('Creating new fee structure');
+        const newFeeId = await addFeeStructure(feeData);
+        console.log('New fee ID:', newFeeId);
+        toast.success("Fee structure created successfully! Parent dashboards will reflect the changes.");
+        // Update student fee balances to reflect new fee structure
+        await updateStudentFeeBalancesForClass(Number(selectedClassId), { ...feeData, id: newFeeId });
+      }
+    } catch (error) {
+      console.error('Error saving fee structure:', error);
+      toast.error("Failed to save fee structure. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -126,7 +204,7 @@ export function SetFeesPage() {
       </div>
 
       <Alert className="bg-[#007C91]/10 border-[#007C91] rounded-xl">
-        <AlertCircle className="h-4 w-4 text-[#007C91]" />
+        <span className="h-4 w-4 text-[#007C91]" />
         <AlertDescription className="text-[#007C91]">
           Set fees for each class and term. Parents will see these fees in real-time on their dashboard.
         </AlertDescription>
@@ -175,9 +253,11 @@ export function SetFeesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2023/2024">2023/2024</SelectItem>
-                  <SelectItem value="2024/2025">2024/2025</SelectItem>
-                  <SelectItem value="2025/2026">2025/2026</SelectItem>
+                  {academicYears.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -188,8 +268,8 @@ export function SetFeesPage() {
               <Label className="text-[#1F2937] mb-2 block">Tuition Fee (₦)</Label>
               <Input
                 type="text"
-                value={fees.tuitionFee}
-                onChange={(e) => handleFeeChange("tuitionFee", e.target.value)}
+                value={fees.tuition_fee}
+                onChange={(e) => handleFeeChange("tuition_fee", e.target.value)}
                 placeholder="0"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -199,8 +279,8 @@ export function SetFeesPage() {
               <Label className="text-[#1F2937] mb-2 block">Development Levy (₦)</Label>
               <Input
                 type="text"
-                value={fees.developmentLevy}
-                onChange={(e) => handleFeeChange("developmentLevy", e.target.value)}
+                value={fees.development_levy}
+                onChange={(e) => handleFeeChange("development_levy", e.target.value)}
                 placeholder="0"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -210,8 +290,8 @@ export function SetFeesPage() {
               <Label className="text-[#1F2937] mb-2 block">Sports Fee (₦)</Label>
               <Input
                 type="text"
-                value={fees.sportsFee}
-                onChange={(e) => handleFeeChange("sportsFee", e.target.value)}
+                value={fees.sports_fee}
+                onChange={(e) => handleFeeChange("sports_fee", e.target.value)}
                 placeholder="0"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -221,8 +301,8 @@ export function SetFeesPage() {
               <Label className="text-[#1F2937] mb-2 block">Exam Fee (₦)</Label>
               <Input
                 type="text"
-                value={fees.examFee}
-                onChange={(e) => handleFeeChange("examFee", e.target.value)}
+                value={fees.exam_fee}
+                onChange={(e) => handleFeeChange("exam_fee", e.target.value)}
                 placeholder="0"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -232,8 +312,8 @@ export function SetFeesPage() {
               <Label className="text-[#1F2937] mb-2 block">Books Fee (₦)</Label>
               <Input
                 type="text"
-                value={fees.booksFee}
-                onChange={(e) => handleFeeChange("booksFee", e.target.value)}
+                value={fees.books_fee}
+                onChange={(e) => handleFeeChange("books_fee", e.target.value)}
                 placeholder="0"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -243,8 +323,8 @@ export function SetFeesPage() {
               <Label className="text-[#1F2937] mb-2 block">Uniform Fee (₦)</Label>
               <Input
                 type="text"
-                value={fees.uniformFee}
-                onChange={(e) => handleFeeChange("uniformFee", e.target.value)}
+                value={fees.uniform_fee}
+                onChange={(e) => handleFeeChange("uniform_fee", e.target.value)}
                 placeholder="0"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -254,8 +334,8 @@ export function SetFeesPage() {
               <Label className="text-[#1F2937] mb-2 block">Transport Fee (₦)</Label>
               <Input
                 type="text"
-                value={fees.transportFee}
-                onChange={(e) => handleFeeChange("transportFee", e.target.value)}
+                value={fees.transport_fee}
+                onChange={(e) => handleFeeChange("transport_fee", e.target.value)}
                 placeholder="0"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -272,10 +352,11 @@ export function SetFeesPage() {
           <div className="mt-6 flex justify-end">
             <Button
               onClick={handleSave}
-              className="bg-[#007C91] hover:bg-[#006073] text-white rounded-xl shadow-clinical hover:shadow-clinical-lg transition-all"
+              disabled={isSaving}
+              className="bg-[#007C91] hover:bg-[#006073] text-white rounded-xl shadow-clinical hover:shadow-clinical-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save className="w-4 h-4 mr-2" />
-              Save Fee Structure
+              <span className="w-4 h-4 mr-2" />
+              {isSaving ? "Saving..." : "Save Fee Structure"}
             </Button>
           </div>
         </CardContent>
@@ -308,11 +389,11 @@ export function SetFeesPage() {
                 ) : (
                   feeStructures.map((fee) => (
                     <tr key={fee.id} className="border-b border-[#E5E7EB] hover:bg-[#F9FAFB]">
-                      <td className="p-4 text-[#1F2937]">{fee.className}</td>
+                      <td className="p-4 text-[#1F2937]">{fee.class_name}</td>
                       <td className="p-4 text-[#6B7280]">{fee.level}</td>
                       <td className="p-4 text-[#6B7280]">{fee.term}</td>
-                      <td className="p-4 text-[#6B7280]">{fee.academicYear}</td>
-                      <td className="p-4 text-right text-[#007C91]">₦{fee.totalFee.toLocaleString()}</td>
+                      <td className="p-4 text-[#6B7280]">{fee.academic_year}</td>
+                      <td className="p-4 text-right text-[#007C91]">₦{(fee.total_fee || 0).toLocaleString()}</td>
                     </tr>
                   ))
                 )}

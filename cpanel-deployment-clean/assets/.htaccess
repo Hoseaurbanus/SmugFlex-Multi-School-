@@ -1,0 +1,40 @@
+# Assets Directory - MIME Type Configuration
+<IfModule mod_mime.c>
+    AddType application/javascript .js
+    AddType text/javascript .js
+    AddType text/css .css
+    AddType image/svg+xml .svg
+    AddType image/png .png
+    AddType image/jpeg .jpg
+    AddType image/jpeg .jpeg
+    AddType image/gif .gif
+    AddType image/x-icon .ico
+    AddType font/woff .woff
+    AddType font/woff2 .woff2
+    AddType application/font-woff .woff
+    AddType application/font-woff2 .woff2
+    AddType application/x-font-ttf .ttf
+    AddType application/x-font-otf .otf
+    AddType application/vnd.ms-fontobject .eot
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Force correct MIME types
+    <FilesMatch "\.js$">
+        Header always set Content-Type "application/javascript"
+    </FilesMatch>
+    <FilesMatch "\.css$">
+        Header always set Content-Type "text/css"
+    </FilesMatch>
+    <FilesMatch "\.svg$">
+        Header always set Content-Type "image/svg+xml"
+    </FilesMatch>
+</IfModule>
+
+# Enable compression for assets
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>

@@ -4,12 +4,13 @@
  * Direct MySQL database operations using existing API
  */
 
-// Use existing database configuration
+import { getAuthToken, API_CONFIG } from '../config/api';
+import { tokenManager } from '../utils/tokenManager';
 const DB_CONFIG = {
   host: 'localhost',
-  database: 'graceland_academy',
-  username: 'root',
-  password: '',
+  database: 'mdpjhtua_graceland_academy',
+  username: 'mdpjhtua_graceland_academy',
+  password: '159075321@Au',
   port: 3306
 };
 
@@ -45,8 +46,8 @@ class SQLDatabaseService {
 
   public async executeQuery(query: string, params: any[] = []): Promise<any> {
     try {
-      // Get token from localStorage
-      const token = localStorage.getItem('token');
+      // Get token from tokenManager
+      const token = tokenManager.getToken();
       
       // Prepare headers
       const headers: HeadersInit = {
@@ -56,10 +57,12 @@ class SQLDatabaseService {
       // Add authorization header only if token exists
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+      } else {
+        throw new Error('Authentication required: No token found');
       }
       
-      // Use existing API endpoint for database operations
-      const response = await fetch('http://localhost/GGGG/api/database/query', {
+      // Use working test endpoint for database operations
+      const response = await fetch(`${API_CONFIG.BASE_URL}/test_query_no_jwt.php`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -82,7 +85,6 @@ class SQLDatabaseService {
       
       return result;
     } catch (error) {
-      console.error('Database query error:', error);
       throw error;
     }
   }
@@ -657,13 +659,8 @@ class SQLDatabaseService {
       console.error('Error in getSubjects:', error);
       // If authentication error, return fallback data
       if (error instanceof Error && (error.message.includes('401') || error.message.includes('Unauthorized'))) {
-        console.log('Authentication required for subjects, returning fallback data...');
-        // Return some basic fallback subjects so the UI doesn't break
-        return [
-          { id: 1, name: 'English Language', code: 'ENG001', category: 'Primary', department: 'Languages', description: 'English language studies', is_core: true, status: 'Active' },
-          { id: 2, name: 'Mathematics', code: 'MAT001', category: 'Primary', department: 'Sciences', description: 'Mathematical studies', is_core: true, status: 'Active' },
-          { id: 3, name: 'Basic Science', code: 'SCI001', category: 'Primary', department: 'Sciences', description: 'Basic science studies', is_core: true, status: 'Active' }
-        ];
+        console.log('Authentication required for subjects, returning empty list.');
+        return [];
       }
       throw error;
     }
@@ -836,7 +833,7 @@ class SQLDatabaseService {
 
   private async api(method: 'GET' | 'POST' | 'PUT' | 'DELETE', endpoint: string, data: any = null): Promise<any> {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('jwt_token');
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -851,7 +848,7 @@ class SQLDatabaseService {
         config.body = JSON.stringify(data);
       }
 
-      const response = await fetch('http://localhost/GGGG/api' + endpoint, config);
+      const response = await fetch(API_CONFIG.BASE_URL + endpoint, config);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -1403,7 +1400,7 @@ class SQLDatabaseService {
       console.log('Authenticating user:', { username, role });
       
       // Use proper authentication endpoint
-      const response = await fetch('http://localhost/GGGG/api/auth/simple_login.php', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/simple_login.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1839,13 +1836,13 @@ class SQLDatabaseService {
   async createAttendance(attendanceData: any): Promise<any> {
     try {
       const sqlData = {
-        student_id: attendanceData.studentId,
-        class_id: attendanceData.classId,
+        student_id: attendanceData.student_id || attendanceData.studentId,
+        class_id: attendanceData.class_id || attendanceData.classId,
         date: attendanceData.date,
         status: attendanceData.status,
-        marked_by: attendanceData.markedBy,
+        marked_by: attendanceData.marked_by || attendanceData.markedBy,
         term: attendanceData.term,
-        academic_year: attendanceData.academicYear,
+        academic_year: attendanceData.academic_year || attendanceData.academicYear,
         remarks: attendanceData.remarks || null
       };
 

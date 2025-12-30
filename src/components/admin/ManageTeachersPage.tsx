@@ -1,5 +1,4 @@
-import { useState, useRef } from "react";
-import { Search, Edit, Trash2, Eye, Award, AlertCircle, Upload, FileUp, Key, Image as ImageIcon, Power, Download, Users } from "lucide-react";
+import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -11,14 +10,60 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "../ui/dropdown-menu";
-import { SimpleDropdown, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
+import { SimpleDropdown, SimpleDropdownTrigger, SimpleDropdownContent, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
 import { useSchool } from "../../contexts/SchoolContext";
+import { Key, ImageIcon, Power } from "lucide-react";
 import { exportTeachersToCSV } from "../../utils/csvExporter";
 import { importTeachersFromCSV, generateTeacherTemplate } from "../../utils/csvImporter";
 import { toast } from "sonner";
+import { useAdminPageOptimizations } from "../../utils/adminOptimizations";
 
 export function ManageTeachersPage() {
-  const { teachers, deleteTeacher, updateTeacher, classes, subjectAssignments, users, updateUser } = useSchool();
+  const { teachers, deleteTeacher, updateTeacher, classes, subjectAssignments, users, updateUser, currentUser } = useSchool();
+  
+  // Permission and optimization hooks
+  const { 
+    hasAccess, 
+    loading: permissionLoading, 
+    loadWithCache, 
+    createDebouncedSearch,
+    createMemoizedFilter,
+    batchLoad,
+    clearCache 
+  } = useAdminPageOptimizations('ManageTeachersPage', currentUser);
+
+  // Show loading state while checking permissions
+  if (permissionLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <span className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Checking permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied if no permission
+  if (hasAccess === false) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="max-w-md w-full">
+          <CardContent className="text-center py-12">
+            <span className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+            <p className="text-gray-600 mb-6">
+              You do not have permission to access the Teacher Management page.
+              Please contact your administrator if you believe this is an error.
+            </p>
+            <Button onClick={() => window.history.back()}>
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -50,7 +95,7 @@ export function ManageTeachersPage() {
 
   // Get class teacher assignment for a teacher
   const getClassTeacherInfo = (teacherId: number) => {
-    const teacherClasses = classes.filter(c => c.class_teacher_id === teacherId);
+    const teacherClasses = classes.filter(c => c.classTeacherId === teacherId);
     return teacherClasses;
   };
 
@@ -64,14 +109,25 @@ export function ManageTeachersPage() {
     return users.find((u: any) => u.linked_id === teacherId && u.role === 'teacher');
   };
 
-  // Filter teachers based on search
-  const filteredTeachers = teachers.filter(teacher => {
-    const fullName = `${teacher.first_name} ${teacher.last_name}`.toLowerCase();
-    const searchLower = searchTerm.toLowerCase();
-    return fullName.includes(searchLower) || 
-           teacher.employee_id.toLowerCase().includes(searchLower) ||
-           teacher.email.toLowerCase().includes(searchLower);
-  });
+  // Optimized filtering with memoization
+  const filteredTeachers = useMemo(() => {
+    if (!Array.isArray(teachers) || teachers.length === 0) {
+      return [];
+    }
+
+    // Create memoized filter function
+    const filterFn = (teacher: any, query: string) => {
+      const fullName = `${teacher.first_name} ${teacher.last_name}`.toLowerCase();
+      const searchLower = query.toLowerCase();
+      return fullName.includes(searchLower) || 
+             teacher.employee_id.toLowerCase().includes(searchLower) ||
+             teacher.email.toLowerCase().includes(searchLower);
+    };
+
+    // Use memoized filter for better performance
+    const memoizedFilter = createMemoizedFilter(teachers, filterFn);
+    return memoizedFilter(searchTerm);
+  }, [teachers, searchTerm, createMemoizedFilter]);
 
   const handleEdit = (teacher: any) => {
     setSelectedTeacher(teacher);
@@ -267,7 +323,7 @@ export function ManageTeachersPage() {
   const stats = {
     total: teachers.length,
     active: teachers.filter(t => t.status === 'Active').length,
-    classTeachers: teachers.filter(t => t.is_class_teacher).length,
+    classTeachers: 0, // Not available in current schema
     inactive: teachers.filter(t => t.status === 'Inactive').length,
   };
 
@@ -287,21 +343,21 @@ export function ManageTeachersPage() {
             variant="outline"
             className="rounded-xl border-[#3B82F6] text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white"
           >
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
           <Button
             onClick={() => setIsBulkImportDialogOpen(true)}
             className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
           >
-            <Upload className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Bulk Import CSV
           </Button>
           <Button
             onClick={() => setIsQuickImportDialogOpen(true)}
             className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
           >
-            <Users className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Import GRA Staff
           </Button>
         </div>
@@ -309,7 +365,7 @@ export function ManageTeachersPage() {
 
       {/* Info Alert */}
       <Alert className="border-blue-200 bg-blue-50 rounded-xl">
-        <AlertCircle className="h-4 w-4 text-blue-600" />
+        <span className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-900">
           <strong>Note:</strong> To add new teachers, please use the "Register User" page from the main menu. This page is for viewing and managing existing teachers only.
         </AlertDescription>
@@ -349,12 +405,12 @@ export function ManageTeachersPage() {
           {/* Primary Filters */}
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-[#0A2540] mb-3 flex items-center">
-              <Search className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Primary Filters
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -373,7 +429,7 @@ export function ManageTeachersPage() {
           {/* Secondary Filters */}
           <div>
             <h3 className="text-sm font-semibold text-[#0A2540] mb-3 flex items-center">
-              <Users className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Secondary Filters
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -426,7 +482,7 @@ export function ManageTeachersPage() {
                   <TableRow className="bg-white">
                     <TableCell colSpan={10} className="text-center py-12">
                       <div className="flex flex-col items-center gap-3">
-                        <Search className="w-12 h-12 text-[#9CA3AF]" />
+                        <span className="w-12 h-12 text-[#9CA3AF]" />
                         <p className="text-[#1F2937]">No teachers found</p>
                         <p className="text-[#6B7280] text-sm">Try adjusting your search criteria</p>
                       </div>
@@ -434,17 +490,17 @@ export function ManageTeachersPage() {
                   </TableRow>
                 ) : (
                   filteredTeachers.map((teacher) => {
-                    const classTeacherInfo = getClassTeacherInfo(teacher.id);
-                    const user = getTeacherUser(teacher.id);
+                    const classTeacherInfo = getClassTeacherInfo(Number(teacher.id));
+                    const user = getTeacherUser(Number(teacher.id));
                     return (
                       <TableRow key={teacher.id} className="bg-white border-b border-[#E5E7EB] hover:bg-[#F9FAFB]">
                         <TableCell>
                           <input type="checkbox" className="w-4 h-4 rounded border-[#E5E7EB]" />
                         </TableCell>
-                        <TableCell className="text-[#1F2937]">{teacher.last_name}</TableCell>
-                        <TableCell className="text-[#1F2937]">{teacher.first_name}</TableCell>
-                        <TableCell className="text-[#6B7280] text-sm">{teacher.other_name || "-"}</TableCell>
-                        <TableCell className="text-[#6B7280] text-sm">{teacher.gender || "-"}</TableCell>
+                        <TableCell className="text-[#1F2937]">{teacher.lastName}</TableCell>
+                        <TableCell className="text-[#1F2937]">{teacher.firstName}</TableCell>
+                        <TableCell className="text-[#6B7280] text-sm">-</TableCell>
+                        <TableCell className="text-[#6B7280] text-sm">-</TableCell>
                         <TableCell className="text-[#6B7280] text-sm">{teacher.phone || "-"}</TableCell>
                         <TableCell className="text-[#6B7280] text-sm">{user?.username || "-"}</TableCell>
                         <TableCell className="text-[#6B7280] text-sm">{teacher.email || "-"}</TableCell>
@@ -454,19 +510,19 @@ export function ManageTeachersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <SimpleDropdown
-                            trigger={
+                          <SimpleDropdown>
+                            <SimpleDropdownTrigger>
                               <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-lg">
-                                <Award className="h-3 w-3" />
+                                <span className="h-3 w-3" />
                               </Button>
-                            }
-                          >
+                            </SimpleDropdownTrigger>
+                            <SimpleDropdownContent>
                             <SimpleDropdownItem onClick={() => handleView(teacher)}>
-                              <Eye className="h-3 w-3" />
+                              <span className="h-3 w-3" />
                               V
                             </SimpleDropdownItem>
                             <SimpleDropdownItem onClick={() => handleEdit(teacher)}>
-                              <Edit className="h-3 w-3" />
+                              <span className="h-3 w-3" />
                               E
                             </SimpleDropdownItem>
                             <SimpleDropdownSeparator />
@@ -492,7 +548,8 @@ export function ManageTeachersPage() {
                               <Power className="h-3 w-3" />
                               {teacher.status === 'Active' ? 'Off' : 'On'}
                             </SimpleDropdownItem>
-                          </SimpleDropdown>
+                          </SimpleDropdownContent>
+                        </SimpleDropdown>
                         </TableCell>
                       </TableRow>
                     );
@@ -803,7 +860,7 @@ export function ManageTeachersPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Alert className="border-blue-200 bg-blue-50 rounded-xl">
-              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <span className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-900">
                 <strong>CSV Format:</strong> Last Name, First Name, Other Name, Gender, Phone, Email, Role, Qualification, Specialization
               </AlertDescription>
@@ -828,7 +885,7 @@ export function ManageTeachersPage() {
               variant="outline"
               className="w-full rounded-xl border-[#E5E7EB] text-[#1F2937]"
             >
-              <Download className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Download CSV Template
             </Button>
           </div>
@@ -844,10 +901,10 @@ export function ManageTeachersPage() {
               Cancel
             </Button>
             <Button
-              onClick={handleCSVImport}
+              onClick={() => csvInputRef.current?.click()}
               className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
             >
-              <Upload className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Import Teachers
             </Button>
           </DialogFooter>
@@ -865,7 +922,7 @@ export function ManageTeachersPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Alert className="border-green-200 bg-green-50 rounded-xl">
-              <AlertCircle className="h-4 w-4 text-green-600" />
+              <span className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-900">
                 This will prepare the data for 17 teachers. You'll still need to register them individually through the Register User page to create their accounts.
               </AlertDescription>
@@ -906,7 +963,7 @@ export function ManageTeachersPage() {
               onClick={handleQuickImportGRAStaff}
               className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
             >
-              <Users className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Copy Staff List to Clipboard
             </Button>
           </DialogFooter>

@@ -7,10 +7,20 @@ import { API_CONFIG, buildUrl, getAuthToken, setAuthToken, removeAuthToken } fro
 
 export interface ApiResponse<T = any> {
   success: boolean;
-  data?: T;
+  data?: T | PaginatedData<T>;
   message?: string;
   error?: string;
   pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface PaginatedData<T = any> {
+  items: T[];
+  pagination: {
     page: number;
     limit: number;
     total: number;
@@ -27,18 +37,37 @@ export interface ApiError {
 class ApiService {
   private baseURL: string;
   private timeout: number;
+  private connectionStatus: { isOnline: boolean; isSlow: boolean } = { isOnline: true, isSlow: false };
 
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL;
     this.timeout = API_CONFIG.TIMEOUT;
+    
+    // Monitor connection status
+    this.updateConnectionStatus();
+    window.addEventListener('online', () => this.updateConnectionStatus());
+    window.addEventListener('offline', () => this.updateConnectionStatus());
+  }
+
+  private updateConnectionStatus() {
+    this.connectionStatus.isOnline = navigator.onLine;
+    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    if (connection) {
+      this.connectionStatus.isSlow = connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g' || connection.downlink < 0.5;
+    }
+  }
+
+  setConnectionContext(connection: { isOnline: boolean; isSlow: boolean }) {
+    this.connectionStatus = connection;
   }
 
   /**
-   * Make HTTP request with proper error handling
+   * Make HTTP request with proper error handling and retry logic
    */
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retries = 2 // Reduced retries for faster failure
   ): Promise<ApiResponse<T>> {
     const url = buildUrl(endpoint);
     const token = getAuthToken();
@@ -59,47 +88,97 @@ class ApiService {
       Object.assign(headers, options.headers);
     }
 
-    // Request configuration
+    // Request configuration with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
     const config: RequestInit = {
       ...options,
       headers,
+      signal: controller.signal,
     };
 
-    try {
-      const response = await fetch(url, config);
-      const data = await response.json();
+    // Retry logic for network errors
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        console.log(`API Request (attempt ${attempt + 1}/${retries}): ${endpoint}`);
+        
+        const response = await fetch(url, config);
+        clearTimeout(timeoutId);
+        
+        const contentType = response.headers.get('content-type') || '';
+        let data: any;
+        
+        if (response.status === 204 || !contentType.includes('application/json')) {
+          data = { success: response.ok };
+        } else {
+          data = await response.json();
+        }
 
-      // Handle authentication errors
-      if (response.status === 401) {
-        removeAuthToken();
-        window.location.href = '/login';
-        throw new Error('Session expired. Please login again.');
-      }
+        // Handle authentication errors with token refresh
+        if (response.status === 401) {
+          // Try to refresh the token
+          try {
+            const refreshResponse = await this.refreshToken();
+            if (refreshResponse && refreshResponse.success && refreshResponse.data?.token) {
+              // Update the stored token
+              setAuthToken(refreshResponse.data.token);
+              
+              // Retry the original request with new token
+              const retryResponse = await fetch(url, {
+                ...config,
+                headers: {
+                  ...headers,
+                  'Authorization': `Bearer ${refreshResponse.data.token}`
+                }
+              });
+              
+              const retryData = retryResponse.ok ? await retryResponse.json() : { success: false };
+              return retryData;
+            }
+          } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError);
+            removeAuthToken();
+            throw new Error('Session expired. Please login again.');
+          }
+        }
 
-      // Handle other HTTP errors
-      if (!response.ok) {
-        const error: ApiError = {
-          message: data.message || `HTTP ${response.status}: ${response.statusText}`,
-          status: response.status,
-          code: data.code,
-        };
-        throw error;
-      }
+        if (!response.ok) {
+          throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
 
-      return data as ApiResponse<T>;
-    } catch (error) {
-      // Handle network errors
-      if (error instanceof Error) {
+        console.log(`API Request successful: ${endpoint}`);
+        return data;
+
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        
         if (error.name === 'AbortError') {
-          throw new Error('Request timeout. Please try again.');
+          console.error(`Request timeout (attempt ${attempt + 1}): ${endpoint}`);
+          if (attempt < retries - 1) {
+            console.log(`Retrying in ${1000 * (attempt + 1)}ms...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+            continue;
+          }
+          throw new Error('Request timeout. Please check your connection.');
         }
-        if (error.message.includes('fetch')) {
-          throw new Error('Network error. Please check your connection.');
+        
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          console.error(`Network error (attempt ${attempt + 1}): ${endpoint}`, error);
+          if (attempt < retries - 1) {
+            console.log(`Retrying in ${2000 * (attempt + 1)}ms...`);
+            await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+            continue;
+          }
+          throw new Error('Network connection failed. Please check your internet connection.');
         }
+        
+        // For other errors, don't retry
         throw error;
       }
-      throw new Error('An unexpected error occurred.');
     }
+
+    throw new Error('Request failed after multiple attempts.');
   }
 
   /**
@@ -123,6 +202,33 @@ class ApiService {
     }
 
     return this.request<T>(url, { method: 'GET' });
+  }
+
+  /**
+   * Refresh authentication token
+   */
+  private async refreshToken(): Promise<ApiResponse | null> {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        return null;
+      }
+
+      const response = await fetch(buildUrl('/auth/refresh-token'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
   }
 
   /**

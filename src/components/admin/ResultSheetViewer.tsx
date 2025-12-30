@@ -1,13 +1,12 @@
+import { Book, BookOpen, Loader2 } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { useSchool } from "../../contexts/SchoolContext";
-import { StudentResultCard } from "../shared/StudentResultCard";
-import { printResultSheet, downloadResultSheetAsPDF, generateResultSheetFilename } from "../../utils/resultSheetUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Label } from "../ui/label";
-import { Download, Printer, Eye, Users, Calendar, BookOpen, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import { StudentResultCard } from "../shared/StudentResultCard";
 
 interface ResultSheetViewerProps {
   isOpen?: boolean;
@@ -125,19 +124,10 @@ export function ResultSheetViewer({
   };
 
   const handlePrint = () => {
-    printResultSheet('student-result-card');
+    // Print functionality removed - only use ResultsManagementPage PDF generation
+    console.log('Print functionality available in ResultsManagementPage');
   };
 
-  const handleDownload = () => {
-    if (selectedStudent) {
-      const filename = generateResultSheetFilename(
-        `${selectedStudent.firstName} ${selectedStudent.lastName}`,
-        selectedTerm,
-        selectedAcademicYear
-      );
-      downloadResultSheetAsPDF('student-result-card', filename);
-    }
-  };
 
   const handlePreview = () => {
     if (selectedStudentId && selectedClassId && selectedTerm && selectedAcademicYear) {
@@ -187,7 +177,6 @@ export function ResultSheetViewer({
                   <Select 
                     value={selectedStudentId?.toString() || ""} 
                     onValueChange={(value: string) => setSelectedStudentId(Number(value))}
-                    disabled={!selectedClassId}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select student" />
@@ -262,7 +251,7 @@ export function ResultSheetViewer({
                   disabled={!canGenerateResult}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  <Eye className="w-4 h-4 mr-2" />
+                  <span className="w-4 h-4 mr-2" />
                   Preview Result Sheet
                 </Button>
               </div>
@@ -273,19 +262,7 @@ export function ResultSheetViewer({
           {showPreview && canGenerateResult && (
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg">Result Sheet Preview</CardTitle>
-                  <div className="flex space-x-2">
-                    <Button onClick={handlePrint} className="bg-green-600 hover:bg-green-700 text-white">
-                      <Printer className="w-4 h-4 mr-2" />
-                      Print
-                    </Button>
-                    <Button onClick={handleDownload} className="bg-blue-600 hover:bg-blue-700 text-white">
-                      <Download className="w-4 h-4 mr-2" />
-                      Download PDF
-                    </Button>
-                  </div>
-                </div>
+                <CardTitle className="text-lg">Result Sheet Preview</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="border border-gray-200 rounded-lg overflow-hidden" id="student-result-card">
@@ -298,9 +275,6 @@ export function ResultSheetViewer({
                     <StudentResultCard
                       result={studentResultData}
                       currentUser={currentUser}
-                      showActions={true}
-                      onDownload={handleDownload}
-                      onPrint={handlePrint}
                     />
                   ) : (
                     <div className="text-center py-20 text-gray-500">
@@ -404,47 +378,29 @@ export function ResultSheetViewerButton({ studentId, classId, term, academicYear
   };
 
   const handlePrint = () => {
-    printResultSheet('student-result-card');
+    // Print functionality removed - only use ResultsManagementPage PDF generation
+    console.log('Print functionality available in ResultsManagementPage');
   };
 
-  const handleDownload = () => {
-    const student = students.find(s => s.id === studentId);
-    if (student) {
-      const filename = generateResultSheetFilename(
-        `${student.firstName} ${student.lastName}`,
-        term,
-        academicYear
-      );
-      downloadResultSheetAsPDF('student-result-card', filename);
-    }
+  const handleDownloadPDF = () => {
+    // PDF generation removed - only use ResultsManagementPage PDF generation
+    console.log('PDF generation available in ResultsManagementPage');
   };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-          <Eye className="w-4 h-4 mr-2" />
+          <span className="w-4 h-4 mr-2" />
           View Result Sheet
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Student Result Sheet</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex justify-end space-x-2">
-            <Button onClick={handlePrint} className="bg-green-600 hover:bg-green-700 text-white">
-              <Printer className="w-4 h-4 mr-2" />
-              Print
-            </Button>
-            <Button onClick={handleDownload} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Download className="w-4 h-4 mr-2" />
-              Download PDF
-            </Button>
-          </div>
-          <div className="border border-gray-200 rounded-lg overflow-hidden" id="student-result-card">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="bg-white" style={{ width: '210mm', height: '297mm', overflow: 'hidden' }}>
             {isLoading ? (
-              <div className="flex justify-center items-center py-20">
+              <div className="flex justify-center items-center h-full">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 <span className="ml-2 text-gray-600">Loading result data...</span>
               </div>
@@ -452,9 +408,6 @@ export function ResultSheetViewerButton({ studentId, classId, term, academicYear
               <StudentResultCard
                 result={studentResultData}
                 currentUser={currentUser}
-                showActions={true}
-                onDownload={handleDownload}
-                onPrint={handlePrint}
               />
             ) : (
               <div className="text-center py-20 text-gray-500">

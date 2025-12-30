@@ -4,8 +4,6 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { useSchool } from "../../contexts/SchoolContext";
-import { DollarSign, Edit, Eye, TrendingUp, Users, AlertCircle } from "lucide-react";
-
 export function FeeManagementPage() {
   const { feeStructures, classes, students, studentFeeBalances, payments } = useSchool();
   const [selectedTab, setSelectedTab] = useState<"overview" | "structures" | "balances">("overview");
@@ -29,7 +27,7 @@ export function FeeManagementPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Expected Revenue</p>
-              <TrendingUp className="w-5 h-5 text-[#3B82F6]" />
+              <span className="w-5 h-5 text-[#3B82F6]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">₦{totalExpectedRevenue.toLocaleString()}</p>
             <p className="text-xs text-[#6B7280]">This term</p>
@@ -40,7 +38,7 @@ export function FeeManagementPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Total Collected</p>
-              <DollarSign className="w-5 h-5 text-[#10B981]" />
+              <span className="w-5 h-5 text-[#10B981]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">₦{totalCollected.toLocaleString()}</p>
             <p className="text-xs text-[#10B981]">
@@ -53,7 +51,7 @@ export function FeeManagementPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Outstanding</p>
-              <AlertCircle className="w-5 h-5 text-[#F59E0B]" />
+              <span className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">₦{totalOutstanding.toLocaleString()}</p>
             <p className="text-xs text-[#F59E0B]">Unpaid balances</p>
@@ -64,7 +62,7 @@ export function FeeManagementPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Students w/ Balance</p>
-              <Users className="w-5 h-5 text-[#EF4444]" />
+              <span className="w-5 h-5 text-[#EF4444]" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{studentsWithBalances}</p>
             <p className="text-xs text-[#6B7280]">Out of {students.length} students</p>
@@ -140,10 +138,10 @@ export function FeeManagementPage() {
                       <TableCell>
                         <div className="flex gap-2">
                           <Button className="h-8 px-3 bg-[#3B82F6] text-white hover:bg-[#2563EB] rounded-lg">
-                            <Edit className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                           <Button className="h-8 px-3 bg-[#10B981] text-white hover:bg-[#059669] rounded-lg">
-                            <Eye className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>

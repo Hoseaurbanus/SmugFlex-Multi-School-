@@ -1,5 +1,5 @@
+import { Brain, AlertTriangle } from 'lucide-react';
 import { useState, useMemo } from "react";
-import { Heart, Brain, Save, CheckCircle, AlertCircle, Edit, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -25,6 +25,8 @@ export function AffectivePsychomotorPage() {
     psychomotorDomains,
     currentTerm,
     currentAcademicYear,
+    getTeacherAssignments,
+    classTeacherAssignments,
     addAffectiveDomain,
     updateAffectiveDomain,
     addPsychomotorDomain,
@@ -58,21 +60,54 @@ export function AffectivePsychomotorPage() {
   });
 
   // Get current teacher
-  const currentTeacher = currentUser ? teachers.find(t => t.id === currentUser.linked_id) : null;
-  // Check if teacher has class teacher assignments
-  const hasClassTeacherAssignments = useMemo(() => {
+  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+  const teacherAssignments = currentTeacher ? getTeacherAssignments(Number(currentTeacher.id)) : [];
+  
+  // Check if teacher has any assignments (class or subject)
+  const hasAssignments = useMemo(() => {
     if (!currentTeacher) return false;
-    return classes.some((c: any) => c.classTeacherId === currentTeacher.id && c.status === 'Active');
-  }, [currentTeacher, classes]);
+    
+    // Check class teacher assignments
+    const hasClassAssignment = classes.some((c: any) => {
+      const assignment = classTeacherAssignments.find((cta: any) => 
+        String(cta.teacher_id) === String(currentTeacher.id) && 
+        String(cta.class_id) === String(c.id) &&
+        cta.academic_year === currentAcademicYear && 
+        cta.term === currentTerm &&
+        cta.status === 'Active'
+      );
+      return !!assignment;
+    });
+    
+    // Check subject assignments
+    const hasSubjectAssignment = teacherAssignments.length > 0;
+    
+    return hasClassAssignment || hasSubjectAssignment;
+  }, [currentTeacher, classes, classTeacherAssignments, currentAcademicYear, currentTerm]);
 
-  // Get classes where this teacher is class teacher
-  const classTeacherClasses = useMemo(() => {
+  // Get classes where this teacher is either class teacher or subject teacher
+  const teacherClasses = useMemo(() => {
     if (!currentTeacher) {
       return [];
     }
     
-    return classes.filter((c: any) => c.classTeacherId === currentTeacher.id && c.status === 'Active');
-  }, [currentTeacher, classes]);
+    const classTeacherClasses = classes.filter((c: any) => {
+      const assignment = classTeacherAssignments.find((cta: any) => 
+        String(cta.teacher_id) === String(currentTeacher.id) && 
+        String(cta.class_id) === String(c.id) &&
+        cta.academic_year === currentAcademicYear && 
+        cta.term === currentTerm &&
+        cta.status === 'Active'
+      );
+      return !!assignment;
+    });
+    const subjectClasses = teacherAssignments
+      .map(a => classes.find((c: any) => c.id === a.class_id))
+      .filter((c): c is any => Boolean(c));
+    
+    // Remove duplicates
+    return Array.from(new Map([...classTeacherClasses, ...subjectClasses].map(c => [c.id, c])).values());
+  }, [currentTeacher, classes, teacherAssignments, classTeacherAssignments, currentAcademicYear, currentTerm]);
 
   // Get students in selected class
   const classStudents = useMemo(() => {
@@ -82,14 +117,82 @@ export function AffectivePsychomotorPage() {
       .sort((a, b) => a.lastName.localeCompare(b.lastName));
   }, [selectedClassId, students]);
 
-  // Get rating label
+  // Check if teacher has access to this page (class teacher or subject teacher for this class)
+  const hasAccessToClass = useMemo(() => {
+    if (!currentTeacher || !selectedClassId) return false;
+    
+    // Check if teacher is assigned as class teacher to this class
+    const isClassTeacherForClass = classTeacherAssignments.some((cta: any) => 
+      String(cta.teacher_id) === String(currentUser?.linked_id) && 
+      String(cta.class_id) === String(selectedClassId) &&
+      cta.academic_year === currentAcademicYear && 
+      cta.term === currentTerm &&
+      cta.status === 'Active'
+    );
+    
+    // Check if teacher has subject assignments for this class
+    const hasSubjectAssignmentForClass = teacherAssignments.some(assignment => 
+      assignment.class_id === Number(selectedClassId) &&
+      assignment.term === currentTerm &&
+      assignment.academic_year === currentAcademicYear &&
+      assignment.status === 'Active'
+    );
+    
+    return isClassTeacherForClass || hasSubjectAssignmentForClass;
+  }, [currentTeacher, selectedClassId, classTeacherAssignments, teacherAssignments, currentAcademicYear, currentTerm, currentUser?.linked_id]);
+
+  // Show no access message if teacher doesn't have access
+  if (!hasAccessToClass) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-3 sm:p-4">
+        <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+          <div className="text-center py-8">
+            <AlertTriangle className="w-5 h-5" />
+            <div>
+              <h3 className="font-medium">No Class Assignment</h3>
+              <p className="text-sm text-amber-700 mt-1">
+                You are not assigned as a class teacher for any active class.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Helper function to convert database field names to complete readable names
+  const getDomainName = (key: string): string => {
+    // Affective domain mappings
+    const affectiveMappings: Record<string, string> = {
+      'attentiveness': 'Attentiveness',
+      'honesty': 'Honesty',
+      'neatness': 'Neatness',
+      'obedience': 'Obedience',
+      'senseOfResponsibility': 'Sense of Responsibility'
+    };
+
+    // Psychomotor domain mappings
+    const psychomotorMappings: Record<string, string> = {
+      'attentionToDirection': 'Attention to Direction',
+      'considerateOfOthers': 'Considerate of Others',
+      'handwriting': 'Handwriting',
+      'sports': 'Sports',
+      'verbalFluency': 'Verbal Fluency',
+      'worksWellIndependently': 'Works Well Independently'
+    };
+
+    // Return the mapped name or format the key as fallback
+    return affectiveMappings[key] || psychomotorMappings[key] || key.replace(/([A-Z])/g, ' $1').trim();
+  };
+
+  // Get rating label based on value
   const getRatingLabel = (value: number): string => {
-    if (value === 5) return 'Excellent';
-    if (value === 4) return 'Very Good';
-    if (value === 3) return 'Good';
-    if (value === 2) return 'Fair';
-    if (value === 1) return 'Poor';
-    return 'Not Rated';
+    if (value === 5) return "Excellent";
+    if (value === 4) return "Very Good";
+    if (value === 3) return "Good";
+    if (value === 2) return "Fair";
+    if (value === 1) return "Poor";
+    return "";
   };
 
   // Get rating color
@@ -277,14 +380,14 @@ export function AffectivePsychomotorPage() {
     return affective !== undefined && psychomotor !== undefined;
   };
 
-  if (!hasClassTeacherAssignments) {
+  if (!hasAssignments) {
     return (
       <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
         <CardContent className="p-12 text-center">
-          <Lock className="w-12 h-12 text-[#9CA3AF] mx-auto mb-4" />
-          <h3 className="text-[#1F2937] mb-2">Class Teacher Only</h3>
+          <span className="w-12 h-12 text-[#9CA3AF] mx-auto mb-4" />
+          <h3 className="text-[#1F2937] mb-2">No Assignment</h3>
           <p className="text-[#6B7280]">
-            This feature is only available to Class Teachers. Please contact the administrator if you believe you should have access.
+            You are not assigned as a class teacher or subject teacher for any class. Please contact the administrator to get assigned.
           </p>
         </CardContent>
       </Card>
@@ -311,7 +414,7 @@ export function AffectivePsychomotorPage() {
                 <SelectValue placeholder="Select your class" />
               </SelectTrigger>
               <SelectContent>
-                {classTeacherClasses.map((cls) => (
+                {teacherClasses.map((cls: any) => (
                   <SelectItem key={cls.id} value={cls.id.toString()}>
                     {cls.name}
                   </SelectItem>
@@ -329,7 +432,7 @@ export function AffectivePsychomotorPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                  <Heart className="w-6 h-6" />
+                  <span className="w-6 h-6" />
                 </div>
               </div>
               <p className="text-white/80 text-sm mb-1">Total Students</p>
@@ -341,7 +444,7 @@ export function AffectivePsychomotorPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6" />
+                  <span className="w-6 h-6" />
                 </div>
               </div>
               <p className="text-white/80 text-sm mb-1">Completed</p>
@@ -355,7 +458,7 @@ export function AffectivePsychomotorPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6" />
+                  <span className="w-6 h-6" />
                 </div>
               </div>
               <p className="text-white/80 text-sm mb-1">Pending</p>
@@ -398,12 +501,12 @@ export function AffectivePsychomotorPage() {
                         <td className="p-4 text-center">
                           {isComplete ? (
                             <Badge className="bg-[#10B981] text-white rounded-full">
-                              <CheckCircle className="w-3 h-3 mr-1" />
+                              <span className="w-3 h-3 mr-1" />
                               Complete
                             </Badge>
                           ) : (
                             <Badge className="bg-[#F59E0B] text-white rounded-full">
-                              <AlertCircle className="w-3 h-3 mr-1" />
+                              <span className="w-3 h-3 mr-1" />
                               Pending
                             </Badge>
                           )}
@@ -413,7 +516,7 @@ export function AffectivePsychomotorPage() {
                             onClick={() => openModal(student.id)}
                             className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg shadow-clinical"
                           >
-                            <Edit className="w-4 h-4 mr-2" />
+                            <span className="w-4 h-4 mr-2" />
                             {isComplete ? 'Edit' : 'Add'} Assessment
                           </Button>
                         </td>
@@ -451,7 +554,7 @@ export function AffectivePsychomotorPage() {
                   : 'bg-[#F9FAFB] text-[#6B7280] hover:bg-[#E5E7EB]'
               }`}
             >
-              <Heart className="w-4 h-4 inline mr-2" />
+              <span className="w-4 h-4 inline mr-2" />
               Affective Domain
             </button>
             <button
@@ -473,7 +576,7 @@ export function AffectivePsychomotorPage() {
               {Object.entries(affectiveRatings).map(([key, rating]) => (
                 <div key={key} className="p-4 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
                   <Label className="text-[#1F2937] mb-3 block capitalize">
-                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                    {getDomainName(key)}
                   </Label>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
@@ -526,7 +629,7 @@ export function AffectivePsychomotorPage() {
               {Object.entries(psychomotorRatings).map(([key, rating]) => (
                 <div key={key} className="p-4 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
                   <Label className="text-[#1F2937] mb-3 block capitalize">
-                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                    {getDomainName(key)}
                   </Label>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
@@ -586,7 +689,7 @@ export function AffectivePsychomotorPage() {
               onClick={handleSave}
               className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg shadow-clinical"
             >
-              <Save className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Save Assessment
             </Button>
           </div>
@@ -597,7 +700,7 @@ export function AffectivePsychomotorPage() {
       <Card className="rounded-xl bg-gradient-to-r from-[#3B82F6]/10 to-[#3B82F6]/5 border border-[#3B82F6]/20">
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-[#3B82F6] mt-0.5 flex-shrink-0" />
+            <span className="w-5 h-5 text-[#3B82F6] mt-0.5 flex-shrink-0" />
             <div className="space-y-2 text-sm text-[#1F2937]">
               <p><strong>Assessment Guidelines:</strong></p>
               <ul className="list-disc list-inside space-y-1 text-[#6B7280]">

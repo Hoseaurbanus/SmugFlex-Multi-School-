@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Download, Users, TrendingUp, Award, AlertCircle, Mail, Phone, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -22,6 +21,7 @@ import {
 } from '../ui/dialog';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { useSchool, Student as SchoolStudent } from '../../contexts/SchoolContext';
+import { Users, User, Phone, Mail, Download, Search, Trophy, Target, TrendingUp } from 'lucide-react';
 
 interface ExtendedStudent extends SchoolStudent {
   parentName: string;
@@ -40,13 +40,25 @@ export function ClassListPage() {
     currentUser, 
     teachers, 
     getTeacherAssignments,
-    compiledResults 
+    classTeacherAssignments,
+    compiledResults,
+    currentTerm,
+    currentAcademicYear
   } = useSchool();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClassId, setSelectedClassId] = useState<number>(() => {
-    const currentTeacher = currentUser ? teachers.find(t => t.id === currentUser.linked_id) : null;
-    const classTeacherClasses = classes.filter((c: any) => c.classTeacherId === currentTeacher?.id);
+    const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+    const classTeacherClasses = classes.filter((c: any) => {
+      const assignment = classTeacherAssignments.find((cta: any) => 
+        String(cta.teacher_id) === String(currentTeacher?.id) && 
+        String(cta.class_id) === String(c.id) &&
+        cta.academic_year === currentAcademicYear && 
+        cta.term === currentTerm &&
+        cta.status === 'Active'
+      );
+      return !!assignment;
+    });
     const firstClassTeacherClass = classTeacherClasses[0];
     return firstClassTeacherClass?.id || classes[0]?.id || 1;
   });
@@ -54,13 +66,22 @@ export function ClassListPage() {
   const [selectedStudent, setSelectedStudent] = useState<ExtendedStudent | null>(null);
 
   // Get teacher's classes based on class teacher assignment only
-  const currentTeacher = currentUser ? teachers.find(t => t.id === currentUser.linked_id) : null;
-  const teacherClasses = classes.filter((c: any) => c.classTeacherId === currentTeacher?.id);
+  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+  const teacherClasses = classes.filter((c: any) => {
+    const assignment = classTeacherAssignments.find((cta: any) => 
+      String(cta.teacher_id) === String(currentUser?.linked_id) && 
+      String(cta.class_id) === String(c.id) &&
+      cta.academic_year === currentAcademicYear && 
+      cta.term === currentTerm &&
+      cta.status === 'Active'
+    );
+    return !!assignment;
+  });
 
   // Get current class - only from teacher's assigned classes
   const selectedClass = teacherClasses.find(c => c.id === selectedClassId) || teacherClasses[0];
 
-  // Get students from the selected class with extended data
+  // Get students from selected class with extended data
   const students: ExtendedStudent[] = useMemo(() => {
     if (!selectedClass) return []; // Return empty if no class is selected
     
@@ -78,7 +99,7 @@ export function ClassListPage() {
           parentName: parent ? `${parent.firstName} ${parent.lastName}` : 'N/A',
           parentPhone: parent?.phone || 'N/A',
           parentEmail: parent?.email || 'N/A',
-          attendance: 0, // To be implemented with real attendance data
+          attendance: 0, // TODO: Replace with real attendance data from API
           averageScore: averageScore || 0,
           position: index + 1, // Will be recalculated based on scores
         };
@@ -160,7 +181,7 @@ export function ClassListPage() {
       {teacherClasses.length === 0 && (
         <Card className="border-[#0A2540]/10">
           <CardContent className="p-6 text-center">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <span className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-[#0A2540] mb-2">No Classes Assigned</h3>
             <p className="text-gray-600">You haven't been assigned any classes yet. Please contact the administrator.</p>
           </CardContent>
@@ -193,7 +214,7 @@ export function ClassListPage() {
                 <p className="text-[#0A2540]">{classStats.maleCount}</p>
               </div>
               <div className="bg-indigo-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-indigo-600" />
+                <User className="w-6 h-6 text-indigo-600" />
               </div>
             </div>
           </CardContent>
@@ -207,7 +228,7 @@ export function ClassListPage() {
                 <p className="text-[#0A2540]">{classStats.femaleCount}</p>
               </div>
               <div className="bg-pink-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-pink-600" />
+                <User className="w-6 h-6 text-pink-600" />
               </div>
             </div>
           </CardContent>
@@ -235,7 +256,7 @@ export function ClassListPage() {
                 <p className="text-[#0A2540]">{classStats.averageScore.toFixed(1)}%</p>
               </div>
               <div className="bg-yellow-100 p-3 rounded-xl">
-                <Award className="w-6 h-6 text-yellow-600" />
+                <Target className="w-6 h-6 text-yellow-600" />
               </div>
             </div>
           </CardContent>
@@ -283,120 +304,156 @@ export function ClassListPage() {
       </Card>
 
       {/* Students Table */}
-      <Card className="border-[#0A2540]/10">
-        <CardHeader className="border-b border-[#0A2540]/10 bg-[#0A2540]/5">
-          <CardTitle className="text-[#0A2540]">Students ({(filteredStudents || []).length})</CardTitle>
+      <Card className="border-[#0A2540]/10 shadow-lg">
+        <CardHeader className="border-b border-[#0A2540]/10 bg-gradient-to-r from-[#0A2540]/5 to-[#1E40AF]/5">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-[#0A2540] font-semibold">Students ({(filteredStudents || []).length})</CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-blue-100 text-blue-800 border-0">
+                {classStats.totalStudents} Total
+              </Badge>
+              <Badge className="bg-green-100 text-green-800 border-0">
+                {filteredStudents?.length || 0} Filtered
+              </Badge>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-[#0A2540]/5">
-                  <TableHead className="text-[#0A2540]">Position</TableHead>
-                  <TableHead className="text-[#0A2540]">Student</TableHead>
-                  <TableHead className="text-[#0A2540]">Gender</TableHead>
-                  <TableHead className="text-[#0A2540]">Parent/Guardian</TableHead>
-                  <TableHead className="text-[#0A2540]">Contact</TableHead>
-                  <TableHead className="text-[#0A2540]">Attendance</TableHead>
-                  <TableHead className="text-[#0A2540]">Average Score</TableHead>
-                  <TableHead className="text-[#0A2540]">Actions</TableHead>
+                <TableRow className="bg-gradient-to-r from-[#0A2540]/8 to-[#1E40AF]/8 border-b border-[#0A2540]/10">
+                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Position</TableHead>
+                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Student</TableHead>
+                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Gender</TableHead>
+                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Parent/Guardian</TableHead>
+                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Contact</TableHead>
+                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Attendance</TableHead>
+                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Performance</TableHead>
+                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(filteredStudents || []).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                      No students found
+                    <TableCell colSpan={8} className="text-center py-12">
+                      <div className="flex flex-col items-center gap-3">
+                        <Users className="w-12 h-12 text-gray-300" />
+                        <p className="text-gray-500 font-medium">No students found</p>
+                        <p className="text-gray-400 text-sm">Try adjusting your filters or search criteria</p>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredStudents.map((student) => (
-                    <TableRow key={student.id} className="hover:bg-[#0A2540]/5">
-                      <TableCell>
-                        <div className="flex items-center gap-2">
+                    <TableRow key={student.id} className="hover:bg-gradient-to-r hover:from-[#0A2540]/3 hover:to-[#1E40AF]/3 transition-all duration-200 border-b border-gray-100">
+                      <TableCell className="py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            student.position === 1 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white' :
+                            student.position === 2 ? 'bg-gradient-to-r from-gray-300 to-gray-500 text-white' :
+                            student.position === 3 ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {student.position}
+                          </div>
                           {student.position <= 3 && (
-                            <Award className={`w-4 h-4 ${
+                            <Trophy className={`w-4 h-4 ${
                               student.position === 1 ? 'text-yellow-500' :
                               student.position === 2 ? 'text-gray-400' :
                               'text-orange-600'
                             }`} />
                           )}
-                          <span className="text-[#0A2540]">{student.position}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-4">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10 bg-[#0A2540] text-white">
-                            <AvatarFallback className="bg-[#0A2540] text-white">
+                          <Avatar className="h-12 w-12 bg-gradient-to-br from-[#0A2540] to-[#1E40AF] text-white font-semibold">
+                            <AvatarFallback className="bg-transparent">
                               {getInitials(`${student.firstName} ${student.lastName}`)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="text-[#0A2540]">{student.firstName} {student.lastName}</p>
-                            <p className="text-sm text-gray-500">{student.admissionNumber}</p>
+                            <p className="text-[#0A2540] font-semibold">{student.firstName} {student.lastName}</p>
+                            <p className="text-sm text-gray-500 font-mono">{student.admissionNumber}</p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={student.gender === 'Male' ? 'default' : 'secondary'} className="rounded-xl">
+                      <TableCell className="py-4">
+                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${
+                          student.gender === 'Male' 
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                            : 'bg-pink-100 text-pink-800 border border-pink-200'
+                        }`}>
+                          <div className={`w-2 h-2 rounded-full ${
+                            student.gender === 'Male' ? 'bg-blue-500' : 'bg-pink-500'
+                          }`} />
                           {student.gender}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="text-[#0A2540]">{student.parentName}</p>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-4">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Phone className="w-3 h-3 text-gray-400" />
-                            <span className="text-gray-600">{student.parentPhone}</span>
+                          <p className="text-[#0A2540] font-medium">{student.parentName}</p>
+                          <p className="text-xs text-gray-500">Guardian</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm group">
+                            <Phone className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                            <span className="text-gray-600 group-hover:text-blue-600 transition-colors">{student.parentPhone}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Mail className="w-3 h-3 text-gray-400" />
-                            <span className="text-gray-600 truncate max-w-[200px]">{student.parentEmail}</span>
+                          <div className="flex items-center gap-2 text-sm group">
+                            <Mail className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                            <span className="text-gray-600 group-hover:text-blue-600 transition-colors truncate max-w-[180px]">{student.parentEmail}</span>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-200 rounded-full h-2 w-16">
-                            <div 
-                              className={`h-2 rounded-full ${
-                                student.attendance >= 90 ? 'bg-green-500' :
-                                student.attendance >= 75 ? 'bg-yellow-500' :
-                                'bg-red-500'
+                      <TableCell className="py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <div className="bg-gray-200 rounded-full h-3 w-20 relative overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  student.attendance >= 90 ? 'bg-gradient-to-r from-green-400 to-green-600' :
+                                  student.attendance >= 75 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                                  'bg-gradient-to-r from-red-400 to-red-600'
+                                }`}
+                                style={{ width: `${student.attendance}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-[#0A2540]">{student.attendance}%</p>
+                            <p className="text-xs text-gray-500">Attendance</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-[#0A2540]">{student.averageScore.toFixed(1)}%</p>
+                            <Badge 
+                              className={`rounded-full text-xs font-semibold ${
+                                student.averageScore >= 70 ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300' :
+                                student.averageScore >= 50 ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300' :
+                                'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300'
                               }`}
-                              style={{ width: `${student.attendance}%` }}
-                            />
+                            >
+                              {student.averageScore >= 70 ? 'Excellent' :
+                               student.averageScore >= 50 ? 'Good' : 'Needs Improvement'}
+                            </Badge>
                           </div>
-                          <span className="text-sm text-gray-600">{student.attendance}%</span>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#0A2540]">{student.averageScore.toFixed(1)}%</span>
-                          <Badge 
-                            className={`rounded-xl ${
-                              student.averageScore >= 70 ? 'bg-green-100 text-green-800' :
-                              student.averageScore >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {student.averageScore >= 70 ? 'Excellent' :
-                             student.averageScore >= 50 ? 'Good' : 'Needs Improvement'}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="py-4 text-center">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleViewDetails(student)}
-                          className="text-[#0A2540] hover:text-[#FFD700] hover:bg-[#FFD700]/10 rounded-xl"
+                          className="text-[#0A2540] hover:text-white hover:bg-gradient-to-r hover:from-[#0A2540] hover:to-[#1E40AF] rounded-xl transition-all duration-200 group"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Search className="w-4 h-4 group-hover:scale-110 transition-transform" />
                         </Button>
                       </TableCell>
                     </TableRow>

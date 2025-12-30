@@ -1,5 +1,5 @@
+import { Building, Building2 } from 'lucide-react';
 import { useState, useEffect } from "react";
-import { Save, Building2, CreditCard, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -7,29 +7,40 @@ import { Label } from "../ui/label";
 import { Checkbox } from "../ui/checkbox";
 import { Alert, AlertDescription } from "../ui/alert";
 import { useSchool } from "../../contexts/SchoolContext";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function BankAccountSettingsPage() {
   const { bankAccountSettings, updateBankAccountSettings, currentUser } = useSchool();
 
-  const [formData, setFormData] = useState({
-    bankName: "",
-    accountName: "",
-    accountNumber: "",
-    paymentMethods: {
-      bankTransfer: true,
-      onlinePayment: false,
+  const [formData, setFormData] = useState<{
+    bank_name: string;
+    account_name: string;
+    account_number: string;
+    payment_methods: {
+      bank_transfer: boolean;
+      online_payment: boolean;
+      cash: boolean;
+    };
+  }>({
+    bank_name: "",
+    account_name: "",
+    account_number: "",
+    payment_methods: {
+      bank_transfer: true,
+      online_payment: false,
       cash: true,
     },
   });
 
+  const [isLoading, setIsLoading] = useState(false);
+
   useEffect(() => {
     if (bankAccountSettings) {
       setFormData({
-        bankName: bankAccountSettings.bankName,
-        accountName: bankAccountSettings.accountName,
-        accountNumber: bankAccountSettings.accountNumber,
-        paymentMethods: bankAccountSettings.paymentMethods,
+        bank_name: bankAccountSettings.bank_name,
+        account_name: bankAccountSettings.account_name,
+        account_number: bankAccountSettings.account_number,
+        payment_methods: bankAccountSettings.payment_methods,
       });
     }
   }, [bankAccountSettings]);
@@ -41,15 +52,15 @@ export function BankAccountSettingsPage() {
   const handlePaymentMethodChange = (method: string, checked: boolean) => {
     setFormData({
       ...formData,
-      paymentMethods: {
-        ...formData.paymentMethods,
+      payment_methods: {
+        ...formData.payment_methods,
         [method]: checked,
       },
     });
   };
 
-  const handleSave = () => {
-    if (!formData.bankName || !formData.accountName || !formData.accountNumber) {
+  const handleSave = async () => {
+    if (!formData.bank_name || !formData.account_name || !formData.account_number) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -59,15 +70,23 @@ export function BankAccountSettingsPage() {
       return;
     }
 
-    updateBankAccountSettings({
-      bankName: formData.bankName,
-      accountName: formData.accountName,
-      accountNumber: formData.accountNumber,
-      paymentMethods: formData.paymentMethods,
-      updatedBy: currentUser.id,
-    });
+    setIsLoading(true);
+    try {
+      await updateBankAccountSettings({
+        bank_name: formData.bank_name,
+        account_name: formData.account_name,
+        account_number: formData.account_number,
+        payment_methods: formData.payment_methods,
+        updated_by: currentUser.id,
+      });
 
-    toast.success("Bank account settings saved successfully!");
+      toast.success("Bank account settings saved successfully!");
+    } catch (error) {
+      console.error('Error saving bank account settings:', error);
+      toast.error("Failed to save bank account settings");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -78,7 +97,7 @@ export function BankAccountSettingsPage() {
       </div>
 
       <Alert className="bg-[#007C91]/10 border-[#007C91] rounded-xl">
-        <AlertCircle className="h-4 w-4 text-[#007C91]" />
+        <span className="h-4 w-4 text-[#007C91]" />
         <AlertDescription className="text-[#007C91]">
           This information will be displayed to parents for fee payments. Ensure all details are accurate.
         </AlertDescription>
@@ -102,8 +121,8 @@ export function BankAccountSettingsPage() {
               <Label className="text-[#1F2937] mb-2 block">Bank Name *</Label>
               <Input
                 type="text"
-                value={formData.bankName}
-                onChange={(e) => handleInputChange("bankName", e.target.value)}
+                value={formData.bank_name}
+                onChange={(e) => handleInputChange("bank_name", e.target.value)}
                 placeholder="e.g., First Bank of Nigeria"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -113,8 +132,8 @@ export function BankAccountSettingsPage() {
               <Label className="text-[#1F2937] mb-2 block">Account Name *</Label>
               <Input
                 type="text"
-                value={formData.accountName}
-                onChange={(e) => handleInputChange("accountName", e.target.value)}
+                value={formData.account_name}
+                onChange={(e) => handleInputChange("account_name", e.target.value)}
                 placeholder="e.g., Graceland Royal Academy Gombe"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
@@ -124,8 +143,8 @@ export function BankAccountSettingsPage() {
               <Label className="text-[#1F2937] mb-2 block">Account Number *</Label>
               <Input
                 type="text"
-                value={formData.accountNumber}
-                onChange={(e) => handleInputChange("accountNumber", e.target.value)}
+                value={formData.account_number}
+                onChange={(e) => handleInputChange("account_number", e.target.value)}
                 placeholder="e.g., 1234567890"
                 maxLength={10}
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
@@ -139,7 +158,7 @@ export function BankAccountSettingsPage() {
         <CardHeader className="p-6 border-b border-[#E5E7EB]">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-[#F4B400]/10 flex items-center justify-center">
-              <CreditCard className="w-6 h-6 text-[#F4B400]" />
+              <span className="w-6 h-6 text-[#F4B400]" />
             </div>
             <div>
               <CardTitle className="text-[#1F2937]">Payment Methods</CardTitle>
@@ -153,8 +172,8 @@ export function BankAccountSettingsPage() {
               <div className="flex items-center gap-3">
                 <Checkbox
                   id="bankTransfer"
-                  checked={formData.paymentMethods.bankTransfer}
-                  onCheckedChange={(checked) => handlePaymentMethodChange("bankTransfer", checked as boolean)}
+                  checked={formData.payment_methods.bank_transfer}
+                  onCheckedChange={(checked: boolean) => handlePaymentMethodChange("bank_transfer", checked)}
                 />
                 <Label htmlFor="bankTransfer" className="text-[#1F2937] cursor-pointer">
                   Bank Transfer
@@ -167,8 +186,8 @@ export function BankAccountSettingsPage() {
               <div className="flex items-center gap-3">
                 <Checkbox
                   id="onlinePayment"
-                  checked={formData.paymentMethods.onlinePayment}
-                  onCheckedChange={(checked) => handlePaymentMethodChange("onlinePayment", checked as boolean)}
+                  checked={formData.payment_methods.online_payment}
+                  onCheckedChange={(checked: boolean) => handlePaymentMethodChange("online_payment", checked)}
                 />
                 <Label htmlFor="onlinePayment" className="text-[#1F2937] cursor-pointer">
                   Online Payment Gateway
@@ -181,8 +200,8 @@ export function BankAccountSettingsPage() {
               <div className="flex items-center gap-3">
                 <Checkbox
                   id="cash"
-                  checked={formData.paymentMethods.cash}
-                  onCheckedChange={(checked) => handlePaymentMethodChange("cash", checked as boolean)}
+                  checked={formData.payment_methods.cash}
+                  onCheckedChange={(checked: boolean) => handlePaymentMethodChange("cash", checked)}
                 />
                 <Label htmlFor="cash" className="text-[#1F2937] cursor-pointer">
                   Cash Payment
@@ -203,26 +222,26 @@ export function BankAccountSettingsPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div className="p-4 bg-[#F9FAFB] rounded-lg">
                 <p className="text-sm text-[#6B7280] mb-1">Bank Name</p>
-                <p className="text-[#1F2937]">{bankAccountSettings.bankName}</p>
+                <p className="text-[#1F2937]">{bankAccountSettings.bank_name}</p>
               </div>
               <div className="p-4 bg-[#F9FAFB] rounded-lg">
                 <p className="text-sm text-[#6B7280] mb-1">Account Number</p>
-                <p className="text-[#1F2937]">{bankAccountSettings.accountNumber}</p>
+                <p className="text-[#1F2937]">{bankAccountSettings.account_number}</p>
               </div>
               <div className="p-4 bg-[#F9FAFB] rounded-lg md:col-span-2">
                 <p className="text-sm text-[#6B7280] mb-1">Account Name</p>
-                <p className="text-[#1F2937]">{bankAccountSettings.accountName}</p>
+                <p className="text-[#1F2937]">{bankAccountSettings.account_name}</p>
               </div>
               <div className="p-4 bg-[#F9FAFB] rounded-lg md:col-span-2">
                 <p className="text-sm text-[#6B7280] mb-2">Active Payment Methods</p>
                 <div className="flex gap-2">
-                  {bankAccountSettings.paymentMethods.bankTransfer && (
+                  {bankAccountSettings.payment_methods?.bank_transfer && (
                     <span className="px-3 py-1 bg-[#007C91] text-white text-sm rounded-full">Bank Transfer</span>
                   )}
-                  {bankAccountSettings.paymentMethods.onlinePayment && (
+                  {bankAccountSettings.payment_methods?.online_payment && (
                     <span className="px-3 py-1 bg-[#007C91] text-white text-sm rounded-full">Online Payment</span>
                   )}
-                  {bankAccountSettings.paymentMethods.cash && (
+                  {bankAccountSettings.payment_methods?.cash && (
                     <span className="px-3 py-1 bg-[#007C91] text-white text-sm rounded-full">Cash</span>
                   )}
                 </div>
@@ -235,10 +254,11 @@ export function BankAccountSettingsPage() {
       <div className="flex justify-end">
         <Button
           onClick={handleSave}
+          disabled={isLoading}
           className="bg-[#007C91] hover:bg-[#006073] text-white rounded-xl shadow-clinical hover:shadow-clinical-lg transition-all"
         >
-          <Save className="w-4 h-4 mr-2" />
-          Save Settings
+          <span className="w-4 h-4 mr-2" />
+          {isLoading ? "Saving..." : "Save Settings"}
         </Button>
       </div>
     </div>

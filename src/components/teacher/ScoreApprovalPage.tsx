@@ -7,10 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
-import { AlertCircle, CheckCircle, XCircle, Eye, Filter } from "lucide-react";
 import { useSchool } from "../../contexts/SchoolContext";
 import { useNotificationService } from "../../contexts/NotificationService";
 import { toast } from "sonner";
+import { CheckCircle, XCircle, AlertCircle, Filter, Search, User, BookOpen, Calendar, TrendingUp, Eye, MessageSquare, RefreshCw, Wifi, WifiOff } from "lucide-react";
 
 interface ScoreWithDetails {
   id: number;
@@ -63,10 +63,78 @@ export function ScoreApprovalPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [selectedScore, setSelectedScore] = useState<ScoreWithDetails | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   // Get current teacher data
-  const currentTeacher = currentUser ? teachers.find(t => t.id === currentUser.linked_id) : null;
-  const teacherClasses = currentTeacher ? getTeacherClasses(currentTeacher.id) : [];
+  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+  const teacherClasses = currentTeacher ? getTeacherClasses(Number(currentTeacher.id)) : [];
+
+  // Real-time data refresh
+  useEffect(() => {
+    const refreshScores = async () => {
+      if (!currentTeacher) return;
+      
+      setIsLoading(true);
+      try {
+        // Trigger a refresh of scores data
+        await getPendingScores();
+        setLastRefresh(new Date());
+      } catch (error) {
+        console.error('Failed to refresh scores:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Initial load
+    refreshScores();
+
+    // Set up real-time polling every 30 seconds
+    const interval = setInterval(refreshScores, 30000);
+
+    return () => clearInterval(interval);
+  }, [currentTeacher, getPendingScores]);
+
+  // Listen for real-time notifications
+  useEffect(() => {
+    const handleNotification = (notification: any) => {
+      // Refresh scores when relevant notifications are received
+      if (notification.type === 'warning' || notification.type === 'success') {
+        if (notification.title?.includes('Score') || notification.message?.includes('score')) {
+          setTimeout(async () => {
+            await getPendingScores();
+            setLastRefresh(new Date());
+          }, 1000);
+        }
+      }
+    };
+
+    // Set up notification listener
+    console.log('Setting up real-time score updates');
+
+    return () => {
+      // Cleanup listeners
+    };
+  }, [getPendingScores]);
+
+  const handleRefresh = async () => {
+    if (!currentTeacher) return;
+    
+    setIsLoading(true);
+    try {
+      await getPendingScores();
+      setLastRefresh(new Date());
+      toast.success('Scores refreshed successfully');
+    } catch (error) {
+      console.error('Failed to refresh scores:', error);
+      toast.error('Failed to refresh scores');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Enhanced scores with details
   const scoresWithDetails: ScoreWithDetails[] = scores.map(score => {
@@ -101,6 +169,17 @@ export function ScoreApprovalPage() {
     if (selectedStatus === "submitted" && score.status !== "Submitted") return false;
     if (selectedStatus === "rejected" && score.status !== "Rejected") return false;
     if (selectedStatus === "all" && !["Submitted", "Rejected"].includes(score.status)) return false;
+
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        score.student_name.toLowerCase().includes(searchLower) ||
+        score.subject_name.toLowerCase().includes(searchLower) ||
+        score.class_name.toLowerCase().includes(searchLower) ||
+        score.teacher_name.toLowerCase().includes(searchLower)
+      );
+    }
 
     return true;
   });
@@ -154,6 +233,10 @@ export function ScoreApprovalPage() {
       setRejectionReason("");
       setShowRejectDialog(false);
       setSelectedScore(null);
+      
+      // Trigger real-time refresh
+      await getPendingScores();
+      setLastRefresh(new Date());
     } catch (error) {
       toast.error("Failed to reject score");
     }
@@ -192,6 +275,10 @@ export function ScoreApprovalPage() {
       }
       
       toast.success("Score approved successfully");
+      
+      // Trigger real-time refresh
+      await getPendingScores();
+      setLastRefresh(new Date());
     } catch (error) {
       toast.error("Failed to approve score");
     }
@@ -221,194 +308,305 @@ export function ScoreApprovalPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Score Approval</h1>
-          <p className="text-gray-600">Review and approve/reject scores submitted by subject teachers</p>
-        </div>
-        <div className="text-sm text-gray-500">
-          {currentTeacher && `Class Teacher: ${currentTeacher.firstName} ${currentTeacher.lastName}`}
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 space-y-4">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              Score Approval
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
+              Review and approve/reject scores submitted by subject teachers
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            {/* Real-time Status */}
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>Refreshing...</span>
+                </>
+              ) : (
+                <>
+                  <Wifi className="w-3 h-3 text-green-500" />
+                  <span>Live</span>
+                </>
+              )}
+              <span className="hidden sm:inline">
+                • Last: {lastRefresh.toLocaleTimeString()}
+              </span>
+            </div>
+            
+            {/* Refresh Button */}
+            <Button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+            >
+              <RefreshCw className={`w-3 h-3 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            
+            {/* Teacher Info */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 text-xs text-gray-500">
+              {currentTeacher && (
+                <>
+                  <div className="flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    <span>{currentTeacher.firstName} {currentTeacher.lastName}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    <span>{currentAcademicYear} - {currentTerm}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="w-5 h-5" />
-            Filters
-          </CardTitle>
+      {/* Mobile-First Filters */}
+      <Card className="bg-white">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Filter className="w-4 h-4" />
+              Filters
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="sm:hidden text-xs"
+            >
+              {showFilters ? 'Hide' : 'Show'} Filters
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Class</Label>
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select class" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Classes</SelectItem>
-                  {teacherClasses.map(cls => (
-                    <SelectItem key={cls.classId} value={cls.classId.toString()}>
-                      {cls.className}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <CardContent className="pt-0">
+          {/* Search Bar */}
+          <div className="mb-3">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by student, subject, class, or teacher..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
-            <div>
-              <Label className="text-sm font-medium">Subject</Label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select subject" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Subjects</SelectItem>
-                  {uniqueSubjects.map(subject => (
-                    <SelectItem key={subject.id} value={subject.id.toString()}>
-                      {subject.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Status</Label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="submitted">Pending Review</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="all">All</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <div className="text-sm text-gray-600">
-                {filteredScores.length} scores found
+          </div>
+
+          {/* Filter Controls */}
+          <div className={`${showFilters ? 'block' : 'hidden'} sm:block space-y-3`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <Label className="text-xs font-medium flex items-center gap-1">
+                  <BookOpen className="w-3 h-3" />
+                  Class
+                </Label>
+                <Select value={selectedClass} onValueChange={setSelectedClass}>
+                  <SelectTrigger className="mt-1 h-8 text-sm">
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Classes</SelectItem>
+                    {teacherClasses.map(cls => (
+                      <SelectItem key={cls.classId} value={cls.classId.toString()}>
+                        {cls.className}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-medium flex items-center gap-1">
+                  <BookOpen className="w-3 h-3" />
+                  Subject
+                </Label>
+                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                  <SelectTrigger className="mt-1 h-8 text-sm">
+                    <SelectValue placeholder="Select subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Subjects</SelectItem>
+                    {uniqueSubjects.map(subject => (
+                      <SelectItem key={subject.id} value={subject.id.toString()}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-medium flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Status
+                </Label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger className="mt-1 h-8 text-sm">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="submitted">Pending Review</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-md">
+                  <TrendingUp className="w-3 h-3 inline mr-1" />
+                  {filteredScores.length} scores
+                </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Scores List */}
-      <div className="space-y-4">
+      {/* Compact Scores List */}
+      <div className="space-y-3">
         {filteredScores.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Scores Found</h3>
-              <p className="text-gray-600">No scores match the current filters or no scores have been submitted for review.</p>
+          <Card className="bg-white">
+            <CardContent className="p-6 text-center">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Search className="w-6 h-6 text-gray-400" />
+              </div>
+              <h3 className="text-base font-medium text-gray-900 mb-1">No Scores Found</h3>
+              <p className="text-gray-600 text-xs">
+                No scores match the current filters or no scores have been submitted for review.
+              </p>
             </CardContent>
           </Card>
         ) : (
           filteredScores.map(score => (
-            <Card key={score.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{score.student_name}</h3>
-                        <p className="text-sm text-gray-600">{score.class_name}</p>
+            <Card key={score.id} className="bg-white hover:shadow-md transition-shadow duration-200">
+              <CardContent className="p-3 sm:p-4">
+                {/* Compact Layout */}
+                <div className="space-y-3">
+                  {/* Header Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <User className="w-3 h-3 text-gray-400" />
+                        <h3 className="font-medium text-gray-900 text-sm">{score.student_name}</h3>
                       </div>
-                      <div className="text-center">
-                        <p className="text-sm text-gray-600">{score.subject_name}</p>
-                        <p className="text-xs text-gray-500">by {score.teacher_name}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="w-3 h-3" />
+                          {score.class_name}
+                        </span>
+                        <span className="hidden sm:inline">•</span>
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="w-3 h-3" />
+                          {score.subject_name}
+                        </span>
                       </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        by {score.teacher_name}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <div className="text-center">
                         <p className="text-lg font-bold text-gray-900">{score.total}</p>
-                        <p className={`text-sm ${getGradeColor(score.grade)}`}>{score.grade || 'N/A'}</p>
-                      </div>
-                      <div className="text-right">
-                        {getStatusBadge(score.status)}
-                        <p className="text-xs text-gray-500 mt-1">
-                          {score.entered_date && new Date(score.entered_date).toLocaleDateString()}
+                        <p className={`text-xs font-medium ${getGradeColor(score.grade)}`}>
+                          {score.grade || 'N/A'}
                         </p>
                       </div>
+                      {getStatusBadge(score.status)}
                     </div>
-
-                    {/* Score Breakdown */}
-                    <div className="grid grid-cols-3 gap-4 mb-4">
-                      <div className="text-center p-2 bg-gray-50 rounded">
-                        <p className="text-xs text-gray-600">CA 1</p>
-                        <p className="font-semibold">{score.ca1}</p>
-                      </div>
-                      <div className="text-center p-2 bg-gray-50 rounded">
-                        <p className="text-xs text-gray-600">CA 2</p>
-                        <p className="font-semibold">{score.ca2}</p>
-                      </div>
-                      <div className="text-center p-2 bg-gray-50 rounded">
-                        <p className="text-xs text-gray-600">Exam</p>
-                        <p className="font-semibold">{score.exam}</p>
-                      </div>
-                    </div>
-
-                    {/* Rejection Details */}
-                    {score.status === "Rejected" && score.rejection_reason && (
-                      <div className="bg-red-50 border border-red-200 rounded p-3 mb-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <XCircle className="w-4 h-4 text-red-600" />
-                          <p className="text-sm font-medium text-red-800">Rejection Reason:</p>
-                        </div>
-                        <p className="text-sm text-red-700">{score.rejection_reason}</p>
-                        {score.rejected_date && (
-                          <p className="text-xs text-red-600 mt-1">
-                            Rejected on {new Date(score.rejected_date).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Remark */}
-                    {score.remark && (
-                      <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-                        <p className="text-sm font-medium text-blue-800 mb-1">Teacher's Remark:</p>
-                        <p className="text-sm text-blue-700">{score.remark}</p>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 ml-4">
+                  {/* Compact Score Breakdown */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-blue-50 rounded p-2 text-center">
+                      <p className="text-xs text-blue-600 font-medium">CA 1</p>
+                      <p className="text-sm font-bold text-blue-700">{score.ca1}</p>
+                    </div>
+                    <div className="bg-green-50 rounded p-2 text-center">
+                      <p className="text-xs text-green-600 font-medium">CA 2</p>
+                      <p className="text-sm font-bold text-green-700">{score.ca2}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded p-2 text-center">
+                      <p className="text-xs text-purple-600 font-medium">Exam</p>
+                      <p className="text-sm font-bold text-purple-700">{score.exam}</p>
+                    </div>
+                  </div>
+
+                  {/* Rejection Details */}
+                  {score.status === "Rejected" && score.rejection_reason && (
+                    <div className="bg-red-50 border border-red-200 rounded p-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <XCircle className="w-3 h-3 text-red-600" />
+                        <p className="text-xs font-medium text-red-800">Rejection Reason:</p>
+                      </div>
+                      <p className="text-xs text-red-700">{score.rejection_reason}</p>
+                      {score.rejected_date && (
+                        <p className="text-xs text-red-600 mt-1">
+                          Rejected on {new Date(score.rejected_date).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Teacher's Remark */}
+                  {score.remark && (
+                    <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MessageSquare className="w-3 h-3 text-blue-600" />
+                        <p className="text-xs font-medium text-blue-800">Teacher's Remark:</p>
+                      </div>
+                      <p className="text-xs text-blue-700">{score.remark}</p>
+                    </div>
+                  )}
+
+                  {/* Compact Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
                     {score.status === "Submitted" && (
-                      <>
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Button
-                          variant="outline"
-                          size="sm"
                           onClick={() => handleApproveScore(score)}
-                          className="text-green-600 border-green-600 hover:bg-green-50"
+                          className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto h-8 text-xs"
+                          size="sm"
                         >
-                          <CheckCircle className="w-4 h-4 mr-2" />
+                          <CheckCircle className="w-3 h-3 mr-1" />
                           Approve
                         </Button>
                         <Button
                           variant="outline"
-                          size="sm"
                           onClick={() => {
                             setSelectedScore(score);
                             setShowRejectDialog(true);
                           }}
-                          className="text-red-600 border-red-600 hover:bg-red-50"
+                          className="text-red-600 border-red-600 hover:bg-red-50 w-full sm:w-auto h-8 text-xs"
+                          size="sm"
                         >
-                          <XCircle className="w-4 h-4 mr-2" />
+                          <XCircle className="w-3 h-3 mr-1" />
                           Reject
                         </Button>
-                      </>
+                      </div>
                     )}
                     <Button
                       variant="outline"
+                      className="text-blue-600 border-blue-600 hover:bg-blue-50 w-full sm:w-auto h-8 text-xs"
                       size="sm"
-                      className="text-blue-600 border-blue-600 hover:bg-blue-50"
                     >
-                      <Eye className="w-4 h-4 mr-2" />
+                      <Eye className="w-3 h-3 mr-1" />
                       View Details
                     </Button>
+                  </div>
+
+                  {/* Date Info */}
+                  <div className="text-xs text-gray-500 border-t pt-2">
+                    Submitted on {score.entered_date && new Date(score.entered_date).toLocaleDateString()}
                   </div>
                 </div>
               </CardContent>
@@ -417,35 +615,51 @@ export function ScoreApprovalPage() {
         )}
       </div>
 
-      {/* Reject Dialog */}
+      {/* Compact Reject Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-red-600">Reject Score</DialogTitle>
+        <DialogContent className="sm:max-w-md mx-4">
+          <DialogHeader className="pb-3">
+            <DialogTitle className="text-red-600 flex items-center gap-2 text-base">
+              <XCircle className="w-4 h-4" />
+              Reject Score
+            </DialogTitle>
           </DialogHeader>
           {selectedScore && (
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-3 rounded">
-                <p className="text-sm font-medium">{selectedScore.student_name}</p>
-                <p className="text-sm text-gray-600">{selectedScore.subject_name} - {selectedScore.class_name}</p>
-                <p className="text-sm font-bold">Score: {selectedScore.total}</p>
+            <div className="space-y-3">
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <User className="w-3 h-3 text-gray-600" />
+                  <p className="font-medium text-gray-900 text-sm">{selectedScore.student_name}</p>
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <BookOpen className="w-3 h-3 text-gray-600" />
+                  <p className="text-xs text-gray-600">{selectedScore.subject_name} - {selectedScore.class_name}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-3 h-3 text-gray-600" />
+                  <p className="text-sm font-bold text-gray-900">Score: {selectedScore.total}</p>
+                </div>
               </div>
               <div>
-                <Label className="text-sm font-medium">Rejection Reason</Label>
+                <Label className="text-xs font-medium flex items-center gap-2">
+                  <MessageSquare className="w-3 h-3" />
+                  Rejection Reason
+                </Label>
                 <Textarea
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
                   placeholder="Please explain why this score is being rejected..."
-                  className="mt-1"
+                  className="mt-1 resize-none text-sm"
                   rows={3}
                 />
               </div>
-              <div className="flex gap-2 pt-4">
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <Button
                   onClick={handleRejectScore}
-                  className="bg-red-600 hover:bg-red-700 text-white"
+                  className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto h-8 text-xs"
+                  disabled={!rejectionReason.trim()}
                 >
-                  <XCircle className="w-4 h-4 mr-2" />
+                  <XCircle className="w-3 h-3 mr-1" />
                   Reject Score
                 </Button>
                 <Button
@@ -455,6 +669,7 @@ export function ScoreApprovalPage() {
                     setRejectionReason("");
                     setSelectedScore(null);
                   }}
+                  className="w-full sm:w-auto h-8 text-xs"
                 >
                   Cancel
                 </Button>

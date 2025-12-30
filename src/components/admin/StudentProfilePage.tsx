@@ -1,5 +1,5 @@
+import { Book, BookOpen } from 'lucide-react';
 import { useState } from "react";
-import { User, Mail, Phone, Calendar, MapPin, BookOpen, DollarSign, Activity, FileText, Edit, Trash2, Award } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -75,7 +75,7 @@ export function StudentProfilePage() {
           {!selectedStudent ? (
             <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
               <CardContent className="p-12 text-center">
-                <User className="w-16 h-16 text-[#9CA3AF] mx-auto mb-4" />
+                <span className="w-16 h-16 text-[#9CA3AF] mx-auto mb-4" />
                 <p className="text-[#6B7280]">Select a student to view profile</p>
               </CardContent>
             </Card>
@@ -101,11 +101,11 @@ export function StudentProfilePage() {
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" className="rounded-lg">
-                        <Edit className="w-4 h-4 mr-1" />
+                        <span className="w-4 h-4 mr-1" />
                         Edit
                       </Button>
                       <Button variant="destructive" size="sm" className="rounded-lg">
-                        <Trash2 className="w-4 h-4 mr-1" />
+                        <span className="w-4 h-4 mr-1" />
                         Delete
                       </Button>
                     </div>
@@ -161,14 +161,14 @@ export function StudentProfilePage() {
                     <TabsContent value="personal" className="space-y-4 mt-0">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex items-start gap-3">
-                          <Calendar className="w-5 h-5 text-[#6B7280] mt-1" />
+                          <span className="w-5 h-5 text-[#6B7280] mt-1" />
                           <div>
                             <p className="text-sm text-[#6B7280]">Date of Birth</p>
                             <p className="text-[#1F2937] font-medium">{selectedStudent.dateOfBirth}</p>
                           </div>
                         </div>
                         <div className="flex items-start gap-3">
-                          <User className="w-5 h-5 text-[#6B7280] mt-1" />
+                          <span className="w-5 h-5 text-[#6B7280] mt-1" />
                           <div>
                             <p className="text-sm text-[#6B7280]">Gender</p>
                             <p className="text-[#1F2937] font-medium">{selectedStudent.gender}</p>
@@ -182,7 +182,7 @@ export function StudentProfilePage() {
                           </div>
                         </div>
                         <div className="flex items-start gap-3">
-                          <FileText className="w-5 h-5 text-[#6B7280] mt-1" />
+                          <span className="w-5 h-5 text-[#6B7280] mt-1" />
                           <div>
                             <p className="text-sm text-[#6B7280]">Academic Year</p>
                             <p className="text-[#1F2937] font-medium">{selectedStudent.academicYear}</p>
@@ -262,7 +262,7 @@ export function StudentProfilePage() {
                       ) : (
                         <div className="space-y-4">
                           <div className="flex items-start gap-3">
-                            <User className="w-5 h-5 text-[#6B7280] mt-1" />
+                            <span className="w-5 h-5 text-[#6B7280] mt-1" />
                             <div>
                               <p className="text-sm text-[#6B7280]">Parent Name</p>
                               <p className="text-[#1F2937] font-medium">
@@ -271,14 +271,14 @@ export function StudentProfilePage() {
                             </div>
                           </div>
                           <div className="flex items-start gap-3">
-                            <Mail className="w-5 h-5 text-[#6B7280] mt-1" />
+                            <span className="w-5 h-5 text-[#6B7280] mt-1" />
                             <div>
                               <p className="text-sm text-[#6B7280]">Email</p>
                               <p className="text-[#1F2937] font-medium">{studentParent.email}</p>
                             </div>
                           </div>
                           <div className="flex items-start gap-3">
-                            <Phone className="w-5 h-5 text-[#6B7280] mt-1" />
+                            <span className="w-5 h-5 text-[#6B7280] mt-1" />
                             <div>
                               <p className="text-sm text-[#6B7280]">Phone</p>
                               <p className="text-[#1F2937] font-medium">{studentParent.phone}</p>

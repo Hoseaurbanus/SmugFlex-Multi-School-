@@ -1,4 +1,3 @@
-import { ArrowLeft, Calendar, User, Tag } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -119,11 +118,11 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
                       {item.category}
                     </Badge>
                     <span className="text-xs text-gray-500 flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
+                      <span className="h-3 w-3" />
                       {item.date}
                     </span>
                     <span className="text-xs text-gray-500 flex items-center gap-1">
-                      <User className="h-3 w-3" />
+                      <span className="h-3 w-3" />
                       {item.author}
                     </span>
                   </div>
@@ -189,7 +188,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
             <Card className="rounded-xl border-none shadow-md">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
+                  <span className="h-5 w-5" />
                   Upcoming Events
                 </CardTitle>
               </CardHeader>

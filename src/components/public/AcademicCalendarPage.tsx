@@ -1,4 +1,3 @@
-import { ArrowLeft, Calendar, Download, Clock } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -96,7 +95,7 @@ export function AcademicCalendarPage({ onBack }: AcademicCalendarPageProps) {
             <div className="grid md:grid-cols-3 gap-6">
               <div className="text-center">
                 <div className="bg-blue-100 p-4 rounded-lg mb-3">
-                  <Calendar className="h-8 w-8 text-[#2563EB] mx-auto" />
+                  <span className="h-8 w-8 text-[#2563EB] mx-auto" />
                 </div>
                 <h3 className="mb-1">First Term</h3>
                 <p className="text-sm text-gray-600">Sept 15 - Dec 20, 2025</p>
@@ -105,7 +104,7 @@ export function AcademicCalendarPage({ onBack }: AcademicCalendarPageProps) {
 
               <div className="text-center">
                 <div className="bg-green-100 p-4 rounded-lg mb-3">
-                  <Calendar className="h-8 w-8 text-[#10B981] mx-auto" />
+                  <span className="h-8 w-8 text-[#10B981] mx-auto" />
                 </div>
                 <h3 className="mb-1">Second Term</h3>
                 <p className="text-sm text-gray-600">Jan 8 - Apr 3, 2026</p>
@@ -114,7 +113,7 @@ export function AcademicCalendarPage({ onBack }: AcademicCalendarPageProps) {
 
               <div className="text-center">
                 <div className="bg-purple-100 p-4 rounded-lg mb-3">
-                  <Calendar className="h-8 w-8 text-purple-600 mx-auto" />
+                  <span className="h-8 w-8 text-purple-600 mx-auto" />
                 </div>
                 <h3 className="mb-1">Third Term</h3>
                 <p className="text-sm text-gray-600">Apr 23 - Jul 15, 2026</p>
@@ -158,7 +157,7 @@ export function AcademicCalendarPage({ onBack }: AcademicCalendarPageProps) {
                 <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-lg transition-colors">
                   <div className="min-w-[120px]">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="h-3 w-3" />
+                      <span className="h-3 w-3" />
                       {item.date}
                     </div>
                   </div>
@@ -191,7 +190,7 @@ export function AcademicCalendarPage({ onBack }: AcademicCalendarPageProps) {
                 <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-lg transition-colors">
                   <div className="min-w-[120px]">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="h-3 w-3" />
+                      <span className="h-3 w-3" />
                       {item.date}
                     </div>
                   </div>
@@ -224,7 +223,7 @@ export function AcademicCalendarPage({ onBack }: AcademicCalendarPageProps) {
                 <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-lg transition-colors">
                   <div className="min-w-[120px]">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="h-3 w-3" />
+                      <span className="h-3 w-3" />
                       {item.date}
                     </div>
                   </div>
@@ -257,13 +256,6 @@ export function AcademicCalendarPage({ onBack }: AcademicCalendarPageProps) {
           </CardContent>
         </Card>
 
-        {/* Download Button */}
-        <div className="flex justify-center">
-          <Button className="bg-[#2563EB] hover:bg-[#1d4ed8]">
-            <Download className="mr-2 h-4 w-4" />
-            Download Academic Calendar PDF
-          </Button>
-        </div>
       </div>
     </div>
   );

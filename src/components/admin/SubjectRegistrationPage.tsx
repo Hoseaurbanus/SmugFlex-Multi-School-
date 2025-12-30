@@ -1,8 +1,5 @@
+import { Book, BookOpen, Check } from 'lucide-react';
 import { useState, useEffect } from "react";
-import { 
-  Plus, Search, Users, BookOpen, User, Calendar, Check, X, Save, AlertCircle, 
-  GraduationCap, UserCheck, Settings, Filter, RefreshCw, Trash2, Edit
-} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -15,39 +12,7 @@ import { Checkbox } from "../ui/checkbox";
 import { Alert, AlertDescription } from "../ui/alert";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
-
-interface SubjectRegistration {
-  id: number;
-  subject_id: number;
-  class_id: number;
-  academic_year: string;
-  term: string;
-  is_compulsory: boolean;
-  status: string;
-  subject_name: string;
-  subject_code: string;
-  subject_category: string;
-  class_name: string;
-  class_level: string;
-}
-
-interface SubjectAssignment {
-  id: number;
-  subject_id: number;
-  class_id: number;
-  teacher_id: number;
-  academic_year: string;
-  term: string;
-  status: string;
-  subject_name: string;
-  subject_code: string;
-  subject_category: string;
-  class_name: string;
-  class_level: string;
-  teacher_first_name: string;
-  teacher_last_name: string;
-  teacher_employee_id: string;
-}
+import { SubjectRegistration, SubjectAssignment } from "../../contexts/SchoolContext";
 
 export function SubjectRegistrationPage() {
   const { 
@@ -60,8 +25,8 @@ export function SubjectRegistrationPage() {
     subjectAssignments,
     registerSubjectForClass,
     removeSubjectRegistration,
-    assignTeacherToSubject,
-    removeTeacherAssignment
+    assignSubjectToTeacher,
+    removeSubjectAssignment
   } = useSchool();
 
   const [activeTab, setActiveTab] = useState<"registration" | "assignment">("registration");
@@ -122,17 +87,17 @@ export function SubjectRegistrationPage() {
       if (activeTab === "registration") {
         // Filter subject registrations from context data
         const data = subjectRegistrations.filter(reg => 
-          (!selectedClass || selectedClass === 'all' || reg.classId === selectedClass) &&
-          reg.academicYear === academicYear &&
+          (!selectedClass || (typeof selectedClass === 'string' && selectedClass === 'all') || reg.class_id === selectedClass) &&
+          reg.academic_year === academicYear &&
           reg.term === term
         );
         setRegistrations(data);
       } else {
         // Filter subject assignments from context data
         const data = subjectAssignments.filter(assignment => 
-          (!selectedClass || selectedClass === 'all' || assignment.classId === selectedClass) &&
-          (!selectedTeacher || selectedTeacher === 'all' || assignment.teacherId === selectedTeacher) &&
-          assignment.academicYear === academicYear &&
+          (!selectedClass || (typeof selectedClass === 'string' && selectedClass === 'all') || assignment.class_id === selectedClass) &&
+          (!selectedTeacher || (typeof selectedTeacher === 'string' && selectedTeacher === 'all') || assignment.teacher_id === selectedTeacher) &&
+          assignment.academic_year === academicYear &&
           assignment.term === term
         );
         setAssignments(data);
@@ -148,8 +113,8 @@ export function SubjectRegistrationPage() {
     try {
       // Get subjects not already registered for this class
       const registeredSubjectIds = subjectRegistrations
-        .filter(reg => reg.classId === classId && reg.academicYear === academicYear && reg.term === term)
-        .map(reg => reg.subjectId);
+        .filter(reg => reg.class_id === classId && reg.academic_year === academicYear && reg.term === term)
+        .map(reg => reg.subject_id);
       
       const available = subjects.filter(subject => 
         !registeredSubjectIds.includes(subject.id)
@@ -202,7 +167,7 @@ export function SubjectRegistrationPage() {
     }
 
     try {
-      const success = await assignTeacherToSubject(
+      const success = await assignSubjectToTeacher(
         assignmentForm.subject_id,
         assignmentForm.class_id,
         assignmentForm.teacher_id,
@@ -241,7 +206,7 @@ export function SubjectRegistrationPage() {
 
   const handleRemoveAssignment = async (assignment: SubjectAssignment) => {
     try {
-      const success = await removeTeacherAssignment(
+      const success = await removeSubjectAssignment(
         assignment.subject_id,
         assignment.class_id,
         assignment.teacher_id,
@@ -259,14 +224,14 @@ export function SubjectRegistrationPage() {
   };
 
   const filteredRegistrations = registrations.filter(reg => 
-    reg.subject_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    reg.class_name.toLowerCase().includes(searchQuery.toLowerCase())
+    (reg.subject_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (reg.class_name || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredAssignments = assignments.filter(assignment => 
-    assignment.subject_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    assignment.class_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    `${assignment.teacher_first_name} ${assignment.teacher_last_name}`.toLowerCase().includes(searchQuery.toLowerCase())
+    (assignment.subject_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (assignment.class_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (assignment.teacher_name || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -304,7 +269,7 @@ export function SubjectRegistrationPage() {
           onClick={() => setActiveTab("assignment")}
           className="flex items-center gap-2"
         >
-          <UserCheck className="w-4 h-4" />
+          <Check className="w-4 h-4" />
           Teacher Assignment
         </Button>
       </div>
@@ -313,7 +278,7 @@ export function SubjectRegistrationPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            <Filter className="w-5 h-5" />
+            <span className="w-5 h-5" />
             Filters
           </CardTitle>
         </CardHeader>
@@ -322,7 +287,7 @@ export function SubjectRegistrationPage() {
             <div>
               <Label>Search</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   placeholder="Search subjects, classes, teachers..."
                   value={searchQuery}
@@ -358,7 +323,7 @@ export function SubjectRegistrationPage() {
                     <SelectItem value="all">All Teachers</SelectItem>
                     {teachers.map(teacher => (
                       <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                        {teacher.first_name} {teacher.last_name}
+                        {teacher.firstName} {teacher.lastName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -367,7 +332,7 @@ export function SubjectRegistrationPage() {
             )}
             <div className="flex items-end">
               <Button onClick={loadData} disabled={loading} variant="outline">
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                <span className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
@@ -384,7 +349,7 @@ export function SubjectRegistrationPage() {
               Subject Registration
             </CardTitle>
             <Button onClick={() => setRegistrationDialogOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Register Subject
             </Button>
           </CardHeader>
@@ -405,7 +370,7 @@ export function SubjectRegistrationPage() {
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <div className="flex items-center justify-center">
-                        <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                        <span className="w-6 h-6 animate-spin mr-2" />
                         Loading...
                       </div>
                     </TableCell>
@@ -421,18 +386,18 @@ export function SubjectRegistrationPage() {
                     <TableRow key={registration.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{registration.subject_name}</div>
-                          <div className="text-sm text-gray-500">{registration.subject_code}</div>
+                          <div className="font-medium">{registration.subject_name || 'No subject'}</div>
+                          <div className="text-sm text-gray-500">{registration.subject_code || 'No code'}</div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{registration.class_name}</div>
-                          <div className="text-sm text-gray-500">{registration.class_level}</div>
+                          <div className="font-medium">{registration.class_name || 'No class'}</div>
+                          <div className="text-sm text-gray-500">{registration.class_level || 'No level'}</div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{registration.subject_category}</Badge>
+                        <Badge variant="outline">{registration.subject_category || 'No category'}</Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant={registration.is_compulsory ? "default" : "secondary"}>
@@ -454,14 +419,14 @@ export function SubjectRegistrationPage() {
                               setEditDialogOpen(true);
                             }}
                           >
-                            <Edit className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="destructive"
                             onClick={() => handleRemoveRegistration(registration)}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -479,11 +444,11 @@ export function SubjectRegistrationPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
-              <UserCheck className="w-5 h-5" />
+              <Check className="w-5 h-5" />
               Teacher Assignment
             </CardTitle>
             <Button onClick={() => setAssignmentDialogOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Assign Subject
             </Button>
           </CardHeader>
@@ -504,7 +469,7 @@ export function SubjectRegistrationPage() {
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <div className="flex items-center justify-center">
-                        <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                        <span className="w-6 h-6 animate-spin mr-2" />
                         Loading...
                       </div>
                     </TableCell>
@@ -520,26 +485,22 @@ export function SubjectRegistrationPage() {
                     <TableRow key={assignment.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{assignment.subject_name}</div>
-                          <div className="text-sm text-gray-500">{assignment.subject_code}</div>
+                          <div className="font-medium">{assignment.subject_name || 'No subject'}</div>
+                          <div className="text-sm text-gray-500">ID: {assignment.subject_id}</div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{assignment.class_name}</div>
-                          <div className="text-sm text-gray-500">{assignment.class_level}</div>
+                          <div className="font-medium">{assignment.class_name || 'No class'}</div>
+                          <div className="text-sm text-gray-500">ID: {assignment.class_id}</div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">
-                            {assignment.teacher_first_name} {assignment.teacher_last_name}
+                            {assignment.teacher_name || 'Unassigned'}
                           </div>
-                          <div className="text-sm text-gray-500">{assignment.teacher_employee_id}</div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{assignment.subject_category}</Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant={assignment.status === "Active" ? "default" : "destructive"}>
@@ -556,14 +517,14 @@ export function SubjectRegistrationPage() {
                               setEditAssignmentDialogOpen(true);
                             }}
                           >
-                            <Edit className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="destructive"
                             onClick={() => handleRemoveAssignment(assignment)}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -613,7 +574,6 @@ export function SubjectRegistrationPage() {
               <Select
                 value={registrationForm.subject_id.toString()}
                 onValueChange={(value) => setRegistrationForm(prev => ({ ...prev, subject_id: parseInt(value) }))}
-                disabled={!registrationForm.class_id}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select subject" />
@@ -685,13 +645,12 @@ export function SubjectRegistrationPage() {
               <Select
                 value={assignmentForm.subject_id.toString()}
                 onValueChange={(value) => {
-                  const subjectId = parseInt(value);
-                  setAssignmentForm(prev => ({ ...prev, subject_id: subjectId }));
-                  if (assignmentForm.class_id) {
-                    loadAvailableTeachers(subjectId, assignmentForm.class_id);
+                  setAssignmentForm(prev => ({ ...prev, subject_id: parseInt(value) }));
+                  // Load available teachers when subject changes
+                  if (value && assignmentForm.class_id) {
+                    loadAvailableTeachers(parseInt(value), assignmentForm.class_id);
                   }
                 }}
-                disabled={!assignmentForm.class_id}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select subject" />
@@ -710,7 +669,6 @@ export function SubjectRegistrationPage() {
               <Select
                 value={assignmentForm.teacher_id.toString()}
                 onValueChange={(value) => setAssignmentForm(prev => ({ ...prev, teacher_id: parseInt(value) }))}
-                disabled={!assignmentForm.subject_id || !assignmentForm.class_id}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select teacher" />
@@ -718,7 +676,7 @@ export function SubjectRegistrationPage() {
                 <SelectContent>
                   {availableTeachers.map(teacher => (
                     <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                      {teacher.first_name} {teacher.last_name}
+                      {teacher.firstName} {teacher.lastName}
                     </SelectItem>
                   ))}
                 </SelectContent>

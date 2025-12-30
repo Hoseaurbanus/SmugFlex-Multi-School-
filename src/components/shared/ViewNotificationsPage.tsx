@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Bell, MessageSquare, Calendar, User, Check, CheckCircle, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -7,8 +6,13 @@ import { useSchool } from '../../contexts/SchoolContext';
 import { toast } from 'sonner';
 
 export function ViewNotificationsPage() {
-  const { notifications, currentUser, markNotificationAsRead } = useSchool();
+  const { notifications, currentUser, markNotificationAsRead, deleteNotification, loadNotificationsFromAPI } = useSchool();
   const [selectedNotification, setSelectedNotification] = useState<any>(null);
+
+  // Load notifications when component mounts
+  useEffect(() => {
+    loadNotificationsFromAPI();
+  }, [loadNotificationsFromAPI]);
 
   // Filter notifications for the current user based on their role
   const userNotifications = notifications.filter(n => {
@@ -17,8 +21,6 @@ export function ViewNotificationsPage() {
     // Check if notification targets the user's role
     const targetsUser = 
       n.targetAudience === 'all' ||
-      n.targetAudience === currentUser.role ||
-      (currentUser.role === 'admin' && (n.targetAudience as any) === 'admin') ||
       (currentUser.role === 'accountant' && n.targetAudience === 'accountants') ||
       (currentUser.role === 'teacher' && n.targetAudience === 'teachers') ||
       (currentUser.role === 'parent' && n.targetAudience === 'parents');
@@ -39,7 +41,7 @@ export function ViewNotificationsPage() {
   // Mark notification as read
   const handleMarkAsRead = async (notificationId: number) => {
     try {
-      await markNotificationAsRead(notificationId, currentUser?.id || 0);
+      await markNotificationAsRead(notificationId);
       toast.success('Notification marked as read');
     } catch (error) {
       toast.error('Failed to mark notification as read');
@@ -50,20 +52,20 @@ export function ViewNotificationsPage() {
   const getNotificationBadge = (type: string, targetAudience: string) => {
     // Check if it's a parent message
     if ((type as any) === 'message' && (targetAudience as any) === 'admin') {
-      return <Badge className="bg-purple-100 text-purple-800 border-purple-300"><MessageSquare className="w-3 h-3 mr-1" />Parent Message</Badge>;
+      return <Badge className="bg-purple-100 text-purple-800 border-purple-300"><span className="w-3 h-3 mr-1" />Parent Message</Badge>;
     }
     
     switch (type) {
       case 'info':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300"><Bell className="w-3 h-3 mr-1" />Information</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300"><span className="w-3 h-3 mr-1" />Information</Badge>;
       case 'warning':
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300"><Bell className="w-3 h-3 mr-1" />Warning</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300"><span className="w-3 h-3 mr-1" />Warning</Badge>;
       case 'success':
-        return <Badge className="bg-green-100 text-green-800 border-green-300"><CheckCircle className="w-3 h-3 mr-1" />Success</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-300"><span className="w-3 h-3 mr-1" />Success</Badge>;
       case 'error':
-        return <Badge className="bg-red-100 text-red-800 border-red-300"><X className="w-3 h-3 mr-1" />Error</Badge>;
+        return <Badge className="bg-red-100 text-red-800 border-red-300"><span className="w-3 h-3 mr-1" />Error</Badge>;
       default:
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-300"><Bell className="w-3 h-3 mr-1" />Notification</Badge>;
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300"><span className="w-3 h-3 mr-1" />Notification</Badge>;
     }
   };
 
@@ -83,10 +85,10 @@ export function ViewNotificationsPage() {
   const unreadCount = userNotifications.filter(n => !isNotificationRead(n)).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="mb-6">
-        <h1 className="text-[#1F2937] mb-2">Notifications</h1>
-        <p className="text-[#6B7280]">
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Notifications</h1>
+        <p className="text-gray-500">
           {unreadCount > 0 ? `You have ${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'All notifications read'}
         </p>
       </div>
@@ -96,7 +98,7 @@ export function ViewNotificationsPage() {
         <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
           <CardHeader className="border-b border-[#E5E7EB] bg-[#F9FAFB] p-4">
             <CardTitle className="text-[#1F2937] flex items-center gap-2">
-              <Bell className="w-5 h-5" />
+              <span className="w-5 h-5" />
               Unread Notifications ({unreadCount})
             </CardTitle>
           </CardHeader>
@@ -115,20 +117,32 @@ export function ViewNotificationsPage() {
                         {new Date(notification.sentDate).toLocaleDateString()}
                       </span>
                     </div>
-                    <h4 className="font-semibold text-[#1F2937] mb-1">{notification.title}</h4>
-                    <p className="text-sm text-gray-600 line-clamp-2">{notification.message}</p>
+                    <h4 className="font-bold text-gray-800 mb-1 text-lg">{notification.title}</h4>
+                    <p className="text-gray-600 leading-relaxed">{notification.message}</p>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={(e) => {
+                    onClick={(e: React.MouseEvent) => {
                       e.stopPropagation();
                       handleMarkAsRead(notification.id);
                     }}
                     className="flex-shrink-0"
                   >
-                    <Check className="w-4 h-4 mr-1" />
+                    <span className="w-4 h-4 mr-1" />
                     Mark Read
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      deleteNotification(notification.id);
+                    }}
+                    className="flex-shrink-0"
+                  >
+                    <span className="w-4 h-4 mr-1" />
+                    Delete
                   </Button>
                 </div>
               </div>
@@ -141,14 +155,14 @@ export function ViewNotificationsPage() {
       <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
         <CardHeader className="border-b border-[#E5E7EB] bg-[#F9FAFB] p-4">
           <CardTitle className="text-[#1F2937] flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
+            <span className="w-5 h-5" />
             All Notifications ({userNotifications.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
           {sortedNotifications.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              <Bell className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <span className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No notifications found</p>
             </div>
           ) : (
@@ -174,11 +188,11 @@ export function ViewNotificationsPage() {
                           <Badge className="bg-blue-500 text-white border-0">New</Badge>
                         )}
                       </div>
-                      <h4 className="font-semibold text-[#1F2937] mb-1">{notification.title}</h4>
-                      <p className="text-sm text-gray-600 line-clamp-2">{notification.message}</p>
+                      <h4 className="font-semibold text-[#1F2937] mb-1 text-base">{notification.title}</h4>
+                      <p className="text-sm text-gray-600 leading-relaxed">{notification.message}</p>
                       <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                         <span className="flex items-center gap-1">
-                          <User className="w-3 h-3" />
+                          <span className="w-3 h-3" />
                           To: {getRecipientText(notification.targetAudience)}
                         </span>
                       </div>
@@ -187,13 +201,13 @@ export function ViewNotificationsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           handleMarkAsRead(notification.id);
                         }}
                         className="flex-shrink-0"
                       >
-                        <Check className="w-4 h-4 mr-1" />
+                        <span className="w-4 h-4 mr-1" />
                         Mark Read
                       </Button>
                     )}
@@ -217,7 +231,7 @@ export function ViewNotificationsPage() {
                   size="sm"
                   onClick={() => setSelectedNotification(null)}
                 >
-                  <X className="w-4 h-4" />
+                  <span className="w-4 h-4" />
                 </Button>
               </div>
               <div className="flex items-center gap-2">
@@ -253,7 +267,7 @@ export function ViewNotificationsPage() {
                       onClick={() => handleMarkAsRead(selectedNotification.id)}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      <Check className="w-4 h-4 mr-2" />
+                      <span className="w-4 h-4 mr-2" />
                       Mark as Read
                     </Button>
                     <Button

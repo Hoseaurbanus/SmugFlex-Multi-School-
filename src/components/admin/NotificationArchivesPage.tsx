@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Search, Filter, Archive, Bell, Trash2, Eye, Calendar, Users, MessageSquare, AlertCircle, Reply, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -99,17 +98,17 @@ export function NotificationArchivesPage() {
   const getTypeBadge = (type: string) => {
     switch (type) {
       case 'parent_message':
-        return <Badge className="bg-purple-100 text-purple-800 border-purple-300"><MessageSquare className="w-3 h-3 mr-1" />Parent Message</Badge>;
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-300"><span className="w-3 h-3 mr-1" />Parent Message</Badge>;
       case 'announcement':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300"><Bell className="w-3 h-3 mr-1" />Announcement</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300"><span className="w-3 h-3 mr-1" />Announcement</Badge>;
       case 'alert':
-        return <Badge className="bg-red-100 text-red-800 border-red-300"><AlertCircle className="w-3 h-3 mr-1" />Alert</Badge>;
+        return <Badge className="bg-red-100 text-red-800 border-red-300"><span className="w-3 h-3 mr-1" />Alert</Badge>;
       case 'reminder':
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300"><Calendar className="w-3 h-3 mr-1" />Reminder</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300"><span className="w-3 h-3 mr-1" />Reminder</Badge>;
       case 'update':
-        return <Badge className="bg-green-100 text-green-800 border-green-300"><MessageSquare className="w-3 h-3 mr-1" />Update</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-300"><span className="w-3 h-3 mr-1" />Update</Badge>;
       default:
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-300"><Bell className="w-3 h-3 mr-1" />Unknown</Badge>;
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300"><span className="w-3 h-3 mr-1" />Unknown</Badge>;
     }
   };
 
@@ -201,7 +200,7 @@ export function NotificationArchivesPage() {
             variant="destructive"
             className="rounded-xl"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Delete {selectedIds.length} Selected
           </Button>
         )}
@@ -217,7 +216,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.status === 'sent').length}</p>
               </div>
               <div className="bg-green-100 p-3 rounded-xl">
-                <Bell className="w-6 h-6 text-green-600" />
+                <span className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -231,7 +230,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.type === 'announcement').length}</p>
               </div>
               <div className="bg-blue-100 p-3 rounded-xl">
-                <MessageSquare className="w-6 h-6 text-blue-600" />
+                <span className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -245,7 +244,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.type === 'alert').length}</p>
               </div>
               <div className="bg-red-100 p-3 rounded-xl">
-                <AlertCircle className="w-6 h-6 text-red-600" />
+                <span className="w-6 h-6 text-red-600" />
               </div>
             </div>
           </CardContent>
@@ -259,7 +258,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.reduce((sum, n) => sum + n.recipientCount, 0)}</p>
               </div>
               <div className="bg-purple-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-purple-600" />
+                <span className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -272,7 +271,7 @@ export function NotificationArchivesPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 type="text"
                 placeholder="Search notifications..."
@@ -390,7 +389,7 @@ export function NotificationArchivesPage() {
                             onClick={() => handleViewNotification(notification)}
                             className="text-[#0A2540] hover:text-[#FFD700] hover:bg-[#FFD700]/10 rounded-xl"
                           >
-                            <Eye className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                           {notification.isParentMessage && (
                             <Button
@@ -400,7 +399,7 @@ export function NotificationArchivesPage() {
                               className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 rounded-xl"
                               title="Reply to parent"
                             >
-                              <Reply className="w-4 h-4" />
+                              <span className="w-4 h-4" />
                             </Button>
                           )}
                         </div>
@@ -491,7 +490,7 @@ export function NotificationArchivesPage() {
                 onClick={handleSendReply}
                 className="bg-[#FFD700] hover:bg-[#FFC700] text-[#0A2540] rounded-xl"
               >
-                <Send className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Send Reply
               </Button>
             </div>

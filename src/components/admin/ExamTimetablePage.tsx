@@ -1,8 +1,8 @@
 import { useState } from 'react';
+import { Edit, Trash2 } from 'lucide-react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Calendar, Clock, Plus, Edit2, Trash2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function ExamTimetablePage() {
@@ -169,11 +169,11 @@ export function ExamTimetablePage() {
         </div>
         <div className="flex gap-3">
           <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700 text-white">
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Export PDF
           </Button>
           <Button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Plus className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             {showForm ? 'Cancel' : 'Add Exam'}
           </Button>
         </div>
@@ -330,7 +330,7 @@ export function ExamTimetablePage() {
       {/* Timetable Display */}
       {Object.keys(groupedTimetables).length === 0 ? (
         <Card className="p-12 bg-white rounded-xl shadow-sm border border-slate-200 text-center">
-          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <span className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <h3 className="text-slate-900 mb-2">No Exams Scheduled</h3>
           <p className="text-slate-600">Click "Add Exam" to create an examination schedule</p>
         </Card>
@@ -360,7 +360,7 @@ export function ExamTimetablePage() {
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                           <div className="flex items-center gap-2 text-slate-600">
-                            <Calendar className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                             {new Date(timetable.exam_date).toLocaleDateString('en-US', {
                               weekday: 'short',
                               month: 'short',
@@ -369,7 +369,7 @@ export function ExamTimetablePage() {
                             })}
                           </div>
                           <div className="flex items-center gap-2 text-slate-600">
-                            <Clock className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                             {timetable.start_time} - {timetable.end_time}
                           </div>
                           <div className="text-slate-600">
@@ -389,7 +389,7 @@ export function ExamTimetablePage() {
                           onClick={() => handleEdit(timetable)}
                           className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit className="w-4 h-4" />
                         </Button>
                         <Button
                           onClick={() => handleDelete(timetable.id)}

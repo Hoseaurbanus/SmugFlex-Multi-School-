@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Search, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -8,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Badge } from "../ui/badge";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
+import { Search, User, DollarSign, CreditCard, Banknote, CheckCircle, AlertCircle, FileText, Download } from 'lucide-react';
 
 export function RecordPaymentPage() {
   const {
@@ -37,11 +37,11 @@ export function RecordPaymentPage() {
     : null;
 
   const selectedFeeStructure = selectedStudent
-    ? getFeeStructureByClass(selectedStudent.classId, currentTerm, currentAcademicYear)
+    ? getFeeStructureByClass(selectedStudent.class_id, currentTerm, currentAcademicYear)
     : null;
 
   const selectedFeeBalance = selectedStudent
-    ? getStudentFeeBalance(selectedStudent.id, currentTerm, currentAcademicYear)
+    ? getStudentFeeBalance(selectedStudent.id)
     : null;
 
   const handleSearch = () => {
@@ -95,18 +95,18 @@ export function RecordPaymentPage() {
     const paymentStatus = isCashPayment ? 'Verified' : 'Pending';
 
     addPayment({
-      studentId: selectedStudentId,
-      studentName: `${selectedStudent?.firstName} ${selectedStudent?.lastName}`,
+      student_id: selectedStudentId,
+      student_name: `${selectedStudent?.firstName} ${selectedStudent?.lastName}`,
       amount,
-      paymentType: amount >= balance ? 'Full Payment' : 'Partial Payment',
+      payment_type: amount >= balance ? 'Full Payment' : 'Partial Payment',
       term: currentTerm,
-      academicYear: currentAcademicYear,
-      paymentMethod: paymentData.paymentMethod,
+      academic_year: currentAcademicYear,
+      payment_method: paymentData.paymentMethod,
       reference: txnReference,
-      recordedBy: currentUser.id,
-      recordedDate: new Date().toISOString(),
+      recorded_by: currentUser.id,
+      recorded_date: new Date().toISOString(),
       status: paymentStatus,
-      receiptNumber,
+      receipt_number: receiptNumber,
     });
 
     // If cash payment, update balance immediately and notify parent
@@ -114,8 +114,8 @@ export function RecordPaymentPage() {
       updateStudentFeeBalance(selectedStudentId);
       
       // Send notification to parent
-      if (selectedStudent?.parentId) {
-        const parent = parents.find(p => p.id === selectedStudent.parentId);
+      if (selectedStudent?.parent_id) {
+        const parent = parents.find(p => p.id === selectedStudent.parent_id);
         if (parent) {
           addNotification({
             title: '✓ Fee Payment Confirmed',
@@ -152,7 +152,7 @@ export function RecordPaymentPage() {
         <CardContent className="p-6">
           <div className="flex gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
               <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -260,7 +260,7 @@ export function RecordPaymentPage() {
                   type="submit"
                   className="flex-1 h-12 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg shadow-clinical hover:shadow-clinical-lg transition-all"
                 >
-                  <CheckCircle className="w-5 h-5 mr-2" />
+                  <span className="w-5 h-5 mr-2" />
                   Record Payment
                 </Button>
               </div>

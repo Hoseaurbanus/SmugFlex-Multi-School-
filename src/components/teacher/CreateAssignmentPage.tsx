@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ArrowLeft, Save, FileText, Calendar, Upload, Plus, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
@@ -83,7 +82,7 @@ export function CreateAssignmentPage() {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <FileText className="w-8 h-8 text-[#3B82F6]" />
+        <span className="w-8 h-8 text-[#3B82F6]" />
         <div>
           <h2 className="text-2xl text-[#0A2540]">Create Assignment</h2>
           <p className="text-sm text-[#6B7280]">
@@ -223,7 +222,7 @@ export function CreateAssignmentPage() {
                       onClick={handleAddAttachment}
                       className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl px-4"
                     >
-                      <Plus className="w-5 h-5" />
+                      <span className="w-5 h-5" />
                     </Button>
                   </div>
                   
@@ -239,7 +238,7 @@ export function CreateAssignmentPage() {
                             onClick={() => handleRemoveAttachment(index)}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50"
                           >
-                            <X className="w-4 h-4" />
+                            <span className="w-4 h-4" />
                           </Button>
                         </div>
                       ))}
@@ -253,7 +252,7 @@ export function CreateAssignmentPage() {
                     type="submit"
                     className="flex-1 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl py-6 flex items-center justify-center gap-2"
                   >
-                    <Save className="w-5 h-5" />
+                    <span className="w-5 h-5" />
                     Create Assignment
                   </Button>
                 </div>
@@ -287,7 +286,7 @@ export function CreateAssignmentPage() {
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Due Date</p>
                       <p className="text-[#0A2540] flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-[#3B82F6]" />
+                        <span className="w-4 h-4 text-[#3B82F6]" />
                         {new Date(formData.dueDate).toLocaleDateString()}
                       </p>
                     </div>
@@ -312,7 +311,7 @@ export function CreateAssignmentPage() {
                 </>
               ) : (
                 <div className="text-center py-8">
-                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <span className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-500">
                     Fill in the form to see preview
                   </p>
@@ -325,7 +324,7 @@ export function CreateAssignmentPage() {
           <Card className="rounded-2xl border-2 border-[#3B82F6]/20 mt-4">
             <CardContent className="p-4">
               <h4 className="text-sm text-[#0A2540] mb-3 flex items-center gap-2">
-                <Upload className="w-4 h-4 text-[#3B82F6]" />
+                <span className="w-4 h-4 text-[#3B82F6]" />
                 Quick Tips
               </h4>
               <ul className="text-xs text-gray-600 space-y-2">

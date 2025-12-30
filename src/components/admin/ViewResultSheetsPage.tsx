@@ -1,5 +1,4 @@
 import { useState, useMemo, useRef } from "react";
-import { Download, Eye, Printer, FileText, Filter, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -214,11 +213,6 @@ export function ViewResultSheetsPage() {
     }
   };
 
-  // Handle download (print to PDF)
-  const handleDownload = () => {
-    handlePrint();
-    toast.info("Use your browser's 'Save as PDF' option in the print dialog");
-  };
 
   // Filter approved results
   const approvedResults = useMemo(() => {
@@ -247,9 +241,9 @@ export function ViewResultSheetsPage() {
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
         return (
-          (s!.first_name && s!.first_name.toLowerCase().includes(query)) ||
-          (s!.last_name && s!.last_name.toLowerCase().includes(query)) ||
-          (s!.admission_number && s!.admission_number.toLowerCase().includes(query))
+          (s!.firstName && s!.firstName.toLowerCase().includes(query)) ||
+          (s!.lastName && s!.lastName.toLowerCase().includes(query)) ||
+          (s!.admissionNumber && s!.admissionNumber.toLowerCase().includes(query))
         );
       });
   }, [approvedResults, students, searchQuery]);
@@ -268,7 +262,7 @@ export function ViewResultSheetsPage() {
       <Card className="border-[#0A2540]/10">
         <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl">
           <CardTitle className="flex items-center gap-2">
-            <Filter className="w-5 h-5" />
+            <span className="w-5 h-5" />
             Filter Results
           </CardTitle>
         </CardHeader>
@@ -321,7 +315,7 @@ export function ViewResultSheetsPage() {
             <div>
               <Label className="text-[#0A2540] mb-2 block">Search Student</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -346,7 +340,7 @@ export function ViewResultSheetsPage() {
                 </p>
               </div>
               <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-blue-600" />
+                <span className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -362,7 +356,7 @@ export function ViewResultSheetsPage() {
                 </p>
               </div>
               <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Eye className="w-6 h-6 text-green-600" />
+                <span className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -377,7 +371,7 @@ export function ViewResultSheetsPage() {
                 <p className="text-gray-600 text-sm">{selectedYear}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-purple-600" />
+                <span className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -392,7 +386,7 @@ export function ViewResultSheetsPage() {
         <CardContent className="p-6">
           {studentsWithResults.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <span className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-600 mb-2">No approved results found</p>
               <p className="text-gray-500 text-sm">
                 Try changing the filters or wait for results to be approved
@@ -400,29 +394,34 @@ export function ViewResultSheetsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {studentsWithResults.map((studentData) => (
-                <div
-                  key={studentData!.id}
-                  className="p-4 border border-[#0A2540]/10 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-[#3B82F6] text-white flex items-center justify-center font-bold">
-                        {studentData!.first_name[0]}
-                        {studentData!.last_name[0]}
-                      </div>
+              {studentsWithResults.map((studentData) => {
+            // Check if class should show position (not for early childhood classes)
+            const shouldShowPosition = studentData!.className && 
+              !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2'].includes(studentData!.className.toUpperCase());
 
+            return (
+              <div
+                key={studentData!.id}
+                className="p-4 border border-[#0A2540]/10 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
+              >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span className="text-blue-600 font-bold text-sm">
+                          {studentData!.firstName[0]}{studentData!.lastName[0]}
+                        </span>
+                      </div>
                       <div>
-                        <p className="text-[#0A2540] font-medium">
-                          {studentData!.first_name} {studentData!.last_name}
-                        </p>
+                        <h3 className="font-semibold text-gray-800">
+                          {studentData!.firstName} {studentData!.lastName}
+                        </h3>
                         <p className="text-sm text-gray-600">
-                          {studentData!.admission_number} • {studentData!.class_name}
+                          {studentData!.admissionNumber} • {studentData!.className || 'N/A'}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center space-x-4">
                       <div className="text-right">
                         <p className="text-sm text-gray-600">Average</p>
                         <p className="text-[#0A2540] font-bold text-lg">
@@ -430,30 +429,30 @@ export function ViewResultSheetsPage() {
                         </p>
                       </div>
 
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600">Position</p>
-                        <Badge className="bg-green-100 text-green-800 border-green-300 rounded-xl">
-                          {studentData!.result.position}/
-                          {studentData!.result.total_students}
-                        </Badge>
-                      </div>
+                      {shouldShowPosition && (
+                        <div className="text-right">
+                          <p className="text-sm text-gray-600">Position</p>
+                          <Badge className="bg-green-100 text-green-800 border-green-300 rounded-xl">
+                            {studentData!.result.position || '-'}
+                          </Badge>
+                        </div>
+                      )}
 
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button
-                            size="sm"
                             className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                             onClick={() => setSelectedStudent(studentData!.id)}
                           >
-                            <Eye className="w-4 h-4 mr-2" />
+                            <span className="w-4 h-4 mr-2" />
                             View
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>
-                              Result Sheet - {studentData!.first_name}{" "}
-                              {studentData!.last_name}
+                              Result Sheet - {studentData!.firstName}{" "}
+                              {studentData!.lastName}
                             </DialogTitle>
                           </DialogHeader>
 
@@ -467,28 +466,21 @@ export function ViewResultSheetsPage() {
 
                             <div className="flex gap-3 justify-end border-t pt-4">
                               <Button
-                                onClick={handlePrint}
-                                variant="outline"
-                                className="rounded-xl"
+                                className="bg-gray-400 text-white rounded-xl cursor-not-allowed opacity-50"
+                                disabled
                               >
-                                <Printer className="w-4 h-4 mr-2" />
-                                Print
-                              </Button>
-                              <Button
-                                onClick={handleDownload}
-                                className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl"
-                              >
-                                <Download className="w-4 h-4 mr-2" />
-                                Download PDF
+                                <span className="w-4 h-4 mr-2" />
+                                Print (PDF Only)
                               </Button>
                             </div>
                           </div>
                         </DialogContent>
                       </Dialog>
                     </div>
-                  </div>
-                </div>
-              ))}
+              </div>
+            </div>
+            );
+          })}
             </div>
           )}
         </CardContent>

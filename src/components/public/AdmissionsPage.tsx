@@ -1,4 +1,3 @@
-import { ArrowLeft, CheckCircle, Calendar, FileText, Users, CreditCard, Download } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -32,7 +31,7 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="bg-green-500 p-3 rounded-full">
-                <CheckCircle className="h-8 w-8 text-white" />
+                <span className="h-8 w-8 text-white" />
               </div>
               <div>
                 <h2 className="text-2xl mb-1">Admissions Now Open!</h2>
@@ -166,7 +165,7 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
         <Card className="rounded-xl border-none shadow-md mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+              <span className="h-5 w-5" />
               Required Documents
             </CardTitle>
           </CardHeader>
@@ -176,19 +175,19 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
                 <h3 className="mb-3">For All Applicants:</h3>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#10B981] mt-0.5" />
+                    <span className="h-4 w-4 text-[#10B981] mt-0.5" />
                     Birth certificate or age declaration
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#10B981] mt-0.5" />
+                    <span className="h-4 w-4 text-[#10B981] mt-0.5" />
                     Four recent passport photographs
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#10B981] mt-0.5" />
+                    <span className="h-4 w-4 text-[#10B981] mt-0.5" />
                     Photocopy of parent's ID card
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#10B981] mt-0.5" />
+                    <span className="h-4 w-4 text-[#10B981] mt-0.5" />
                     Medical certificate of fitness
                   </li>
                 </ul>
@@ -198,15 +197,15 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
                 <h3 className="mb-3">For Transfer Students:</h3>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#10B981] mt-0.5" />
+                    <span className="h-4 w-4 text-[#10B981] mt-0.5" />
                     Transfer certificate from previous school
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#10B981] mt-0.5" />
+                    <span className="h-4 w-4 text-[#10B981] mt-0.5" />
                     Last term's report card
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#10B981] mt-0.5" />
+                    <span className="h-4 w-4 text-[#10B981] mt-0.5" />
                     Letter of recommendation (if applicable)
                   </li>
                 </ul>
@@ -219,7 +218,7 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
         <Card className="rounded-xl border-none shadow-md mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+              <span className="h-5 w-5" />
               Important Dates 2025/2026
             </CardTitle>
           </CardHeader>
@@ -253,7 +252,7 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
         <Card className="rounded-xl border-none shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
+              <span className="h-5 w-5" />
               Contact Admissions Office
             </CardTitle>
           </CardHeader>
@@ -285,7 +284,7 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
 
             <div className="mt-6 flex gap-4">
               <Button className="bg-[#2563EB] hover:bg-[#1d4ed8]">
-                <Download className="mr-2 h-4 w-4" />
+                <span className="mr-2 h-4 w-4" />
                 Download Application Form
               </Button>
               <Button variant="outline">

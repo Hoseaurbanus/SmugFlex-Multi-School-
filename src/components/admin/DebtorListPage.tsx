@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { DollarSign, Send, Download, AlertTriangle, Phone } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { useSchool } from "../../contexts/SchoolContext";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function DebtorListPage() {
   const { students, feeStructures, feeBalances, classes } = useSchool();
@@ -72,7 +71,7 @@ export function DebtorListPage() {
                 <p className="text-sm text-[#6B7280]">Total Debtors</p>
                 <p className="text-2xl font-semibold text-[#1F2937] mt-1">{debtors.length}</p>
               </div>
-              <AlertTriangle className="w-8 h-8 text-[#F59E0B]" />
+              <span className="w-8 h-8 text-[#F59E0B]" />
             </div>
           </CardContent>
         </Card>
@@ -86,7 +85,7 @@ export function DebtorListPage() {
                   ₦{totalOutstanding.toLocaleString()}
                 </p>
               </div>
-              <DollarSign className="w-8 h-8 text-[#EF4444]" />
+              <span className="w-8 h-8 text-[#EF4444]" />
             </div>
           </CardContent>
         </Card>
@@ -98,7 +97,7 @@ export function DebtorListPage() {
                 <p className="text-sm text-[#6B7280]">Selected</p>
                 <p className="text-2xl font-semibold text-[#1F2937] mt-1">{selectedDebtors.length}</p>
               </div>
-              <Phone className="w-8 h-8 text-[#3B82F6]" />
+              <span className="w-8 h-8 text-[#3B82F6]" />
             </div>
           </CardContent>
         </Card>
@@ -110,7 +109,7 @@ export function DebtorListPage() {
               disabled={selectedDebtors.length === 0}
               className="w-full h-full rounded-lg bg-[#3B82F6] hover:bg-[#2563EB]"
             >
-              <Send className="w-4 h-4 mr-2" />
+              <span className="w-4 h-4 mr-2" />
               Send SMS ({selectedDebtors.length})
             </Button>
           </CardContent>
@@ -130,7 +129,7 @@ export function DebtorListPage() {
                 Clear
               </Button>
               <Button variant="outline" size="sm" className="rounded-lg">
-                <Download className="w-4 h-4 mr-1" />
+                <span className="w-4 h-4 mr-1" />
                 Export
               </Button>
             </div>
@@ -139,7 +138,7 @@ export function DebtorListPage() {
         <CardContent className="p-6">
           {debtors.length === 0 ? (
             <div className="text-center py-12">
-              <DollarSign className="w-16 h-16 text-[#10B981] mx-auto mb-4 opacity-50" />
+              <span className="w-16 h-16 text-[#10B981] mx-auto mb-4 opacity-50" />
               <p className="text-[#6B7280]">No outstanding fees!</p>
               <p className="text-sm text-[#9CA3AF] mt-1">All students have cleared their fees</p>
             </div>
@@ -223,7 +222,7 @@ export function DebtorListPage() {
                             onClick={() => handleSendReminder([debtor.id])}
                             className="rounded-lg"
                           >
-                            <Send className="w-3 h-3 mr-1" />
+                            <span className="w-3 h-3 mr-1" />
                             Remind
                           </Button>
                         </td>

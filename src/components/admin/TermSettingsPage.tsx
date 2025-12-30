@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Calendar, Save, Plus, Edit, Users, AlertTriangle, Info } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -9,14 +8,16 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 
 export function TermSettingsPage() {
-  const { 
-    currentAcademicYear, 
-    currentTerm, 
-    updateCurrentTerm, 
+    const {
+    currentTerm,
+    currentAcademicYear,
+    updateCurrentTerm,
     updateCurrentAcademicYear,
     updateAttendanceRequirements,
     getAttendanceRequirements,
-    loadAttendanceRequirements
+    loadAttendanceRequirements,
+    attendanceRequirements,
+    currentUser
   } = useSchool();
   const [settings, setSettings] = useState({
     academicYear: currentAcademicYear || "2025/2026",
@@ -31,10 +32,14 @@ export function TermSettingsPage() {
     attendanceRequirements: getAttendanceRequirements()
   });
 
-  // Refresh attendance requirements from database when component loads
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Refresh attendance requirements from database when component loads and user is authenticated
   useEffect(() => {
-    loadAttendanceRequirements();
-  }, [loadAttendanceRequirements]);
+    if (currentUser) {
+      loadAttendanceRequirements();
+    }
+  }, [currentUser]); // Remove loadAttendanceRequirements from dependencies
 
   // Update local state when attendance requirements change
   useEffect(() => {
@@ -42,13 +47,21 @@ export function TermSettingsPage() {
       ...prev,
       attendanceRequirements: getAttendanceRequirements()
     }));
-  }, [getAttendanceRequirements]);
+  }, [attendanceRequirements]); // Use the state, not the function
 
   const handleSave = async () => {
-    await updateCurrentAcademicYear(settings.academicYear);
-    await updateCurrentTerm(settings.currentTerm);
-    await updateAttendanceRequirements(settings.attendanceRequirements);
-    toast.success("Term and attendance settings updated successfully!");
+    setIsLoading(true);
+    try {
+      await updateCurrentAcademicYear(settings.academicYear);
+      await updateCurrentTerm(settings.currentTerm);
+      await updateAttendanceRequirements(settings.attendanceRequirements);
+      toast.success("Term and attendance settings updated successfully!");
+    } catch (error) {
+      console.error('Error saving term settings:', error);
+      toast.error("Failed to save term and attendance settings");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const termOptions = ["First Term", "Second Term", "Third Term"];
@@ -64,7 +77,7 @@ export function TermSettingsPage() {
       <Card className="border-amber-200 bg-amber-50">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <span className="w-5 h-5 text-amber-600 mt-0.5" />
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-amber-800 mb-1">System Control Notice</h3>
               <p className="text-xs text-amber-700">
@@ -80,7 +93,7 @@ export function TermSettingsPage() {
         <CardContent className="p-6">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
-              <Calendar className="w-8 h-8 text-white" />
+              <span className="w-8 h-8 text-white" />
             </div>
             <div>
               <p className="text-white/80 text-sm">Current Academic Session</p>
@@ -127,9 +140,9 @@ export function TermSettingsPage() {
               </Select>
             </div>
 
-            <Button onClick={handleSave} className="w-full rounded-lg bg-[#3B82F6] hover:bg-[#2563EB]">
-              <Save className="w-4 h-4 mr-2" />
-              Update Academic Year
+            <Button onClick={handleSave} disabled={isLoading} className="w-full rounded-lg bg-[#3B82F6] hover:bg-[#2563EB]">
+              <span className="w-4 h-4 mr-2" />
+              {isLoading ? "Updating..." : "Update Academic Year"}
             </Button>
           </CardContent>
         </Card>
@@ -221,7 +234,7 @@ export function TermSettingsPage() {
           <CardHeader className="border-b border-[#E5E7EB] bg-gradient-to-r from-[#10B981] to-[#059669] p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-white" />
+                <span className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h2 className="font-semibold text-white">Attendance Requirements</h2>

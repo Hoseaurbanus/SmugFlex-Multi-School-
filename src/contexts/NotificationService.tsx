@@ -1,8 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useSchool } from './SchoolContext';
 import { toast } from 'sonner';
-import { Bell } from 'lucide-react';
-
+import { Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 interface NotificationEvent {
   id: number;
   title: string;
@@ -80,7 +79,21 @@ export function useNotificationListener(userRole: string | undefined, userId: nu
         (userRole === 'Admin' && notification.targetAudience === 'all');
 
       if (isRelevant) {
-        // Show toast notification
+        // Show toast notification with appropriate icon
+        const getNotificationIcon = () => {
+          switch (notification.type) {
+            case 'error':
+              return <XCircle className="w-5 h-5 text-red-500" />;
+            case 'warning':
+              return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
+            case 'success':
+              return <CheckCircle className="w-5 h-5 text-green-500" />;
+            case 'info':
+            default:
+              return <Info className="w-5 h-5 text-blue-500" />;
+          }
+        };
+
         const toastType = notification.type === 'error' ? toast.error :
                          notification.type === 'warning' ? toast.warning :
                          notification.type === 'success' ? toast.success :
@@ -88,8 +101,9 @@ export function useNotificationListener(userRole: string | undefined, userId: nu
 
         toastType(notification.title, {
           description: notification.message,
-          icon: <Bell className="w-5 h-5" />,
+          icon: getNotificationIcon(),
           duration: 5000,
+          className: 'text-base font-medium',
         });
 
         // Play notification sound (optional)

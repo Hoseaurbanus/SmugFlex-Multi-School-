@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # The app is served from root
+  RewriteBase /
+
+  # Allow existing files and directories
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Otherwise, route all requests to index.html (SPA fallback)
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# If mod_rewrite is not enabled, enable it in Apache:
+# - In httpd.conf: LoadModule rewrite_module modules/mod_rewrite.so
+# - Ensure AllowOverride All for htdocs so .htaccess is honored.

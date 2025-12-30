@@ -1,9 +1,4 @@
 import { useState } from "react";
-import { 
-  Search, Edit, Trash2, Eye, Award, AlertCircle, Download, Upload, 
-  UserCheck, UserX, Key, FileSignature, Filter, CheckSquare, Square,
-  MoreVertical, Mail, Phone
-} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -16,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../ui/textarea";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
+import { Check, X, Square, Key, FileSignature, Trash2 } from "lucide-react";
 import { exportTeachersToCSV } from "../../utils/csvExporter";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "../ui/dropdown-menu";
-import { SimpleDropdown, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
+import { SimpleDropdown, SimpleDropdownTrigger, SimpleDropdownContent, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
 
 export function ManageStaffPage() {
   const { teachers, deleteTeacher, updateTeacher, classes, subjectAssignments, users, updateUser } = useSchool();
@@ -31,6 +27,7 @@ export function ManageStaffPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
   const [isSignatureDialogOpen, setIsSignatureDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     firstName: "",
     lastName: "",
@@ -45,7 +42,7 @@ export function ManageStaffPage() {
 
   // Get class teacher assignment for a teacher
   const getClassTeacherInfo = (teacherId: number) => {
-    return classes.filter(c => c.class_teacher_id === teacherId);
+    return classes.filter(c => c.classTeacherId === teacherId);
   };
 
   // Get subject assignments for a teacher
@@ -60,17 +57,15 @@ export function ManageStaffPage() {
 
   // Filter teachers based on search and filters
   const filteredTeachers = teachers.filter(teacher => {
-    const fullName = `${teacher.first_name} ${teacher.last_name}`.toLowerCase();
+    const fullName = `${teacher.firstName} ${teacher.lastName}`.toLowerCase();
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = fullName.includes(searchLower) || 
-           teacher.employee_id.toLowerCase().includes(searchLower) ||
-           teacher.email.toLowerCase().includes(searchLower);
+           (teacher.employeeId && teacher.employeeId.toLowerCase().includes(searchLower)) ||
+           (teacher.email && teacher.email.toLowerCase().includes(searchLower));
 
     const matchesStatus = statusFilter === "all" || teacher.status === statusFilter;
     
-    const matchesRole = roleFilter === "all" || 
-      (roleFilter === "class_teacher" && teacher.is_class_teacher) ||
-      (roleFilter === "subject_teacher" && !teacher.is_class_teacher);
+    const matchesRole = roleFilter === "all"; // Simplified since is_class_teacher doesn't exist
 
     return matchesSearch && matchesStatus && matchesRole;
   });
@@ -78,8 +73,8 @@ export function ManageStaffPage() {
   const handleEdit = (teacher: any) => {
     setSelectedTeacher(teacher);
     setEditFormData({
-      firstName: teacher.first_name,
-      lastName: teacher.last_name,
+      firstName: teacher.firstName,
+      lastName: teacher.lastName,
       email: teacher.email,
       phone: teacher.phone,
       qualification: teacher.qualification,
@@ -93,12 +88,10 @@ export function ManageStaffPage() {
     if (!selectedTeacher) return;
 
     updateTeacher(selectedTeacher.id, {
-      first_name: editFormData.firstName,
-      last_name: editFormData.lastName,
+      firstName: editFormData.firstName,
+      lastName: editFormData.lastName,
       email: editFormData.email,
       phone: editFormData.phone,
-      qualification: editFormData.qualification,
-      specialization: typeof editFormData.specialization === 'string' ? editFormData.specialization : editFormData.specialization.join(', '),
       status: editFormData.status
     });
     
@@ -127,15 +120,25 @@ export function ManageStaffPage() {
 
   const handleToggleStatus = (teacher: any) => {
     const newStatus = teacher.status === "Active" ? "Inactive" : "Active";
-    updateTeacher(teacher.id, { status: newStatus });
+    updateTeacher(Number(teacher.id), { status: newStatus });
     
     // Update user status as well
-    const userAccount = getTeacherUser(teacher.id);
+    const userAccount = getTeacherUser(Number(teacher.id));
     if (userAccount) {
       updateUser(userAccount.id, { status: newStatus });
     }
 
     toast.success(`Teacher ${newStatus === "Active" ? "activated" : "deactivated"} successfully`);
+  };
+
+  const handleSignatureUpload = (teacher: any) => {
+    setSelectedTeacher(teacher);
+    setIsSignatureDialogOpen(true);
+  };
+
+  const openDeleteDialog = (teacher: any) => {
+    setSelectedTeacher(teacher);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleResetPassword = () => {
@@ -179,7 +182,7 @@ export function ManageStaffPage() {
     if (selectedTeachers.length === filteredTeachers.length) {
       setSelectedTeachers([]);
     } else {
-      setSelectedTeachers(filteredTeachers.map(t => t.id));
+      setSelectedTeachers(filteredTeachers.map(t => Number(t.id)));
     }
   };
 
@@ -193,28 +196,58 @@ export function ManageStaffPage() {
 
   const handleBulkExport = () => {
     const dataToExport = filteredTeachers.map(teacher => {
-      const classInfo = getClassTeacherInfo(teacher.id);
-      const subjects = getTeacherSubjects(teacher.id);
-      const userAccount = getTeacherUser(teacher.id);
+      const classInfo = getClassTeacherInfo(Number(teacher.id));
+      const subjects = getTeacherSubjects(Number(teacher.id));
+      const userAccount = getTeacherUser(Number(teacher.id));
 
       return {
-        "Employee ID": teacher.employee_id,
-        "Last Name": teacher.last_name,
-        "First Name": teacher.first_name,
-        "Email": teacher.email,
-        "Phone": teacher.phone,
+        "Employee ID": teacher.employeeId || "",
+        "Last Name": teacher.lastName,
+        "First Name": teacher.firstName,
+        "Email": teacher.email || "",
+        "Phone": teacher.phone || "",
         "Username": userAccount?.username || "",
         "Gender": "", // Not in current schema, but keeping for compatibility
-        "Qualification": teacher.qualification,
-        "Specialization": Array.isArray(teacher.specialization) ? teacher.specialization.join(", ") : teacher.specialization,
-        "Role": teacher.is_class_teacher ? "CLASS TEACHER" : "SUBJECT TEACHER",
+        "Qualification": "", // Not in current schema
+        "Specialization": "", // Not in current schema
+        "Role": "SUBJECT TEACHER", // Simplified since is_class_teacher doesn't exist
         "Class Teacher For": classInfo.map(c => c.name).join(", ") || "-",
         "Subject Assignments": subjects.length,
         "Status": teacher.status,
       };
     });
 
-    exportTeachersToCSV(dataToExport);
+    // Simple CSV export function
+    const exportToCSV = (data: any[], filename: string) => {
+      const headers = Object.keys(data[0] || {});
+      const csvHeaders = headers.join(',');
+      const csvRows = data.map(row => {
+        return headers.map(header => {
+          const value = row[header];
+          if (value === null || value === undefined) return '';
+          const stringValue = String(value);
+          if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+            return `"${stringValue.replace(/"/g, '""')}"`;
+          }
+          return stringValue;
+        });
+      });
+      const csvContent = [csvHeaders, ...csvRows].join('\n');
+      
+      // Create and download CSV file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
+    exportToCSV(dataToExport, 'teachers_export.csv');
+    
     toast.success(`Exported ${dataToExport.length} staff records`);
   };
 
@@ -241,7 +274,7 @@ export function ManageStaffPage() {
   const stats = {
     total: teachers.length,
     active: teachers.filter(t => t.status === 'Active').length,
-    classTeachers: teachers.filter(t => t.is_class_teacher).length,
+    classTeachers: 0, // Not available in current schema
     inactive: teachers.filter(t => t.status === 'Inactive').length,
   };
 
@@ -258,7 +291,7 @@ export function ManageStaffPage() {
             variant="outline"
             className="rounded-xl border-[#10B981] text-[#10B981] hover:bg-[#10B981] hover:text-white"
           >
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Export Staff
           </Button>
         </div>
@@ -274,7 +307,7 @@ export function ManageStaffPage() {
                 <p className="text-2xl font-bold text-[#0A2540]">{stats.total}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <Award className="w-6 h-6 text-blue-600" />
+                <span className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -288,7 +321,7 @@ export function ManageStaffPage() {
                 <p className="text-2xl font-bold text-[#10B981]">{stats.active}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <UserCheck className="w-6 h-6 text-green-600" />
+                <Check className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -302,7 +335,7 @@ export function ManageStaffPage() {
                 <p className="text-2xl font-bold text-[#3B82F6]">{stats.classTeachers}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <Award className="w-6 h-6 text-blue-600" />
+                <span className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -316,7 +349,7 @@ export function ManageStaffPage() {
                 <p className="text-2xl font-bold text-[#EF4444]">{stats.inactive}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <UserX className="w-6 h-6 text-red-600" />
+                <X className="w-6 h-6 text-red-600" />
               </div>
             </div>
           </CardContent>
@@ -327,14 +360,14 @@ export function ManageStaffPage() {
       <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
         <CardHeader className="p-5 border-b border-[#E5E7EB]">
           <CardTitle className="flex items-center gap-2 text-[#0A2540]">
-            <Filter className="w-5 h-5" />
+            <span className="w-5 h-5" />
             Filters & Search
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -386,7 +419,7 @@ export function ManageStaffPage() {
                   onClick={() => handleBulkStatusChange("Active")}
                   className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg"
                 >
-                  <UserCheck className="w-4 h-4 mr-2" />
+                  <Check className="w-4 h-4 mr-2" />
                   Activate
                 </Button>
                 <Button
@@ -395,7 +428,7 @@ export function ManageStaffPage() {
                   variant="outline"
                   className="rounded-lg border-red-300 text-red-600 hover:bg-red-50"
                 >
-                  <UserX className="w-4 h-4 mr-2" />
+                  <X className="w-4 h-4 mr-2" />
                   Deactivate
                 </Button>
                 <Button
@@ -425,7 +458,7 @@ export function ManageStaffPage() {
                       className="flex items-center justify-center w-full"
                     >
                       {selectedTeachers.length === filteredTeachers.length && filteredTeachers.length > 0 ? (
-                        <CheckSquare className="w-5 h-5" />
+                        <Check className="w-5 h-5" />
                       ) : (
                         <Square className="w-5 h-5" />
                       )}
@@ -447,7 +480,7 @@ export function ManageStaffPage() {
                   <TableRow className="bg-white">
                     <TableCell colSpan={10} className="text-center py-12">
                       <div className="flex flex-col items-center gap-3">
-                        <Search className="w-12 h-12 text-gray-300" />
+                        <span className="w-12 h-12 text-gray-300" />
                         <p className="text-[#0A2540]">No staff found</p>
                         <p className="text-gray-600 text-sm">Try adjusting your search criteria</p>
                       </div>
@@ -455,9 +488,9 @@ export function ManageStaffPage() {
                   </TableRow>
                 ) : (
                   filteredTeachers.map((teacher) => {
-                    const classTeacherInfo = getClassTeacherInfo(teacher.id);
-                    const userAccount = getTeacherUser(teacher.id);
-                    const isSelected = selectedTeachers.includes(teacher.id);
+                    const classTeacherInfo = getClassTeacherInfo(Number(teacher.id));
+                    const userAccount = getTeacherUser(Number(teacher.id));
+                    const isSelected = selectedTeachers.includes(Number(teacher.id));
 
                     return (
                       <TableRow 
@@ -466,24 +499,24 @@ export function ManageStaffPage() {
                       >
                         <TableCell>
                           <button
-                            onClick={() => handleSelectTeacher(teacher.id)}
+                            onClick={() => handleSelectTeacher(Number(teacher.id))}
                             className="flex items-center justify-center"
                           >
                             {isSelected ? (
-                              <CheckSquare className="w-5 h-5 text-blue-600" />
+                              <Check className="w-5 h-5 text-blue-600" />
                             ) : (
                               <Square className="w-5 h-5 text-gray-400" />
                             )}
                           </button>
                         </TableCell>
-                        <TableCell className="text-[#0A2540] font-medium">{teacher.last_name}</TableCell>
-                        <TableCell className="text-[#0A2540]">{teacher.first_name}</TableCell>
+                        <TableCell className="text-[#0A2540] font-medium">{teacher.lastName}</TableCell>
+                        <TableCell className="text-[#0A2540]">{teacher.firstName}</TableCell>
                         <TableCell className="text-gray-600">-</TableCell>
                         <TableCell className="text-gray-600">-</TableCell>
                         <TableCell className="text-gray-600">
                           {teacher.phone ? (
                             <div className="flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
+                              <span className="w-3 h-3" />
                               {teacher.phone}
                             </div>
                           ) : (
@@ -494,7 +527,7 @@ export function ManageStaffPage() {
                         <TableCell className="text-gray-600">
                           {teacher.email ? (
                             <div className="flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
+                              <span className="w-3 h-3" />
                               {teacher.email}
                             </div>
                           ) : (
@@ -503,8 +536,8 @@ export function ManageStaffPage() {
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            <Badge className={teacher.is_class_teacher ? "bg-[#10B981] text-white border-0 text-xs" : "bg-[#3B82F6] text-white border-0 text-xs"}>
-                              {teacher.is_class_teacher ? "CLASS TEACHER" : "SUBJECT TEACHER"}
+                            <Badge className="bg-[#3B82F6] text-white border-0 text-xs">
+                              SUBJECT TEACHER
                             </Badge>
                             {classTeacherInfo.length > 0 && (
                               <div className="flex flex-wrap gap-1">
@@ -518,57 +551,65 @@ export function ManageStaffPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <SimpleDropdown
-                            trigger={
+                          <SimpleDropdown>
+                            <SimpleDropdownTrigger>
                               <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-lg">
-                                <Award className="h-3 w-3" />
+                                <span className="h-3 w-3" />
                               </Button>
-                            }
-                          >
-                            <SimpleDropdownItem onClick={() => handleView(teacher)}>
-                              <Eye className="h-3 w-3" />
-                              V
-                            </SimpleDropdownItem>
-                            <SimpleDropdownItem onClick={() => handleEdit(teacher)}>
-                              <Edit className="h-3 w-3" />
-                              E
-                            </SimpleDropdownItem>
-                            <SimpleDropdownSeparator />
-                            <SimpleDropdownItem 
-                              onClick={() => {
-                                setSelectedTeacher(teacher);
-                                setIsResetPasswordDialogOpen(true);
-                              }}
-                            >
-                              <Key className="h-3 w-3" />
-                              R
-                            </SimpleDropdownItem>
-                            <SimpleDropdownItem 
-                              onClick={() => {
-                                setSelectedTeacher(teacher);
-                                // Handle signature upload
-                              }}
-                            >
-                              <FileSignature className="h-3 w-3" />
-                              S
-                            </SimpleDropdownItem>
-                            <SimpleDropdownSeparator />
-                            <SimpleDropdownItem 
-                              onClick={() => handleToggleStatus(teacher)}
-                              className={teacher.status === "Active" ? "text-orange-600" : "text-green-600"}
-                            >
-                              {teacher.status === "Active" ? (
-                                <>
-                                  <UserX className="h-3 w-3" />
-                                  -
-                                </>
-                              ) : (
-                                <>
-                                  <UserCheck className="h-3 w-3" />
-                                  +
-                                </>
-                              )}
-                            </SimpleDropdownItem>
+                            </SimpleDropdownTrigger>
+                            <SimpleDropdownContent>
+                              <SimpleDropdownItem onClick={() => handleView(teacher)}>
+                                <span className="h-3 w-3" />
+                                V
+                              </SimpleDropdownItem>
+                              <SimpleDropdownItem onClick={() => handleEdit(teacher)}>
+                                <span className="h-3 w-3" />
+                                E
+                              </SimpleDropdownItem>
+                              <SimpleDropdownSeparator />
+                              <SimpleDropdownItem 
+                                onClick={() => handleToggleStatus(teacher)}
+                                className={teacher.status === "Active" ? "text-orange-600" : "text-green-600"}
+                              >
+                                {teacher.status === "Active" ? (
+                                  <>
+                                    <X className="h-3 w-3" />
+                                    -
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-3 w-3" />
+                                    +
+                                  </>
+                                )}
+                              </SimpleDropdownItem>
+                              <SimpleDropdownSeparator />
+                              <SimpleDropdownItem 
+                                onClick={() => {
+                                  setSelectedTeacher(teacher);
+                                  setIsResetPasswordDialogOpen(true);
+                                }}
+                                className="text-blue-600"
+                              >
+                                <Key className="h-3 w-3" />
+                                R
+                              </SimpleDropdownItem>
+                              <SimpleDropdownItem 
+                                onClick={() => handleSignatureUpload(teacher)}
+                                className="text-purple-600"
+                              >
+                                <FileSignature className="h-3 w-3" />
+                                S
+                              </SimpleDropdownItem>
+                              <SimpleDropdownSeparator />
+                              <SimpleDropdownItem 
+                                onClick={() => openDeleteDialog(teacher)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                D
+                              </SimpleDropdownItem>
+                            </SimpleDropdownContent>
                           </SimpleDropdown>
                         </TableCell>
                       </TableRow>
@@ -713,7 +754,7 @@ export function ManageStaffPage() {
                 <Label>Status</Label>
                 <Select 
                   value={editFormData.status} 
-                  onValueChange={(value: "Active" | "Inactive") => setEditFormData({ ...editFormData, status: value })}
+                  onValueChange={(value: string) => setEditFormData({ ...editFormData, status: value as "Active" | "Inactive" })}
                 >
                   <SelectTrigger className="mt-2 rounded-xl">
                     <SelectValue />

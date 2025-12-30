@@ -1,7 +1,5 @@
+import { Book, BookOpen } from 'lucide-react';
 import { useState } from "react";
-import { 
-  Plus, Search, Edit, Trash2, Users, BookOpen, Check, AlertCircle, X, Save
-} from "lucide-react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -10,7 +8,7 @@ import { Badge } from "../ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { useSchool, Class } from "../../contexts/SchoolContext";
 
 export function ManageClassesPage() {
@@ -26,6 +24,10 @@ export function ManageClassesPage() {
   // Get active teachers from context
   const availableTeachers = teachers.filter(t => t.status === 'Active');
 
+  // Get unique levels and classes for filters
+  const levels = ["All", ...(Array.isArray(classes) ? Array.from(new Set(classes.map(c => c.level))) : [])];
+  const statuses = ["All", "Active", "Inactive"];
+
   // Form state
   const [formData, setFormData] = useState({
     name: "",
@@ -33,13 +35,13 @@ export function ManageClassesPage() {
     capacity: "",
     classTeacherId: "",
     status: "Active" as "Active" | "Inactive",
-    schoolLevel: "" as "Primary" | "Secondary" | "",
+    schoolLevel: "" as typeof levels[number],
   });
 
   // Filter classes
   const filteredClasses = classes.filter(cls => {
     const matchesSearch = cls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         cls.classTeacher.toLowerCase().includes(searchQuery.toLowerCase());
+                         (cls.classTeacher && cls.classTeacher.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesLevel = filterLevel === "All" || cls.level === filterLevel;
     const matchesStatus = filterStatus === "All" || cls.status === filterStatus;
     
@@ -72,6 +74,9 @@ export function ManageClassesPage() {
       section: formData.section,
       status: formData.status,
       academicYear: '2024/2025',
+      category: formData.schoolLevel.includes('JSS') || formData.schoolLevel.includes('SSS') ? 'Secondary' : 'Primary',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     addClass(newClass);
@@ -123,7 +128,7 @@ export function ManageClassesPage() {
     setEditingClass(cls);
     setFormData({
       name: cls.name,
-      section: cls.section,
+      section: cls.section || "",
       capacity: cls.capacity.toString(),
       classTeacherId: cls.classTeacherId?.toString() || "",
       status: cls.status,
@@ -177,7 +182,7 @@ export function ManageClassesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Active Classes</p>
-              <Check className="w-5 h-5 text-[#10B981] group-hover:scale-110 transition-transform" />
+              <span className="w-5 h-5 text-[#10B981] group-hover:scale-110 transition-transform" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{stats.activeClasses}</p>
             <p className="text-xs text-[#10B981]">Currently in session</p>
@@ -188,7 +193,7 @@ export function ManageClassesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#6B7280] text-sm">Total Students</p>
-              <Users className="w-5 h-5 text-[#3B82F6] group-hover:scale-110 transition-transform" />
+              <span className="w-5 h-5 text-[#3B82F6] group-hover:scale-110 transition-transform" />
             </div>
             <p className="text-[#1F2937] mb-1 font-semibold">{stats.totalStudents}</p>
             <p className="text-xs text-[#6B7280]">Enrolled students</p>
@@ -224,7 +229,7 @@ export function ManageClassesPage() {
                 }}
                 className="text-white hover:bg-white/20 rounded-lg"
               >
-                <X className="w-4 h-4" />
+                <span className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
@@ -234,8 +239,8 @@ export function ManageClassesPage() {
                 <Label className="text-[#1F2937]">School Level *</Label>
                 <Select 
                   value={formData.schoolLevel} 
-                  onValueChange={(value: "Primary" | "Secondary") => {
-                    setFormData({ ...formData, schoolLevel: value });
+                  onValueChange={(value: string) => {
+                    setFormData({ ...formData, schoolLevel: value as "Primary" | "Secondary" });
                   }}
                 >
                   <SelectTrigger className="h-12 rounded-lg border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937]">
@@ -281,7 +286,7 @@ export function ManageClassesPage() {
 
               <div className="space-y-2">
                 <Label className="text-[#1F2937]">Assign Class Teacher *</Label>
-                <Select value={formData.classTeacherId} onValueChange={(value) => setFormData({ ...formData, classTeacherId: value })}>
+                <Select value={formData.classTeacherId} onValueChange={(value: string) => setFormData({ ...formData, classTeacherId: value })}>
                   <SelectTrigger className="h-12 rounded-lg border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937]">
                     <SelectValue placeholder="Select class teacher" />
                   </SelectTrigger>
@@ -307,7 +312,7 @@ export function ManageClassesPage() {
 
               <div className="space-y-2">
                 <Label className="text-[#1F2937]">Status</Label>
-                <Select value={formData.status} onValueChange={(value: "Active" | "Inactive") => setFormData({ ...formData, status: value })}>
+                <Select value={formData.status} onValueChange={(value: string) => setFormData({ ...formData, status: value as "Active" | "Inactive" })}>
                   <SelectTrigger className="h-12 rounded-lg border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937]">
                     <SelectValue />
                   </SelectTrigger>
@@ -328,14 +333,14 @@ export function ManageClassesPage() {
                 variant="outline"
                 className="rounded-lg border-[#E5E7EB] text-[#6B7280] hover:bg-[#F9FAFB]"
               >
-                <X className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
               <Button
                 onClick={editingClass ? handleEditClass : handleCreateClass}
                 className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg shadow-clinical"
               >
-                <Save className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 {editingClass ? 'Save Changes' : 'Create Class'}
               </Button>
             </div>
@@ -350,7 +355,7 @@ export function ManageClassesPage() {
             <div className="md:col-span-2 space-y-2">
               <Label className="text-[#1F2937]">Search Classes</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
                 <Input
                   placeholder="Search by class name or teacher..."
                   value={searchQuery}
@@ -398,7 +403,7 @@ export function ManageClassesPage() {
                 }}
                 className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg shadow-clinical hover:shadow-clinical-lg transition-all"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <span className="w-4 h-4 mr-2" />
                 Create New Class
               </Button>
             </div>
@@ -500,7 +505,7 @@ export function ManageClassesPage() {
                               onClick={() => startEdit(cls)}
                               className="text-[#3B82F6] hover:bg-[#EFF6FF] rounded-lg"
                             >
-                              <Edit className="w-4 h-4" />
+                              <span className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -508,7 +513,7 @@ export function ManageClassesPage() {
                               onClick={() => openDeleteDialog(cls)}
                               className="text-[#EF4444] hover:bg-[#FEF2F2] rounded-lg"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <span className="w-4 h-4" />
                             </Button>
                           </div>
                         </TableCell>

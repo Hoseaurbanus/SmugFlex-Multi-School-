@@ -1,16 +1,15 @@
 import { useState } from "react";
-import { User, Upload, Save } from "lucide-react";
 import { Card, CardContent } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Checkbox } from "../ui/checkbox";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
 
 export function AddTeacherPage() {
-  const { addTeacher, addUser, classes } = useSchool();
+  const { addTeacher, classes } = useSchool();
   
   const [formData, setFormData] = useState({
     firstName: "",
@@ -68,21 +67,10 @@ export function AddTeacherPage() {
         employeeId: formData.employeeId,
         email: formData.email,
         phone: formData.phone,
-        qualification: formData.qualification,
-        specialization: formData.specialization,
+        department: formData.specialization.join(', ') || 'General',
         status: 'Active',
-        isClassTeacher: formData.isClassTeacher,
-        classTeacherId: formData.classTeacherId,
-      });
-
-      // Create user account
-      addUser({
-        username: formData.username,
-        password: formData.password,
-        role: 'teacher',
-        linkedId: teacherId,
-        email: formData.email,
-        status: 'Active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       });
 
       toast.success(`Teacher ${formData.firstName} ${formData.lastName} added successfully!`);
@@ -120,13 +108,13 @@ export function AddTeacherPage() {
             <div className="flex justify-center mb-6">
               <div className="relative">
                 <div className="w-32 h-32 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center border-4 border-gray-200">
-                  <User className="w-16 h-16 text-white" />
+                  <span className="w-16 h-16 text-white" />
                 </div>
                 <button
                   type="button"
                   className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-[#10B981] flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
                 >
-                  <Upload className="w-5 h-5 text-white" />
+                  <span className="w-5 h-5 text-white" />
                 </button>
               </div>
             </div>
@@ -181,7 +169,7 @@ export function AddTeacherPage() {
 
               <div className="space-y-2">
                 <Label className="text-gray-700">Qualification *</Label>
-                <Select required value={formData.qualification} onValueChange={(value) => setFormData({ ...formData, qualification: value })}>
+                <Select value={formData.qualification} onValueChange={(value) => setFormData({ ...formData, qualification: value })}>
                   <SelectTrigger className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900">
                     <SelectValue placeholder="Select qualification" />
                   </SelectTrigger>
@@ -261,20 +249,15 @@ export function AddTeacherPage() {
               )}
             </div>
 
-            {/* Class Teacher Assignment */}
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="classTeacher"
-                  checked={formData.isClassTeacher}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isClassTeacher: checked as boolean, classTeacherId: checked ? formData.classTeacherId : null })}
-                  className="border-gray-300"
-                />
-                <Label htmlFor="classTeacher" className="text-gray-900 cursor-pointer">
-                  Assign as Class Teacher
-                </Label>
-              </div>
-
+            <div className="space-y-2">
+              <Label className="text-gray-700">Last Name *</Label>
+              <Input
+                required
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                placeholder="Enter last name"
+                className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
+              />
               {formData.isClassTeacher && (
                 <div className="space-y-2">
                   <Label className="text-gray-700">Assigned Class *</Label>
@@ -283,12 +266,12 @@ export function AddTeacherPage() {
                       <SelectValue placeholder="Select class" />
                     </SelectTrigger>
                     <SelectContent className="bg-white border-gray-200">
-                      {classes.filter(c => c.status === 'Active' && !c.class_teacher_id).map((cls) => (
+                      {classes.filter(c => c.status === 'Active' && !c.classTeacherId).map((cls) => (
                         <SelectItem key={cls.id} value={cls.id.toString()} className="text-gray-900">
                           {cls.name}
                         </SelectItem>
                       ))}
-                      {classes.filter(c => c.status === 'Active' && c.class_teacher_id).length > 0 && (
+                      {classes.filter(c => c.status === 'Active' && c.classTeacherId).length > 0 && (
                         <div className="px-2 py-1 text-xs text-gray-500 border-t">
                           Classes with teachers are hidden
                         </div>
@@ -334,7 +317,7 @@ export function AddTeacherPage() {
                 type="submit"
                 className="flex-1 h-12 bg-[#10B981] hover:bg-[#059669] text-white rounded-xl shadow-sm"
               >
-                <Save className="w-5 h-5 mr-2" />
+                <span className="w-5 h-5 mr-2" />
                 Add Teacher
               </Button>
             </div>

@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Bell, CheckCircle, AlertCircle, Info, AlertTriangle, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { useSchool } from '../contexts/SchoolContext';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function NotificationsPage() {
   const { currentUser, getAllNotifications, getUnreadNotifications, markNotificationAsRead } =
@@ -24,27 +23,27 @@ export function NotificationsPage() {
     );
   }
 
-  const allNotifications = getAllNotifications(currentUser.id, currentUser.role);
-  const unreadNotifications = getUnreadNotifications(currentUser.id, currentUser.role);
+  const allNotifications = getAllNotifications();
+  const unreadNotifications = getUnreadNotifications();
 
   const displayedNotifications = filter === 'unread' ? unreadNotifications : allNotifications;
 
   const handleMarkAsRead = (notificationId: number) => {
-    markNotificationAsRead(notificationId, currentUser.id);
+    markNotificationAsRead(notificationId);
     toast.success('Notification marked as read');
   };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'success':
-        return <CheckCircle className="w-5 h-5 text-[#10B981]" />;
+        return <span className="w-5 h-5 text-[#10B981]" />;
       case 'error':
-        return <AlertCircle className="w-5 h-5 text-[#EF4444]" />;
+        return <span className="w-5 h-5 text-[#EF4444]" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-[#F59E0B]" />;
+        return <span className="w-5 h-5 text-[#F59E0B]" />;
       case 'info':
       default:
-        return <Info className="w-5 h-5 text-[#3B82F6]" />;
+        return <span className="w-5 h-5 text-[#3B82F6]" />;
     }
   };
 
@@ -75,7 +74,7 @@ export function NotificationsPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Notifications</p>
-              <Bell className="w-5 h-5 text-gray-400" />
+              <span className="w-5 h-5 text-gray-400" />
             </div>
             <p className="text-3xl text-gray-900">{allNotifications.length}</p>
           </CardContent>
@@ -85,7 +84,7 @@ export function NotificationsPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Unread</p>
-              <AlertCircle className="w-5 h-5 text-[#F59E0B]" />
+              <span className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <p className="text-3xl text-gray-900">{unreadNotifications.length}</p>
           </CardContent>
@@ -95,7 +94,7 @@ export function NotificationsPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Read</p>
-              <CheckCircle className="w-5 h-5 text-[#10B981]" />
+              <span className="w-5 h-5 text-[#10B981]" />
             </div>
             <p className="text-3xl text-gray-900">
               {allNotifications.length - unreadNotifications.length}
@@ -124,7 +123,7 @@ export function NotificationsPage() {
         <CardContent className="p-0">
           {displayedNotifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <Bell className="w-12 h-12 text-gray-400 mb-3" />
+              <span className="w-12 h-12 text-gray-400 mb-3" />
               <p className="text-gray-900 mb-1">
                 {filter === 'unread' ? 'No unread notifications' : 'No notifications'}
               </p>
@@ -190,7 +189,7 @@ export function NotificationsPage() {
                               variant="ghost"
                               className="text-[#3B82F6] hover:bg-blue-50 text-xs h-7"
                             >
-                              <CheckCircle className="w-3 h-3 mr-1" />
+                              <span className="w-3 h-3 mr-1" />
                               Mark as read
                             </Button>
                           )}

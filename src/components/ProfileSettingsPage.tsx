@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { User, Mail, Phone, Lock, Bell, Shield, Camera, Save, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -8,7 +7,8 @@ import { Switch } from './ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Separator } from './ui/separator';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
+import { useSchool } from '../contexts/SchoolContext';
 
 interface ProfileData {
   firstName: string;
@@ -31,45 +31,80 @@ interface NotificationSettings {
   emailNotifications: boolean;
   smsNotifications: boolean;
   resultApproval: boolean;
-  paymentAlerts: boolean;
-  systemUpdates: boolean;
-  announcements: boolean;
 }
 
 export function ProfileSettingsPage() {
-  const [isEditing, setIsEditing] = useState(false);
+  const { currentUser, changePassword, updateTeacher, updateParent, updateAccountant } = useSchool();
+  
   const [profileData, setProfileData] = useState<ProfileData>({
-    firstName: 'Fatima',
-    lastName: 'Abubakar',
-    email: 'fatima.abubakar@graceland.edu.ng',
-    phone: '08012345678',
-    role: 'Admin',
-    staffId: 'STAFF001',
-    department: 'Administration',
-    address: '12 Ahmadu Bello Way, Gombe State'
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    role: '',
+    staffId: '',
+    department: '',
+    address: '',
   });
 
   const [securityData, setSecurityData] = useState<SecurityData>({
     currentPassword: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
 
   const [notifications, setNotifications] = useState<NotificationSettings>({
     emailNotifications: true,
-    smsNotifications: true,
+    smsNotifications: false,
     resultApproval: true,
-    paymentAlerts: true,
-    systemUpdates: false,
-    announcements: true
   });
 
-  const handleProfileUpdate = () => {
-    toast.success('Profile updated successfully');
-    setIsEditing(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleProfileUpdate = async () => {
+    if (!currentUser) {
+      toast.error('User not authenticated');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Update based on user role
+      if (currentUser.role === 'teacher') {
+        await updateTeacher(currentUser.linked_id, {
+          firstName: profileData.firstName,
+          lastName: profileData.lastName,
+          email: profileData.email,
+          phone: profileData.phone,
+        });
+      } else if (currentUser.role === 'parent') {
+        await updateParent(currentUser.linked_id, {
+          firstName: profileData.firstName,
+          lastName: profileData.lastName,
+          email: profileData.email,
+          phone: profileData.phone,
+        });
+      } else if (currentUser.role === 'accountant') {
+        await updateAccountant(currentUser.linked_id, {
+          firstName: profileData.firstName,
+          lastName: profileData.lastName,
+          email: profileData.email,
+          phone: profileData.phone,
+        });
+      }
+
+      toast.success('Profile updated successfully');
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (securityData.newPassword !== securityData.confirmPassword) {
       toast.error('Passwords do not match');
       return;
@@ -78,8 +113,22 @@ export function ProfileSettingsPage() {
       toast.error('Password must be at least 8 characters');
       return;
     }
-    toast.success('Password changed successfully');
-    setSecurityData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+
+    setIsLoading(true);
+    try {
+      const success = await changePassword(securityData.currentPassword, securityData.newPassword);
+      if (success) {
+        toast.success('Password changed successfully');
+        setSecurityData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        toast.error('Current password is incorrect');
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error('Failed to change password');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleNotificationToggle = (key: keyof NotificationSettings) => {
@@ -113,7 +162,7 @@ export function ProfileSettingsPage() {
                 size="sm" 
                 className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-[#FFD700] hover:bg-[#FFD700]/90 text-[#0A2540] p-0"
               >
-                <Camera className="w-4 h-4" />
+                <span className="w-4 h-4" />
               </Button>
             </div>
             <div className="flex-1">
@@ -129,15 +178,15 @@ export function ProfileSettingsPage() {
       <Tabs defaultValue="profile" className="space-y-6">
         <TabsList className="bg-[#0A2540]/5 p-1 rounded-xl">
           <TabsTrigger value="profile" className="rounded-xl data-[state=active]:bg-[#0A2540] data-[state=active]:text-white">
-            <User className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Profile
           </TabsTrigger>
           <TabsTrigger value="security" className="rounded-xl data-[state=active]:bg-[#0A2540] data-[state=active]:text-white">
-            <Lock className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Security
           </TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-xl data-[state=active]:bg-[#0A2540] data-[state=active]:text-white">
-            <Bell className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Notifications
           </TabsTrigger>
         </TabsList>
@@ -165,15 +214,16 @@ export function ProfileSettingsPage() {
                       variant="outline"
                       className="rounded-xl border-[#0A2540]/20"
                     >
-                      <X className="w-4 h-4 mr-2" />
+                      <span className="w-4 h-4 mr-2" />
                       Cancel
                     </Button>
                     <Button 
                       onClick={handleProfileUpdate}
+                      disabled={isLoading}
                       className="bg-[#FFD700] hover:bg-[#FFD700]/90 text-[#0A2540] rounded-xl"
                     >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Changes
+                      <span className="w-4 h-4 mr-2" />
+                      {isLoading ? "Saving..." : "Save Changes"}
                     </Button>
                   </div>
                 )}
@@ -204,7 +254,7 @@ export function ProfileSettingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-[#0A2540]">Email Address</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       id="email"
                       type="email"
@@ -218,7 +268,7 @@ export function ProfileSettingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="phone" className="text-[#0A2540]">Phone Number</Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       id="phone"
                       type="tel"
@@ -278,7 +328,7 @@ export function ProfileSettingsPage() {
                     <div className="space-y-2">
                       <Label htmlFor="currentPassword" className="text-[#0A2540]">Current Password</Label>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <Input
                           id="currentPassword"
                           type="password"
@@ -292,7 +342,7 @@ export function ProfileSettingsPage() {
                     <div className="space-y-2">
                       <Label htmlFor="newPassword" className="text-[#0A2540]">New Password</Label>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <Input
                           id="newPassword"
                           type="password"
@@ -306,7 +356,7 @@ export function ProfileSettingsPage() {
                     <div className="space-y-2">
                       <Label htmlFor="confirmPassword" className="text-[#0A2540]">Confirm New Password</Label>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <Input
                           id="confirmPassword"
                           type="password"
@@ -319,9 +369,10 @@ export function ProfileSettingsPage() {
                     </div>
                     <Button 
                       onClick={handlePasswordChange}
+                      disabled={isLoading}
                       className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl"
                     >
-                      Update Password
+                      {isLoading ? "Updating..." : "Update Password"}
                     </Button>
                   </div>
                 </div>
@@ -376,7 +427,7 @@ export function ProfileSettingsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                       <div className="flex items-center gap-3">
-                        <Mail className="w-5 h-5 text-[#0A2540]" />
+                        <span className="w-5 h-5 text-[#0A2540]" />
                         <div>
                           <p className="text-[#0A2540]">Email Notifications</p>
                           <p className="text-sm text-gray-600">Receive notifications via email</p>
@@ -389,7 +440,7 @@ export function ProfileSettingsPage() {
                     </div>
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                       <div className="flex items-center gap-3">
-                        <Phone className="w-5 h-5 text-[#0A2540]" />
+                        <span className="w-5 h-5 text-[#0A2540]" />
                         <div>
                           <p className="text-[#0A2540]">SMS Notifications</p>
                           <p className="text-sm text-gray-600">Receive notifications via SMS</p>
@@ -425,28 +476,28 @@ export function ProfileSettingsPage() {
                         <p className="text-sm text-gray-600">Get notified about payment activities</p>
                       </div>
                       <Switch 
-                        checked={notifications.paymentAlerts}
-                        onCheckedChange={() => handleNotificationToggle('paymentAlerts')}
+                        checked={notifications.resultApproval}
+                        onCheckedChange={() => handleNotificationToggle('resultApproval')}
                       />
                     </div>
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                       <div>
-                        <p className="text-[#0A2540]">System Updates</p>
-                        <p className="text-sm text-gray-600">Get notified about system maintenance and updates</p>
+                        <p className="text-[#0A2540]">Email Notifications</p>
+                        <p className="text-sm text-gray-600">Receive notifications via email</p>
                       </div>
                       <Switch 
-                        checked={notifications.systemUpdates}
-                        onCheckedChange={() => handleNotificationToggle('systemUpdates')}
+                        checked={notifications.emailNotifications}
+                        onCheckedChange={() => handleNotificationToggle('emailNotifications')}
                       />
                     </div>
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                       <div>
-                        <p className="text-[#0A2540]">Announcements</p>
-                        <p className="text-sm text-gray-600">Receive school announcements and updates</p>
+                        <p className="text-[#0A2540]">SMS Notifications</p>
+                        <p className="text-sm text-gray-600">Receive notifications via SMS</p>
                       </div>
                       <Switch 
-                        checked={notifications.announcements}
-                        onCheckedChange={() => handleNotificationToggle('announcements')}
+                        checked={notifications.smsNotifications}
+                        onCheckedChange={() => handleNotificationToggle('smsNotifications')}
                       />
                     </div>
                   </div>

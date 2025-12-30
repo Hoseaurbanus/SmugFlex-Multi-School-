@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import { AlertCircle, Save, X, Image as ImageIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -7,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Alert, AlertDescription } from "../ui/alert";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
+import { ImageIcon } from "lucide-react";
 
 interface AddStudentFormProps {
   onClose: () => void;
@@ -74,11 +74,11 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
     setIsLoading(true);
 
     addStudent({
-      first_name: addFormData.first_name,
-      last_name: addFormData.last_name,
-      admission_number: '',
+      firstName: addFormData.first_name,
+      lastName: addFormData.last_name,
+      admissionNumber: '',
       class_id: parseInt(addFormData.class_id),
-      class_name: selectedClass.name,
+      className: selectedClass.name,
       level: selectedClass.level,
       parent_id: addFormData.parent_id && addFormData.parent_id !== 'none' ? parseInt(addFormData.parent_id) : null,
       date_of_birth: addFormData.date_of_birth,
@@ -125,7 +125,7 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
   return (
     <div className="space-y-6">
       <Alert className="bg-blue-50 border-blue-200 rounded-xl">
-        <AlertCircle className="h-4 w-4 text-blue-600" />
+        <span className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-gray-900">
           <strong>Student Registration Process:</strong>
           <br />
@@ -205,8 +205,8 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
                 </Label>
                 <Select
                   value={addFormData.gender}
-                  onValueChange={(value: 'Male' | 'Female') =>
-                    setAddFormData({ ...addFormData, gender: value })
+                  onValueChange={(value: string) =>
+                    setAddFormData({ ...addFormData, gender: value as 'Male' | 'Female' })
                   }
                 >
                   <SelectTrigger
@@ -255,7 +255,7 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
                       .filter((c) => c.status === 'Active')
                       .map((cls) => (
                         <SelectItem key={cls.id} value={cls.id.toString()} className="text-gray-900">
-                          {cls.name} - {cls.level} ({cls.current_students}/{cls.capacity} students)
+                          {cls.name} - {cls.level} ({cls.currentStudents}/{cls.capacity} students)
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -365,7 +365,7 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
             disabled={isLoading}
             className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl shadow-sm"
           >
-            <Save className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             {isLoading ? 'Registering...' : 'Register Student'}
           </Button>
         </div>

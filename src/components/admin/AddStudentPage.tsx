@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useSchool } from '../../contexts/SchoolContext';
-import { UserPlus, Save, AlertCircle, Users, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -91,11 +91,11 @@ export function AddStudentPage() {
 
     // Admission number will be generated automatically in the database service
     addStudent({
-      first_name: formData.firstName.trim(),
-      last_name: formData.lastName.trim(),
-      admission_number: '', // Will be generated in database service
+      firstName: formData.firstName.trim(),
+      lastName: formData.lastName.trim(),
+      admissionNumber: '', // Will be generated in database service
       class_id: parseInt(formData.classId),
-      class_name: selectedClass.name,
+      className: selectedClass.name,
       level: selectedClass.level,
       parent_id: formData.parentId && formData.parentId !== 'none' ? parseInt(formData.parentId) : null,
       date_of_birth: formData.dateOfBirth,
@@ -148,7 +148,7 @@ export function AddStudentPage() {
 
       {/* Info Alert */}
       <Alert className="bg-blue-50 border-blue-200 rounded-xl">
-        <AlertCircle className="h-4 w-4 text-blue-600" />
+        <span className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-gray-900">
           <strong>Student Registration Process:</strong>
           <br />
@@ -168,7 +168,7 @@ export function AddStudentPage() {
         <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
           <CardHeader className="p-5 border-b border-gray-200">
             <div className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-[#2563EB]" />
+              <Plus className="w-5 h-5 text-[#2563EB]" />
               <h3 className="text-lg text-gray-900">Student Information</h3>
             </div>
           </CardHeader>
@@ -195,12 +195,12 @@ export function AddStudentPage() {
                           onClick={handleRemovePhoto}
                           className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-md"
                         >
-                          <X className="w-4 h-4" />
+                          <span className="w-4 h-4" />
                         </button>
                       </div>
                     ) : (
                       <div className="w-32 h-32 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
-                        <Upload className="w-8 h-8 text-gray-400" />
+                        <span className="w-8 h-8 text-gray-400" />
                       </div>
                     )}
                   </div>
@@ -220,7 +220,7 @@ export function AddStudentPage() {
                       onClick={() => document.getElementById('photo-upload')?.click()}
                       className="rounded-xl border-gray-300 text-gray-700 hover:bg-gray-50"
                     >
-                      <Upload className="w-4 h-4 mr-2" />
+                      <span className="w-4 h-4 mr-2" />
                       {photoPreview ? 'Change Photo' : 'Upload Photo'}
                     </Button>
                     <p className="text-xs text-gray-500">
@@ -288,8 +288,8 @@ export function AddStudentPage() {
                   </Label>
                   <Select
                     value={formData.gender}
-                    onValueChange={(value: 'Male' | 'Female') =>
-                      setFormData({ ...formData, gender: value })
+                    onValueChange={(value: string) =>
+                      setFormData({ ...formData, gender: value as 'Male' | 'Female' })
                     }
                   >
                     <SelectTrigger
@@ -338,7 +338,7 @@ export function AddStudentPage() {
                         .filter((c) => c.status === 'Active')
                         .map((cls) => (
                           <SelectItem key={cls.id} value={cls.id.toString()} className="text-gray-900">
-                            {cls.name} - {cls.level} ({cls.current_students}/{cls.capacity} students)
+                            {cls.name} - {cls.level} ({cls.currentStudents}/{cls.capacity} students)
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -425,7 +425,7 @@ export function AddStudentPage() {
             type="submit"
             className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl shadow-sm"
           >
-            <Save className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Register Student
           </Button>
         </div>
@@ -437,7 +437,7 @@ export function AddStudentPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Students</p>
-              <Users className="w-5 h-5 text-[#2563EB]" />
+              <span className="w-5 h-5 text-[#2563EB]" />
             </div>
             <p className="text-2xl text-gray-900">{students.length}</p>
           </CardContent>
@@ -447,7 +447,7 @@ export function AddStudentPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Active Classes</p>
-              <Users className="w-5 h-5 text-[#10B981]" />
+              <span className="w-5 h-5 text-[#10B981]" />
             </div>
             <p className="text-2xl text-gray-900">
               {classes.filter((c) => c.status === 'Active').length}
@@ -459,7 +459,7 @@ export function AddStudentPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Registered Parents</p>
-              <Users className="w-5 h-5 text-[#3B82F6]" />
+              <span className="w-5 h-5 text-[#3B82F6]" />
             </div>
             <p className="text-2xl text-gray-900">{parents.length}</p>
           </CardContent>

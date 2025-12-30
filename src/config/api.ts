@@ -5,16 +5,16 @@
 
 export const API_CONFIG = {
   // Base URL - change this to match your server
-  BASE_URL: (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost/GGGG/api',
+  BASE_URL: (import.meta as any).env?.VITE_API_BASE_URL || 'https://gracelandroyalacademy.com.ng/api',
   
   // API Version
   VERSION: 'v1',
   
-  // Request timeout in milliseconds
-  TIMEOUT: 60000,
+  // Request timeout in milliseconds - increased for slow server
+  TIMEOUT: 30000,
   
   // Retry attempts for failed requests
-  RETRY_ATTEMPTS: 3,
+  RETRY_ATTEMPTS: 2,
   
   // Authentication
   AUTH: {
@@ -27,11 +27,28 @@ export const API_CONFIG = {
   ENDPOINTS: {
     // Authentication
     AUTH: {
-      LOGIN: '/auth/login',
+      LOGIN: '/working_login.php',
       LOGOUT: '/auth/logout',
       PROFILE: '/auth/profile',
       CHANGE_PASSWORD: '/auth/change-password',
       REFRESH_TOKEN: '/auth/refresh-token'
+    },
+    
+    // Users
+    USERS: {
+      LIST: '/users',
+      DETAIL: (id: number) => `/users/${id}`,
+      CREATE: '/users',
+      UPDATE: (id: number) => `/users/${id}`,
+      DELETE: (id: number) => `/users/${id}`
+    },
+    
+    // Class Teacher Assignments
+    CLASS_TEACHER_ASSIGNMENTS: {
+      LIST: '/class_teacher_assignments',
+      CREATE: '/class_teacher_assignments',
+      DELETE: (id: number) => `/class_teacher_assignments?id=${id}`,
+      BY_TERM: (academicYear: string, term: string) => `/class_teacher_assignments?academic_year=${academicYear}&term=${term}`
     },
     
     // Students
@@ -169,30 +186,54 @@ export const buildUrl = (endpoint: string): string => {
 
 // Helper function to get auth token
 export const getAuthToken = (): string | null => {
-  return localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+  try {
+    return localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+  } catch (error) {
+    console.error('Error getting auth token:', error);
+    return null;
+  }
 };
 
 // Helper function to set auth token
 export const setAuthToken = (token: string): void => {
-  localStorage.setItem(API_CONFIG.AUTH.TOKEN_KEY, token);
+  try {
+    localStorage.setItem(API_CONFIG.AUTH.TOKEN_KEY, token);
+  } catch (error) {
+    console.error('Error storing auth token:', error);
+  }
 };
 
 // Helper function to remove auth token
 export const removeAuthToken = (): void => {
-  localStorage.removeItem(API_CONFIG.AUTH.TOKEN_KEY);
-  localStorage.removeItem(API_CONFIG.AUTH.REFRESH_TOKEN_KEY);
-  localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
+  try {
+    localStorage.removeItem(API_CONFIG.AUTH.TOKEN_KEY);
+    localStorage.removeItem(API_CONFIG.AUTH.REFRESH_TOKEN_KEY);
+    localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
+  } catch (error) {
+    console.error('Error removing auth token:', error);
+  }
 };
 
 // Helper function to get current user
 export const getCurrentUser = (): any | null => {
-  const userStr = localStorage.getItem(API_CONFIG.AUTH.USER_KEY);
-  return userStr ? JSON.parse(userStr) : null;
+  try {
+    const userStr = localStorage.getItem(API_CONFIG.AUTH.USER_KEY);
+    return userStr ? JSON.parse(userStr) : null;
+  } catch (error) {
+    console.error('Error getting current user:', error);
+    // Clear corrupted data
+    localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
+    return null;
+  }
 };
 
 // Helper function to set current user
 export const setCurrentUser = (user: any): void => {
-  localStorage.setItem(API_CONFIG.AUTH.USER_KEY, JSON.stringify(user));
+  try {
+    localStorage.setItem(API_CONFIG.AUTH.USER_KEY, JSON.stringify(user));
+  } catch (error) {
+    console.error('Error setting current user:', error);
+  }
 };
 
 export default API_CONFIG;

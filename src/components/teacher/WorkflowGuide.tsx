@@ -1,4 +1,3 @@
-import { CheckCircle, ArrowRight, FileText, Users, Heart, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Badge } from '../ui/badge';
 
@@ -12,7 +11,7 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
       <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
         <CardHeader className="p-5 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-[#F59E0B]" />
+            <span className="w-5 h-5 text-[#F59E0B]" />
             <h3 className="text-lg text-gray-900">Class Teacher Result Workflow</h3>
             <Badge className="ml-auto bg-[#F59E0B] text-white border-0">Full Access</Badge>
           </div>
@@ -32,10 +31,10 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
                   Go to "Enter Scores" and input CA1, CA2, and Exam marks for subjects you teach. Submit when complete.
                 </p>
               </div>
-              <CheckCircle className="w-5 h-5 text-[#10B981] flex-shrink-0 mt-2" />
+              <span className="w-5 h-5 text-[#10B981] flex-shrink-0 mt-2" />
             </div>
 
-            <ArrowRight className="w-5 h-5 text-gray-400 ml-5" />
+            <span className="w-5 h-5 text-gray-400 ml-5" />
 
             {/* Step 2 */}
             <div className="flex gap-4">
@@ -50,10 +49,10 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
                   Ensure all subject teachers have submitted scores for your class. Check the "Compile Results" page to monitor progress.
                 </p>
               </div>
-              <Users className="w-5 h-5 text-[#3B82F6] flex-shrink-0 mt-2" />
+              <span className="w-5 h-5 text-[#3B82F6] flex-shrink-0 mt-2" />
             </div>
 
-            <ArrowRight className="w-5 h-5 text-gray-400 ml-5" />
+            <span className="w-5 h-5 text-gray-400 ml-5" />
 
             {/* Step 3 */}
             <div className="flex gap-4">
@@ -68,10 +67,10 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
                   Go to "Affective & Psychomotor" and rate each student on behavioral traits (attentiveness, honesty, neatness, obedience, responsibility) and skills (handwriting, sports, verbal fluency, etc.) on a scale of 1-5.
                 </p>
               </div>
-              <Heart className="w-5 h-5 text-[#EF4444] flex-shrink-0 mt-2" />
+              <span className="w-5 h-5 text-[#EF4444] flex-shrink-0 mt-2" />
             </div>
 
-            <ArrowRight className="w-5 h-5 text-gray-400 ml-5" />
+            <span className="w-5 h-5 text-gray-400 ml-5" />
 
             {/* Step 4 */}
             <div className="flex gap-4">
@@ -86,10 +85,10 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
                   In "Compile Results" page, write individualized comments for each student about their overall performance and areas for improvement.
                 </p>
               </div>
-              <FileText className="w-5 h-5 text-[#3B82F6] flex-shrink-0 mt-2" />
+              <span className="w-5 h-5 text-[#3B82F6] flex-shrink-0 mt-2" />
             </div>
 
-            <ArrowRight className="w-5 h-5 text-gray-400 ml-5" />
+            <span className="w-5 h-5 text-gray-400 ml-5" />
 
             {/* Step 5 */}
             <div className="flex gap-4">
@@ -104,7 +103,7 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
                   Click "Compile" for each student to bundle all data together, then "Submit to Admin" for final approval. Admin will review and approve for printing.
                 </p>
               </div>
-              <Send className="w-5 h-5 text-[#10B981] flex-shrink-0 mt-2" />
+              <span className="w-5 h-5 text-[#10B981] flex-shrink-0 mt-2" />
             </div>
           </div>
 
@@ -123,7 +122,7 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
     <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
       <CardHeader className="p-5 border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-[#3B82F6]" />
+          <span className="w-5 h-5 text-[#3B82F6]" />
           <h3 className="text-lg text-gray-900">Subject Teacher Score Entry Workflow</h3>
           <Badge className="ml-auto bg-[#3B82F6] text-white border-0">Score Entry</Badge>
         </div>
@@ -145,7 +144,7 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
             </div>
           </div>
 
-          <ArrowRight className="w-5 h-5 text-gray-400 ml-5" />
+          <span className="w-5 h-5 text-gray-400 ml-5" />
 
           {/* Step 2 */}
           <div className="flex gap-4">
@@ -170,7 +169,7 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
             </div>
           </div>
 
-          <ArrowRight className="w-5 h-5 text-gray-400 ml-5" />
+          <span className="w-5 h-5 text-gray-400 ml-5" />
 
           {/* Step 3 */}
           <div className="flex gap-4">
@@ -187,7 +186,7 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
             </div>
           </div>
 
-          <ArrowRight className="w-5 h-5 text-gray-400 ml-5" />
+          <span className="w-5 h-5 text-gray-400 ml-5" />
 
           {/* Step 4 */}
           <div className="flex gap-4">
@@ -202,7 +201,7 @@ export function WorkflowGuide({ isClassTeacher }: WorkflowGuideProps) {
                 When all students have complete scores, click "Submit to Class Teacher". Your scores will be forwarded to the class teacher for final result compilation. Your name will be automatically attached to the submitted scores.
               </p>
             </div>
-            <Send className="w-5 h-5 text-[#10B981] flex-shrink-0 mt-2" />
+            <span className="w-5 h-5 text-[#10B981] flex-shrink-0 mt-2" />
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { ArrowLeft, Award, Target, Users, BookOpen, Heart, Shield } from "lucide-react";
+import { Book, Target, BookOpen, ArrowLeft } from 'lucide-react';
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 
@@ -50,7 +50,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
                 <div className="bg-green-100 p-3 rounded-lg">
-                  <Award className="h-6 w-6 text-[#10B981]" />
+                  <span className="h-6 w-6 text-[#10B981]" />
                 </div>
                 <div>
                   <h2 className="text-xl mb-3">Our Vision</h2>
@@ -82,7 +82,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
 
               <div className="flex flex-col items-center text-center">
                 <div className="bg-green-100 p-4 rounded-full mb-4">
-                  <Heart className="h-8 w-8 text-[#10B981]" />
+                  <span className="h-8 w-8 text-[#10B981]" />
                 </div>
                 <h3 className="mb-2">Integrity</h3>
                 <p className="text-gray-600 text-sm">
@@ -92,7 +92,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
 
               <div className="flex flex-col items-center text-center">
                 <div className="bg-purple-100 p-4 rounded-full mb-4">
-                  <Users className="h-8 w-8 text-purple-600" />
+                  <span className="h-8 w-8 text-purple-600" />
                 </div>
                 <h3 className="mb-2">Community</h3>
                 <p className="text-gray-600 text-sm">
@@ -136,7 +136,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
             <div className="grid md:grid-cols-2 gap-4">
               <div className="flex items-start gap-3">
                 <div className="bg-blue-100 p-2 rounded">
-                  <Shield className="h-5 w-5 text-[#2563EB]" />
+                  <span className="h-5 w-5 text-[#2563EB]" />
                 </div>
                 <div>
                   <h3 className="mb-1">Modern Classrooms</h3>
@@ -148,7 +148,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
 
               <div className="flex items-start gap-3">
                 <div className="bg-blue-100 p-2 rounded">
-                  <Shield className="h-5 w-5 text-[#2563EB]" />
+                  <span className="h-5 w-5 text-[#2563EB]" />
                 </div>
                 <div>
                   <h3 className="mb-1">Computer Laboratory</h3>
@@ -160,7 +160,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
 
               <div className="flex items-start gap-3">
                 <div className="bg-blue-100 p-2 rounded">
-                  <Shield className="h-5 w-5 text-[#2563EB]" />
+                  <span className="h-5 w-5 text-[#2563EB]" />
                 </div>
                 <div>
                   <h3 className="mb-1">Science Laboratories</h3>
@@ -172,7 +172,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
 
               <div className="flex items-start gap-3">
                 <div className="bg-blue-100 p-2 rounded">
-                  <Shield className="h-5 w-5 text-[#2563EB]" />
+                  <span className="h-5 w-5 text-[#2563EB]" />
                 </div>
                 <div>
                   <h3 className="mb-1">Library & Reading Room</h3>
@@ -184,7 +184,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
 
               <div className="flex items-start gap-3">
                 <div className="bg-blue-100 p-2 rounded">
-                  <Shield className="h-5 w-5 text-[#2563EB]" />
+                  <span className="h-5 w-5 text-[#2563EB]" />
                 </div>
                 <div>
                   <h3 className="mb-1">Sports Facilities</h3>
@@ -196,7 +196,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
 
               <div className="flex items-start gap-3">
                 <div className="bg-blue-100 p-2 rounded">
-                  <Shield className="h-5 w-5 text-[#2563EB]" />
+                  <span className="h-5 w-5 text-[#2563EB]" />
                 </div>
                 <div>
                   <h3 className="mb-1">Medical Center</h3>

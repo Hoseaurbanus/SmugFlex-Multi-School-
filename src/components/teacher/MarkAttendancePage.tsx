@@ -1,9 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
-import { Card } from '../ui/card';
+import { useNotificationService } from '../../contexts/NotificationService';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { Calendar, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Badge } from '../ui/badge';
+import { Textarea } from '../ui/textarea';
 import { toast } from 'sonner';
+import { 
+  Calendar, 
+  Users, 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  AlertTriangle, 
+  AlertCircle, 
+  BarChart3, 
+  Zap, 
+  RotateCcw, 
+  XSquare, 
+  CheckSquare, 
+  RefreshCw
+} from 'lucide-react';
 
 export function MarkAttendancePage() {
   const {
@@ -15,84 +35,383 @@ export function MarkAttendancePage() {
     addAttendance,
     getAttendancesByDate,
     getTeacherAssignments,
+    classTeacherAssignments,
     currentTerm,
     currentAcademicYear,
+    parentStudentLinks,
+    addNotification,
+    getAttendanceRequirements,
+    loadAttendanceRequirements,
+    getAttendancesByStudent,
+    loadAttendancesFromAPI,
+    compiledResults,
+    loadCompiledResultsFromAPI,
+    updateAttendance,
+    updateCompiledResult,
+    attendances
   } = useSchool();
 
+  const { broadcast } = useNotificationService();
+
   const [selectedClassId, setSelectedClassId] = useState<number>(0);
-  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [studentAttendance, setStudentAttendance] = useState<{
-    [studentId: number]: 'Present' | 'Absent' | 'Late' | 'Excused';
+  const [studentAttendanceInput, setStudentAttendanceInput] = useState<{
+    [studentId: number]: number; // Number of days present
   }>({});
   const [remarks, setRemarks] = useState<{ [studentId: number]: string }>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
-  // Get current teacher's classes based on class teacher assignment only
+  // Load attendance requirements on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await loadAttendanceRequirements();
+        await loadAttendancesFromAPI();
+        await loadCompiledResultsFromAPI();
+      } catch (error) {
+        // Silently continue with empty data
+      }
+    };
+    loadData();
+  }, []);
+
+  // Get current teacher's classes - ONLY as class teacher
   const currentTeacher = teachers.find(t => t.id === currentUser?.linked_id);
-  const teacherClasses = classes.filter((c: any) => c.classTeacherId === currentTeacher?.id);
+  const teacherClasses = classes.filter((c: any) => {
+    const assignment = classTeacherAssignments.find((cta: any) => 
+      String(cta.teacher_id) === String(currentUser?.linked_id) && 
+      String(cta.class_id) === String(c.id) &&
+      cta.academic_year === currentAcademicYear && 
+      cta.term === currentTerm &&
+      cta.status === 'Active'
+    );
+    return !!assignment;
+  });
+
+  // Enhanced validation - teacher must be assigned as class teacher
+  if (teacherClasses.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-3 sm:p-4">
+        <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+          <div className="text-center py-8">
+            <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
+            <h3 className="text-sm font-medium text-gray-900 mb-2">No Class Assignment</h3>
+            <p className="text-xs text-gray-600 mb-4">
+              You are not assigned as a class teacher for any class. Only class teachers can mark attendance.
+            </p>
+            <p className="text-xs text-gray-500">
+              Please contact the administrator to get assigned as a class teacher.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const classStudents = selectedClassId ? getStudentsByClass(selectedClassId) : [];
 
-  // Check if attendance already marked for this date
-  const existingAttendance = getAttendancesByDate(attendanceDate);
+  // Load existing attendance data when class is selected
+  useEffect(() => {
+    if (selectedClassId > 0 && classStudents.length > 0) {
+      console.log('Loading attendance for class:', selectedClassId, 'Students:', classStudents.length);
+      
+      try {
+        const existingAttendanceData: { [studentId: number]: number } = {};
+        const existingRemarks: { [studentId: number]: string } = {};
+        
+        classStudents.forEach(student => {
+          try {
+            // First check compiled results (where compile results saves attendance)
+            const compiledResult = compiledResults.find(cr => 
+              cr.student_id === student.id &&
+              cr.class_id === Number(selectedClassId) &&
+              cr.term === currentTerm &&
+              cr.academic_year === currentAcademicYear
+            );
+            
+            if (compiledResult && compiledResult.times_present > 0) {
+              console.log(`Found compiled result attendance for student ${student.id}: ${compiledResult.times_present} days`);
+              existingAttendanceData[student.id] = compiledResult.times_present;
+              
+              // Create remarks from compiled result data
+              const totalDays = compiledResult.total_attendance_days || getAttendanceRequirements()[currentTerm] || 0;
+              if (totalDays > 0) {
+                existingRemarks[student.id] = `${compiledResult.times_present} out of ${totalDays} days`;
+              }
+            } else {
+              // Fallback to attendance table
+              const studentAttendances = getAttendancesByStudent(student.id).filter(
+                a => a.term === currentTerm && a.academic_year === currentAcademicYear
+              );
+              
+              if (studentAttendances.length > 0) {
+                console.log(`Found ${studentAttendances.length} attendance records for student ${student.id}`);
+                const latestAttendance = studentAttendances[studentAttendances.length - 1];
+                const remarksText = latestAttendance.remarks || '';
+                const daysMatch = remarksText.match(/(\d+)\s*out of\s*(\d+)/);
+                
+                if (daysMatch) {
+                  existingAttendanceData[student.id] = parseInt(daysMatch[1]) || 0;
+                } else {
+                  const presentDays = studentAttendances.filter(a => a.status === 'Present').length;
+                  existingAttendanceData[student.id] = presentDays;
+                }
+                
+                if (remarksText && !remarksText.includes('out of')) {
+                  existingRemarks[student.id] = remarksText;
+                }
+              }
+            }
+          } catch (error) {
+            // Continue with other students
+          }
+        });
+        
+        console.log('Final attendance data loaded:', Object.keys(existingAttendanceData).length, 'students');
+        setStudentAttendanceInput(existingAttendanceData);
+        setRemarks(existingRemarks);
+      } catch (error) {
+        setStudentAttendanceInput({});
+        setRemarks({});
+      }
+    }
+  }, [selectedClassId, classStudents, currentTerm, currentAcademicYear, compiledResults, getAttendancesByStudent, getAttendanceRequirements]);
+
+  const existingAttendance = getAttendancesByDate(new Date().toISOString().split('T')[0]);
   const isAlreadyMarked = existingAttendance.some(
-    a => a.class_id === selectedClassId && a.date === attendanceDate
+    a => a.class_id === selectedClassId && a.term === currentTerm && a.academic_year === currentAcademicYear
   );
 
-  const handleStatusChange = (studentId: number, status: 'Present' | 'Absent' | 'Late' | 'Excused') => {
-    setStudentAttendance({ ...studentAttendance, [studentId]: status });
-  };
-
-  const handleRemarkChange = (studentId: number, remark: string) => {
-    setRemarks({ ...remarks, [studentId]: remark });
-  };
-
-  const handleMarkAll = (status: 'Present' | 'Absent') => {
-    const newAttendance: { [studentId: number]: 'Present' | 'Absent' | 'Late' | 'Excused' } = {};
-    classStudents.forEach(student => {
-      newAttendance[student.id] = status;
-    });
-    setStudentAttendance(newAttendance);
-    toast.success(`Marked all students as ${status}`);
-  };
-
-  const handleSubmit = () => {
-    if (!selectedClassId) {
-      toast.error('Please select a class');
-      return;
-    }
-
-    if (classStudents.length === 0) {
-      toast.error('No students in selected class');
-      return;
-    }
-
-    // Check if all students have attendance marked
-    const unmarkedStudents = classStudents.filter(s => !studentAttendance[s.id]);
-    if (unmarkedStudents.length > 0) {
-      toast.error(`Please mark attendance for all students (${unmarkedStudents.length} remaining)`);
-      return;
-    }
-
-    // Save attendance for each student
-    classStudents.forEach(student => {
-      addAttendance({
-        student_id: student.id,
-        class_id: selectedClassId,
-        date: attendanceDate,
-        status: studentAttendance[student.id],
-        marked_by: currentUser?.linked_id || 0,
-        marked_date: new Date().toISOString(),
-        term: currentTerm,
-        academicYear: currentAcademicYear,
-        remarks: remarks[student.id] || '',
-      });
-    });
-
-    toast.success('Attendance marked successfully!');
+  // Handle attendance days input change with real-time save
+  const handleAttendanceDaysChange = async (studentId: number, days: string) => {
+    const daysNum = parseInt(days) || 0;
+    const attendanceRequirements = getAttendanceRequirements();
+    const requiredDays = attendanceRequirements[currentTerm] || 0;
     
-    // Reset form
-    setStudentAttendance({});
+    // Check if attendance requirements are set
+    if (requiredDays === 0) {
+      console.warn('Attendance requirements not set for current term');
+      return;
+    }
+    
+    // Validate against required days
+    if (daysNum < 0 || daysNum > requiredDays) {
+      // Show brief error feedback
+      const input = document.querySelector(`input[student-id="${studentId}"]`) as HTMLInputElement;
+      if (input) {
+        input.classList.add('border-red-500');
+        setTimeout(() => input.classList.remove('border-red-500'), 2000);
+      }
+      return;
+    }
+    
+    // Update local state immediately for UI responsiveness
+    setStudentAttendanceInput(prev => ({
+      ...prev,
+      [studentId]: daysNum
+    }));
+    
+    // Update remarks
+    setRemarks(prev => ({
+      ...prev,
+      [studentId]: `${daysNum} out of ${requiredDays} days`
+    }));
+    
+    // Save to database immediately
+    try {
+      // First save to attendance table
+      const attendancePayload = {
+        student_id: studentId,
+        class_id: Number(selectedClassId),
+        term: currentTerm,
+        academic_year: currentAcademicYear,
+        attended_days: daysNum,
+        required_days: requiredDays,
+        times_absent: requiredDays - daysNum,
+        attendance_rate: requiredDays > 0 ? Math.round((daysNum / requiredDays) * 100) : 0,
+        date: new Date().toISOString().split('T')[0],
+        status: (daysNum === requiredDays ? 'Present' : daysNum > 0 ? 'Late' : 'Absent') as 'Present' | 'Absent' | 'Late' | 'Excused',
+        marked_by: currentUser?.id || 1,
+        marked_date: new Date().toISOString(),
+        entered_by: currentUser?.id,
+        remarks: `${daysNum} out of ${requiredDays} days`
+      };
+      
+      // Check if attendance record exists
+      const existingAttendance = attendances.find(a => 
+        a.student_id === studentId &&
+        a.class_id === Number(selectedClassId) &&
+        a.term === currentTerm &&
+        a.academic_year === currentAcademicYear
+      );
+      
+      if (existingAttendance) {
+        await updateAttendance(existingAttendance.id, attendancePayload);
+      } else {
+        await addAttendance(attendancePayload);
+      }
+      
+      // Also update compiled results if they exist
+      const compiledResult = compiledResults.find(cr => 
+        cr.student_id === studentId &&
+        cr.class_id === Number(selectedClassId) &&
+        cr.term === currentTerm &&
+        cr.academic_year === currentAcademicYear
+      );
+      
+      if (compiledResult) {
+        // Check if results are already approved
+        if (compiledResult.status === 'Approved') {
+          const student = classStudents.find(s => s.id === studentId);
+          toast.error(`Cannot update attendance for ${student?.firstName} ${student?.lastName}: Results have been approved by admin`, {
+            id: `blocked-attendance-${studentId}`,
+            duration: 5000
+          });
+          return;
+        }
+        
+        await updateCompiledResult(compiledResult.id, {
+          times_present: daysNum,
+          times_absent: requiredDays - daysNum,
+          total_attendance_days: requiredDays
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error saving attendance:', error);
+    }
+  };
+
+  // Handle remark change
+  const handleRemarkChange = (studentId: number, remark: string) => {
+    setRemarks(prev => ({
+      ...prev,
+      [studentId]: remark
+    }));
+  };
+
+  // Quick actions with real-time save
+  const handleMarkAllPresent = async () => {
+    const attendanceRequirements = getAttendanceRequirements();
+    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    
+    const allPresent: { [studentId: number]: number } = {};
+    classStudents.forEach(student => {
+      allPresent[student.id] = requiredDays;
+    });
+    setStudentAttendanceInput(allPresent);
+    
+    // Save all to database
+    for (const student of classStudents) {
+      await handleAttendanceDaysChange(student.id, requiredDays.toString());
+    }
+    
+    toast.success('All students marked as full attendance');
+  };
+
+  const handleMarkAllZero = async () => {
+    const allZero: { [studentId: number]: number } = {};
+    classStudents.forEach(student => {
+      allZero[student.id] = 0;
+    });
+    setStudentAttendanceInput(allZero);
+    
+    // Save all to database
+    for (const student of classStudents) {
+      await handleAttendanceDaysChange(student.id, '0');
+    }
+    
+    toast.success('All students marked as zero attendance');
+  };
+
+  const handleClearAll = () => {
+    setStudentAttendanceInput({});
     setRemarks({});
+  };
+
+  const handleSubmit = async () => {
+    // Since we're saving in real-time, this just shows a summary
+    const attendanceRequirements = getAttendanceRequirements();
+    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    
+    const totalStudents = classStudents.length;
+    const studentsWithAttendance = Object.keys(studentAttendanceInput).length;
+    const totalDaysPresent = Object.values(studentAttendanceInput).reduce((sum, days) => sum + days, 0);
+    
+    toast.success(
+      `Attendance Summary:\n` +
+      `Total Students: ${totalStudents}\n` +
+      `Recorded: ${studentsWithAttendance}/${totalStudents}\n` +
+      `Total Days Present: ${totalDaysPresent}\n` +
+      `(Data is saved automatically as you type)`
+    );
+  };
+
+  // Calculate attendance percentage for a student based on input
+  const calculateAttendancePercentage = (studentId: number): number => {
+    const attendanceRequirements = getAttendanceRequirements();
+    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    
+    if (requiredDays === 0) return 0;
+
+    const daysPresent = studentAttendanceInput[studentId] || 0;
+    return Math.round((daysPresent / requiredDays) * 100);
+  };
+
+  // Get total school days for the term from school settings
+  const getTotalSchoolDays = (): number => {
+    const attendanceRequirements = getAttendanceRequirements();
+    return attendanceRequirements[currentTerm] || 0;
+  };
+
+  // Get present days count for a student from input
+  const getPresentDays = (studentId: number): number => {
+    return studentAttendanceInput[studentId] || 0;
+  };
+
+  // Send notifications to parents for students with low attendance
+  const sendAttendanceNotifications = async () => {
+    const attendanceRequirements = getAttendanceRequirements();
+    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    
+    const lowAttendanceStudents = classStudents.filter(student => {
+      const daysPresent = studentAttendanceInput[student.id] || 0;
+      const attendanceRate = requiredDays > 0 ? (daysPresent / requiredDays) * 100 : 0;
+      return attendanceRate < 75; // Notify if attendance is below 75%
+    });
+
+    for (const student of lowAttendanceStudents) {
+      const daysPresent = studentAttendanceInput[student.id] || 0;
+      const attendanceRate = requiredDays > 0 ? Math.round((daysPresent / requiredDays) * 100) : 0;
+      
+      // Find parent linked to this student
+      const parentLink = parentStudentLinks.find(link => link.student_id === student.id);
+      if (parentLink) {
+        const notificationMessage = `Low attendance alert for ${student.firstName} ${student.lastName}: ${attendanceRate}% (${daysPresent}/${requiredDays} days) for ${currentTerm}. Please contact the school.`;
+        
+        addNotification({
+          targetAudience: 'parents',
+          type: 'warning',
+          title: 'Low Attendance Alert',
+          message: notificationMessage,
+          sentBy: currentUser?.id || 0,
+          sentDate: new Date().toISOString(),
+          isRead: false,
+          readBy: []
+        });
+
+        // Real-time broadcast
+        broadcast({
+          id: Date.now(),
+          type: 'warning',
+          title: 'Low Attendance Alert',
+          message: notificationMessage,
+          targetAudience: 'parents',
+          sentDate: new Date().toISOString()
+        });
+      }
+    }
   };
 
   const getStatusColor = (status: 'Present' | 'Absent' | 'Late' | 'Excused') => {
@@ -107,7 +426,7 @@ export function MarkAttendancePage() {
 
   const getStatusIcon = (status: 'Present' | 'Absent' | 'Late' | 'Excused') => {
     switch (status) {
-      case 'Present': return <CheckCircle2 className="w-4 h-4" />;
+      case 'Present': return <CheckCircle className="w-4 h-4" />;
       case 'Absent': return <XCircle className="w-4 h-4" />;
       case 'Late': return <Clock className="w-4 h-4" />;
       case 'Excused': return <AlertCircle className="w-4 h-4" />;
@@ -115,254 +434,346 @@ export function MarkAttendancePage() {
     }
   };
 
-  const markedCount = Object.keys(studentAttendance || {}).length;
-  const presentCount = Object.values(studentAttendance || {}).filter(s => s === 'Present').length;
-  const absentCount = Object.values(studentAttendance || {}).filter(s => s === 'Absent').length;
-  const lateCount = Object.values(studentAttendance || {}).filter(s => s === 'Late').length;
-  const excusedCount = Object.values(studentAttendance || {}).filter(s => s === 'Excused').length;
+  // Get attendance requirements from school settings
+  const attendanceRequirements = getAttendanceRequirements();
+  const requiredDays = attendanceRequirements[currentTerm] || 0;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-slate-900 mb-2">Mark Attendance</h1>
-        <p className="text-slate-600">Record student attendance for your class</p>
-      </div>
-
-      {/* Selection Section */}
-      <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 space-y-4">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <label className="block mb-2 text-slate-700">Select Class</label>
-            <select
-              value={selectedClassId}
-              onChange={(e) => {
-                setSelectedClassId(Number(e.target.value));
-                setStudentAttendance({});
-                setRemarks({});
-              }}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={0}>Choose a class...</option>
-              {teacherClasses.map(cls => (
-                <option key={cls.id} value={cls.id}>
-                  {cls.name} - {cls.currentStudents} Students
-                </option>
-              ))}
-            </select>
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              Mark Attendance
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
+              Record term attendance - Automatically synced with compile results
+            </p>
           </div>
-
-          <div>
-            <label className="block mb-2 text-slate-700">Attendance Date</label>
-            <div className="relative">
-              <input
-                type="date"
-                value={attendanceDate}
-                onChange={(e) => setAttendanceDate(e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10"
-              />
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-gray-500">
+              {currentTeacher && `${currentTeacher.firstName} ${currentTeacher.lastName}`}
+            </div>
+            <div className="text-xs text-gray-500">
+              {currentTerm} • {currentAcademicYear}
             </div>
           </div>
         </div>
+      </div>
 
-        {isAlreadyMarked && (
-          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+      {/* Attendance Requirements Info */}
+      {requiredDays > 0 ? (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-blue-900">
+                  {currentTerm} Attendance Requirements
+                </p>
+                <p className="text-xs text-blue-700">
+                  {requiredDays} days required for full attendance credit
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-600" />
+              <div>
+                <p className="text-sm font-medium text-yellow-900">
+                  Attendance Requirements Not Set
+                </p>
+                <p className="text-xs text-yellow-700">
+                  Please configure attendance requirements for {currentTerm} in school settings
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Success Summary */}
+      {showSummary && (
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              <span className="text-sm text-green-800">
+                Attendance marked successfully! Data synced with compile results.
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Selection Section */}
+      <Card className="bg-white">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Class Selection
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 gap-4">
             <div>
-              <p className="text-yellow-800">
-                Attendance has already been marked for this class on {attendanceDate}. 
-                Submitting again will create duplicate records.
-              </p>
+              <Label className="text-xs font-medium">Select Class *</Label>
+              <Select
+                value={selectedClassId.toString()}
+                onValueChange={(value) => {
+                  setSelectedClassId(Number(value));
+                  setStudentAttendanceInput({});
+                  setRemarks({});
+                }}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Choose class..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {teacherClasses.map(cls => (
+                    <SelectItem key={cls.id} value={cls.id.toString()}>
+                      {cls.name} - {cls.currentStudents || 0} Students
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        )}
+
+          {isAlreadyMarked && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="text-xs text-amber-800">
+                    Term attendance already exists for this class. Submitting will update existing records.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       {/* Quick Actions */}
       {selectedClassId > 0 && classStudents.length > 0 && (
-        <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
-          <div className="flex flex-wrap gap-3 justify-between items-center">
-            <div>
-              <h3 className="text-slate-800 mb-1">Quick Actions</h3>
-              <p className="text-slate-600 text-sm">Mark all students at once</p>
-            </div>
-            <div className="flex gap-3">
+        <Card className="bg-white">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Quick Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex flex-wrap gap-2">
               <Button
-                onClick={() => handleMarkAll('Present')}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleMarkAllPresent}
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                disabled={classStudents.length === 0}
               >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                Mark All Present
+                <CheckCircle className="w-3 h-3 mr-1" />
+                Mark All Full Attendance
               </Button>
               <Button
-                onClick={() => handleMarkAll('Absent')}
-                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleMarkAllZero}
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                disabled={classStudents.length === 0}
               >
-                <XCircle className="w-4 h-4 mr-2" />
-                Mark All Absent
+                <XCircle className="w-3 h-3 mr-1" />
+                Mark All Zero
+              </Button>
+              <Button
+                onClick={handleClearAll}
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                disabled={classStudents.length === 0}
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                Clear All
               </Button>
             </div>
-          </div>
-
-          {/* Progress Stats */}
-          {markedCount > 0 && (
-            <div className="mt-6 grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="text-center">
-                <p className="text-2xl text-slate-900">{markedCount}/{classStudents.length}</p>
-                <p className="text-slate-600 text-sm">Marked</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl text-green-600">{presentCount}</p>
-                <p className="text-slate-600 text-sm">Present</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl text-red-600">{absentCount}</p>
-                <p className="text-slate-600 text-sm">Absent</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl text-yellow-600">{lateCount}</p>
-                <p className="text-slate-600 text-sm">Late</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl text-blue-600">{excusedCount}</p>
-                <p className="text-slate-600 text-sm">Excused</p>
-              </div>
-            </div>
-          )}
+          </CardContent>
         </Card>
       )}
 
       {/* Student List */}
       {selectedClassId > 0 && classStudents.length > 0 && (
-        <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-slate-800 mb-4">Students - {classStudents.length} Total</h3>
-          
-          <div className="space-y-3">
-            {classStudents.map(student => {
-              const status = studentAttendance[student.id];
-              
-              return (
-                <div
-                  key={student.id}
-                  className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 transition-colors"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center gap-4">
-                    {/* Student Info */}
-                    <div className="flex-1">
-                      <h4 className="text-slate-900">
-                        {student.firstName} {student.lastName}
-                      </h4>
-                      <p className="text-slate-600 text-sm">
-                        {student.admissionNumber} • {student.gender}
-                      </p>
+        <Card className="bg-white">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Students - {classStudents.length} Total
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-2">
+              {classStudents.map(student => {
+                const daysPresent = studentAttendanceInput[student.id] || 0;
+                const attendanceRate = requiredDays > 0 ? Math.round((daysPresent / requiredDays) * 100) : 0;
+                
+                return (
+                  <div key={student.id} className="bg-gray-50 rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-medium text-blue-600">
+                            {student.firstName?.[0]}{student.lastName?.[0]}
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">
+                            {student.firstName} {student.lastName}
+                          </h4>
+                          <p className="text-xs text-gray-500">
+                            {student.admissionNumber} • {student.gender}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Attendance Rate Badge */}
+                      <div className="flex flex-col items-end">
+                        <Badge 
+                          variant={attendanceRate >= 75 ? "default" : attendanceRate >= 50 ? "secondary" : "destructive"}
+                          className="text-xs"
+                        >
+                          {attendanceRate}% Attendance
+                        </Badge>
+                        <span className="text-xs text-gray-500 mt-1">
+                          {daysPresent}/{requiredDays} days
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Status Buttons */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleStatusChange(student.id, 'Present')}
-                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                          status === 'Present'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Present
-                      </button>
+                    {/* Attendance Days Input */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Days Present (max: {requiredDays})
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={requiredDays}
+                          student-id={student.id.toString()}
+                          value={studentAttendanceInput[student.id] || ''}
+                          onChange={(e) => handleAttendanceDaysChange(student.id, e.target.value)}
+                          placeholder={requiredDays > 0 ? "Enter days present..." : "Configure attendance requirements first"}
+                          className="w-full text-sm"
+                          disabled={requiredDays === 0}
+                        />
+                      </div>
                       
-                      <button
-                        onClick={() => handleStatusChange(student.id, 'Absent')}
-                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                          status === 'Absent'
-                            ? 'bg-red-600 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        <XCircle className="w-4 h-4" />
-                        Absent
-                      </button>
-                      
-                      <button
-                        onClick={() => handleStatusChange(student.id, 'Late')}
-                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                          status === 'Late'
-                            ? 'bg-yellow-600 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        <Clock className="w-4 h-4" />
-                        Late
-                      </button>
-                      
-                      <button
-                        onClick={() => handleStatusChange(student.id, 'Excused')}
-                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                          status === 'Excused'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        <AlertCircle className="w-4 h-4" />
-                        Excused
-                      </button>
+                      {/* Quick Fill Buttons */}
+                      <div className="flex gap-1">
+                        <Button
+                          onClick={() => handleAttendanceDaysChange(student.id, '0')}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs px-2"
+                          disabled={requiredDays === 0}
+                        >
+                          0
+                        </Button>
+                        <Button
+                          onClick={() => handleAttendanceDaysChange(student.id, Math.floor(requiredDays * 0.5).toString())}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs px-2"
+                          disabled={requiredDays === 0}
+                        >
+                          ½
+                        </Button>
+                        <Button
+                          onClick={() => handleAttendanceDaysChange(student.id, requiredDays.toString())}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs px-2"
+                          disabled={requiredDays === 0}
+                        >
+                          Full
+                        </Button>
+                      </div>
                     </div>
+
+                    {/* Remarks */}
+                    {daysPresent < requiredDays && (
+                      <div className="mt-2">
+                        <Input
+                          type="text"
+                          placeholder={`Add remarks for ${attendanceRate < 75 ? 'low attendance' : 'partial attendance'}...`}
+                          value={remarks[student.id] || ''}
+                          onChange={(e) => handleRemarkChange(student.id, e.target.value)}
+                          className="w-full text-sm"
+                        />
+                      </div>
+                    )}
                   </div>
+                );
+              })}
+            </div>
 
-                  {/* Remarks (only show if status is Absent, Late, or Excused) */}
-                  {status && status !== 'Present' && (
-                    <div className="mt-3">
-                      <input
-                        type="text"
-                        placeholder={`Add remarks for ${status.toLowerCase()} status...`}
-                        value={remarks[student.id] || ''}
-                        onChange={(e) => handleRemarkChange(student.id, e.target.value)}
-                        className="w-full p-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Submit Button */}
-          <div className="mt-6 flex justify-end gap-3">
-            <Button
-              onClick={() => {
-                setStudentAttendance({});
-                setRemarks({});
-              }}
-              className="bg-gray-200 text-gray-700 hover:bg-gray-300"
-            >
-              Clear All
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={markedCount !== classStudents.length}
-              className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Submit Attendance
-            </Button>
-          </div>
+            {/* Submit Button */}
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-end">
+              <Button
+                onClick={handleClearAll}
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+              >
+                <XSquare className="w-3 h-3 mr-1" />
+                Clear All
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={Object.keys(studentAttendanceInput).length !== classStudents.length || isLoading}
+                className="h-8 text-xs"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckSquare className="w-3 h-3 mr-1" />
+                    Submit Attendance
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       )}
 
       {/* Empty State */}
       {selectedClassId === 0 && (
-        <Card className="p-12 bg-white rounded-xl shadow-sm border border-slate-200 text-center">
-          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-slate-900 mb-2">No Class Selected</h3>
-          <p className="text-slate-600">Please select a class to begin marking attendance</p>
+        <Card className="bg-white">
+          <CardContent className="p-12 text-center">
+            <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Class Selected</h3>
+            <p className="text-sm text-gray-600">Please select a class to begin marking attendance</p>
+          </CardContent>
         </Card>
       )}
 
       {selectedClassId > 0 && classStudents.length === 0 && (
-        <Card className="p-12 bg-white rounded-xl shadow-sm border border-slate-200 text-center">
-          <AlertCircle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-slate-900 mb-2">No Students Found</h3>
-          <p className="text-slate-600">This class has no students enrolled</p>
+        <Card className="bg-white">
+          <CardContent className="p-12 text-center">
+            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Students Found</h3>
+            <p className="text-sm text-gray-600">This class has no students enrolled</p>
+          </CardContent>
         </Card>
       )}
     </div>

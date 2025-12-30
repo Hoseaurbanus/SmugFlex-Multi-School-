@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Calendar, Download, TrendingUp, Users, CheckCircle2, XCircle, Clock, AlertCircle, Filter } from 'lucide-react';
-
 export function AttendanceReportsPage() {
   const {
     classes,
@@ -156,7 +154,7 @@ export function AttendanceReportsPage() {
       {/* Filters */}
       <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
         <div className="flex items-center gap-2 mb-4">
-          <Filter className="w-5 h-5 text-slate-600" />
+          <span className="w-5 h-5 text-slate-600" />
           <h3 className="text-slate-800">Filter Reports</h3>
         </div>
 
@@ -213,7 +211,7 @@ export function AttendanceReportsPage() {
 
         <div className="mt-4 flex justify-end">
           <Button onClick={handleExportCSV} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Download className="w-4 h-4 mr-2" />
+            <span className="w-4 h-4 mr-2" />
             Export to CSV
           </Button>
         </div>
@@ -223,7 +221,7 @@ export function AttendanceReportsPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
           <div className="flex items-center justify-between mb-2">
-            <Users className="w-8 h-8 text-blue-600" />
+            <span className="w-8 h-8 text-blue-600" />
           </div>
           <p className="text-blue-600 text-sm mb-1">Total Records</p>
           <p className="text-3xl text-blue-900">{totalRecords}</p>
@@ -231,7 +229,7 @@ export function AttendanceReportsPage() {
 
         <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
           <div className="flex items-center justify-between mb-2">
-            <CheckCircle2 className="w-8 h-8 text-green-600" />
+            <span2 className="w-8 h-8 text-green-600" />
           </div>
           <p className="text-green-600 text-sm mb-1">Present</p>
           <p className="text-3xl text-green-900">{presentCount}</p>
@@ -239,7 +237,7 @@ export function AttendanceReportsPage() {
 
         <Card className="p-6 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-red-200">
           <div className="flex items-center justify-between mb-2">
-            <XCircle className="w-8 h-8 text-red-600" />
+            <span className="w-8 h-8 text-red-600" />
           </div>
           <p className="text-red-600 text-sm mb-1">Absent</p>
           <p className="text-3xl text-red-900">{absentCount}</p>
@@ -247,7 +245,7 @@ export function AttendanceReportsPage() {
 
         <Card className="p-6 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200">
           <div className="flex items-center justify-between mb-2">
-            <Clock className="w-8 h-8 text-yellow-600" />
+            <span className="w-8 h-8 text-yellow-600" />
           </div>
           <p className="text-yellow-600 text-sm mb-1">Late</p>
           <p className="text-3xl text-yellow-900">{lateCount}</p>
@@ -255,7 +253,7 @@ export function AttendanceReportsPage() {
 
         <Card className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
           <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-8 h-8 text-purple-600" />
+            <span className="w-8 h-8 text-purple-600" />
           </div>
           <p className="text-purple-600 text-sm mb-1">Attendance Rate</p>
           <p className="text-3xl text-purple-900">{attendanceRate}%</p>
