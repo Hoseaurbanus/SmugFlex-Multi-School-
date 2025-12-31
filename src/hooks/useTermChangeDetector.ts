@@ -5,6 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { API_CONFIG, getAuthToken } from '../config/api';
 
 interface TermChangeDetectorProps {
   currentTerm: string;
@@ -103,7 +104,14 @@ export function useTermSync({
     // Check for term changes every 30 seconds
     const checkTermSync = async () => {
       try {
-        const response = await fetch('/api/school_settings');
+        const token = await getAuthToken();
+        const response = await fetch(`${API_CONFIG.BASE_URL}/school_settings`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
         const data = await response.json();
         
         if (data.success && data.data) {

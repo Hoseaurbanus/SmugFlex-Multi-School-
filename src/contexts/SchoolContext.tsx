@@ -2214,7 +2214,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   const getStudentsByClass = (classId: number) => {
-    return (students || []).filter(s => s.class_id === classId);
+    return (students || []).filter(s => String(s.class_id) === String(classId) && s.status === 'Active');
   };
 
   // Manual refresh function for students

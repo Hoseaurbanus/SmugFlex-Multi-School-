@@ -38,7 +38,9 @@ export function AttendanceReportsPage() {
 
   // Get student attendance summary
   const getStudentAttendanceSummary = () => {
-    const classStudents = selectedClassId ? getStudentsByClass(selectedClassId) : students;
+    const classStudents = selectedClassId 
+      ? (students || []).filter(s => s.class_id === selectedClassId && s.status === 'Active')
+      : (students || []).filter(s => s.status === 'Active');
     
     return classStudents.map(student => {
       const studentAttendances = filteredAttendances.filter(a => a.studentId === student.id);

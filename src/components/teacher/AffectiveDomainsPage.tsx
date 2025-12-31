@@ -76,7 +76,9 @@ export function AffectiveDomainsPage() {
     );
   }
 
-  const classStudents = selectedClassId ? getStudentsByClass(selectedClassId) : [];
+  const classStudents = selectedClassId
+    ? (students || []).filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
+    : [];
 
   // Load existing affective data when class is selected
   useEffect(() => {

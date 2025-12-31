@@ -109,7 +109,9 @@ export function MarkAttendancePage() {
     );
   }
 
-  const classStudents = selectedClassId ? getStudentsByClass(selectedClassId) : [];
+  const classStudents = selectedClassId
+    ? (students || []).filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
+    : [];
 
   // Load existing attendance data when class is selected
   useEffect(() => {
