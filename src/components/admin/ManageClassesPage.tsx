@@ -193,8 +193,8 @@ function ManageClassesPageDesktop() {
     
     try {
       const success = await removeSubjectRegistration(
-        subjectId,
         selectedClass.id,
+        subjectId,
         currentAcademicYear,
         currentTerm
       );
