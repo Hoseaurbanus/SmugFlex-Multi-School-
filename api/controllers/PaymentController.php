@@ -240,6 +240,9 @@ class PaymentController {
             if ($action === 'verify') {
                 $status = 'Verified';
                 $message = 'Payment verified successfully';
+                
+                // Update student fee balance for verified payments
+                $this->updateStudentFeeBalance($payment['student_id'], $payment['amount'], $payment['term'], $payment['academic_year']);
             } else {
                 $status = 'Rejected';
                 $rejection_reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : 'Payment rejected';
@@ -339,6 +342,94 @@ class PaymentController {
             
         } catch (PDOException $e) {
             Response::serverError('Database error retrieving payment history');
+        }
+    }
+
+    /**
+     * Submit Bank Transfer Proof (Parent)
+     */
+    public function submitBankTransferProof() {
+        $token_data = Middleware::requireAuth();
+        Middleware::requireAnyRole(['parent']);
+        $data = json_decode(file_get_contents('php://input'), true);
+        Middleware::validateRequired($data, ['student_id', 'amount', 'payment_type', 'proof_url']);
+        try {
+            $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
+            $amount = Middleware::validatePositive($data['amount'], 'amount');
+            $payment_type = Middleware::validateEnum($data['payment_type'], ['School Fees', 'Examination Fees', 'Books', 'Uniform', 'Transport', 'Others'], 'payment_type');
+            $term = isset($data['term']) ? Middleware::sanitizeString($data['term']) : 'First Term';
+            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeString($data['academic_year']) : '2024/2025';
+            $notes = isset($data['notes']) ? Middleware::sanitizeString($data['notes']) : null;
+            $proof_url = Middleware::sanitizeString($data['proof_url']);
+            $transaction_reference = isset($data['transaction_reference']) ? Middleware::sanitizeString($data['transaction_reference']) : null;
+            // Get parent ID from token or database
+            $parent_id = $token_data['linked_id'] ?? null;
+            if (empty($parent_id)) {
+                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                $user_stmt = $this->conn->prepare($user_query);
+                $user_stmt->bindParam(':username', $token_data['username']);
+                $user_stmt->execute();
+                $user_data = $user_stmt->fetch();
+                $parent_id = $user_data['linked_id'] ?? null;
+            }
+            if (empty($parent_id)) {
+                Response::forbidden('Parent ID not found');
+            }
+            // Verify parent owns this student
+            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_stmt = $this->conn->prepare($check_query);
+            $check_stmt->bindParam(':parent_id', $parent_id);
+            $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->execute();
+            if ($check_stmt->fetch()['count'] == 0) {
+                Response::forbidden('Access denied to this student');
+            }
+            // Get student details for logging
+            $student_query = "SELECT first_name, last_name FROM students WHERE id = :student_id";
+            $student_stmt = $this->conn->prepare($student_query);
+            $student_stmt->bindParam(':student_id', $student_id);
+            $student_stmt->execute();
+            $student = $student_stmt->fetch();
+            if (!$student) {
+                Response::notFound('Student not found');
+            }
+            // Generate receipt number
+            $receipt_number = $this->generateReceiptNumber();
+            // Combine notes with proof URL
+            $combined_notes = $notes ? ($notes . "\n") : '';
+            $combined_notes .= 'Bank transfer receipt: ' . $proof_url;
+            // Insert pending bank transfer payment
+            $query = "INSERT INTO payments (student_id, amount, payment_type, term, academic_year, payment_method, transaction_reference, receipt_number, recorded_by, notes, status) VALUES (:student_id, :amount, :payment_type, :term, :academic_year, :payment_method, :transaction_reference, :receipt_number, :recorded_by, :notes, 'Pending')";
+            $stmt = $this->conn->prepare($query);
+            $payment_method = 'Bank Transfer';
+            $stmt->bindParam(':student_id', $student_id);
+            $stmt->bindParam(':amount', $amount);
+            $stmt->bindParam(':payment_type', $payment_type);
+            $stmt->bindParam(':term', $term);
+            $stmt->bindParam(':academic_year', $academic_year);
+            $stmt->bindParam(':payment_method', $payment_method);
+            $stmt->bindParam(':transaction_reference', $transaction_reference);
+            $stmt->bindParam(':receipt_number', $receipt_number);
+            $stmt->bindParam(':recorded_by', $parent_id);
+            $stmt->bindParam(':notes', $combined_notes);
+            $stmt->execute();
+            $payment_id = $this->conn->lastInsertId();
+            // Log activity
+            Middleware::logActivity(
+                $token_data['username'],
+                'Parent',
+                'SUBMIT_BANK_TRANSFER',
+                "Payment: $receipt_number",
+                'Success',
+                "Bank transfer of $amount submitted for {$student['first_name']} {$student['last_name']}",
+                $parent_id
+            );
+            Response::created([
+                'id' => $payment_id,
+                'receipt_number' => $receipt_number
+            ], 'Bank transfer submitted successfully');
+        } catch (PDOException $e) {
+            Response::serverError('Database error submitting bank transfer');
         }
     }
     

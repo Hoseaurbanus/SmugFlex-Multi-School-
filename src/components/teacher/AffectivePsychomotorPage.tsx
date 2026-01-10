@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 
@@ -542,6 +542,7 @@ export function AffectivePsychomotorPage() {
                 </>
               )}
             </DialogTitle>
+            <DialogDescription>Enter affective and psychomotor domain assessments for this student.</DialogDescription>
           </DialogHeader>
 
           {/* Tabs */}

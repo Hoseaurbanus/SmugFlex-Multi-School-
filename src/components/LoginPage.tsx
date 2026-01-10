@@ -16,8 +16,16 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login, currentUser } = useSchool();
+  const { login, currentUser, isLoading: isAuthLoading } = useSchool();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  React.useEffect(() => {
+    if (currentUser && !isAuthLoading) {
+      const target = ["admin", "teacher", "accountant", "parent"].includes(currentUser.role) ? `/${currentUser.role}` : "/";
+      navigate(target);
+    }
+  }, [currentUser, isAuthLoading, navigate]);
 
   // Reset form when currentUser changes (logout)
   React.useEffect(() => {

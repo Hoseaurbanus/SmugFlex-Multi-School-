@@ -147,35 +147,8 @@ class SQLDatabaseService {
   // Student operations - Updated to match exact XAMPP schema
   async createStudent(studentData: any): Promise<any> {
     try {
-      // Generate automatic admission number if not provided
-      const admissionNumber = studentData.admission_number || this.generateAdmissionNumber();
-      
-      // Map the data to match exact SQL schema from database/schema.sql
-      const sqlData = {
-        first_name: studentData.first_name,
-        last_name: studentData.last_name,
-        other_name: studentData.other_name || null,
-        admission_number: admissionNumber,
-        class_id: studentData.class_id,
-        level: studentData.level || null,
-        parent_id: studentData.parent_id || null,
-        date_of_birth: studentData.date_of_birth || null,
-        gender: studentData.gender,
-        photo_url: studentData.photo_url || null,
-        passport_photo: studentData.passport_photo || null,
-        status: studentData.status || 'Active',
-        academic_year: studentData.academic_year,
-        admission_date: studentData.admission_date || new Date().toISOString().split('T')[0]
-      };
-
-      const studentId = await this.insertRecord('students', sqlData);
-      
-      // Return the created student with ID
-      return {
-        id: studentId,
-        ...studentData,
-        admission_number: admissionNumber
-      };
+      // Use the secure API endpoint
+      return await this.api('POST', '/students', studentData);
     } catch (error) {
       throw error;
     }
@@ -184,52 +157,8 @@ class SQLDatabaseService {
   // Teacher operations - Updated to match exact XAMPP schema
   async createTeacher(teacherData: any): Promise<any> {
     try {
-      console.log('=== SQLDATABASE CREATE TEACHER DEBUG ===');
-      console.log('Input teacherData:', teacherData);
-      
-      // Generate automatic employee ID if not provided
-      const employeeId = teacherData.employeeId || this.generateEmployeeId('teacher');
-      
-      // Ensure firstName and lastName are properly extracted
-      const firstName = teacherData.firstName || teacherData.first_name || '';
-      const lastName = teacherData.lastName || teacherData.last_name || '';
-      
-      if (!firstName || !lastName) {
-        console.error('Missing firstName or lastName in teacherData:', teacherData);
-        throw new Error('First name and last name are required for teacher creation');
-      }
-      
-      const sqlData = {
-        first_name: firstName,
-        last_name: lastName,
-        other_name: teacherData.otherName || teacherData.other_name || null,
-        employee_id: employeeId,
-        email: teacherData.email,
-        phone: teacherData.phone || null,
-        gender: teacherData.gender || null,
-        qualification: teacherData.qualification || null,
-        specialization: JSON.stringify(teacherData.specialization || []),
-        status: teacherData.status || 'Active',
-        is_class_teacher: teacherData.isClassTeacher || teacherData.is_class_teacher || false,
-        department_id: teacherData.departmentId || teacherData.department_id || null,
-        signature: teacherData.signature || null
-      };
-
-      console.log('Transformed sqlData for database:', sqlData);
-      console.log('About to call insertRecord for teachers table...');
-
-      const teacherId = await this.insertRecord('teachers', sqlData);
-      
-      console.log('Teacher created with ID:', teacherId);
-      console.log('=====================================');
-      
-      return {
-        id: teacherId,
-        firstName: firstName,
-        lastName: lastName,
-        employeeId: employeeId,
-        ...teacherData
-      };
+      // Use the secure API endpoint
+      return await this.api('POST', '/teachers', teacherData);
     } catch (error) {
       console.error('Error in createTeacher:', error);
       throw error;
@@ -288,43 +217,8 @@ class SQLDatabaseService {
   // Parent operations - Updated to match exact XAMPP schema
   async createParent(parentData: any): Promise<any> {
     try {
-      console.log('=== SQLDATABASE CREATE PARENT DEBUG ===');
-      console.log('Input parentData:', parentData);
-      
-      // Ensure firstName and lastName are properly extracted
-      const firstName = parentData.firstName || parentData.first_name || '';
-      const lastName = parentData.lastName || parentData.last_name || '';
-      
-      if (!firstName || !lastName) {
-        console.error('Missing firstName or lastName in parentData:', parentData);
-        throw new Error('First name and last name are required for parent creation');
-      }
-      
-      const sqlData = {
-        first_name: firstName,
-        last_name: lastName,
-        email: parentData.email,
-        phone: parentData.phone || null,
-        alternate_phone: parentData.alternatePhone || parentData.alternate_phone || null,
-        address: parentData.address || null,
-        occupation: parentData.occupation || null,
-        status: parentData.status || 'Active'
-      };
-
-      console.log('Transformed sqlData for database:', sqlData);
-      console.log('About to call insertRecord for parents table...');
-
-      const parentId = await this.insertRecord('parents', sqlData);
-      
-      console.log('Parent created with ID:', parentId);
-      console.log('=====================================');
-      
-      return {
-        id: parentId,
-        firstName: firstName,
-        lastName: lastName,
-        ...parentData
-      };
+      // Use the secure API endpoint
+      return await this.api('POST', '/parents', parentData);
     } catch (error) {
       console.error('Error in createParent:', error);
       throw error;
@@ -334,45 +228,8 @@ class SQLDatabaseService {
   // Accountant operations - Updated to match exact XAMPP schema
   async createAccountant(accountantData: any): Promise<any> {
     try {
-      console.log('=== SQLDATABASE CREATE ACCOUNTANT DEBUG ===');
-      console.log('Input accountantData:', accountantData);
-      
-      // Generate automatic employee ID if not provided
-      const employeeId = accountantData.employeeId || accountantData.employee_id || this.generateEmployeeId('accountant');
-      
-      // Ensure firstName and lastName are properly extracted
-      const firstName = accountantData.firstName || accountantData.first_name || '';
-      const lastName = accountantData.lastName || accountantData.last_name || '';
-      
-      if (!firstName || !lastName) {
-        console.error('Missing firstName or lastName in accountantData:', accountantData);
-        throw new Error('First name and last name are required for accountant creation');
-      }
-      
-      const sqlData = {
-        first_name: firstName,
-        last_name: lastName,
-        email: accountantData.email,
-        phone: accountantData.phone || null,
-        employee_id: employeeId,
-        status: accountantData.status || 'Active'
-      };
-
-      console.log('Transformed sqlData for database:', sqlData);
-      console.log('About to call insertRecord for accountants table...');
-
-      const accountantId = await this.insertRecord('accountants', sqlData);
-      
-      console.log('Accountant created with ID:', accountantId);
-      console.log('=====================================');
-      
-      return {
-        id: accountantId,
-        firstName: firstName,
-        lastName: lastName,
-        employeeId: employeeId,
-        ...accountantData
-      };
+      // Use the secure API endpoint
+      return await this.api('POST', '/accountants', accountantData);
     } catch (error) {
       console.error('Error in createAccountant:', error);
       throw error;

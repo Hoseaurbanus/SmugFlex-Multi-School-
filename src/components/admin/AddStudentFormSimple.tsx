@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -14,10 +14,21 @@ interface AddStudentFormProps {
 }
 
 function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
-  const { classes, parents, addStudent, currentAcademicYear } = useSchool();
+  const { classes, parents, currentAcademicYear, createStudentAPI } = useSchool();
   const [isLoading, setIsLoading] = useState(false);
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const passportInputRef = useRef<HTMLInputElement>(null);
+  
+  // Debug: Log classes data when component loads
+  useEffect(() => {
+    console.log('AddStudentForm - Classes available:', classes.map(c => ({ 
+      id: c.id, 
+      idType: typeof c.id, 
+      name: c.name, 
+      status: c.status 
+    })));
+  }, [classes]);
+  
   const [addFormData, setAddFormData] = useState({
     first_name: '',
     last_name: '',
@@ -36,7 +47,7 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
     if (!addFormData.last_name.trim()) newErrors.last_name = 'Last name is required';
     if (!addFormData.date_of_birth) newErrors.date_of_birth = 'Date of birth is required';
     if (!addFormData.gender) newErrors.gender = 'Gender is required';
-    if (!addFormData.class_id) newErrors.class_id = 'Class is required';
+    if (!addFormData.class_id || addFormData.class_id === '') newErrors.class_id = 'Class is required';
 
     setAddFormErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -57,7 +68,7 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
     reader.readAsDataURL(passportFile);
   };
 
-  const handleAddStudent = (e: React.FormEvent) => {
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateAddForm()) {
@@ -65,46 +76,102 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
       return;
     }
 
-    const selectedClass = classes.find((c) => c.id === parseInt(addFormData.class_id));
-    if (!selectedClass) {
-      toast.error('Invalid class selected');
+    // Enhanced debugging and validation
+    console.log('=== CLASS VALIDATION DEBUG ===');
+    console.log('Form data:', addFormData);
+    console.log('Selected class_id:', addFormData.class_id, 'Type:', typeof addFormData.class_id);
+    console.log('Available classes:', classes.map(c => ({ 
+      id: c.id, 
+      idType: typeof c.id, 
+      name: c.name, 
+      status: c.status 
+    })));
+    console.log('Classes length:', classes.length);
+
+    // Check if classes are loaded
+    if (!classes || classes.length === 0) {
+      console.error('No classes available');
+      toast.error('No classes available. Please refresh the page and try again.');
       return;
     }
 
+    // Better class validation with multiple approaches
+    let selectedClass = null;
+    
+    // Try string comparison first
+    selectedClass = classes.find((c) => String(c.id) === addFormData.class_id);
+    console.log('String comparison result:', selectedClass);
+    
+    // If not found, try number comparison
+    if (!selectedClass) {
+      const classIdNum = parseInt(addFormData.class_id);
+      if (!isNaN(classIdNum)) {
+        selectedClass = classes.find((c) => c.id === classIdNum);
+        console.log('Number comparison result:', selectedClass);
+      }
+    }
+    
+    // If still not found, try loose comparison with type checking
+    if (!selectedClass) {
+      selectedClass = classes.find((c) => {
+        const classIdStr = String(c.id);
+        return classIdStr === addFormData.class_id || classIdStr === String(addFormData.class_id);
+      });
+      console.log('Alternative comparison result:', selectedClass);
+    }
+    
+    if (!selectedClass) {
+      console.error('Class validation failed - all attempts failed:', {
+        classId: addFormData.class_id,
+        classIdType: typeof addFormData.class_id,
+        availableClasses: classes.map(c => ({ id: c.id, idType: typeof c.id, name: c.name }))
+      });
+      
+      const availableClassInfo = classes.map(c => `ID: ${c.id} (${typeof c.id}) - ${c.name}`).join('\n');
+      toast.error(`Invalid class selected. Available classes:\n${availableClassInfo}\nPlease refresh the page and try again.`);
+      return;
+    }
+
+    console.log('Found class:', selectedClass);
     setIsLoading(true);
 
-    addStudent({
-      firstName: addFormData.first_name,
-      lastName: addFormData.last_name,
-      admissionNumber: '',
-      class_id: parseInt(addFormData.class_id),
-      className: selectedClass.name,
+    // Create student data with API-compatible field names
+    const studentData = {
+      first_name: addFormData.first_name,  // API expects snake_case
+      last_name: addFormData.last_name,   // API expects snake_case
+      other_name: '',
+      admission_number: '', // Will be generated by backend
+      class_id: addFormData.class_id ? parseInt(addFormData.class_id) : 0,
       level: selectedClass.level,
       parent_id: addFormData.parent_id && addFormData.parent_id !== 'none' ? parseInt(addFormData.parent_id) : null,
       date_of_birth: addFormData.date_of_birth,
-      gender: addFormData.gender || 'Male', // Default to Male if undefined
+      gender: addFormData.gender || 'Male',
       photo_url: addFormData.photo_url || undefined,
-      passport_photo: addFormData.photo_url || undefined, // Store photo as both fields for result compatibility
+      passport_photo: addFormData.photo_url || undefined,
       status: 'Active',
       academic_year: currentAcademicYear,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-
-    toast.success('Student registered successfully!');
-
-    setAddFormData({
-      first_name: '',
-      last_name: '',
-      date_of_birth: '',
-      gender: undefined as 'Male' | 'Female' | undefined,
-      class_id: '',
-      parent_id: '',
-      photo_url: '',
-    });
-    setPassportFile(null);
-    setAddFormErrors({});
-    onSuccess();
+      admission_date: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
+    };
+    
+    // Call API directly with converted field names
+    const result = await createStudentAPI(studentData);
+    
+    if (result) {
+      toast.success('Student registered successfully!');
+      
+      setAddFormData({
+        first_name: '',
+        last_name: '',
+        date_of_birth: '',
+        gender: undefined as 'Male' | 'Female' | undefined,
+        class_id: '',
+        parent_id: '',
+        photo_url: '',
+      });
+      setPassportFile(null);
+      setAddFormErrors({});
+      onSuccess();
+    }
     setIsLoading(false);
   };
 
@@ -241,7 +308,10 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
                 </Label>
                 <Select
                   value={addFormData.class_id}
-                  onValueChange={(value: string) => setAddFormData({ ...addFormData, class_id: value })}
+                  onValueChange={(value: string) => {
+                    console.log('Class selected:', { value, valueType: typeof value });
+                    setAddFormData({ ...addFormData, class_id: value });
+                  }}
                 >
                   <SelectTrigger
                     className={`h-12 rounded-xl border ${
@@ -254,7 +324,11 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
                     {classes
                       .filter((c) => c.status === 'Active')
                       .map((cls) => (
-                        <SelectItem key={cls.id} value={cls.id.toString()} className="text-gray-900">
+                        <SelectItem 
+                          key={cls.id} 
+                          value={String(cls.id)} 
+                          className="text-gray-900"
+                        >
                           {cls.name} - {cls.level} ({cls.currentStudents}/{cls.capacity} students)
                         </SelectItem>
                       ))}

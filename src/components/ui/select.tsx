@@ -3,9 +3,10 @@ import { cn } from "../../lib/utils"
 
 export interface SelectProps {
   value?: string
-  onValueChange?: (value: string) => void
+  onValueChange?: (value: any) => void
   children: React.ReactNode
   className?: string
+  required?: boolean
 }
 
 export interface SelectContextValue {

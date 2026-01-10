@@ -103,9 +103,9 @@ export function PaymentReportsPage() {
       return [
         student ? `${student.firstName} ${student.lastName}` : "N/A",
         classInfo?.name || "N/A",
-        `₦${balance.total_fee_required.toLocaleString()}`,
-        `₦${balance.total_paid.toLocaleString()}`,
-        `₦${balance.balance.toLocaleString()}`,
+        `\u20A6${balance.total_fee_required.toLocaleString()}`,
+        `\u20A6${balance.total_paid.toLocaleString()}`,
+        `\u20A6${balance.balance.toLocaleString()}`,
         balance.status,
       ];
     });
@@ -185,7 +185,7 @@ export function PaymentReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-blue-600">Total Expected</p>
-                <p className="text-2xl font-bold text-blue-800">â‚¦{stats.totalExpected.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-blue-800">₦{stats.totalExpected.toLocaleString()}</p>
                 <p className="text-xs text-blue-500 mt-1">This term</p>
               </div>
               <div className="p-3 rounded-full bg-blue-100">
@@ -200,7 +200,7 @@ export function PaymentReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-600">Total Collected</p>
-                <p className="text-2xl font-bold text-green-800">â‚¦{stats.totalCollected.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-green-800">₦{stats.totalCollected.toLocaleString()}</p>
                 <p className="text-xs text-green-500 mt-1">Received payments</p>
               </div>
               <div className="p-3 rounded-full bg-green-100">
@@ -215,7 +215,7 @@ export function PaymentReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-orange-600">Outstanding</p>
-                <p className="text-2xl font-bold text-orange-800">â‚¦{stats.totalOutstanding.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-orange-800">₦{stats.totalOutstanding.toLocaleString()}</p>
                 <p className="text-xs text-orange-500 mt-1">Pending payments</p>
               </div>
               <div className="p-3 rounded-full bg-orange-100">
@@ -308,7 +308,7 @@ export function PaymentReportsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Outstanding:</span>
-                <span className="font-medium text-red-600">â‚¦{stats.totalOutstanding.toLocaleString()}</span>
+                <span className="font-medium text-red-600">₦{stats.totalOutstanding.toLocaleString()}</span>
               </div>
             </div>
           </CardContent>
@@ -544,13 +544,13 @@ export function PaymentReportsPage() {
                         </td>
                         <td className="p-4 text-[#6B7280]">{classInfo?.name || "N/A"}</td>
                         <td className="p-4 text-right text-[#1F2937]">
-                          ₦{balance.total_fee_required.toLocaleString()}
+                          {"\u20A6"}{balance.total_fee_required.toLocaleString()}
                         </td>
                         <td className="p-4 text-right text-[#10B981]">
-                          ₦{balance.total_paid.toLocaleString()}
+                          {"\u20A6"}{balance.total_paid.toLocaleString()}
                         </td>
                         <td className="p-4 text-right text-[#EF4444]">
-                          ₦{balance.balance.toLocaleString()}
+                          {"\u20A6"}{balance.balance.toLocaleString()}
                         </td>
                         <td className="p-4 text-center">
                           <Badge

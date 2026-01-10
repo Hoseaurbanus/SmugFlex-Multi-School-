@@ -1,4 +1,4 @@
-import { Book, Link, BookOpen, Plus, Unlink, Square, Power, Link2, ImageIcon, Key, Eye, Edit, Trash2, User, Phone, Shield, Camera, Lock, Unlock, Download, Upload, RefreshCw, FileSpreadsheet, Users, Filter, Search, X, Menu, ChevronDown, MoreVertical } from 'lucide-react';
+import { Book, Link, BookOpen, Plus, Unlink, Square, Power, Link2, ImageIcon, Key, Eye, Edit, Trash2, User, Phone, Shield, Camera, Lock, Unlock, Download, Upload, RefreshCw, FileSpreadsheet, Users, Filter, Search, X, Menu, ChevronDown, MoreVertical, AlertTriangle } from 'lucide-react';
 import { useState, useRef, useMemo, useEffect, lazy, Suspense, useCallback } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
@@ -30,6 +30,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     subjects,
     users,
     parentStudentLinks,
+    scores,
+    attendances,
+    compiledResults,
     setStudents,
     setUsers,
     addStudent, 
@@ -89,6 +92,8 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     date_of_birth: "",
     admission_number: "",
   });
+  const [editPassportFile, setEditPassportFile] = useState<File | null>(null);
+  const editPassportInputRef = useRef<HTMLInputElement>(null);
 
   // Data safety: Enhanced validation
   const validateStudentData = (data: any) => {
@@ -296,13 +301,32 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               </div>
             </div>
             
-            <Badge className={`text-xs ${
-              student.status === 'Active' 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-gray-100 text-gray-800'
-            }`}>
-              {student.status}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge className={`text-xs ${
+                student.status === 'Active' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {student.status}
+              </Badge>
+              
+              {/* Records indicator */}
+              {(() => {
+                const hasRecords = scores.some(s => s.student_id === student.id) || 
+                                  attendances.some(a => a.student_id === student.id) || 
+                                  compiledResults.some(cr => cr.student_id === student.id);
+                
+                if (hasRecords && student.status === 'Active') {
+                  return (
+                    <div className="flex items-center gap-1 text-xs text-amber-600">
+                      <AlertTriangle className="w-3 h-3" />
+                      <span>Has Records</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
           </div>
 
           {/* Key information */}
@@ -339,7 +363,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               onClick={() => handleView(student)}
               size="sm"
               variant="outline"
-              className="flex-1 min-w-[80px] text-xs"
+              className="flex-1 min-w-[70px] text-xs px-2 py-1.5 h-7"
             >
               <Eye className="w-3 h-3 mr-1" />
               View
@@ -349,7 +373,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               onClick={() => handleEdit(student)}
               size="sm"
               variant="outline"
-              className="flex-1 min-w-[80px] text-xs"
+              className="flex-1 min-w-[70px] text-xs px-2 py-1.5 h-7"
             >
               <Edit className="w-3 h-3 mr-1" />
               Edit
@@ -357,11 +381,11 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="px-2">
+                <Button size="sm" variant="outline" className="px-2 py-1.5 h-7">
                   <MoreVertical className="w-3 h-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem onClick={() => {
                   setSelectedStudent(student);
                   setLinkGuardianDialogOpen(true);
@@ -380,17 +404,25 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 <DropdownMenuSeparator />
                 
                 <DropdownMenuItem onClick={() => handleToggleStatus(student)}>
-                  {student.status === 'Active' ? (
-                    <>
-                      <Lock className="w-3 h-3 mr-2" />
-                      Deactivate
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-3 h-3 mr-2" />
-                      Activate
-                    </>
-                  )}
+                  {(() => {
+                    const hasRecords = scores.some(s => s.student_id === student.id) || 
+                                      attendances.some(a => a.student_id === student.id) || 
+                                      compiledResults.some(cr => cr.student_id === student.id);
+                    
+                    return student.status === 'Active' ? (
+                      <>
+                        <Lock className={`w-3 h-3 mr-2 ${hasRecords ? 'text-amber-500' : ''}`} />
+                        <span className={hasRecords ? 'text-amber-600' : ''}>
+                          {hasRecords ? 'Cannot Deactivate (Has Records)' : 'Deactivate'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-3 h-3 mr-2" />
+                        Activate
+                      </>
+                    );
+                  })()}
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem onClick={() => {
@@ -442,6 +474,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
       admission_number: student.admissionNumber,
       gender: student.gender
     });
+    setEditPassportFile(null);
     setEditDialogOpen(true);
   };
 
@@ -470,6 +503,18 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
 
   const handleToggleStatus = async (student: Student) => {
     const newStatus: 'Active' | 'Inactive' | 'Graduated' | 'Transferred' = student.status === 'Active' ? 'Inactive' : 'Active';
+    
+    // Check if student has existing scores or records before deactivating
+    if (newStatus === 'Inactive') {
+      const hasScores = scores.some(s => s.student_id === student.id);
+      const hasAttendance = attendances.some(a => a.student_id === student.id);
+      const hasCompiledResults = compiledResults.some(cr => cr.student_id === student.id);
+      
+      if (hasScores || hasAttendance || hasCompiledResults) {
+        toast.error(`Cannot deactivate ${student.firstName} ${student.lastName}: Student has existing records (scores, attendance, or compiled results)`);
+        return;
+      }
+    }
     
     try {
       setActionLoading(`status-${student.id}`);
@@ -516,6 +561,46 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     }
   };
 
+  const handleEditPhotoUpload = async () => {
+    if (!editPassportFile) {
+      toast.error("Please select a photo");
+      return;
+    }
+
+    if (!selectedStudent) return;
+
+    try {
+      setActionLoading('upload-photo');
+      
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('passport', editPassportFile);
+      formData.append('student_id', selectedStudent.id.toString());
+
+      // Upload photo via API
+      const response = await fetch('/api/upload-student-photo.php', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload photo');
+      }
+
+      const result = await response.json();
+      
+      toast.success('Student photo uploaded successfully');
+      setEditPassportFile(null);
+      setUploadPassportDialogOpen(false);
+      await refreshStudents();
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      toast.error('Failed to upload photo');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header */}
@@ -540,9 +625,11 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
           {mobileActionsOpen && (
             <div className="flex flex-wrap gap-2 mb-4">
               <Button
-                onClick={() => setAddStudentDialogOpen(true)}
+                onClick={() => {
+                  setAddStudentDialogOpen(true);
+                }}
                 size="sm"
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 text-xs px-3 py-2 h-8"
               >
                 <Plus className="w-3 h-3 mr-1" />
                 Add
@@ -552,6 +639,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
                 size="sm"
                 variant="outline"
+                className="text-xs px-3 py-2 h-8"
               >
                 <Filter className="w-3 h-3 mr-1" />
                 Filters
@@ -562,9 +650,10 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 disabled={isRefreshing}
                 size="sm"
                 variant="outline"
+                className="text-xs px-3 py-2 h-8"
               >
                 {isRefreshing ? (
-                  <div className="w-4 h-4 animate-spin rounded-full border border-gray-300 border-t-green-600" />
+                  <div className="w-3 h-3 animate-spin rounded-full border border-gray-300 border-t-green-600" />
                 ) : (
                   <RefreshCw className="w-3 h-3" />
                 )}
@@ -577,28 +666,26 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             <div className="flex gap-2">
               <Button
                 onClick={() => {
-                  toast.success("Opening Add Student Form");
                   setAddStudentDialogOpen(true);
                 }}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 text-sm px-4 py-2 h-9"
               >
-                <Plus className="w-3 h-3 mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 Add Student
               </Button>
               
               <Button onClick={() => {
-                toast.success("Toggling Filters");
                 setMobileFiltersOpen(!mobileFiltersOpen);
-              }} variant="outline">
-                <Filter className="w-3 h-3 mr-2" />
+              }} variant="outline" className="text-sm px-4 py-2 h-9">
+                <Filter className="w-4 h-4 mr-2" />
                 Filters
               </Button>
               
-              <Button onClick={handleManualRefresh} disabled={isRefreshing} variant="outline">
+              <Button onClick={handleManualRefresh} disabled={isRefreshing} variant="outline" className="text-sm px-4 py-2 h-9">
                 {isRefreshing ? (
                   <div className="w-4 h-4 animate-spin rounded-full border border-gray-300 border-t-green-600 mr-2" />
                 ) : (
-                  <RefreshCw className="w-3 h-3 mr-2" />
+                  <RefreshCw className="w-4 h-4 mr-2" />
                 )}
                 Refresh
               </Button>
@@ -770,6 +857,27 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 </Button>
                 
                 <Button
+                  onClick={async () => {
+                    if (selectedStudents.length === 0) return;
+                    
+                    if (!confirm(`Are you sure you want to delete ${selectedStudents.length} student(s)? This action cannot be undone.`)) {
+                      return;
+                    }
+                    
+                    try {
+                      setActionLoading('bulk-delete');
+                      await deleteBulkStudents(selectedStudents);
+                      toast.success(`${selectedStudents.length} student(s) deleted successfully`);
+                      setSelectedStudents([]);
+                      setIsSelectAll(false);
+                      await refreshStudents();
+                    } catch (error) {
+                      console.error('Error bulk deleting students:', error);
+                      toast.error('Failed to delete selected students');
+                    } finally {
+                      setActionLoading(null);
+                    }
+                  }}
                   variant="destructive"
                   size="sm"
                   disabled={actionLoading === 'bulk-delete'}
@@ -900,22 +1008,19 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                             <td className="p-3">
                               <div className="flex gap-1">
                                 <Button size="sm" variant="ghost" onClick={() => {
-                                  toast.success(`Viewing ${student.firstName} ${student.lastName}'s details`);
                                   handleView(student);
-                                }}>
-                                  <Eye className="w-4 h-4" />
+                                }} className="h-8 w-8 p-0">
+                                  <Eye className="w-3 h-3" />
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => {
-                                  toast.success(`Editing ${student.firstName} ${student.lastName}`);
                                   handleEdit(student);
-                                }}>
-                                  <Edit className="w-4 h-4" />
+                                }} className="h-8 w-8 p-0">
+                                  <Edit className="w-3 h-3" />
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => {
-                                  toast.warning(`Preparing to delete ${student.firstName} ${student.lastName}`);
                                   openDeleteDialog(student);
-                                }}>
-                                  <Trash2 className="w-4 h-4" />
+                                }} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
+                                  <Trash2 className="w-3 h-3" />
                                 </Button>
                               </div>
                             </td>
@@ -973,6 +1078,238 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Add Student Dialog */}
+      <Dialog open={addStudentDialogOpen} onOpenChange={setAddStudentDialogOpen}>
+        <DialogContent className="max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Student</DialogTitle>
+            <DialogDescription>
+              Register a new student in the system
+            </DialogDescription>
+          </DialogHeader>
+          <Suspense fallback={
+            <div className="flex justify-center items-center py-8">
+              <div className="w-6 h-6 animate-spin rounded-full border border-gray-300 border-t-blue-600"></div>
+              <span className="ml-2">Loading form...</span>
+            </div>
+          }>
+            <AddStudentForm 
+              onSuccess={async () => {
+                setAddStudentDialogOpen(false);
+                await refreshStudents();
+                toast.success('Student registered successfully!');
+              }}
+              onClose={() => setAddStudentDialogOpen(false)}
+            />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Student Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+            <DialogDescription>
+              Update student information and photo
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>First Name</Label>
+              <Input
+                value={editFormData.first_name}
+                onChange={(e) => setEditFormData({...editFormData, first_name: e.target.value})}
+                placeholder="Enter first name"
+              />
+            </div>
+            <div>
+              <Label>Last Name</Label>
+              <Input
+                value={editFormData.last_name}
+                onChange={(e) => setEditFormData({...editFormData, last_name: e.target.value})}
+                placeholder="Enter last name"
+              />
+            </div>
+            <div>
+              <Label>Other Name</Label>
+              <Input
+                value={editFormData.other_name}
+                onChange={(e) => setEditFormData({...editFormData, other_name: e.target.value})}
+                placeholder="Enter other name (optional)"
+              />
+            </div>
+            <div>
+              <Label>Admission Number</Label>
+              <Input
+                value={editFormData.admission_number}
+                onChange={(e) => setEditFormData({...editFormData, admission_number: e.target.value})}
+                placeholder="Enter admission number"
+              />
+            </div>
+            <div>
+              <Label>Gender</Label>
+              <Select value={editFormData.gender} onValueChange={(value: string) => setEditFormData({...editFormData, gender: value as "Male" | "Female"})}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Student Photo</Label>
+              <div className="flex items-center gap-4">
+                {selectedStudent?.photo_url && (
+                  <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200">
+                    <img 
+                      src={selectedStudent.photo_url} 
+                      alt={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <Input
+                    ref={editPassportInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setEditPassportFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  <Button
+                    onClick={() => editPassportInputRef.current?.click()}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Choose New Photo
+                  </Button>
+                  {editPassportFile && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {editPassportFile.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={async () => {
+                if (!selectedStudent) return;
+                
+                try {
+                  setActionLoading('edit');
+                  
+                  // Upload photo first if selected
+                  if (editPassportFile) {
+                    const formData = new FormData();
+                    formData.append('passport', editPassportFile);
+                    formData.append('student_id', selectedStudent.id.toString());
+
+                    const photoResponse = await fetch('/api/upload-student-photo.php', {
+                      method: 'POST',
+                      body: formData
+                    });
+
+                    if (!photoResponse.ok) {
+                      throw new Error('Failed to upload photo');
+                    }
+                  }
+
+                  // Update student data
+                  await updateStudent(selectedStudent.id, {
+                    firstName: editFormData.first_name,
+                    lastName: editFormData.last_name,
+                    otherName: editFormData.other_name,
+                    admissionNumber: editFormData.admission_number,
+                    gender: editFormData.gender
+                  });
+                  
+                  toast.success('Student updated successfully');
+                  setEditDialogOpen(false);
+                  setEditPassportFile(null);
+                  await refreshStudents();
+                } catch (error) {
+                  console.error('Error updating student:', error);
+                  toast.error('Failed to update student');
+                } finally {
+                  setActionLoading(null);
+                }
+              }}
+              disabled={actionLoading === 'edit'}
+            >
+              {actionLoading === 'edit' ? (
+                <div className="w-4 h-4 animate-spin rounded-full border border-white border-t-transparent mr-2" />
+              ) : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link Guardian Dialog */}
+      <Dialog open={linkGuardianDialogOpen} onOpenChange={setLinkGuardianDialogOpen}>
+        <DialogContent className="max-w-md mx-4">
+          <DialogHeader>
+            <DialogTitle>Link Guardian</DialogTitle>
+            <DialogDescription>
+              Link {selectedStudent?.firstName} {selectedStudent?.lastName} to a parent/guardian
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Select Parent/Guardian</Label>
+              <Select value={selectedParentId || ""} onValueChange={setSelectedParentId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a parent" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.isArray(parents) && parents.map((parent) => (
+                    <SelectItem key={parent.id} value={parent.id.toString()}>
+                      {parent.firstName} {parent.lastName} - {parent.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkGuardianDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={async () => {
+                if (!selectedStudent || !selectedParentId) return;
+                
+                try {
+                  setActionLoading('link-guardian');
+                  await linkStudentToParent(selectedStudent.id, parseInt(selectedParentId));
+                  toast.success('Student linked to guardian successfully');
+                  setLinkGuardianDialogOpen(false);
+                  setSelectedParentId(null);
+                  await refreshStudents();
+                } catch (error) {
+                  console.error('Error linking guardian:', error);
+                  toast.error('Failed to link guardian');
+                } finally {
+                  setActionLoading(null);
+                }
+              }}
+              disabled={actionLoading === 'link-guardian' || !selectedParentId}
+            >
+              {actionLoading === 'link-guardian' ? (
+                <div className="w-4 h-4 animate-spin rounded-full border border-white border-t-transparent mr-2" />
+              ) : null}
+              Link Guardian
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

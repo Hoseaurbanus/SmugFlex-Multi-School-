@@ -22,6 +22,7 @@ export function SystemSettingsPage() {
     currentAcademicYear,
     currentTerm,
     updateCurrentTerm,
+    updateCurrentTermAndYear,
     updateCurrentAcademicYear,
     getAttendanceRequirements,
     updateAttendanceRequirements,
@@ -206,8 +207,7 @@ export function SystemSettingsPage() {
   const handleUpdateSession = async () => {
     setIsLoading(true);
     try {
-      await updateCurrentAcademicYear(sessionData.currentSession);
-      await updateCurrentTerm(sessionData.currentTerm);
+      await updateCurrentTermAndYear(sessionData.currentSession, sessionData.currentTerm);
       toast.success(`Academic session and term updated to ${sessionData.currentSession} - ${sessionData.currentTerm}`);
     } catch (error) {
       console.error('Error updating session:', error);

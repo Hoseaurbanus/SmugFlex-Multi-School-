@@ -7,6 +7,8 @@ import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { useSchool } from '../../contexts/SchoolContext';
 
+const NAIRA = "\u20A6";
+
 export function PaymentHistoryPage() {
   const { payments, students } = useSchool();
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,7 +74,7 @@ export function PaymentHistoryPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm mb-1">Total Revenue</p>
-                <p className="text-[#0A2540]">₦{totalRevenue.toLocaleString()}</p>
+                <p className="text-[#0A2540]">{NAIRA}{totalRevenue.toLocaleString()}</p>
               </div>
               <div className="bg-green-100 p-3 rounded-xl">
                 <span className="w-6 h-6 text-green-600" />
@@ -86,7 +88,7 @@ export function PaymentHistoryPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm mb-1">Pending Payments</p>
-                <p className="text-[#0A2540]">₦{pendingAmount.toLocaleString()}</p>
+                <p className="text-[#0A2540]">{NAIRA}{pendingAmount.toLocaleString()}</p>
               </div>
               <div className="bg-yellow-100 p-3 rounded-xl">
                 <span className="w-6 h-6 text-yellow-600" />
@@ -202,7 +204,7 @@ export function PaymentHistoryPage() {
                         </TableCell>
                         <TableCell className="text-sm text-gray-600 font-mono">{payment.receipt_number}</TableCell>
                         <TableCell>{payment.payment_type}</TableCell>
-                        <TableCell className="text-[#0A2540]">₦{payment.amount.toLocaleString()}</TableCell>
+                        <TableCell className="text-[#0A2540]">{NAIRA}{payment.amount.toLocaleString()}</TableCell>
                         <TableCell>{payment.payment_method}</TableCell>
                         <TableCell className="text-sm text-gray-600 font-mono">{payment.reference}</TableCell>
                         <TableCell>{getStatusBadge(payment.status)}</TableCell>

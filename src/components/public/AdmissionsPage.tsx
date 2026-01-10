@@ -1,6 +1,7 @@
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
+import { ArrowLeft } from "lucide-react";
 
 interface AdmissionsPageProps {
   onBack: () => void;
@@ -93,7 +94,7 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
                 <div className="flex-1">
                   <h3 className="mb-1">Purchase Admission Form</h3>
                   <p className="text-sm text-gray-600">
-                    Visit the school or purchase form online. Form fee: ₦5,000 (non-refundable)
+                    Visit the school or purchase form online. Form fee: \u20A65,000 (non-refundable)
                   </p>
                 </div>
               </div>

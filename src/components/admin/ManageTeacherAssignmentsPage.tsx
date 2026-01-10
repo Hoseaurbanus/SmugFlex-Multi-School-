@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { api } from '../../services/api';
 import { API_CONFIG } from '../../config/api';
-import { Plus, Search, Edit, Trash2, BookOpen, Users, X, Check, AlertCircle, Award, Clock, Activity, UserCheck, Calendar, Filter, ChevronDown, ChevronUp, Grid3x3, List, User, Loader2, Save } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, BookOpen, Users, X, Check, AlertCircle, Award, Clock, Activity, UserCheck, Calendar, Filter, ChevronDown, ChevronUp, Grid3x3, List, User, Loader2, Save, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -368,21 +368,25 @@ export function ManageTeacherAssignmentsPage() {
               </h1>
               <p className="text-gray-600 mt-1">Manage subject assignments and class teacher roles</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <Button
                 onClick={handleOpenAssignDialog}
-                className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-6"
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-4 sm:px-6 w-full sm:w-auto flex items-center justify-center gap-2 h-10 sm:h-auto"
+                size="sm"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                New Assignment
+                <Plus className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline whitespace-nowrap">New Assignment</span>
+                <span className="sm:hidden whitespace-nowrap">Assignment</span>
               </Button>
               <Button
                 onClick={handleOpenClassTeacherDialog}
                 variant="outline"
-                className="border-gray-300 hover:bg-gray-50 transition-all duration-200 px-6"
+                className="border-gray-300 hover:bg-gray-50 transition-all duration-200 px-4 sm:px-6 w-full sm:w-auto flex items-center justify-center gap-2 h-10 sm:h-auto"
+                size="sm"
               >
-                <UserCheck className="w-4 h-4 mr-2" />
-                Class Teachers
+                <UserCheck className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline whitespace-nowrap">Class Teachers</span>
+                <span className="sm:hidden whitespace-nowrap">Teachers</span>
               </Button>
             </div>
           </div>
@@ -488,7 +492,7 @@ export function ManageTeacherAssignmentsPage() {
                       <SelectValue placeholder="All Teachers" />
                     </div>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     <SelectItem value="All">All Teachers</SelectItem>
                     {teachers?.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id.toString()}>
@@ -505,7 +509,7 @@ export function ManageTeacherAssignmentsPage() {
                       <SelectValue placeholder="All Classes" />
                     </div>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     <SelectItem value="All">All Classes</SelectItem>
                     {classes?.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id.toString()}>
@@ -520,7 +524,7 @@ export function ManageTeacherAssignmentsPage() {
                     variant={viewMode === 'table' ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setViewMode('table')}
-                    className={`rounded-lg ${viewMode === 'table' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'}`}
+                    className={`rounded-lg ${viewMode === 'table' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'} p-2`}
                   >
                     <List className="w-4 h-4" />
                   </Button>
@@ -528,7 +532,7 @@ export function ManageTeacherAssignmentsPage() {
                     variant={viewMode === 'grid' ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setViewMode('grid')}
-                    className={`rounded-lg ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'}`}
+                    className={`rounded-lg ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'} p-2`}
                   >
                     <Grid3x3 className="w-4 h-4" />
                   </Button>
@@ -545,13 +549,15 @@ export function ManageTeacherAssignmentsPage() {
               <div className="flex items-center gap-4">
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'subjects' | 'class-teachers')} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 bg-gray-100/50 p-1 rounded-xl">
-                    <TabsTrigger value="subjects" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                      <BookOpen className="w-4 h-4" />
-                      Subject Assignments
+                    <TabsTrigger value="subjects" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm sm:text-base py-2 px-3">
+                      <BookOpen className="w-4 h-4 flex-shrink-0" />
+                      <span className="hidden sm:inline">Subject Assignments</span>
+                      <span className="sm:hidden">Subjects</span>
                     </TabsTrigger>
-                    <TabsTrigger value="class-teachers" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                      <UserCheck className="w-4 h-4" />
-                      Class Teachers
+                    <TabsTrigger value="class-teachers" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm sm:text-base py-2 px-3">
+                      <UserCheck className="w-4 h-4 flex-shrink-0" />
+                      <span className="hidden sm:inline">Class Teachers</span>
+                      <span className="sm:hidden">Teachers</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -566,7 +572,8 @@ export function ManageTeacherAssignmentsPage() {
               <TabsContent value="subjects" className="m-0">
                 {viewMode === 'table' ? (
                   <div className="overflow-x-auto">
-                    <Table>
+                    <div className="min-w-[600px] lg:min-w-full">
+                      <Table>
                       <TableHeader>
                         <TableRow className="bg-gray-50 border-b border-gray-200">
                           <TableHead className="text-gray-700 font-semibold">Teacher</TableHead>
@@ -603,39 +610,39 @@ export function ManageTeacherAssignmentsPage() {
                         <TableRow key={assignment.id} className="hover:bg-gray-50 border-b border-gray-100">
                           <TableCell className="py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
                                 {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                               </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{assignment.teacher_name}</p>
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 truncate">{assignment.teacher_name}</p>
                                 <p className="text-sm text-gray-500">ID: {assignment.teacher_id}</p>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell className="py-4">
                             <div className="flex items-center gap-2">
-                              <div className="p-2 bg-orange-100 rounded-lg">
+                              <div className="p-2 bg-orange-100 rounded-lg flex-shrink-0">
                                 <BookOpen className="w-4 h-4 text-orange-600" />
                               </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{assignment.subject_name}</p>
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 truncate">{assignment.subject_name}</p>
                                 <p className="text-sm text-gray-500">ID: {assignment.subject_id}</p>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell className="py-4">
                             <div className="flex items-center gap-2">
-                              <div className="p-2 bg-green-100 rounded-lg">
+                              <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
                                 <Users className="w-4 h-4 text-green-600" />
                               </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{assignment.class_name}</p>
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 truncate">{assignment.class_name}</p>
                                 <p className="text-sm text-gray-500">ID: {assignment.class_id}</p>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell className="py-4">
-                            <Badge variant="outline" className="bg-gray-50">
+                            <Badge variant="outline" className="bg-gray-50 whitespace-nowrap">
                               {assignment.term}
                             </Badge>
                           </TableCell>
@@ -643,20 +650,39 @@ export function ManageTeacherAssignmentsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => {
-                                // Handle remove assignment
-                                removeSubjectAssignmentAPI(
-                                  assignment.teacher_id,
-                                  assignment.subject_id,
-                                  assignment.class_id,
-                                  assignment.academic_year,
-                                  assignment.term
-                                ).then(() => {
-                                  toast.success('Assignment removed successfully');
-                                  loadSubjectAssignmentsFromAPI();
-                                });
+                              onClick={async () => {
+                                try {
+                                  console.log('=== DELETE ASSIGNMENT CLICKED ===');
+                                  console.log('Assignment data:', {
+                                    teacher_id: assignment.teacher_id,
+                                    subject_id: assignment.subject_id,
+                                    class_id: assignment.class_id,
+                                    academic_year: assignment.academic_year,
+                                    term: assignment.term
+                                  });
+                                  
+                                  // Handle remove assignment
+                                  const success = await removeSubjectAssignmentAPI(
+                                    assignment.teacher_id,
+                                    assignment.subject_id,
+                                    assignment.class_id,
+                                    assignment.academic_year,
+                                    assignment.term
+                                  );
+                                  
+                                  if (success) {
+                                    toast.success('Assignment removed successfully');
+                                    // Data is already refreshed in the API function
+                                  } else {
+                                    toast.error('Failed to remove assignment');
+                                  }
+                                } catch (error) {
+                                  console.error('Error removing assignment:', error);
+                                  toast.error('An error occurred while removing assignment');
+                                }
                               }}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
+                              aria-label="Delete assignment"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -666,6 +692,7 @@ export function ManageTeacherAssignmentsPage() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
               </div>
                 ) : (
                   /* Grid View for Subject Assignments */
@@ -706,19 +733,38 @@ export function ManageTeacherAssignmentsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => {
-                                  removeSubjectAssignmentAPI(
-                                    assignment.teacher_id,
-                                    assignment.subject_id,
-                                    assignment.class_id,
-                                    assignment.academic_year,
-                                    assignment.term
-                                  ).then(() => {
-                                    toast.success('Assignment removed successfully');
-                                    loadSubjectAssignmentsFromAPI();
-                                  });
+                                onClick={async () => {
+                                  try {
+                                    console.log('=== DELETE ASSIGNMENT CLICKED (GRID) ===');
+                                    console.log('Assignment data:', {
+                                      teacher_id: assignment.teacher_id,
+                                      subject_id: assignment.subject_id,
+                                      class_id: assignment.class_id,
+                                      academic_year: assignment.academic_year,
+                                      term: assignment.term
+                                    });
+                                    
+                                    const success = await removeSubjectAssignmentAPI(
+                                      assignment.teacher_id,
+                                      assignment.subject_id,
+                                      assignment.class_id,
+                                      assignment.academic_year,
+                                      assignment.term
+                                    );
+                                    
+                                    if (success) {
+                                      toast.success('Assignment removed successfully');
+                                      // Data is already refreshed in the API function
+                                    } else {
+                                      toast.error('Failed to remove assignment');
+                                    }
+                                  } catch (error) {
+                                    console.error('Error removing assignment:', error);
+                                    toast.error('An error occurred while removing assignment');
+                                  }
                                 }}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
+                                aria-label="Delete assignment"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -767,10 +813,11 @@ export function ManageTeacherAssignmentsPage() {
                     </div>
                     <Button
                       onClick={() => setIsClassTeacherDialogOpen(true)}
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-10 sm:h-auto w-full sm:w-auto"
                     >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Assign Class Teacher
+                      <Plus className="w-4 h-4 flex-shrink-0" />
+                      <span className="hidden sm:inline whitespace-nowrap">Assign Class Teacher</span>
+                      <span className="sm:hidden whitespace-nowrap">Assign Teacher</span>
                     </Button>
                   </div>
 
@@ -783,10 +830,11 @@ export function ManageTeacherAssignmentsPage() {
                       <p className="text-gray-500 text-sm mb-6">Assign class teachers to manage classes</p>
                       <Button
                         onClick={() => setIsClassTeacherDialogOpen(true)}
-                        className="bg-green-600 hover:bg-green-700 text-white"
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-10 sm:h-auto w-full sm:w-auto"
                       >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Assign First Class Teacher
+                        <Plus className="w-4 h-4 flex-shrink-0" />
+                        <span className="hidden sm:inline whitespace-nowrap">Assign First Class Teacher</span>
+                        <span className="sm:hidden whitespace-nowrap">Assign Teacher</span>
                       </Button>
                     </div>
                   ) : (
@@ -827,7 +875,8 @@ export function ManageTeacherAssignmentsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRemoveClassTeacher(assignment.class_id)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
+                              aria-label="Remove class teacher"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -886,7 +935,7 @@ export function ManageTeacherAssignmentsPage() {
                   <SelectTrigger className="h-12 rounded-xl">
                     <SelectValue placeholder="Choose a teacher" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     {teachers?.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id.toString()}>
                         {teacher.firstName} {teacher.lastName}
@@ -1013,11 +1062,9 @@ export function ManageTeacherAssignmentsPage() {
         {/* Class Teacher Dialog */}
         <Dialog open={isClassTeacherDialogOpen} onOpenChange={setIsClassTeacherDialogOpen}>
           <DialogContent className="max-w-md">
-            <DialogHeader>
+<DialogHeader>
               <DialogTitle className="text-xl font-bold text-gray-900">Assign Class Teacher</DialogTitle>
-              <DialogDescription>
-                Assign a teacher as the class teacher for a specific class
-              </DialogDescription>
+              <DialogDescription>Assign a class teacher to manage this class. This will update the class teacher information.</DialogDescription>
             </DialogHeader>
             
             <div className="space-y-4 mt-6">
@@ -1027,7 +1074,7 @@ export function ManageTeacherAssignmentsPage() {
                   <SelectTrigger className="h-12 rounded-xl">
                     <SelectValue placeholder="Choose a teacher" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     {teachers?.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id.toString()}>
                         {teacher.firstName} {teacher.lastName}
@@ -1043,7 +1090,7 @@ export function ManageTeacherAssignmentsPage() {
                   <SelectTrigger className="h-12 rounded-xl">
                     <SelectValue placeholder="Choose a class" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     {classes?.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id.toString()}>
                         {cls.name}

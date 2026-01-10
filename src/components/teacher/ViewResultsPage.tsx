@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Badge } from "../ui/badge";
 import { useSchool } from "../../contexts/SchoolContext";
 import { StudentResultSheet } from "../StudentResultSheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
 
 export function ViewResultsPage() {
   const { 
@@ -364,6 +364,7 @@ export function ViewResultsPage() {
         <Dialog open={!!viewingResult} onOpenChange={() => setViewingResult(null)}>
           <DialogHeader className="sr-only">
             <DialogTitle>Result Sheet</DialogTitle>
+            <DialogDescription>View detailed result sheet for this student.</DialogDescription>
           </DialogHeader>
           <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 overflow-y-auto">
             <div className="p-6">

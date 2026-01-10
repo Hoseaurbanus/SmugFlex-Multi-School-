@@ -5,6 +5,7 @@ import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { useSchool } from "../../contexts/SchoolContext";
 import { StudentResultCardProps } from './types/resultCard';
+import schoolLogo from "../../assets/images/school-logo.jpg";
 
 // Add print styles
 const printStyles = `
@@ -48,8 +49,7 @@ export function StudentResultCard({
   onApprovePrint,
   currentUser
 }: StudentResultCardProps) {
-  const { schoolSettings, loadSchoolSettings } = useSchool();
-  const { students, classes, teachers, scores, subjectAssignments, subjects, loadScoresFromAPI, loadSubjectAssignmentsFromAPI, loadSubjectsFromAPI } = useSchool();
+  const { schoolSettings, loadSchoolSettings, students, classes, teachers, scores, subjectAssignments, subjects, affectiveDomains, psychomotorDomains, loadScoresFromAPI, loadSubjectAssignmentsFromAPI, loadSubjectsFromAPI, loadAffectiveDomainsFromAPI, loadPsychomotorDomainsFromAPI, getClassTeacher } = useSchool();
   const [showDetails, setShowDetails] = useState(false);
   const [detailedScoresData, setDetailedScoresData] = useState<any[]>([]);
 
@@ -80,8 +80,50 @@ export function StudentResultCard({
   useEffect(() => {
     if (result && result.student_id) {
       loadDetailedScores();
+      loadDomainData();
     }
   }, [result]); // Remove scores from dependencies to prevent infinite loop
+
+  // Load affective and psychomotor domain data
+  const loadDomainData = async () => {
+    if (!result || !result.student_id) return;
+
+    try {
+      // Ensure domain data is loaded
+      await Promise.all([
+        affectiveDomains.length === 0 && loadAffectiveDomainsFromAPI(),
+        psychomotorDomains.length === 0 && loadPsychomotorDomainsFromAPI()
+      ]);
+    } catch (error) {
+      console.error('Error loading domain data:', error);
+    }
+  };
+
+  // Get student's affective domain data
+  const getStudentAffectiveData = () => {
+    if (!result || !result.student_id) return {} as any;
+    
+    const studentAffective = affectiveDomains.find(domain => 
+      domain.student_id === result.student_id &&
+      domain.academic_year === result.academic_year &&
+      domain.term === result.term
+    );
+    
+    return studentAffective || {} as any;
+  };
+
+  // Get student's psychomotor domain data
+  const getStudentPsychomotorData = () => {
+    if (!result || !result.student_id) return {} as any;
+    
+    const studentPsychomotor = psychomotorDomains.find(domain => 
+      domain.student_id === result.student_id &&
+      domain.academic_year === result.academic_year &&
+      domain.term === result.term
+    );
+    
+    return studentPsychomotor || {} as any;
+  };
 
   const loadDetailedScores = async () => {
     if (!result || !result.student_id) return;
@@ -182,8 +224,8 @@ export function StudentResultCard({
 
   // Get class teacher name
   const getClassTeacherName = () => {
-    // First priority: Use the teacher name from compiled results (already stored in DB)
-    if (result?.class_teacher_name) {
+    // First priority: Use the teacher name from compiled results (stored in database)
+    if (result?.class_teacher_name && result.class_teacher_name.trim() !== '') {
       return result.class_teacher_name;
     }
     
@@ -192,11 +234,19 @@ export function StudentResultCard({
       return studentClassData.classTeacher;
     }
     
-    // Fallback: If class_teacher_id exists, find the teacher
+    // Third priority: If class_teacher_id exists, find the teacher
     if (studentClassData?.classTeacherId) {
       const classTeacher = teachers.find((t: any) => t.id === studentClassData.classTeacherId);
       if (classTeacher) {
         return `${classTeacher.firstName} ${classTeacher.lastName}`;
+      }
+    }
+    
+    // Fourth priority: Get the assigned class teacher for this class (fallback)
+    if (studentClassData?.id) {
+      const assignedClassTeacher = getClassTeacher(studentClassData.id);
+      if (assignedClassTeacher) {
+        return `${assignedClassTeacher.firstName} ${assignedClassTeacher.lastName}`;
       }
     }
     
@@ -400,7 +450,7 @@ export function StudentResultCard({
       <div className="print-header" style={{ textAlign: 'center', marginBottom: '3mm', padding: '2mm 0' }}>
         <div style={{ marginBottom: '1mm' }}>
           <img 
-            src="./assets/images/school-logo.jpg" 
+            src={schoolLogo} 
             alt="School Logo" 
             style={{ 
               width: '18mm', 
@@ -700,31 +750,38 @@ export function StudentResultCard({
               </tr>
             </thead>
             <tbody>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('attentiveness')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.attentiveness || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.attentiveness || 4)}</td>
-              </tr>
-              <tr style={{ backgroundColor: 'white' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('honesty')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.honesty || '3'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.honesty || 3)}</td>
-              </tr>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('neatness')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.neatness || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.neatness || 4)}</td>
-              </tr>
-              <tr style={{ backgroundColor: 'white' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('obedience')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.obedience || '2'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.obedience || 2)}</td>
-              </tr>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('sense_of_responsibility')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.affective?.sense_of_responsibility || '3'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.affective?.sense_of_responsibility || 3)}</td>
-              </tr>
+              {(() => {
+                const affectiveData = getStudentAffectiveData();
+                return (
+                  <>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('attentiveness')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{affectiveData.attentiveness || result.affective?.attentiveness || '4'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(affectiveData.attentiveness || result.affective?.attentiveness || 4))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'white' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('honesty')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{affectiveData.honesty || result.affective?.honesty || '3'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(affectiveData.honesty || result.affective?.honesty || 3))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('neatness')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{affectiveData.neatness || result.affective?.neatness || '4'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(affectiveData.neatness || result.affective?.neatness || 4))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'white' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('obedience')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{affectiveData.obedience || result.affective?.obedience || '2'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(affectiveData.obedience || result.affective?.obedience || 2))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('sense_of_responsibility')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{affectiveData.sense_of_responsibility || result.affective?.sense_of_responsibility || '3'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(affectiveData.sense_of_responsibility || result.affective?.sense_of_responsibility || 3))}</td>
+                    </tr>
+                  </>
+                );
+              })()}
             </tbody>
           </table>
         </div>
@@ -751,36 +808,43 @@ export function StudentResultCard({
               </tr>
             </thead>
             <tbody>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('attention_to_direction')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.attention_to_direction || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.attention_to_direction || 4)}</td>
-              </tr>
-              <tr style={{ backgroundColor: 'white' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('considerate_of_others')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.considerate_of_others || '2'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.considerate_of_others || 2)}</td>
-              </tr>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('handwriting')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.handwriting || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.handwriting || 4)}</td>
-              </tr>
-              <tr style={{ backgroundColor: 'white' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('sports')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.sports || '3'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.sports || 3)}</td>
-              </tr>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('verbal_fluency')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.verbal_fluency || '4'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.verbal_fluency || 4)}</td>
-              </tr>
-              <tr style={{ backgroundColor: 'white' }}>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('works_well_independently')}</td>
-                <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{result.psychomotor?.independent_work || '5'}</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(result.psychomotor?.independent_work || 5)}</td>
-              </tr>
+              {(() => {
+                const psychomotorData = getStudentPsychomotorData();
+                return (
+                  <>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('attention_to_direction')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{psychomotorData.attention_to_direction || result.psychomotor?.attention_to_direction || '4'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(psychomotorData.attention_to_direction || result.psychomotor?.attention_to_direction || 4))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'white' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('considerate_of_others')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{psychomotorData.considerate_of_others || result.psychomotor?.considerate_of_others || '2'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(psychomotorData.considerate_of_others || result.psychomotor?.considerate_of_others || 2))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('handwriting')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{psychomotorData.handwriting || result.psychomotor?.handwriting || '4'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(psychomotorData.handwriting || result.psychomotor?.handwriting || 4))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'white' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('sports')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{psychomotorData.sports || result.psychomotor?.sports || '3'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(psychomotorData.sports || result.psychomotor?.sports || 3))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('verbal_fluency')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{psychomotorData.verbal_fluency || result.psychomotor?.verbal_fluency || '4'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(psychomotorData.verbal_fluency || result.psychomotor?.verbal_fluency || 4))}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'white' }}>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '600', color: '#000000', textRendering: 'geometricPrecision' }}>{getDomainName('works_well_independently')}</td>
+                      <td className="border border-black text-center" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: 'bold', color: '#000000', textRendering: 'geometricPrecision' }}>{psychomotorData.works_well_independently || result.psychomotor?.independent_work || '5'}</td>
+                      <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt', fontWeight: '500', color: '#000000', textRendering: 'geometricPrecision' }}>{getAffectiveRemark(parseInt(psychomotorData.works_well_independently || result.psychomotor?.independent_work || 5))}</td>
+                    </tr>
+                  </>
+                );
+              })()}
             </tbody>
           </table>
         </div>

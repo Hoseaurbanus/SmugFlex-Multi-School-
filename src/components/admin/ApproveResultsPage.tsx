@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -45,17 +45,18 @@ export function ApproveResultsPage() {
     }
   }, [currentTerm, currentAcademicYear]);
 
-  const pendingResults = getPendingApprovals();
-  const approvedResults = compiledResults.filter((r) => 
+  // Memoize filtered results to prevent excessive re-calculations
+  const pendingResults = useMemo(() => getPendingApprovals(), [compiledResults, currentTerm, currentAcademicYear]);
+  const approvedResults = useMemo(() => compiledResults.filter((r) => 
     r.status === 'Approved' && 
     r.term === currentTerm && 
     r.academic_year === currentAcademicYear
-  );
-  const rejectedResults = compiledResults.filter((r) => 
+  ), [compiledResults, currentTerm, currentAcademicYear]);
+  const rejectedResults = useMemo(() => compiledResults.filter((r) => 
     r.status === 'Rejected' && 
     r.term === currentTerm && 
     r.academic_year === currentAcademicYear
-  );
+  ), [compiledResults, currentTerm, currentAcademicYear]);
 
   const [filterStatus, setFilterStatus] = useState<'Submitted' | 'Approved' | 'Rejected'>('Submitted');
 
@@ -106,8 +107,7 @@ export function ApproveResultsPage() {
     approveCompiledResult(resultId);
     toast.success('Result approved successfully!');
     
-    // Refresh compiled results from API
-    getCompiledResultsByYearAndTerm(currentAcademicYear, currentTerm);
+    // No need to refresh - the context will update automatically
   };
 
   const handleReject = () => {
@@ -549,6 +549,7 @@ export function ApproveResultsPage() {
         <DialogContent className="max-w-4xl rounded-xl bg-white border border-gray-200 text-gray-900 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-gray-900">Result Preview</DialogTitle>
+            <DialogDescription>Preview the compiled result details before approving or rejecting.</DialogDescription>
           </DialogHeader>
 
           {selectedResultData && (
@@ -683,6 +684,7 @@ export function ApproveResultsPage() {
         <DialogContent className="max-w-md rounded-xl bg-white border border-gray-200 text-gray-900">
           <DialogHeader>
             <DialogTitle className="text-gray-900">Reject Result</DialogTitle>
+            <DialogDescription>Reject this result with an optional reason. This action cannot be undone.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">

@@ -4,7 +4,7 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "../ui/dropdown-menu";
 import { SimpleDropdown, SimpleDropdownTrigger, SimpleDropdownContent, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
 import { exportParentsToCSV } from "../../utils/csvExporter";
@@ -388,6 +388,7 @@ export function ManageParentsPage({ onNavigateToLink }: ManageParentsPageProps) 
           <DialogContent className="max-w-2xl rounded-xl">
             <DialogHeader>
               <DialogTitle className="text-[#0A2540]">Parent Details</DialogTitle>
+              <DialogDescription>View detailed information about this parent/guardian, including linked children.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

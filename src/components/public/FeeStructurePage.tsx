@@ -2,6 +2,7 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
+import { ArrowLeft } from "lucide-react";
 
 interface FeeStructurePageProps {
   onBack: () => void;
@@ -27,7 +28,7 @@ export function FeeStructurePage({ onBack }: FeeStructurePageProps) {
   ];
 
   const formatCurrency = (amount: number) => {
-    return `₦${amount.toLocaleString()}`;
+    return `\u20A6${amount.toLocaleString()}`;
   };
 
   return (
@@ -62,7 +63,7 @@ export function FeeStructurePage({ onBack }: FeeStructurePageProps) {
                   <li>• Fees are payable per term (3 terms per academic session)</li>
                   <li>• 10% discount for full session payment</li>
                   <li>• Payment deadline: 2 weeks after resumption</li>
-                  <li>• Late payment attracts ₦5,000 penalty</li>
+                  <li>• Late payment attracts \u20A65,000 penalty</li>
                   <li>• All fees are non-refundable except in special cases</li>
                 </ul>
               </div>
@@ -228,9 +229,9 @@ export function FeeStructurePage({ onBack }: FeeStructurePageProps) {
               <div className="border rounded-lg p-4">
                 <h3 className="mb-3">Bank Transfer</h3>
                 <div className="text-sm text-gray-600 space-y-2">
-                  <p><strong>Bank:</strong> First Bank of Nigeria</p>
-                  <p><strong>Account Name:</strong> Graceland Royal Academy</p>
-                  <p><strong>Account Number:</strong> 1234567890</p>
+                  <p><strong>Bank:</strong> Bank details to be provided by school administration</p>
+                  <p><strong>Account Name:</strong> Please contact school for account information</p>
+                  <p><strong>Account Number:</strong> Available from school administration</p>
                 </div>
               </div>
 

@@ -111,6 +111,19 @@ class ResultsController {
                 }
                 
                 $student_id = Middleware::validateInteger($score_data['student_id'], 'student_id');
+                
+                // CRITICAL: Validate that student is active and belongs to the class
+                $student_check_query = "SELECT COUNT(*) as count FROM students WHERE id = :student_id AND class_id = :class_id AND status = 'Active'";
+                $student_check_stmt = $this->conn->prepare($student_check_query);
+                $student_check_stmt->bindParam(':student_id', $student_id);
+                $student_check_stmt->bindParam(':class_id', $class_id);
+                $student_check_stmt->execute();
+                $student_exists = $student_check_stmt->fetchColumn();
+                
+                if ($student_exists == 0) {
+                    Response::badRequest("Student ID $student_id is not active or not enrolled in this class");
+                }
+                
                 $ca1 = $is_creche ? 0 : Middleware::validateNonNegative($score_data['ca1'], 'ca1');
                 $ca2 = $is_creche ? 0 : Middleware::validateNonNegative($score_data['ca2'], 'ca2');
                 $exam = Middleware::validateNonNegative($score_data['exam'], 'exam');
@@ -811,7 +824,7 @@ class ResultsController {
                                      JOIN students s ON sc.student_id = s.id
                                      JOIN subjects sub ON sa.subject_id = sub.id
                                      WHERE sa.class_id = :class_id AND sa.term = :term AND sa.academic_year = :academic_year
-                                     AND sc.$status = :status";
+                                     AND sc.status = :status";
             
             $submitted_stmt = $this->conn->prepare($submitted_check_query);
             $submitted_stmt->bindParam(':class_id', $class_id);
@@ -832,32 +845,45 @@ class ResultsController {
             $required_days_stmt->execute();
             $required_days = $required_days_stmt->fetchColumn() ?: 0;
             
-            $attendance_check_query = "SELECT s.id, s.first_name, s.last_name,
-                                      COUNT(a.id) as attendance_days,
-                                      SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) as present_days
-                                      FROM students s
-                                      LEFT JOIN attendance a ON s.id = a.student_id
-                                      WHERE s.class_id = :class_id AND s.status = 'Active'
-                                      AND a.term = :term AND a.academic_year = :academic_year
-                                      GROUP BY s.id";
-            
-            $attendance_stmt = $this->conn->prepare($attendance_check_query);
-            $attendance_stmt->bindParam(':class_id', $class_id);
-            $attendance_stmt->bindParam(':term', $term);
-            $attendance_stmt->bindParam(':academic_year', $academic_year);
-            $attendance_stmt->execute();
-            $attendance_records = $attendance_stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            $students_insufficient_attendance = [];
-            foreach ($attendance_records as $record) {
-                if ($record['attendance_days'] < $required_days) {
-                    $students_insufficient_attendance[] = $record['first_name'] . ' ' . $record['last_name'] . 
-                        ' (' . $record['attendance_days'] . '/' . $required_days . ' days)';
+            if ($required_days == 0) {
+                $errors[] = "Attendance requirements not set for term: $term";
+            } else {
+                // Check attendance using the new attendance structure (single record per student)
+                $attendance_check_query = "SELECT s.id, s.first_name, s.last_name,
+                                          a.attended_days,
+                                          a.required_days,
+                                          a.attendance_rate
+                                          FROM students s
+                                          LEFT JOIN attendance a ON s.id = a.student_id
+                                          WHERE s.class_id = :class_id AND s.status = 'Active'
+                                          AND a.term = :term AND a.academic_year = :academic_year";
+                
+                $attendance_stmt = $this->conn->prepare($attendance_check_query);
+                $attendance_stmt->bindParam(':class_id', $class_id);
+                $attendance_stmt->bindParam(':term', $term);
+                $attendance_stmt->bindParam(':academic_year', $academic_year);
+                $attendance_stmt->execute();
+                $attendance_records = $attendance_stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                $students_missing_attendance = [];
+                $students_insufficient_attendance = [];
+                
+                foreach ($attendance_records as $record) {
+                    if (!$record['attended_days'] || $record['attended_days'] === null) {
+                        $students_missing_attendance[] = $record['first_name'] . ' ' . $record['last_name'];
+                    } elseif ($record['attendance_rate'] < 75) { // Minimum 75% required
+                        $students_insufficient_attendance[] = $record['first_name'] . ' ' . $record['last_name'] . 
+                            ' (' . $record['attendance_rate'] . '% - ' . $record['attended_days'] . '/' . $required_days . ' days)';
+                    }
                 }
-            }
-            
-            if (!empty($students_insufficient_attendance)) {
-                $errors[] = "Insufficient attendance (required $required_days days): " . implode(', ', $students_insufficient_attendance);
+                
+                if (!empty($students_missing_attendance)) {
+                    $errors[] = "Missing attendance records for students: " . implode(', ', $students_missing_attendance);
+                }
+                
+                if (!empty($students_insufficient_attendance)) {
+                    $errors[] = "Insufficient attendance (minimum 75% required): " . implode(', ', $students_insufficient_attendance);
+                }
             }
             
             // Check 4: Affective domains are complete

@@ -56,6 +56,10 @@ export function MyChildrenPage() {
     loadParentStudentLinksFromAPI,
     loadStudentsFromAPI,
     loadCompiledResultsFromAPI,
+    loadClassesFromAPI,
+    loadAffectiveDomainsFromAPI,
+    loadPsychomotorDomainsFromAPI,
+    loadSchoolSettings,
     currentTerm,
     currentAcademicYear,
     students,
@@ -63,6 +67,8 @@ export function MyChildrenPage() {
     schoolSettings,
     teachers,
     scores,
+    affectiveDomains,
+    psychomotorDomains,
     loadScoresFromAPI
   } = useSchool();
   
@@ -127,7 +133,11 @@ export function MyChildrenPage() {
             loadParentStudentLinksFromAPI(),
             loadStudentsFromAPI(),
             loadCompiledResultsFromAPI(),
-            loadScoresFromAPI() // ← IMPORTANT: Load scores like admin
+            loadClassesFromAPI(), // ← IMPORTANT: Load classes for class name fetching
+            loadScoresFromAPI(), // ← IMPORTANT: Load scores like admin
+            loadAffectiveDomainsFromAPI(), // ← Load affective domains
+            loadPsychomotorDomainsFromAPI(), // ← Load psychomotor domains
+            loadSchoolSettings() // ← Load school settings for logo and info
           ]);
           
           console.log('MyChildrenPage: Data loaded, compiledResults length:', compiledResults.length);
@@ -209,12 +219,14 @@ export function MyChildrenPage() {
       
       // Use the EXACT same admin PDF function from shared utility
       
-      // Pass the exact same context that admin uses
+      // Pass exact same context that admin uses
       const context = {
         schoolSettings: schoolSettings,
         teachers: teachers,
         classes: classes,
-        scores: scores // ← IMPORTANT: Pass scores context
+        scores: scores, // ← IMPORTANT: Pass scores context
+        affectiveDomains: affectiveDomains, // ← Pass affective domains
+        psychomotorDomains: psychomotorDomains // ← Pass psychomotor domains
       };
       
       console.log('Parent context being passed:', context);

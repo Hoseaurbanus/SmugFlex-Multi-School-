@@ -142,8 +142,8 @@ export function SubjectRegistrationPage() {
 
     try {
       const success = await registerSubjectForClass(
-        registrationForm.subject_id,
         registrationForm.class_id,
+        registrationForm.subject_id,
         academicYear,
         term,
         registrationForm.is_compulsory
@@ -168,9 +168,9 @@ export function SubjectRegistrationPage() {
 
     try {
       const success = await assignSubjectToTeacher(
+        assignmentForm.teacher_id,
         assignmentForm.subject_id,
         assignmentForm.class_id,
-        assignmentForm.teacher_id,
         academicYear,
         term
       );
@@ -207,9 +207,9 @@ export function SubjectRegistrationPage() {
   const handleRemoveAssignment = async (assignment: SubjectAssignment) => {
     try {
       const success = await removeSubjectAssignment(
+        assignment.teacher_id,
         assignment.subject_id,
         assignment.class_id,
-        assignment.teacher_id,
         assignment.academic_year,
         assignment.term
       );

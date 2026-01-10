@@ -128,7 +128,7 @@ export function ScoreEntryPage() {
     if (!selectedSubjectId || !selectedClassId || !teacherAssignments.length) return [];
     
     const assignment = teacherAssignments.find(
-      a => a.subject_id === Number(selectedSubjectId) && a.class_id === Number(selectedClassId)
+      a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
     );
     
     if (!assignment) return [];
@@ -178,7 +178,7 @@ export function ScoreEntryPage() {
     }
   }, [selectedClassId, selectedSubjectId, selectedTerm, selectedYear]);
 
-  // Auto-save functionality - ENABLED with automatic submission
+  // Auto-save functionality - Save as DRAFT only, no automatic submission
   const autoSaveScores = useCallback(async () => {
     if (!selectedClassId || !selectedSubjectId || !currentTeacher) {
       return;
@@ -191,7 +191,7 @@ export function ScoreEntryPage() {
     }
 
     const assignment = teacherAssignments.find(
-      a => a.subject_id === Number(selectedSubjectId) && a.class_id === Number(selectedClassId)
+      a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
     );
 
     if (!assignment) {
@@ -214,9 +214,9 @@ export function ScoreEntryPage() {
     }
 
     try {
-      setAutoSaveStatus('Auto-submitting...');
+      setAutoSaveStatus('Auto-saving...');
       
-      // Save each score as SUBMITTED (not draft)
+      // Save each score as DRAFT (not submitted)
       const savePromises: Promise<number | void>[] = [];
       
       Object.entries(validScores).forEach(([studentId, data]: [string, any]) => {
@@ -261,7 +261,7 @@ export function ScoreEntryPage() {
           entered_date: new Date().toISOString(),
           term: selectedTerm as 'First Term' | 'Second Term' | 'Third Term',
           academic_year: selectedYear,
-          status: 'Submitted' as const // ALWAYS submit, never save as draft
+          status: 'Draft' as const // Save as DRAFT, not submitted
         };
 
         if (existingScore) {
@@ -280,33 +280,23 @@ export function ScoreEntryPage() {
             });
           }
         } else {
-          // Create new score
           savePromises.push(addScore(scoreData));
         }
       });
 
       await Promise.all(savePromises);
-      setLastSavedData({ ...scoresData });
-      setAutoSaveStatus('Auto-submitted');
       
-      // Provide success feedback
-      const updatedCount = savePromises.length;
-      if (updatedCount > 0) {
-        toast.success(`${updatedCount} score(s) auto-submitted successfully!`, {
-          id: 'auto-submit-success',
-          duration: 3000
-        });
-      }
+      // Update last saved data
+      setLastSavedData(scoresData);
+      setAutoSaveStatus('Auto-saved');
       
       // Clear status after 2 seconds
       setTimeout(() => setAutoSaveStatus(''), 2000);
       
-      // Refresh scores to show updated status
-      await loadScoresFromAPI();
-      
     } catch (error) {
-      setAutoSaveStatus('Auto-submit failed');
-      setTimeout(() => setAutoSaveStatus(''), 3000);
+      console.error('Auto-save error:', error);
+      setAutoSaveStatus('Save failed');
+      toast.error('Auto-save failed. Please try manual save.');
     }
   }, [scoresData, lastSavedData, selectedClassId, selectedSubjectId, selectedTerm, selectedYear, currentTeacher, teacherAssignments, existingScores, currentUser, isEditMode, isCrecheClass]);
 
@@ -333,9 +323,9 @@ export function ScoreEntryPage() {
   }, [autoSaveScores]);
 
   // Get class and subject details
-  const selectedClass = classes.find(c => c.id === Number(selectedClassId));
+  const selectedClass = classes.find(c => String(c.id) === String(selectedClassId));
   const selectedAssignment = teacherAssignments.find(
-    a => a.subject_id === Number(selectedSubjectId) && a.class_id === Number(selectedClassId)
+    a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
   );
 
   // Calculate statistics
@@ -396,7 +386,7 @@ export function ScoreEntryPage() {
     
     // Also check if compiled results are approved by admin
     const hasApprovedCompiledResults = compiledResults.some((cr: any) => 
-      cr.class_id === Number(selectedClassId) &&
+      String(cr.class_id) === String(selectedClassId) &&
       cr.term === selectedTerm &&
       cr.academic_year === selectedYear &&
       cr.status === 'Approved'
@@ -422,7 +412,7 @@ export function ScoreEntryPage() {
       rejectedScoresCount: existingScores.filter(s => s.status === 'Rejected').length,
       compiledResultsCount: compiledResults.length,
       approvedCompiledResultsCount: compiledResults.filter((cr: any) => 
-        cr.class_id === Number(selectedClassId) &&
+        String(cr.class_id) === String(selectedClassId) &&
         cr.term === selectedTerm &&
         cr.academic_year === selectedYear &&
         cr.status === 'Approved'
@@ -574,6 +564,97 @@ export function ScoreEntryPage() {
     return 'Fail';
   }, [isCrecheClass]);
 
+  // Validate score completeness before submission
+  const validateScoreCompleteness = useCallback(() => {
+    const missingScores = classStudents.filter(student => {
+      const data = scoresData[student.id];
+      if (isCrecheClass) {
+        return !data || !data.exam || data.exam === '';
+      } else {
+        return !data || !data.ca1 || !data.ca2 || !data.exam || 
+               data.ca1 === '' || data.ca2 === '' || data.exam === '';
+      }
+    });
+    
+    if (missingScores.length > 0) {
+      const studentNames = missingScores.map(s => `${s.firstName} ${s.lastName}`).join(', ');
+      toast.error(`Cannot submit: Missing scores for ${missingScores.length} student(s): ${studentNames}`);
+      return false;
+    }
+    
+    // Check if all scores are valid (within range)
+    const invalidScores = classStudents.filter(student => {
+      const data = scoresData[student.id];
+      if (!data) return false;
+      
+      if (isCrecheClass) {
+        const exam = parseFloat(data.exam) || 0;
+        return exam < 0 || exam > 200;
+      } else {
+        const ca1 = parseFloat(data.ca1) || 0;
+        const ca2 = parseFloat(data.ca2) || 0;
+        const exam = parseFloat(data.exam) || 0;
+        return ca1 < 0 || ca1 > 20 || ca2 < 0 || ca2 > 20 || exam < 0 || exam > 60;
+      }
+    });
+    
+    if (invalidScores.length > 0) {
+      const studentNames = invalidScores.map(s => `${s.firstName} ${s.lastName}`).join(', ');
+      toast.error(`Cannot submit: Invalid score values for ${invalidScores.length} student(s): ${studentNames}`);
+      return false;
+    }
+    
+    return true;
+  }, [classStudents, scoresData, isCrecheClass]);
+
+  // Submit scores for approval
+  const submitScoresForApproval = async () => {
+    if (!validateScoreCompleteness()) {
+      return;
+    }
+    
+    const assignment = teacherAssignments.find(
+      a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
+    );
+    
+    if (!assignment) {
+      toast.error('Assignment not found');
+      return;
+    }
+    
+    try {
+      // Update all scores to 'Submitted' status
+      const updatePromises: Promise<number | void>[] = [];
+      
+      Object.entries(scoresData).forEach(([studentId, data]: [string, any]) => {
+        const studentIdNum = Number(studentId);
+        const existingScore = existingScores.find((s: any) => s.student_id === studentIdNum);
+        
+        if (existingScore && existingScore.status === 'Draft') {
+          // Update existing draft score to submitted
+          updatePromises.push(updateScore(existingScore.id, {
+            ...existingScore,
+            status: 'Submitted'
+          }));
+        }
+      });
+      
+      await Promise.all(updatePromises);
+      
+      // Submit the assignment for approval
+      await submitScores(assignment.id);
+      
+      toast.success('Scores submitted for approval successfully!');
+      
+      // Refresh scores data
+      await loadScoresFromAPI();
+      
+    } catch (error) {
+      console.error('Error submitting scores:', error);
+      toast.error('Failed to submit scores. Please try again.');
+    }
+  };
+
   // Toggle edit mode
   const toggleEditMode = () => {
     setIsEditMode(!isEditMode);
@@ -604,7 +685,7 @@ export function ScoreEntryPage() {
     }
 
     const assignment = teacherAssignments.find(
-      a => a.subject_id === Number(selectedSubjectId) && a.class_id === Number(selectedClassId)
+      a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
     );
 
     if (!assignment) {
@@ -748,7 +829,7 @@ export function ScoreEntryPage() {
     }
 
     const assignment = teacherAssignments.find(
-      a => a.subject_id === Number(selectedSubjectId) && a.class_id === Number(selectedClassId)
+      a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
     );
 
     if (!assignment) {
@@ -1054,17 +1135,18 @@ export function ScoreEntryPage() {
           </div>
           
                     
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <Button
               onClick={() => {
                 toast.success("Refreshing scores from database");
                 loadScoresFromAPI();
               }}
-              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-lg"
+              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-lg px-3 sm:px-4 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
               disabled={!selectedClassId || !selectedSubjectId}
             >
-              <Users className="w-3 h-3 mr-2" />
-              Refresh Scores
+              <Users className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Refresh Scores</span>
+              <span className="sm:hidden whitespace-nowrap">Refresh</span>
             </Button>
             
             <Button
@@ -1072,11 +1154,12 @@ export function ScoreEntryPage() {
                 toast.success("Exporting scores to Excel");
                 handleExportExcel();
               }}
-              className="bg-[#06B6D4] hover:bg-[#0891B2] text-white rounded-lg"
+              className="bg-[#06B6D4] hover:bg-[#0891B2] text-white rounded-lg px-3 sm:px-4 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
               disabled={!selectedClassId || !selectedSubjectId}
             >
-              <Save className="w-3 h-3 mr-2" />
-              Export to Excel
+              <Save className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Export to Excel</span>
+              <span className="sm:hidden whitespace-nowrap">Export</span>
             </Button>
             
             <div>
@@ -1090,15 +1173,16 @@ export function ScoreEntryPage() {
               />
               <Button
                 type="button"
-                className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg"
+                className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg px-3 sm:px-4 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
                 disabled={!selectedClassId || !selectedSubjectId}
                 onClick={() => {
                   toast.success("Opening CSV file selector");
                   document.getElementById('csv-upload-input')?.click();
                 }}
               >
-                <BookOpen className="w-3 h-3 mr-2" />
-                Import CSV File
+                <BookOpen className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline whitespace-nowrap">Import CSV File</span>
+                <span className="sm:hidden whitespace-nowrap">Import</span>
               </Button>
             </div>
           </div>
@@ -1334,7 +1418,8 @@ export function ScoreEntryPage() {
             )}
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <div className="min-w-[700px] lg:min-w-full">
+                <table className="w-full">
                 <thead>
                   <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
                     <th className="text-left p-2 text-xs text-[#1F2937]">S/No.</th>
@@ -1370,14 +1455,6 @@ export function ScoreEntryPage() {
                       ca2: studentScore.ca2.toString(),
                       exam: studentScore.exam.toString()
                     } : data;
-                    
-                    // Debug logging for score display
-                    console.log(`=== SCORE DISPLAY DEBUG ===`);
-                    console.log(`Student: ${student.firstName} ${student.lastName} (ID: ${student.id})`);
-                    console.log(`studentScore:`, studentScore);
-                    console.log(`scoresData[${student.id}]:`, data);
-                    console.log(`displayData:`, displayData);
-                    console.log(`studentScore status:`, studentScore?.status);
                     
                     const { total } = calculateScore(displayData.ca1, displayData.ca2, displayData.exam);
                     const hasScore = displayData.ca1 || displayData.ca2 || displayData.exam;
@@ -1462,13 +1539,14 @@ export function ScoreEntryPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Footer Buttons */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-[#E5E7EB] bg-[#F9FAFB]">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-end gap-2 sm:gap-3 p-4 sm:p-6 border-t border-[#E5E7EB] bg-[#F9FAFB]">
               <Button
                 variant="outline"
-                className="rounded-lg border-[#E5E7EB] text-[#6B7280]"
+                className="rounded-lg border-[#E5E7EB] text-[#6B7280] px-4 sm:px-6 h-9 sm:h-auto flex items-center justify-center w-full sm:w-auto"
                 onClick={() => {
                   toast.success("Resetting score entry form");
                   // Reset form
@@ -1476,7 +1554,7 @@ export function ScoreEntryPage() {
                   setIsEditMode(false);
                 }}
               >
-                Cancel
+                <span className="whitespace-nowrap">Cancel</span>
               </Button>
               
               {existingScores.some(s => s.status === 'Rejected') && !isEditMode ? (
@@ -1485,10 +1563,11 @@ export function ScoreEntryPage() {
                     toast.success("Enabling edit mode for rejected scores");
                     toggleEditMode();
                   }}
-                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-4 sm:px-6 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
-                  <Edit className="w-3 h-3 mr-2" />
-                  Enable Edit Mode
+                  <Edit className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline whitespace-nowrap">Enable Edit Mode</span>
+                  <span className="sm:hidden whitespace-nowrap">Edit Mode</span>
                 </Button>
               ) : existingScores.some(s => s.status === 'Rejected') && isEditMode ? (
                 <Button
@@ -1496,25 +1575,37 @@ export function ScoreEntryPage() {
                     toast.success("Resubmitting corrected scores");
                     handleResubmit();
                   }}
-                  className="bg-orange-600 hover:bg-orange-700 text-white rounded-lg"
+                  className="bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-4 sm:px-6 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
                   disabled={isLocked || !selectedClassId || !selectedSubjectId}
                 >
-                  <Check className="w-3 h-3 mr-2" />
-                  Resubmit Corrected Scores
+                  <Check className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline whitespace-nowrap">Resubmit Corrected Scores</span>
+                  <span className="sm:hidden whitespace-nowrap">Resubmit</span>
                 </Button>
-              ) : (
+              ) : existingScores.every(s => s.status === 'Draft') ? (
+                <Button
+                  onClick={submitScoresForApproval}
+                  className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 sm:px-6 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
+                  disabled={!selectedClassId || !selectedSubjectId}
+                >
+                  <Check className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline whitespace-nowrap">Submit for Approval</span>
+                  <span className="sm:hidden whitespace-nowrap">Submit</span>
+                </Button>
+              ) : existingScores.some((s: any) => s.status === 'Submitted') ? (
                 <Button
                   onClick={() => {
                     toast.success(isEditMode ? "Updating scores" : "Submitting scores");
                     handleSubmit();
                   }}
-                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg"
+                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg px-4 sm:px-6 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
                   disabled={isLocked || !selectedClassId || !selectedSubjectId}
                 >
-                  {isEditMode ? <Check className="w-3 h-3 mr-2" /> : <Check className="w-3 h-3 mr-2" />}
-                  {isEditMode ? 'Update Scores' : 'Submit'}
+                  <Check className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline whitespace-nowrap">{isEditMode ? 'Update Scores' : 'Submit'}</span>
+                  <span className="sm:hidden whitespace-nowrap">{isEditMode ? 'Update' : 'Submit'}</span>
                 </Button>
-              )}
+              ) : null}
             </div>
           </CardContent>
         </Card>

@@ -22,6 +22,16 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
     const foundResult = compiledResults.find(cr => cr.id === resultId);
     const foundClass = classes.find(c => c.id === foundResult?.class_id);
 
+    console.log('=== FULL PAGE RESULT VIEW DEBUG ===');
+    console.log('Student ID:', studentId);
+    console.log('Result ID:', resultId);
+    console.log('Found Student:', foundStudent);
+    console.log('Found Result:', foundResult);
+    console.log('Found Result class_id:', foundResult?.class_id);
+    console.log('Available Classes:', classes);
+    console.log('Found Class:', foundClass);
+    console.log('Class Name:', foundClass?.name || 'NOT FOUND');
+
     setStudent(foundStudent);
     setResult(foundResult);
     setStudentClass(foundClass);

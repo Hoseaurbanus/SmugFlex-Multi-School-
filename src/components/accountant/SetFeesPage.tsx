@@ -70,7 +70,7 @@ export function SetFeesPage() {
         transport_fee: existing.transport_fee.toString(),
       });
     } else {
-      // Reset fees
+      // Reset fees to empty (no default values)
       setFees({
         tuition_fee: "",
         development_levy: "",
@@ -265,7 +265,7 @@ export function SetFeesPage() {
 
           <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <Label className="text-[#1F2937] mb-2 block">Tuition Fee (₦)</Label>
+              <Label className="text-[#1F2937] mb-2 block">Tuition Fee (\u20A6)</Label>
               <Input
                 type="text"
                 value={fees.tuition_fee}
@@ -276,7 +276,7 @@ export function SetFeesPage() {
             </div>
 
             <div>
-              <Label className="text-[#1F2937] mb-2 block">Development Levy (₦)</Label>
+              <Label className="text-[#1F2937] mb-2 block">Development Levy (\u20A6)</Label>
               <Input
                 type="text"
                 value={fees.development_levy}
@@ -287,7 +287,7 @@ export function SetFeesPage() {
             </div>
 
             <div>
-              <Label className="text-[#1F2937] mb-2 block">Sports Fee (₦)</Label>
+              <Label className="text-[#1F2937] mb-2 block">Sports Fee (\u20A6)</Label>
               <Input
                 type="text"
                 value={fees.sports_fee}
@@ -298,7 +298,7 @@ export function SetFeesPage() {
             </div>
 
             <div>
-              <Label className="text-[#1F2937] mb-2 block">Exam Fee (₦)</Label>
+              <Label className="text-[#1F2937] mb-2 block">Exam Fee (\u20A6)</Label>
               <Input
                 type="text"
                 value={fees.exam_fee}
@@ -309,7 +309,7 @@ export function SetFeesPage() {
             </div>
 
             <div>
-              <Label className="text-[#1F2937] mb-2 block">Books Fee (₦)</Label>
+              <Label className="text-[#1F2937] mb-2 block">Books Fee (\u20A6)</Label>
               <Input
                 type="text"
                 value={fees.books_fee}
@@ -320,7 +320,7 @@ export function SetFeesPage() {
             </div>
 
             <div>
-              <Label className="text-[#1F2937] mb-2 block">Uniform Fee (₦)</Label>
+              <Label className="text-[#1F2937] mb-2 block">Uniform Fee (\u20A6)</Label>
               <Input
                 type="text"
                 value={fees.uniform_fee}
@@ -331,7 +331,7 @@ export function SetFeesPage() {
             </div>
 
             <div>
-              <Label className="text-[#1F2937] mb-2 block">Transport Fee (₦)</Label>
+              <Label className="text-[#1F2937] mb-2 block">Transport Fee (\u20A6)</Label>
               <Input
                 type="text"
                 value={fees.transport_fee}
@@ -345,7 +345,7 @@ export function SetFeesPage() {
           <div className="mt-6 p-4 bg-[#007C91]/10 rounded-lg border border-[#007C91]">
             <div className="flex items-center justify-between">
               <span className="text-[#1F2937]">Total Fee</span>
-              <span className="text-[#007C91]">₦{calculateTotal().toLocaleString()}</span>
+              <span className="text-[#007C91]">{"\u20A6"}{calculateTotal().toLocaleString()}</span>
             </div>
           </div>
 
@@ -393,7 +393,7 @@ export function SetFeesPage() {
                       <td className="p-4 text-[#6B7280]">{fee.level}</td>
                       <td className="p-4 text-[#6B7280]">{fee.term}</td>
                       <td className="p-4 text-[#6B7280]">{fee.academic_year}</td>
-                      <td className="p-4 text-right text-[#007C91]">₦{(fee.total_fee || 0).toLocaleString()}</td>
+                      <td className="p-4 text-right text-[#007C91]">{"\u20A6"}{(fee.total_fee || 0).toLocaleString()}</td>
                     </tr>
                   ))
                 )}

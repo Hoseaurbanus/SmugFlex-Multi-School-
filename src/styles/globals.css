@@ -1,9 +1,7 @@
-@custom-variant dark (&:is(.dark *));
-
 :root {
   --font-size: 15px;
   /* Clinical Color Palette */
-  --background: #F4F6F9;
+  --background: transparent;
   --foreground: #1F2937;
   --card: #FFFFFF;
   --card-foreground: #1F2937;
@@ -86,7 +84,8 @@
   --sidebar-ring: oklch(0.439 0 0);
 }
 
-@theme inline {
+/* Theme color mappings */
+:root {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -131,11 +130,13 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--border);
+    outline-color: var(--ring);
   }
 
   body {
-    @apply bg-background text-foreground;
+    background-color: var(--background);
+    color: var(--foreground);
   }
 }
 

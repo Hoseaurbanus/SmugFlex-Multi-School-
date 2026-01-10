@@ -517,17 +517,27 @@ class ParentController {
             $link_stmt->bindParam(':student_id', $student_id);
             $link_stmt->bindParam(':relationship', $relationship);
             $link_stmt->bindParam(':is_primary', $is_primary);
-            $link_stmt->execute();
+            
+            if (!$link_stmt->execute()) {
+                error_log("Failed to insert parent-student link: " . print_r($link_stmt->errorInfo(), true));
+                Response::serverError('Failed to create parent-student link');
+            }
             
             // Update student's parent information to prevent ID mismatches
-            $parent_info_query = "SELECT first_name, last_name FROM parents WHERE id = :parent_id";
+            $parent_info_query = "SELECT first_name, last_name, email FROM parents WHERE id = :parent_id";
             $parent_info_stmt = $this->conn->prepare($parent_info_query);
             $parent_info_stmt->bindParam(':parent_id', $parent_id);
-            $parent_info_stmt->execute();
+            
+            if (!$parent_info_stmt->execute()) {
+                error_log("Failed to select parent info: " . print_r($parent_info_stmt->errorInfo(), true));
+                Response::serverError('Failed to retrieve parent information');
+            }
+            
             $parent_info = $parent_info_stmt->fetch();
             
             if ($parent_info) {
                 $parent_name = $parent_info['first_name'] . ' ' . $parent_info['last_name'];
+                $parent_email = $parent_info['email'];
                 
                 // Update student record with parent information
                 $update_student_query = "UPDATE students SET parent_id = :parent_id, parent_name = :parent_name WHERE id = :student_id";
@@ -535,14 +545,25 @@ class ParentController {
                 $update_student_stmt->bindParam(':parent_id', $parent_id);
                 $update_student_stmt->bindParam(':parent_name', $parent_name);
                 $update_student_stmt->bindParam(':student_id', $student_id);
-                $update_student_stmt->execute();
+                
+                if (!$update_student_stmt->execute()) {
+                    error_log("Failed to update student record: " . print_r($update_student_stmt->errorInfo(), true));
+                    Response::serverError('Failed to update student record');
+                }
                 
                 // Ensure parent's linked_id matches the parent_id used in students table
-                $update_user_query = "UPDATE users SET linked_id = :parent_id WHERE id = :parent_id AND role = 'parent'";
-                $update_user_stmt = $this->conn->prepare($update_user_query);
-                $update_user_stmt->bindParam(':parent_id', $parent_id);
-                $update_user_stmt->bindParam(':id', $parent_id);
-                $update_user_stmt->execute();
+                if (!empty($parent_email)) {
+                    $update_user_query = "UPDATE users SET linked_id = :parent_id WHERE email = :email AND role = 'parent'";
+                    $update_user_stmt = $this->conn->prepare($update_user_query);
+                    $update_user_stmt->bindParam(':parent_id', $parent_id, PDO::PARAM_INT);
+                    $update_user_stmt->bindParam(':email', $parent_email);
+                    
+                    if (!$update_user_stmt->execute()) {
+                        error_log("Failed to update user record: " . print_r($update_user_stmt->errorInfo(), true));
+                        // Don't fail the whole operation if user update fails, just log it
+                        error_log("Warning: Failed to update user linked_id for parent $parent_id");
+                    }
+                }
             }
             
             // Log activity

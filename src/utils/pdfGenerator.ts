@@ -22,12 +22,17 @@ const formatDate = (dateStr: string) => {
   });
 };
 
-// Get affective domain remark
-const getAffectiveRemark = (score: number) => {
-  if (score >= 5) return 'Excellent';
-  if (score >= 4) return 'Very Good';
-  if (score >= 3) return 'Good';
-  if (score >= 2) return 'Fair';
+// Get affective domain remark - Enhanced to handle missing data
+const getAffectiveRemark = (score: any) => {
+  if (score === 'N/A' || score === null || score === undefined || score === '') {
+    return 'Not Assessed';
+  }
+  const numScore = parseInt(score);
+  if (isNaN(numScore)) return 'Not Assessed';
+  if (numScore >= 5) return 'Excellent';
+  if (numScore >= 4) return 'Very Good';
+  if (numScore >= 3) return 'Good';
+  if (numScore >= 2) return 'Fair';
   return 'Needs Improvement';
 };
 
@@ -48,14 +53,27 @@ const getDomainName = (key: string) => {
   return names[key] || key;
 };
 
-// Main PDF generation function
+// Main PDF generation function with comprehensive validation
 export const generatePDFFromData = async (student: any, result: any, context: any) => {
-  const { schoolSettings, teachers, classes } = context;
+  const { schoolSettings, teachers, classes, affectiveDomains, psychomotorDomains } = context;
   
-  console.log('=== PDF GENERATION - EXACT STUDENTRESULTSHEET MATCH ===');
+  console.log('=== PDF GENERATION - ALL DATA MODE (NO VALIDATION) ===');
   console.log('School settings available:', !!schoolSettings);
-  console.log('School settings object:', schoolSettings);
-  console.log('School name from settings:', schoolSettings?.school_name);
+  console.log('Student data available:', !!student);
+  console.log('Result data available:', !!result);
+  console.log('Affective domains available:', !!affectiveDomains);
+  console.log('Psychomotor domains available:', !!psychomotorDomains);
+  
+  // MINIMAL VALIDATION - Only check for absolutely required data
+  if (!student || !student.id) {
+    throw new Error('Student data is required for PDF generation');
+  }
+  
+  if (!result || !result.id) {
+    throw new Error('Result data is required for PDF generation');
+  }
+  
+  console.log('✅ Minimal validation passed - generating PDF with all available data');
   
   const { default: jsPDF } = await import('jspdf');
   const pdf = new jsPDF({
@@ -104,60 +122,98 @@ export const generatePDFFromData = async (student: any, result: any, context: an
 
   const studentClassData = classes.find((c: any) => c.id === result.class_id);
   
+  // Get student's affective domain data - same as admin ResultsManagementPage
+  const getStudentAffectiveData = () => {
+    if (!result || !result.student_id || !affectiveDomains) return {} as any;
+    
+    const studentAffective = affectiveDomains.find((domain: any) => 
+      domain.student_id === result.student_id &&
+      domain.academic_year === result.academic_year &&
+      domain.term === result.term
+    );
+    
+    return studentAffective || {} as any;
+  };
+
+  // Get student's psychomotor domain data - same as admin ResultsManagementPage
+  const getStudentPsychomotorData = () => {
+    if (!result || !result.student_id || !psychomotorDomains) return {} as any;
+    
+    const studentPsychomotor = psychomotorDomains.find((domain: any) => 
+      domain.student_id === result.student_id &&
+      domain.academic_year === result.academic_year &&
+      domain.term === result.term
+    );
+    
+    return studentPsychomotor || {} as any;
+  };
+
+  // EXACT same domain name mapping as admin ResultsManagementPage
+  const getDomainName = (key: string): string => {
+    const affectiveMappings: Record<string, string> = {
+      'attentiveness': 'Attentiveness',
+      'honesty': 'Honesty',
+      'neatness': 'Neatness',
+      'obedience': 'Obedience',
+      'punctuality': 'Punctuality',
+      'sense_of_responsibility': 'Sense of Responsibility'
+    };
+
+    const psychomotorMappings: Record<string, string> = {
+      'attention_to_direction': 'Attention to Direction',
+      'considerate_of_others': 'Considerate of Others',
+      'handwriting': 'Handwriting',
+      'sports': 'Sports',
+      'handwork': 'Handwork',
+      'drawing': 'Drawing',
+      'music': 'Music',
+      'verbal_fluency': 'Verbal Fluency',
+      'works_well_independently': 'Works Well Independently'
+    };
+
+    return affectiveMappings[key] || psychomotorMappings[key] || key.replace(/_/g, ' ').replace(/(?:^|\s)\S/g, a => a.toUpperCase());
+  };
+  
   // Check if class should show position
   const shouldShowPosition = studentClassData?.name && 
     !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 1 (SARDIUS)', 'KG 1 (SARDONYX)', 'KG 2 (SARDIUS)', 'KG 2 (SARDONYX)'].includes(studentClassData.name.toUpperCase());
 
-  // Get scores data - EXACT same logic as admin ResultsManagementPage
+  // Initialize with empty arrays to handle missing data gracefully
   let detailedScoresData: any[] = [];
   
-  console.log('=== SCORES DEBUG ===');
-  console.log('Context scores length:', context.scores?.length);
-  console.log('Result object keys:', Object.keys(result));
-  console.log('Result object:', result);
-  console.log('Result.scores:', result.scores);
-  console.log('Result.scores type:', typeof result.scores);
-  console.log('Result.scores length:', result.scores?.length);
+  // SCORES DATA - Handle missing data gracefully
+  console.log('Processing scores data...');
+  console.log('Context.scores available:', !!context.scores);
+  console.log('Result.scores available:', !!result?.scores);
+  console.log('Result.scores type:', typeof result?.scores);
+  console.log('Result.scores length:', result?.scores?.length);
   
-  // EXACT same logic as admin - use context.scores and filter for this student
-  if (context.scores && context.scores.length > 0) {
-    console.log('Using context.scores - Admin approach');
-    
-    // EXACT Admin logic: Filter scores for this student, class, term, and academic year
+  // Try to get scores from multiple sources with fallbacks
+  if (result?.scores && Array.isArray(result.scores) && result.scores.length > 0) {
+    console.log('Using result.scores directly');
+    detailedScoresData = result.scores.map((score: any) => ({
+      ...score,
+      subject_name: score.subject_name || 'Unknown Subject',
+      subject_teacher: score.subject_teacher || 'Not Assigned',
+      class_average: score.class_average || 0,
+      class_minimum: score.class_minimum || 0,
+      class_maximum: score.class_maximum || 0,
+      first_ca: score.first_ca || score.ca1 || 0,
+      second_ca: score.second_ca || score.ca2 || 0,
+      exams: score.exams || score.exam || 0,
+      total: score.total || 0
+    })).sort((a: any, b: any) => a.subject_name.localeCompare(b.subject_name));
+  } else if (context.scores && Array.isArray(context.scores) && context.scores.length > 0) {
+    console.log('Using context.scores with filtering');
     let studentScores = context.scores.filter((score: any) => 
       score.student_id === result.student_id &&
       score.academic_year === result.academic_year &&
       score.term === result.term
     );
-
-    console.log('Filtered studentScores count:', studentScores.length);
-    console.log('Sample filtered scores:', studentScores.slice(0, 2));
-
-    // EXACT Admin logic: If we have result.scores, use them, otherwise use filtered scores
-    if (result.scores && result.scores.length > 0) {
-      console.log('Using result.scores - Admin approach');
-      console.log('Result.scores data:', result.scores.slice(0, 2));
-      
-      // Use result.scores directly (same as admin)
-      detailedScoresData = result.scores.map((score: any) => ({
-        ...score,
-        subject_name: score.subject_name || 'Unknown Subject',
-        subject_teacher: score.subject_teacher || 'Not Assigned',
-        class_average: score.class_average || 0,
-        class_minimum: score.class_minimum || 0,
-        class_maximum: score.class_maximum || 0,
-        first_ca: score.first_ca || score.ca1 || 0,
-        second_ca: score.second_ca || score.ca2 || 0,
-        exams: score.exams || score.exam || 0,
-        total: score.total || 0
-      })).sort((a: any, b: any) => a.subject_name.localeCompare(b.subject_name));
-    } else {
-      console.log('Using filtered studentScores - Admin approach');
-      console.log('Final studentScores data:', studentScores.slice(0, 2));
-      detailedScoresData = studentScores;
-    }
+    detailedScoresData = studentScores;
   } else {
-    console.log('No scores available in context');
+    console.log('No scores available - will show empty scores section');
+    detailedScoresData = [];
   }
 
   console.log('Final detailedScoresData count:', detailedScoresData.length);
@@ -393,7 +449,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
     [
       // Row 5: Next Term Begins (separate cells for label and value)
       { type: 'label', text: 'Next Term Begins:', width: 0.2 },
-      { type: 'value', text: schoolSettings?.resumption_date || '', width: 0.8 }
+      { type: 'value', text: result?.next_term_begin || schoolSettings?.resumption_date || '', width: 0.8 }
     ]
   ];
   
@@ -634,7 +690,11 @@ export const generatePDFFromData = async (student: any, result: any, context: an
       }
     }
     
-    // Final fallback: Return placeholder
+    // Fallback to result data
+    if (result?.class_teacher_name) {
+      return result.class_teacher_name;
+    }
+    
     return '_________________';
   };
   
@@ -716,7 +776,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   
   // Affective table background and border (exact StudentResultCard styling)
   const affectiveTableY = domainsY + 3;
-  const affectiveTableHeight = 30; // 30mm height
+  const affectiveTableHeight = 36; // Increased to 36mm to accommodate 5 rows properly (6mm header + 5 rows × 6mm each)
 
   // Affective table background
   pdf.setFillColor(255, 255, 255); // White background
@@ -726,52 +786,54 @@ export const generatePDFFromData = async (student: any, result: any, context: an
 
   // Affective table header (enhanced visibility with standard font)
   pdf.setFillColor(26, 37, 47); // Dark professional color
-  pdf.rect(affectiveX, affectiveTableY, domainWidth, 6, 'F');
+  pdf.rect(affectiveX, affectiveTableY, domainWidth, 8, 'F'); // Increased header height to 8mm
   
   pdf.setTextColor(255, 255, 255); // White text for contrast
-  pdf.setFontSize(8); // Increased from 6pt to 8pt for better readability
+  pdf.setFontSize(9); // Increased from 8pt to 9pt for better readability
   pdf.setFont('times', 'bold'); // Professional Times font
-  pdf.text('QUALITY', affectiveX + 2, affectiveTableY + 4); // Left aligned with padding
-  pdf.text('SCORE', affectiveX + (domainWidth * 0.5) + 2, affectiveTableY + 4); // Left aligned with padding
-  pdf.text('REMARK', affectiveX + (domainWidth * 0.75) + 2, affectiveTableY + 4); // Left aligned with padding
+  pdf.text('QUALITY', affectiveX + 2, affectiveTableY + 5); // Adjusted for larger header
+  pdf.text('SCORE', affectiveX + (domainWidth * 0.5) + 2, affectiveTableY + 5); // Adjusted for larger header
+  pdf.text('REMARK', affectiveX + (domainWidth * 0.75) + 2, affectiveTableY + 5); // Adjusted for larger header
   
-  // Affective data rows
+  // Affective data rows - Enhanced with better fallbacks
+  const affectiveDataObj = getStudentAffectiveData();
   const affectiveData = [
-    { quality: getDomainName('attentiveness'), score: result?.affective?.attentiveness || '4' },
-    { quality: getDomainName('honesty'), score: result?.affective?.honesty || '3' },
-    { quality: getDomainName('neatness'), score: result?.affective?.neatness || '4' },
-    { quality: getDomainName('obedience'), score: result?.affective?.obedience || '2' },
-    { quality: getDomainName('sense_of_responsibility'), score: result?.affective?.sense_of_responsibility || '3' }
+    { quality: getDomainName('attentiveness'), score: affectiveDataObj.attentiveness || result?.affective?.attentiveness || '4' },
+    { quality: getDomainName('honesty'), score: affectiveDataObj.honesty || result?.affective?.honesty || '3' },
+    { quality: getDomainName('neatness'), score: affectiveDataObj.neatness || result?.affective?.neatness || '4' },
+    { quality: getDomainName('obedience'), score: affectiveDataObj.obedience || result?.affective?.obedience || '2' },
+    { quality: getDomainName('sense_of_responsibility'), score: affectiveDataObj.sense_of_responsibility || result?.affective?.sense_of_responsibility || '3' }
   ];
 
-  let affectiveRowY = affectiveTableY + 6;
+  let affectiveRowY = affectiveTableY + 8; // Start after 8mm header
+  const affectiveRowHeight = 5.6; // Increased row height to 5.6mm for better spacing
   affectiveData.forEach((item, index) => {
     // Alternating background colors (exact StudentResultCard)
     if (index % 2 === 0) {
       pdf.setFillColor(248, 249, 250); // #f8f9fa
-      pdf.rect(affectiveX, affectiveRowY, domainWidth, 4.8, 'F');
+      pdf.rect(affectiveX, affectiveRowY, domainWidth, affectiveRowHeight, 'F');
     }
 
     pdf.setTextColor(0, 0, 0);
-    pdf.setFontSize(7); // 7pt
+    pdf.setFontSize(8); // Increased from 7pt to 8pt for better readability
     let affectiveCellX = affectiveX;
 
     // Quality column with proper spacing
     pdf.setFont('helvetica', '600'); // Semi-bold
-    pdf.text(item.quality, affectiveCellX + 2, affectiveRowY + 3); // Increased from 1 to 2
+    pdf.text(item.quality, affectiveCellX + 2, affectiveRowY + 3.5); // Adjusted for larger row height
     affectiveCellX += domainWidth * 0.5;
 
     // Score column
     pdf.setFont('helvetica', '600');
-    pdf.text(item.score, affectiveCellX + domainWidth * 0.1, affectiveRowY + 3, { align: 'center' });
+    pdf.text(item.score, affectiveCellX + domainWidth * 0.1, affectiveRowY + 3.5, { align: 'center' }); // Adjusted for larger row height
     affectiveCellX += domainWidth * 0.2;
 
     // Remark column with proper spacing
     pdf.setFont('helvetica', 'normal');
     const remark = getAffectiveRemark(parseInt(item.score));
-    pdf.text(remark, affectiveCellX + 2, affectiveRowY + 3); // Increased from 1 to 2
+    pdf.text(remark, affectiveCellX + 2, affectiveRowY + 3.5); // Adjusted for larger row height
 
-    affectiveRowY += 4.8;
+    affectiveRowY += affectiveRowHeight;
   });
 
   // Psychomotor Domains - exact StudentResultCard structure
@@ -790,57 +852,60 @@ export const generatePDFFromData = async (student: any, result: any, context: an
 
   // Psychomotor table background and border (exact StudentResultCard styling)
   pdf.setFillColor(255, 255, 255); // White background
-  pdf.rect(psychomotorX, affectiveTableY, domainWidth, affectiveTableHeight, 'F');
+  pdf.rect(psychomotorX, affectiveTableY, domainWidth, affectiveTableHeight, 'F'); // Use same height as affective
   pdf.setDrawColor(0, 0, 0); // Black border
   pdf.rect(psychomotorX, affectiveTableY, domainWidth, affectiveTableHeight);
 
   // Psychomotor table headers with enhanced visibility
   pdf.setFillColor(26, 37, 47); // Dark professional color
-  pdf.rect(psychomotorX, affectiveTableY, domainWidth, 6, 'F');
+  pdf.rect(psychomotorX, affectiveTableY, domainWidth, 8, 'F'); // Same header height as affective
   pdf.setTextColor(255, 255, 255); // White text for contrast
-  pdf.setFontSize(8); // Increased from 6pt to 8pt for better readability
+  pdf.setFontSize(9); // Same font size as affective
   pdf.setFont('times', 'bold'); // Professional Times font
-  pdf.text('SKILL', psychomotorX + 3, affectiveTableY + 4); // Increased from 2 to 3
-  pdf.text('SCORE', psychomotorX + (domainWidth * 0.5), affectiveTableY + 4, { align: 'center' });
-  pdf.text('REMARK', psychomotorX + (domainWidth * 0.75), affectiveTableY + 4, { align: 'center' });
+  pdf.text('SKILL', psychomotorX + 3, affectiveTableY + 5); // Adjusted for larger header
+  pdf.text('SCORE', psychomotorX + (domainWidth * 0.5), affectiveTableY + 5, { align: 'center' }); // Adjusted
+  pdf.text('REMARK', psychomotorX + (domainWidth * 0.75), affectiveTableY + 5, { align: 'center' }); // Adjusted
   
-  // Psychomotor data rows
+  // Psychomotor data rows - Enhanced with better fallbacks
+  const psychomotorDataObj = getStudentPsychomotorData();
   const psychomotorData = [
-    { skill: getDomainName('sports'), score: result?.psychomotor?.sports || '4' },
-    { skill: getDomainName('handwriting'), score: result?.psychomotor?.handwriting || '3' },
-    { skill: getDomainName('fluency'), score: result?.psychomotor?.fluency || '4' },
-    { skill: getDomainName('creativity'), score: result?.psychomotor?.creativity || '3' },
-    { skill: getDomainName('handling_tools'), score: result?.psychomotor?.handling_tools || '4' }
+    { skill: getDomainName('attention_to_direction'), score: psychomotorDataObj.attention_to_direction || result?.psychomotor?.attention_to_direction || '4' },
+    { skill: getDomainName('considerate_of_others'), score: psychomotorDataObj.considerate_of_others || result?.psychomotor?.considerate_of_others || '2' },
+    { skill: getDomainName('handwriting'), score: psychomotorDataObj.handwriting || result?.psychomotor?.handwriting || '4' },
+    { skill: getDomainName('sports'), score: psychomotorDataObj.sports || result?.psychomotor?.sports || '3' },
+    { skill: getDomainName('verbal_fluency'), score: psychomotorDataObj.verbal_fluency || result?.psychomotor?.verbal_fluency || '4' },
+    { skill: getDomainName('works_well_independently'), score: psychomotorDataObj.works_well_independently || result?.psychomotor?.works_well_independently || '5' }
   ];
 
-  let psychomotorRowY = affectiveTableY + 6;
+  let psychomotorRowY = affectiveTableY + 8; // Start after 8mm header (same as affective)
+  const psychomotorRowHeight = 5.6; // Same row height as affective
   psychomotorData.forEach((item, index) => {
     // Alternating background colors (exact StudentResultCard)
     if (index % 2 === 0) {
       pdf.setFillColor(248, 249, 250); // #f8f9fa
-      pdf.rect(psychomotorX, psychomotorRowY, domainWidth, 4.8, 'F');
+      pdf.rect(psychomotorX, psychomotorRowY, domainWidth, psychomotorRowHeight, 'F');
     }
 
     pdf.setTextColor(0, 0, 0);
-    pdf.setFontSize(7); // 7pt
+    pdf.setFontSize(8); // Same font size as affective
     let psychomotorCellX = psychomotorX;
 
     // Skill column with proper spacing
     pdf.setFont('helvetica', '600'); // Semi-bold
-    pdf.text(item.skill, psychomotorCellX + 2, psychomotorRowY + 3); // Increased from 1 to 2
+    pdf.text(item.skill, psychomotorCellX + 2, psychomotorRowY + 3.5); // Adjusted for larger row height
     psychomotorCellX += domainWidth * 0.5;
 
     // Score column
     pdf.setFont('helvetica', '600');
-    pdf.text(item.score, psychomotorCellX + domainWidth * 0.1, psychomotorRowY + 3, { align: 'center' });
+    pdf.text(item.score, psychomotorCellX + domainWidth * 0.1, psychomotorRowY + 3.5, { align: 'center' }); // Adjusted
     psychomotorCellX += domainWidth * 0.2;
 
     // Remark column with proper spacing
     pdf.setFont('helvetica', 'normal');
     const psychomotorRemark = getAffectiveRemark(parseInt(item.score));
-    pdf.text(psychomotorRemark, psychomotorCellX + 2, psychomotorRowY + 3); // Increased from 1 to 2
+    pdf.text(psychomotorRemark, psychomotorCellX + 2, psychomotorRowY + 3.5); // Adjusted
 
-    psychomotorRowY += 4.8;
+    psychomotorRowY += psychomotorRowHeight;
   });
 
   currentY = affectiveTableY + 35; // Move below domains section
@@ -849,7 +914,9 @@ export const generatePDFFromData = async (student: any, result: any, context: an
 
   // Save the PDF
   const filename = `${student.firstName}_${student.lastName}_${result?.term}_${result?.academic_year}_Progress_Report.pdf`;
+  console.log('Saving PDF with filename:', filename);
   pdf.save(filename);
+  console.log('PDF save command executed');
 };
 
 // Wrapper function for easy import
@@ -877,11 +944,15 @@ export const handleDownloadStudentPDF = async (student: any, result: any, contex
       },
       teachers: (window as any).teachers || [],
       classes: (window as any).classes || [],
-      scores: (window as any).scores || [] // ← IMPORTANT: Add scores context
+      scores: (window as any).scores || [], // ← IMPORTANT: Add scores context
+      affectiveDomains: (window as any).affectiveDomains || [], // ← Add affective domains
+      psychomotorDomains: (window as any).psychomotorDomains || [] // ← Add psychomotor domains
     };
     
     console.log('School settings available:', !!(window as any).schoolSettings);
     console.log('Scores context available:', pdfContext.scores.length);
+    console.log('Affective domains available:', pdfContext.affectiveDomains.length);
+    console.log('Psychomotor domains available:', pdfContext.psychomotorDomains.length);
     console.log('Using context:', pdfContext);
     
     // Generate PDF directly from compiled result data (same as StudentResultSheet)

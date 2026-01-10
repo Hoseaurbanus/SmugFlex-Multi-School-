@@ -43,15 +43,16 @@ interface Parent {
 }
 
 const LinkStudentParentPage: React.FC = () => {
-  const { 
-    students, 
-    parents, 
-    linkStudentToParent, 
-    unlinkStudentFromParent,
-    getParentStudents,
+  const {
+    students,
+    parents,
     parentStudentLinks,
     loadStudentsFromAPI,
-    loadParentsFromAPI
+    loadParentsFromAPI,
+    loadParentStudentLinksFromAPI,
+    linkStudentToParent,
+    unlinkStudentFromParent,
+    getParentStudents
   } = useSchool();
   
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -76,7 +77,8 @@ const LinkStudentParentPage: React.FC = () => {
     try {
       await Promise.all([
         loadStudentsFromAPI(),
-        loadParentsFromAPI()
+        loadParentsFromAPI(),
+        loadParentStudentLinksFromAPI()
       ]);
       
       // Debug: Log loaded data
@@ -95,6 +97,11 @@ const LinkStudentParentPage: React.FC = () => {
     }
   };
 
+  // Helper function to check if student is linked
+  const isStudentLinked = (student: Student) => {
+    return parentStudentLinks.some(link => link.student_id === student.id);
+  };
+
   // Filter students and parents based on search
   const filteredStudents = students.filter(student =>
     `${student.firstName} ${student.lastName}`.toLowerCase().includes(studentSearch.toLowerCase()) ||
@@ -108,10 +115,7 @@ const LinkStudentParentPage: React.FC = () => {
 
   // Calculate statistics
   const totalStudents = students.length;
-  const linkedStudents = students.filter(student => {
-    // Check if student has parent_id OR if there's a link in parentStudentLinks
-    return student.parent_id !== null || parentStudentLinks.some(link => link.student_id === student.id);
-  }).length;
+  const linkedStudents = students.filter(student => isStudentLinked(student)).length;
   const unlinkedStudents = totalStudents - linkedStudents;
   const linkingProgress = totalStudents > 0 ? (linkedStudents / totalStudents) * 100 : 0;
 
@@ -289,24 +293,24 @@ const LinkStudentParentPage: React.FC = () => {
 
             {/* Selected Student Display */}
             {selectedStudent && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="w-6 h-6 text-blue-600" />
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <User className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-gray-900 text-sm">
                         {selectedStudent.firstName} {selectedStudent.lastName}
                       </p>
-                      <p className="text-sm text-gray-500">{selectedStudent.admissionNumber}</p>
+                      <p className="text-xs text-gray-500">{selectedStudent.admissionNumber}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setSelectedStudent(null)}
                     className="text-gray-400 hover:text-gray-600"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -314,39 +318,63 @@ const LinkStudentParentPage: React.FC = () => {
 
             {/* Students List */}
             <div className="max-h-96 overflow-y-auto space-y-2">
-              {filteredStudents.map((student) => (
-                <div
-                  key={student.id}
-                  onClick={() => setSelectedStudent(student)}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                    selectedStudent?.id === student.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                        <User className="w-5 h-5 text-gray-600" />
+              {filteredStudents.map((student) => {
+                const isLinked = isStudentLinked(student);
+                return (
+                  <div
+                    key={student.id}
+                    onClick={() => setSelectedStudent(student)}
+                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                      selectedStudent?.id === student.id
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">
+                            {student.firstName} {student.lastName}
+                          </p>
+                          <p className="text-xs text-gray-500">{student.admissionNumber}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {student.firstName} {student.lastName}
-                        </p>
-                        <p className="text-sm text-gray-500">{student.admissionNumber}</p>
+                      <div className="flex items-center gap-2">
+                        {isLinked && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                            Linked
+                          </span>
+                        )}
+                        {selectedStudent?.id === student.id && !isLinked && selectedParent && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLinkStudentParent();
+                            }}
+                            disabled={isLinking}
+                            className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {isLinking ? (
+                              <>
+                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                                Linking...
+                              </>
+                            ) : (
+                              <>
+                                <Link className="w-3 h-3" />
+                                Link
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
-                    {(() => {
-                      const isLinked = student.parent_id !== null || parentStudentLinks.some(link => link.student_id === student.id);
-                      return isLinked && (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                          Linked
-                        </span>
-                      );
-                    })()}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -375,24 +403,24 @@ const LinkStudentParentPage: React.FC = () => {
 
             {/* Selected Parent Display */}
             {selectedParent && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                      <Users className="w-6 h-6 text-green-600" />
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-gray-900 text-sm">
                         {selectedParent.first_name} {selectedParent.last_name}
                       </p>
-                      <p className="text-sm text-gray-500">{selectedParent.email}</p>
+                      <p className="text-xs text-gray-500">{selectedParent.email}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setSelectedParent(null)}
                     className="text-gray-400 hover:text-gray-600"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -400,39 +428,63 @@ const LinkStudentParentPage: React.FC = () => {
 
             {/* Parents List */}
             <div className="max-h-96 overflow-y-auto space-y-2">
-              {filteredParents.map((parent) => (
-                <div
-                  key={parent.id}
-                  onClick={() => setSelectedParent(parent)}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                    selectedParent?.id === parent.id
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                        <Users className="w-5 h-5 text-gray-600" />
+              {filteredParents.map((parent) => {
+                const linkedStudents = getParentStudents(parent.id);
+                return (
+                  <div
+                    key={parent.id}
+                    onClick={() => setSelectedParent(parent)}
+                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                      selectedParent?.id === parent.id
+                        ? "border-green-500 bg-green-50"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                          <Users className="w-4 h-4 text-gray-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">
+                            {parent.first_name} {parent.last_name}
+                          </p>
+                          <p className="text-xs text-gray-500">{parent.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {parent.first_name} {parent.last_name}
-                        </p>
-                        <p className="text-sm text-gray-500">{parent.email}</p>
+                      <div className="flex items-center gap-2">
+                        {linkedStudents.length > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                            {linkedStudents.length} linked
+                          </span>
+                        )}
+                        {selectedParent?.id === parent.id && selectedStudent && !isStudentLinked(selectedStudent) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLinkStudentParent();
+                            }}
+                            disabled={isLinking}
+                            className="bg-green-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {isLinking ? (
+                              <>
+                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                                Linking...
+                              </>
+                            ) : (
+                              <>
+                                <Link className="w-3 h-3" />
+                                Link
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
-                    {(() => {
-                      const linkedStudents = getParentStudents(parent.id);
-                      return linkedStudents.length > 0 && (
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                          {linkedStudents.length} linked
-                        </span>
-                      );
-                    })()}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -446,10 +498,7 @@ const LinkStudentParentPage: React.FC = () => {
         </h3>
         
         <div className="space-y-4 max-h-96 overflow-y-auto">
-          {students.filter(student => {
-            // Check if student has parent_id OR if there's a link in parentStudentLinks
-            return student.parent_id !== null || parentStudentLinks.some(link => link.student_id === student.id);
-          }).map((student) => {
+          {students.filter(student => isStudentLinked(student)).map((student) => {
             // Find parent from either student.parent_id or parentStudentLinks
             let parent = null;
             if (student.parent_id) {
@@ -555,10 +604,7 @@ const LinkStudentParentPage: React.FC = () => {
             )}
           </button>
 
-          {selectedStudent && (() => {
-            const student = selectedStudent; // Create a local variable
-            const isLinked = student.parent_id !== null || parentStudentLinks.some(link => link.student_id === student.id);
-            return isLinked && (
+          {selectedStudent && isStudentLinked(selectedStudent) && (
               <button
                 onClick={() => setShowUnlinkDialog(true)}
                 disabled={isUnlinking}
@@ -576,8 +622,7 @@ const LinkStudentParentPage: React.FC = () => {
                   </>
                 )}
               </button>
-            );
-          })()}
+            )}
         </div>
       </div>
 

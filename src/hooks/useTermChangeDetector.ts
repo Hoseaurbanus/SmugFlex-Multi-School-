@@ -101,9 +101,15 @@ export function useTermSync({
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Check for term changes every 30 seconds
+    // Check for term changes every 30 seconds - DISABLED to prevent timeout errors
     const checkTermSync = async () => {
       try {
+        // DISABLED: School settings API is timing out
+        console.log('Term sync check disabled to prevent API timeout errors');
+        return;
+        
+        // Original code (disabled):
+        /*
         const token = await getAuthToken();
         const response = await fetch(`${API_CONFIG.BASE_URL}/school_settings`, {
           headers: {
@@ -132,14 +138,16 @@ export function useTermSync({
             await refreshAllData();
           }
         }
+        */
       } catch (error) {
         // Silently fail - don't show errors for periodic sync
-        console.debug('Term sync check failed:', error);
+        console.debug('Term sync check disabled:', error);
       }
     };
 
-    // Set up periodic sync
-    syncIntervalRef.current = setInterval(checkTermSync, 30000); // 30 seconds
+    // DISABLED: Periodic sync to prevent API timeout errors
+    console.log('Term change detector disabled to prevent API timeout errors');
+    // syncIntervalRef.current = setInterval(checkTermSync, 30000); // 30 seconds
 
     return () => {
       if (syncIntervalRef.current) {

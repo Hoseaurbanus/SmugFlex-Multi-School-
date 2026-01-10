@@ -5,6 +5,7 @@ import { LoginPage } from './components/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { NotificationServiceProvider } from './contexts/NotificationService';
 import { ConnectionProvider } from './contexts/ConnectionContext';
+import { SchoolProvider, useSchool } from './contexts/SchoolContext';
 import { Toaster } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -26,20 +27,35 @@ function App() {
   const navigate = useNavigate();
 
   return (
-    <ConnectionProvider>
-      <NotificationServiceProvider>
-        <Toaster position="top-right" richColors />
-        <Routes>
-        <Route path="/" element={<LandingPage onNavigateToLogin={() => navigate('/login')} />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Suspense fallback={<LoadingSpinner />}><AdminDashboard onLogout={() => navigate('/login')} /></Suspense></ProtectedRoute>} />
-        <Route path="/teacher" element={<ProtectedRoute requiredRole="teacher"><Suspense fallback={<LoadingSpinner />}><TeacherDashboard onLogout={() => navigate('/login')} /></Suspense></ProtectedRoute>} />
-        <Route path="/accountant" element={<ProtectedRoute requiredRole="accountant"><Suspense fallback={<LoadingSpinner />}><AccountantDashboard onLogout={() => navigate('/login')} /></Suspense></ProtectedRoute>} />
-        <Route path="/parent" element={<ProtectedRoute requiredRole="parent"><Suspense fallback={<LoadingSpinner />}><UniversalParentDashboardFixed onLogout={() => navigate('/login')} /></Suspense></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      </NotificationServiceProvider>
-    </ConnectionProvider>
+    <SchoolProvider>
+      <ConnectionProvider>
+        <NotificationServiceProvider>
+          <Toaster position="top-right" richColors />
+          <AppContent navigate={navigate} />
+        </NotificationServiceProvider>
+      </ConnectionProvider>
+    </SchoolProvider>
+  );
+}
+
+function AppContent({ navigate }: { navigate: any }) {
+  const { logout } = useSchool();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage onNavigateToLogin={() => navigate('/login')} />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Suspense fallback={<LoadingSpinner />}><AdminDashboard onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
+      <Route path="/teacher" element={<ProtectedRoute requiredRole="teacher"><Suspense fallback={<LoadingSpinner />}><TeacherDashboard onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
+      <Route path="/accountant" element={<ProtectedRoute requiredRole="accountant"><Suspense fallback={<LoadingSpinner />}><AccountantDashboard onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
+      <Route path="/parent" element={<ProtectedRoute requiredRole="parent"><Suspense fallback={<LoadingSpinner />}><UniversalParentDashboardFixed onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 

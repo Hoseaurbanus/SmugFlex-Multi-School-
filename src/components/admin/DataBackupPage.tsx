@@ -1,5 +1,5 @@
 import { Database, GraduationCap, HardDrive } from 'lucide-react';
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -58,18 +58,92 @@ export function DataBackupPage() {
     bankAccountSettings,
     currentTerm,
     currentAcademicYear,
+    loadStudentsFromAPI,
+    loadTeachersFromAPI,
+    loadParentsFromAPI,
+    loadClassesFromAPI,
+    loadSubjectsFromAPI,
+    loadScoresFromAPI,
+    loadCompiledResultsFromAPI,
+    loadPaymentsFromAPI,
+    loadFeeStructuresFromAPI,
+    loadAttendancesFromAPI,
+    loadUsersFromAPI,
+    loadNotificationsFromAPI,
   } = useSchool();
 
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupProgress, setBackupProgress] = useState(0);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [storageSize, setStorageSize] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Load all data when component mounts
+  useEffect(() => {
+    const loadAllData = async () => {
+      setIsLoading(true);
+      try {
+        // Load all data in parallel for better performance
+        await Promise.all([
+          loadStudentsFromAPI().catch((e: Error) => console.error('Students load failed:', e)),
+          loadTeachersFromAPI().catch((e: Error) => console.error('Teachers load failed:', e)),
+          loadParentsFromAPI().catch((e: Error) => console.error('Parents load failed:', e)),
+          loadClassesFromAPI().catch((e: Error) => console.error('Classes load failed:', e)),
+          loadSubjectsFromAPI().catch((e: Error) => console.error('Subjects load failed:', e)),
+          loadScoresFromAPI().catch((e: Error) => console.error('Scores load failed:', e)),
+          loadCompiledResultsFromAPI().catch((e: Error) => console.error('Results load failed:', e)),
+          loadPaymentsFromAPI().catch((e: Error) => console.error('Payments load failed:', e)),
+          loadFeeStructuresFromAPI().catch((e: Error) => console.error('Fee structures load failed:', e)),
+          loadAttendancesFromAPI().catch((e: Error) => console.error('Attendance load failed:', e)),
+          loadUsersFromAPI().catch((e: Error) => console.error('Users load failed:', e)),
+          loadNotificationsFromAPI().catch((e: Error) => console.error('Notifications load failed:', e)),
+        ]);
+        
+        toast.success('All data loaded successfully!');
+      } catch (error) {
+        console.error('Error loading data:', error);
+        toast.error('Some data failed to load. Please try refreshing.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAllData();
+  }, []);
+
+  // Manual refresh function
+  const refreshAllData = async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        loadStudentsFromAPI().catch((e: Error) => console.error('Students load failed:', e)),
+        loadTeachersFromAPI().catch((e: Error) => console.error('Teachers load failed:', e)),
+        loadParentsFromAPI().catch((e: Error) => console.error('Parents load failed:', e)),
+        loadClassesFromAPI().catch((e: Error) => console.error('Classes load failed:', e)),
+        loadSubjectsFromAPI().catch((e: Error) => console.error('Subjects load failed:', e)),
+        loadScoresFromAPI().catch((e: Error) => console.error('Scores load failed:', e)),
+        loadCompiledResultsFromAPI().catch((e: Error) => console.error('Results load failed:', e)),
+        loadPaymentsFromAPI().catch((e: Error) => console.error('Payments load failed:', e)),
+        loadFeeStructuresFromAPI().catch((e: Error) => console.error('Fee structures load failed:', e)),
+        loadAttendancesFromAPI().catch((e: Error) => console.error('Attendance load failed:', e)),
+        loadUsersFromAPI().catch((e: Error) => console.error('Users load failed:', e)),
+        loadNotificationsFromAPI().catch((e: Error) => console.error('Notifications load failed:', e)),
+      ]);
+      
+      toast.success('Data refreshed successfully!');
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      toast.error('Some data failed to refresh. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Update storage size
-  useState(() => {
+  useEffect(() => {
     setStorageSize(getStorageSize());
-  });
+  }, [students, teachers, parents, classes, subjects]);
 
   // Helper function to convert data to CSV
   const convertToCSV = (data: any[], headers: string[]) => {
@@ -480,9 +554,35 @@ export function DataBackupPage() {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-[#1F2937] mb-2">Data Backup & Export</h1>
-        <p className="text-[#6B7280]">Download all system data for backup and archival purposes</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[#1F2937] mb-2">Data Backup & Export</h1>
+            <p className="text-[#6B7280]">Download all system data for backup and archival purposes</p>
+          </div>
+          <Button
+            onClick={refreshAllData}
+            disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+          >
+            {isLoading ? 'Loading...' : 'Refresh Data'}
+          </Button>
+        </div>
       </div>
+
+      {/* Loading Indicator */}
+      {isLoading && (
+        <Card className="rounded-xl bg-blue-50 border border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <div>
+                <p className="text-blue-900 font-medium">Loading System Data...</p>
+                <p className="text-blue-700 text-sm">Please wait while we fetch all your data</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Storage Info Card */}
       <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-sm">

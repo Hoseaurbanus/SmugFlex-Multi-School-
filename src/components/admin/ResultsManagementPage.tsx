@@ -31,6 +31,7 @@ export function ResultsManagementPage() {
     getCompiledResultsByYearAndTerm,
     getAllAcademicYears,
     loadCompiledResultsFromAPI,
+    loadClassesFromAPI,
     currentTerm,
     currentAcademicYear,
     updateCompiledResult,
@@ -40,6 +41,7 @@ export function ResultsManagementPage() {
     affectiveDomains,
     psychomotorDomains,
     schoolSettings,
+    loadSchoolSettings,
   } = useSchool();
   
   // Ref for PDF generation
@@ -258,6 +260,7 @@ export function ResultsManagementPage() {
         'honesty': 'Honesty',
         'neatness': 'Neatness',
         'obedience': 'Obedience',
+        'punctuality': 'Punctuality',
         'sense_of_responsibility': 'Sense of Responsibility'
       };
 
@@ -266,6 +269,9 @@ export function ResultsManagementPage() {
         'considerate_of_others': 'Considerate of Others',
         'handwriting': 'Handwriting',
         'sports': 'Sports',
+        'handwork': 'Handwork',
+        'drawing': 'Drawing',
+        'music': 'Music',
         'verbal_fluency': 'Verbal Fluency',
         'works_well_independently': 'Works Well Independently'
       };
@@ -273,24 +279,50 @@ export function ResultsManagementPage() {
       return affectiveMappings[key] || psychomotorMappings[key] || key.replace(/_/g, ' ').replace(/(?:^|\s)\S/g, a => a.toUpperCase());
     };
 
+    // Get student's affective domain data - same as StudentResultCard
+    const getStudentAffectiveData = () => {
+      if (!result || !result.student_id) return {} as any;
+      
+      const studentAffective = affectiveDomains.find(domain => 
+        domain.student_id === result.student_id &&
+        domain.academic_year === result.academic_year &&
+        domain.term === result.term
+      );
+      
+      return studentAffective || {} as any;
+    };
+
+    // Get student's psychomotor domain data - same as StudentResultCard
+    const getStudentPsychomotorData = () => {
+      if (!result || !result.student_id) return {} as any;
+      
+      const studentPsychomotor = psychomotorDomains.find(domain => 
+        domain.student_id === result.student_id &&
+        domain.academic_year === result.academic_year &&
+        domain.term === result.term
+      );
+      
+      return studentPsychomotor || {} as any;
+    };
+
     // EXACT same class teacher name logic as StudentResultCard
     const getClassTeacherName = () => {
-      // First priority: Use the teacher name from compiled results (already stored in DB)
+      // First priority: Use result data (from compiled result)
       if (result?.class_teacher_name) {
         return result.class_teacher_name;
       }
       
-      // Second priority: The class teacher name is already loaded in the class data as 'classTeacher'
-      if (studentClassData?.classTeacher) {
-        return studentClassData.classTeacher;
-      }
-      
-      // Fallback: If class_teacher_id exists, find the teacher
+      // Second priority: Check if class has a teacher assigned
       if (studentClassData?.classTeacherId) {
         const classTeacher = teachers.find((t: any) => t.id === studentClassData.classTeacherId);
         if (classTeacher) {
           return `${classTeacher.firstName} ${classTeacher.lastName}`;
         }
+      }
+      
+      // Third priority: The class teacher name is already loaded in the class data as 'classTeacher'
+      if (studentClassData?.classTeacher) {
+        return studentClassData.classTeacher;
       }
       
       // Final fallback: Return placeholder
@@ -865,16 +897,18 @@ export function ResultsManagementPage() {
     
     pdf.setTextColor(0, 0, 0);
     pdf.setFont('helvetica', 'normal');
-    // Exact StudentResultCard teacher name logic
-    const teacherName = studentClassData?.category === 'Primary' 
-      ? (schoolSettings?.head_teacher_name || '_________________')
-      : (schoolSettings?.principal_name || '_________________');
+    // Use result data for teacher name (from compiled result)
+    const teacherName = result?.principal_name || result?.class_teacher_name || 
+      (studentClassData?.category === 'Primary' 
+        ? (schoolSettings?.head_teacher_name || '_________________')
+        : (schoolSettings?.principal_name || '_________________'));
     pdf.text(`Name: ${teacherName}`, signatureRightX + 2, signatureY + 9); // Increased from 7 to 9
     
-    // Principal comment (exact StudentResultCard logic)
-    const principalComment = studentClassData?.category === 'Primary'
-      ? (schoolSettings?.head_teacher_comment || 'Head teacher comment will appear here.')
-      : (schoolSettings?.principal_comment || 'Principal comment will appear here.');
+    // Use result data for comment (from compiled result)
+    const principalComment = result?.principal_comment || result?.head_teacher_comment ||
+      (studentClassData?.category === 'Primary'
+        ? (schoolSettings?.head_teacher_comment || 'Head teacher comment will appear here.')
+        : (schoolSettings?.principal_comment || 'Principal comment will appear here.'));
     pdf.setFont('times', 'normal'); // Professional Times font for comments
     pdf.setFontSize(8); // Smaller font for comments
     pdf.text(`Comment: ${principalComment}`, signatureRightX + 2, signatureY + 14); // Increased from 11 to 14
@@ -946,13 +980,14 @@ export function ResultsManagementPage() {
     affectiveHeaderX += cellWidth;
   });
 
-  // Affective table data (exact StudentResultCard structure)
+  // Affective table data (using actual database data like StudentResultCard)
+  const affectiveDataObj = getStudentAffectiveData();
   const affectiveData = [
-    { quality: getDomainName('attentiveness'), score: result?.affective?.attentiveness || '4' },
-    { quality: getDomainName('honesty'), score: result?.affective?.honesty || '3' },
-    { quality: getDomainName('neatness'), score: result?.affective?.neatness || '4' },
-    { quality: getDomainName('obedience'), score: result?.affective?.obedience || '2' },
-    { quality: getDomainName('sense_of_responsibility'), score: result?.affective?.sense_of_responsibility || '3' }
+    { quality: getDomainName('attentiveness'), score: affectiveDataObj.attentiveness || result?.affective?.attentiveness || '4' },
+    { quality: getDomainName('honesty'), score: affectiveDataObj.honesty || result?.affective?.honesty || '3' },
+    { quality: getDomainName('neatness'), score: affectiveDataObj.neatness || result?.affective?.neatness || '4' },
+    { quality: getDomainName('obedience'), score: affectiveDataObj.obedience || result?.affective?.obedience || '2' },
+    { quality: getDomainName('sense_of_responsibility'), score: affectiveDataObj.sense_of_responsibility || result?.affective?.sense_of_responsibility || '3' }
   ];
 
   let affectiveRowY = affectiveTableY + 6;
@@ -1016,14 +1051,15 @@ export function ResultsManagementPage() {
   pdf.text('SCORE', psychomotorX + (domainWidth * 0.5), affectiveTableY + 4, { align: 'center' });
   pdf.text('REMARK', psychomotorX + (domainWidth * 0.75), affectiveTableY + 4, { align: 'center' });
 
-  // Psychomotor data rows (exact StudentResultCard fields)
+  // Psychomotor data rows (using actual database data like StudentResultCard)
+  const psychomotorDataObj = getStudentPsychomotorData();
   const psychomotorData = [
-    { key: 'attention_to_direction', score: result?.psychomotor?.attention_to_direction || '4' },
-    { key: 'considerate_of_others', score: result?.psychomotor?.considerate_of_others || '2' },
-    { key: 'handwriting', score: result?.psychomotor?.handwriting || '4' },
-    { key: 'sports', score: result?.psychomotor?.sports || '3' },
-    { key: 'verbal_fluency', score: result?.psychomotor?.verbal_fluency || '4' },
-    { key: 'works_well_independently', score: result?.psychomotor?.works_well_independently || '5' }
+    { key: 'attention_to_direction', score: psychomotorDataObj.attention_to_direction || result?.psychomotor?.attention_to_direction || '4' },
+    { key: 'considerate_of_others', score: psychomotorDataObj.considerate_of_others || result?.psychomotor?.considerate_of_others || '2' },
+    { key: 'handwriting', score: psychomotorDataObj.handwriting || result?.psychomotor?.handwriting || '4' },
+    { key: 'sports', score: psychomotorDataObj.sports || result?.psychomotor?.sports || '3' },
+    { key: 'verbal_fluency', score: psychomotorDataObj.verbal_fluency || result?.psychomotor?.verbal_fluency || '4' },
+    { key: 'works_well_independently', score: psychomotorDataObj.works_well_independently || result?.psychomotor?.works_well_independently || '5' }
   ];
 
   let psychomotorRowY = affectiveTableY + 6;
@@ -1118,7 +1154,8 @@ export function ResultsManagementPage() {
         // Load all data in parallel for better performance
         await Promise.all([
           loadCompiledResultsFromAPI(),
-          loadAcademicYears()
+          loadAcademicYears(),
+          loadSchoolSettings()
         ]);
       } catch (error) {
         if (isMounted) {
@@ -1153,7 +1190,7 @@ export function ResultsManagementPage() {
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [loadCompiledResultsFromAPI, loadAcademicYears]);
+  }, [loadCompiledResultsFromAPI, loadAcademicYears, loadSchoolSettings, loadClassesFromAPI]);
 
   // Debounced loading for year/term changes
   useEffect(() => {

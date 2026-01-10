@@ -116,61 +116,50 @@ export function MarkAttendancePage() {
   // Load existing attendance data when class is selected
   useEffect(() => {
     if (selectedClassId > 0 && classStudents.length > 0) {
-      console.log('Loading attendance for class:', selectedClassId, 'Students:', classStudents.length);
-      
       try {
         const existingAttendanceData: { [studentId: number]: number } = {};
         const existingRemarks: { [studentId: number]: string } = {};
         
         classStudents.forEach(student => {
-          try {
-            // First check compiled results (where compile results saves attendance)
-            const compiledResult = compiledResults.find(cr => 
-              cr.student_id === student.id &&
-              cr.class_id === Number(selectedClassId) &&
-              cr.term === currentTerm &&
-              cr.academic_year === currentAcademicYear
+          // Check compiled results first (primary source)
+          const compiledResult = compiledResults.find(cr => 
+            cr.student_id === student.id &&
+            String(cr.class_id) === String(selectedClassId) &&
+            cr.term === currentTerm &&
+            cr.academic_year === currentAcademicYear
+          );
+          
+          if (compiledResult && compiledResult.times_present > 0) {
+            existingAttendanceData[student.id] = compiledResult.times_present;
+            
+            // Create remarks from compiled result data
+            const totalDays = compiledResult.total_attendance_days || getAttendanceRequirements()[currentTerm] || 0;
+            existingRemarks[student.id] = `${compiledResult.times_present} out of ${totalDays} days`;
+          } else {
+            // Fallback to attendance table
+            const studentAttendances = attendances.filter(a => 
+              a.student_id === student.id &&
+              String(a.class_id) === String(selectedClassId) &&
+              a.term === currentTerm &&
+              a.academic_year === currentAcademicYear
             );
             
-            if (compiledResult && compiledResult.times_present > 0) {
-              console.log(`Found compiled result attendance for student ${student.id}: ${compiledResult.times_present} days`);
-              existingAttendanceData[student.id] = compiledResult.times_present;
+            if (studentAttendances.length > 0) {
+              const latestAttendance = studentAttendances[studentAttendances.length - 1];
+              const remarksText = latestAttendance.remarks || '';
+              const daysMatch = remarksText.match(/(\d+)\s*out of\s*(\d+)/);
               
-              // Create remarks from compiled result data
-              const totalDays = compiledResult.total_attendance_days || getAttendanceRequirements()[currentTerm] || 0;
-              if (totalDays > 0) {
-                existingRemarks[student.id] = `${compiledResult.times_present} out of ${totalDays} days`;
-              }
-            } else {
-              // Fallback to attendance table
-              const studentAttendances = getAttendancesByStudent(student.id).filter(
-                a => a.term === currentTerm && a.academic_year === currentAcademicYear
-              );
-              
-              if (studentAttendances.length > 0) {
-                console.log(`Found ${studentAttendances.length} attendance records for student ${student.id}`);
-                const latestAttendance = studentAttendances[studentAttendances.length - 1];
-                const remarksText = latestAttendance.remarks || '';
-                const daysMatch = remarksText.match(/(\d+)\s*out of\s*(\d+)/);
-                
-                if (daysMatch) {
-                  existingAttendanceData[student.id] = parseInt(daysMatch[1]) || 0;
-                } else {
-                  const presentDays = studentAttendances.filter(a => a.status === 'Present').length;
-                  existingAttendanceData[student.id] = presentDays;
-                }
-                
-                if (remarksText && !remarksText.includes('out of')) {
-                  existingRemarks[student.id] = remarksText;
-                }
+              if (daysMatch) {
+                existingAttendanceData[student.id] = parseInt(daysMatch[1]) || 0;
+                existingRemarks[student.id] = remarksText;
+              } else if (latestAttendance.attended_days) {
+                existingAttendanceData[student.id] = latestAttendance.attended_days;
+                existingRemarks[student.id] = `${latestAttendance.attended_days} out of ${latestAttendance.required_days || 0} days`;
               }
             }
-          } catch (error) {
-            // Continue with other students
           }
         });
         
-        console.log('Final attendance data loaded:', Object.keys(existingAttendanceData).length, 'students');
         setStudentAttendanceInput(existingAttendanceData);
         setRemarks(existingRemarks);
       } catch (error) {
@@ -182,7 +171,7 @@ export function MarkAttendancePage() {
 
   const existingAttendance = getAttendancesByDate(new Date().toISOString().split('T')[0]);
   const isAlreadyMarked = existingAttendance.some(
-    a => a.class_id === selectedClassId && a.term === currentTerm && a.academic_year === currentAcademicYear
+    a => String(a.class_id) === String(selectedClassId) && a.term === currentTerm && a.academic_year === currentAcademicYear
   );
 
   // Handle attendance days input change with real-time save
@@ -243,7 +232,7 @@ export function MarkAttendancePage() {
       // Check if attendance record exists
       const existingAttendance = attendances.find(a => 
         a.student_id === studentId &&
-        a.class_id === Number(selectedClassId) &&
+        String(a.class_id) === String(selectedClassId) &&
         a.term === currentTerm &&
         a.academic_year === currentAcademicYear
       );
@@ -257,7 +246,7 @@ export function MarkAttendancePage() {
       // Also update compiled results if they exist
       const compiledResult = compiledResults.find(cr => 
         cr.student_id === studentId &&
-        cr.class_id === Number(selectedClassId) &&
+        String(cr.class_id) === String(selectedClassId) &&
         cr.term === currentTerm &&
         cr.academic_year === currentAcademicYear
       );

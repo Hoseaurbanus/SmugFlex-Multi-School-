@@ -33,7 +33,8 @@ export function StudentAdmissionApprovalPage() {
     }
   };
 
-  const getClassName = (classId: number) => {
+  const getClassName = (classId?: number) => {
+    if (classId == null) return 'Not Assigned';
     return classes.find(c => c.id === classId)?.name || 'Not Assigned';
   };
 

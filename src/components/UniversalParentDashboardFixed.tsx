@@ -1,6 +1,6 @@
 ﻿// Parent Dashboard Component - Main interface for parent users
-import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, Calendar, Bell, Settings, User, CheckCircle, BookOpen, Award, TrendingUp, Download, Eye, Search, Filter, Mail, Phone, Lock, CreditCard, FileText, Clock, AlertCircle, Check, X, Edit2, Save, RefreshCw, Banknote, Upload } from 'lucide-react';
+import { useState, useEffect, useRef } from "react";
+import { LayoutDashboard, Users, Calendar, Bell, Settings, User, CheckCircle, BookOpen, Award, TrendingUp, Download, Eye, Search, Filter, Mail, Phone, Lock, CreditCard, FileText, Clock, AlertCircle, Check, X, Edit2, Save, RefreshCw, Banknote, Upload, Printer } from 'lucide-react';
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -17,6 +17,10 @@ import { useSchool } from "../contexts/SchoolContext";
 import { connectionMonitor } from "../utils/connectionMonitor";
 import { MyChildrenPage } from "./parent/MyChildrenPage";
 import { API_CONFIG } from "../config/api";
+import { PaymentReceipt } from "./ui/PaymentReceipt";
+
+// Naira symbol constant for reliable display
+const NAIRA = "₦";
 
 interface ParentDashboardProps {
   onLogout: () => void;
@@ -54,15 +58,25 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     loadParentsFromAPI,
     loadParentStudentLinksFromAPI,
     loadStudentsFromAPI,
+    loadCompiledResultsFromAPI,
+    loadScoresFromAPI,
+    loadSchoolSettings,
     compiledResults,
     getCompiledResults,
-    loadCompiledResultsFromAPI,
     studentFeeBalances,
     payments,
     markNotificationAsRead,
     updateParent,
     addNotification,
-    parentStudentLinks
+    parentStudentLinks,
+    students,
+    classes,
+    teachers,
+    scores,
+    schoolSettings,
+    feeStructures,
+    loadFeeStructuresFromAPI,
+    loadStudentFeeBalancesFromAPI
   } = useSchool();
   
   const [activeItem, setActiveItem] = useState("dashboard");
@@ -104,6 +118,9 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     phone: "",
     address: ""
   });
+  const [retryScheduled, setRetryScheduled] = useState(false); // Prevent multiple retries
+  const [dataLoadedSuccessfully, setDataLoadedSuccessfully] = useState(false); // Track successful data load
+  const dataLoadedRef = useRef(false); // Ref to track successful data load (not affected by state timing)
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
@@ -119,6 +136,17 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "transfer">("card");
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [loadingResults, setLoadingResults] = useState(false);
+  const [bankTransferReceipt, setBankTransferReceipt] = useState<File | null>(null);
+  const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
+  const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<any>(null);
+
+  const [bankDetails] = useState({
+    bank: "Bank details to be provided by school administration",
+    accountName: "Please contact school for account information",
+    accountNumber: "Available from school administration"
+  });
 
   const currentParent = currentUser && parents.length > 0 ? parents.find((p) => p.id === currentUser?.linked_id) : null;
   
@@ -133,21 +161,11 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
   const getApprovedResultsForChildren = () => {
     if (!children.length || !compiledResults.length) return [];
     
-    // Debug logging
-    console.log('Children:', children.map(c => ({ id: c.id, name: c.fullName })));
-    console.log('Compiled Results:', compiledResults.map(r => ({ 
-      id: r.id, 
-      student_id: r.student_id, 
-      status: r.status,
-      term: r.term 
-    })));
-    
     const approvedResults = compiledResults.filter(result => 
       result.status === 'Approved' && 
       children.some(child => child.id === result.student_id)
     );
     
-    console.log('Filtered Approved Results:', approvedResults);
     return approvedResults;
   };
 
@@ -244,6 +262,11 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     return userNotifications;
   };
 
+  const openReceiptDialog = (payment: any) => {
+    setSelectedPaymentForReceipt(payment);
+    setIsReceiptDialogOpen(true);
+  };
+
   const handleMakePayment = (child: Child) => {
     setSelectedChild(child);
     setPaymentAmount(child.feeBalance || 0);
@@ -256,88 +279,169 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
       return;
     }
 
+    if (paymentMethod === "transfer" && !bankTransferReceipt) {
+      toast.error("Please upload a receipt image for bank transfer");
+      return;
+    }
+
+    setLoadingPayments(true);
+
     try {
-      toast.loading("Initializing payment...");
-
-      const initResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/online-init`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          student_id: selectedChild.id,
-          amount: paymentAmount,
-          payment_type: 'School Fees',
-          term: currentTerm || 'First Term',
-          academic_year: currentAcademicYear || '2024/2025',
-          notes: `Online payment by parent for ${selectedChild.fullName}`
-        })
-      });
-
-      if (!initResponse.ok) {
-        const error = await initResponse.json();
-        throw new Error(error.message || 'Failed to initialize payment');
-      }
-
-      const initData = await initResponse.json();
-      const { reference } = initData.data;
-
-      toast.dismiss();
-      toast.loading("Opening payment window...");
-
-      const PaystackInline = await import('@paystack/inline-js');
-      const paystack = new PaystackInline.default();
-      
-      paystack.checkout({
-        key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-        email: currentParent?.email || '',
-        amount: paymentAmount * 100,
-        reference: reference,
-        onSuccess: async (response: any) => {
-          try {
-            toast.dismiss();
-            toast.loading("Verifying payment...");
-
-            const verifyResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/online-verify?reference=${response.reference}`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              }
-            });
-
-            if (!verifyResponse.ok) {
-              const error = await verifyResponse.json();
-              throw new Error(error.message || 'Payment verification failed');
-            }
-
-            const verifyData = await verifyResponse.json();
-            
-            toast.dismiss();
-            toast.success(`Payment successful! Receipt: ${verifyData.data.receipt_number}`);
-
-            // Refresh parent data to update payment and fee information
-            window.location.reload();
-
-            setIsPaymentModalOpen(false);
-            setPaymentAmount(0);
-            setSelectedChild(null);
-            setPaymentMethod("card");
-
-          } catch (verifyError: any) {
-            toast.dismiss();
-            toast.error('Payment verification failed. Please contact support.');
-          }
-        },
-        onCancel: () => {
-          toast.dismiss();
-          toast.info('Payment cancelled. You can try again anytime.');
+      if (paymentMethod === "transfer") {
+        // Handle bank transfer with receipt upload
+        toast.loading("Uploading receipt...");
+        
+        // Upload receipt first
+        const formData = new FormData();
+        if (bankTransferReceipt) {
+          formData.append('file', bankTransferReceipt);
         }
-      });
+        
+        const uploadResponse = await fetch(`${API_CONFIG.BASE_URL}/files/upload`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: formData
+        });
+
+        if (!uploadResponse.ok) {
+          const error = await uploadResponse.json();
+          throw new Error(error.message || 'Failed to upload receipt');
+        }
+
+        const uploadData = await uploadResponse.json();
+        const receiptUrl = uploadData.data.url;
+
+        toast.dismiss();
+        toast.loading("Submitting payment...");
+
+        // Submit bank transfer proof
+        const submitResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/bank-transfer-proof`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            student_id: selectedChild.id,
+            amount: paymentAmount,
+            payment_type: 'School Fees',
+            term: currentTerm || 'First Term',
+            academic_year: currentAcademicYear || '2024/2025',
+            proof_url: receiptUrl,
+            notes: `Bank transfer by parent for ${selectedChild.fullName}`
+          })
+        });
+
+        if (!submitResponse.ok) {
+          const error = await submitResponse.json();
+          throw new Error(error.message || 'Failed to submit payment');
+        }
+
+        const submitData = await submitResponse.json();
+        
+        toast.dismiss();
+        toast.success(`Payment submitted! Receipt: ${submitData.data.receipt_number}`);
+
+        // Reset form
+        setIsPaymentModalOpen(false);
+        setPaymentAmount(0);
+        setSelectedChild(null);
+        setPaymentMethod("card");
+        setBankTransferReceipt(null);
+        setLoadingPayments(false);
+
+        // Refresh data
+        window.location.reload();
+
+      } else {
+        // Handle online payment (existing logic)
+        toast.loading("Initializing payment...");
+
+        const initResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/online-init`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            student_id: selectedChild.id,
+            amount: paymentAmount,
+            payment_type: 'School Fees',
+            term: currentTerm || 'First Term',
+            academic_year: currentAcademicYear || '2024/2025',
+            notes: `Online payment by parent for ${selectedChild.fullName}`
+          })
+        });
+
+        if (!initResponse.ok) {
+          const error = await initResponse.json();
+          throw new Error(error.message || 'Failed to initialize payment');
+        }
+
+        const initData = await initResponse.json();
+        const { reference } = initData.data;
+
+        toast.dismiss();
+        toast.loading("Opening payment window...");
+
+        const PaystackInline = await import('@paystack/inline-js');
+        const paystack = new PaystackInline.default();
+        
+        paystack.checkout({
+          key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+          email: currentParent?.email || '',
+          amount: paymentAmount * 100,
+          reference: reference,
+          onSuccess: async (response: any) => {
+            try {
+              toast.dismiss();
+              toast.loading("Verifying payment...");
+
+              const verifyResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/online-verify?reference=${response.reference}`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+              });
+
+              if (!verifyResponse.ok) {
+                const error = await verifyResponse.json();
+                throw new Error(error.message || 'Payment verification failed');
+              }
+
+              const verifyData = await verifyResponse.json();
+              
+              toast.dismiss();
+              toast.success(`Payment successful! Receipt: ${verifyData.data.receipt_number}`);
+
+              // Refresh parent data to update payment and fee information
+              window.location.reload();
+
+              setIsPaymentModalOpen(false);
+              setPaymentAmount(0);
+              setSelectedChild(null);
+              setPaymentMethod("card");
+
+            } catch (verifyError: any) {
+              toast.dismiss();
+              toast.error('Payment verification failed. Please contact support.');
+              setLoadingPayments(false);
+            }
+          },
+          onCancel: () => {
+            toast.dismiss();
+            toast.info('Payment cancelled. You can try again anytime.');
+            setLoadingPayments(false);
+          }
+        });
+      }
 
     } catch (error: any) {
       toast.dismiss();
       toast.error(error.message || 'Payment failed. Please try again.');
+      setLoadingPayments(false);
     }
   };
 
@@ -439,7 +543,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
         <p className="text-[#6B7280]">Manage your account settings and preferences</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6">
         {/* Profile Settings */}
         <Card className="border-0 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b">
@@ -501,25 +605,16 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
               <div className="flex gap-2">
                 {editingProfile ? (
                   <>
-                    <Button onClick={() => {
-                      toast.success("Saving profile changes");
-                      handleSaveProfile();
-                    }}>
+                    <Button onClick={handleSaveProfile}>
                       <Save className="h-4 w-4 mr-2" />
                       Save Changes
                     </Button>
-                    <Button variant="outline" onClick={() => {
-                      toast.success("Cancelling profile edit");
-                      setEditingProfile(false);
-                    }}>
+                    <Button variant="outline" onClick={() => setEditingProfile(false)}>
                       Cancel
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={() => {
-                    toast.success("Entering edit profile mode");
-                    setEditingProfile(true);
-                  }}>
+                  <Button onClick={() => setEditingProfile(true)}>
                     <Edit2 className="h-4 w-4 mr-2" />
                     Edit Profile
                   </Button>
@@ -566,10 +661,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                   onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                 />
               </div>
-              <Button onClick={() => {
-                toast.success("Changing password");
-                handleChangePassword();
-              }} className="w-full">
+              <Button onClick={handleChangePassword} className="w-full">
                 Change Password
               </Button>
             </div>
@@ -615,10 +707,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                   placeholder="Type your message here..."
                 />
               </div>
-              <Button onClick={() => {
-                toast.success("Sending message to administration");
-                handleSendMessage();
-              }} className="w-full">
+              <Button onClick={handleSendMessage} className="w-full">
                 <Mail className="h-4 w-4 mr-2" />
                 Send Message
               </Button>
@@ -670,40 +759,136 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             loadParentsFromAPI(),
             loadParentStudentLinksFromAPI(),
             loadStudentsFromAPI(),
-            loadCompiledResultsFromAPI()
+            loadCompiledResultsFromAPI(),
+            loadScoresFromAPI(), // ← IMPORTANT: Load scores for PDF
+            loadSchoolSettings(), // ← IMPORTANT: Load school settings for PDF
+            loadFeeStructuresFromAPI(), // ← IMPORTANT: Load fee structures for fee calculations
+            loadStudentFeeBalancesFromAPI() // ← IMPORTANT: Load fee balances for fee calculations
           ]);
+
+          // Wait a moment for state to update after API calls
+          await new Promise(resolve => setTimeout(resolve, 500));
 
           const parentId = currentUser?.linked_id;
           
-          console.log('=== PARENT DASHBOARD CHILDREN LOADING DEBUG ===');
+          console.log('=== UNIVERSAL DASHBOARD PARENT ID DEBUG ===');
           console.log('Current user:', currentUser);
-          console.log('Parent ID:', parentId);
-          console.log('Parent-student links available:', parentStudentLinks.length);
-          console.log('Parent-student links data:', parentStudentLinks);
+          console.log('Parent ID from linked_id:', parentId);
+          console.log('Parent ID type:', typeof parentId);
+          console.log('Parent ID exists:', !!parentId);
           
           if (parentId) {
-            const childrenData = getParentChildren(parentId);
-            console.log('Children data from getParentChildren:', childrenData);
+            console.log('Universal Dashboard - Fetching children for parent ID:', parentId);
+            console.log('Universal Dashboard - Available parent-student links:', parentStudentLinks);
+            console.log('Universal Dashboard - Available students:', students);
+            console.log('Universal Dashboard - Data loaded check - links length:', parentStudentLinks.length, 'students length:', students.length);
             
-            if (childrenData && childrenData.length > 0) {
-              const transformedChildren = childrenData.map((child: any) => ({
-                ...child,
-                dateOfBirth: child.dateOfBirth || "",
-                address: child.address || "",
-                parentContact: child.parentContact || "",
-                enrollmentDate: child.enrollmentDate || "",
-                recentActivities: child.recentActivities || [],
-                feeBalance: child.feeBalance || 0,
-                totalFees: child.totalFees || 0
-              }));
-              setChildren(transformedChildren);
+            // Only proceed if data is actually loaded
+            if (parentStudentLinks.length > 0 && students.length > 0) {
+              const childrenData = getParentChildren(parentId);
+              console.log('Universal Dashboard - Children data fetched:', childrenData);
+              
+              if (childrenData && childrenData.length > 0) {
+                const transformedChildren = childrenData.map((child: any) => ({
+                  ...child,
+                  dateOfBirth: child.dateOfBirth || "",
+                  address: child.address || "",
+                  parentContact: child.parentContact || "",
+                  enrollmentDate: child.enrollmentDate || "",
+                  recentActivities: child.recentActivities || [],
+                  feeBalance: child.feeBalance || 0,
+                  totalFees: child.totalFees || 0
+                }));
+                setChildren(transformedChildren);
+                setDataLoadedSuccessfully(true); // Mark data as successfully loaded
+                dataLoadedRef.current = true; // Set ref to true immediately
+                console.log('Universal Dashboard - Children set successfully:', transformedChildren.length);
+              } else {
+                console.log('Universal Dashboard - No children found for parent after data loaded');
+                console.log('Universal Dashboard - About to set children to empty array');
+                setChildren([]);
+                // Check if parent exists in the system but has no linked students
+                const parentExists = parents.some(p => p.id == parentId); // Use == for type coercion
+                if (parentExists) {
+                  toast.info(`No linked students found. Please contact administration to link students to your account.`);
+                } else {
+                  toast.error("Parent account not properly linked. Please contact administration.");
+                }
+              }
             } else {
-              setChildren([]);
-              toast.info(`No linked students found for ${parentName}. Please contact administration to link students.`);
+              console.log('Universal Dashboard - Data not loaded yet - links:', parentStudentLinks.length, 'students:', students.length);
+              console.log('Universal Dashboard - dataLoadedRef.current:', dataLoadedRef.current);
+              console.log('Universal Dashboard - Retrying in 1 second...');
+              
+              // Only schedule retry if not already scheduled AND data hasn't been loaded successfully
+              if (!retryScheduled && !dataLoadedRef.current) {
+                setRetryScheduled(true);
+                
+                // Retry once more after 1 second
+                setTimeout(async () => {
+                  console.log('Universal Dashboard - Retry - Available parent-student links:', parentStudentLinks.length);
+                  console.log('Universal Dashboard - Retry - Available students:', students.length);
+                  console.log('Universal Dashboard - Retry - dataLoadedRef.current:', dataLoadedRef.current);
+                  
+                  // Don't retry if data was already successfully loaded
+                  if (dataLoadedRef.current) {
+                    console.log('Universal Dashboard - Skipping retry - data already loaded successfully');
+                    setRetryScheduled(false);
+                    return;
+                  }
+                  
+                  if (parentStudentLinks.length > 0 && students.length > 0) {
+                    const childrenData = getParentChildren(parentId);
+                    console.log('Universal Dashboard - Retry - Children data fetched:', childrenData);
+                    
+                    if (childrenData && childrenData.length > 0) {
+                      const transformedChildren = childrenData.map((child: any) => ({
+                        ...child,
+                        dateOfBirth: child.dateOfBirth || "",
+                        address: child.address || "",
+                        parentContact: child.parentContact || "",
+                        enrollmentDate: child.enrollmentDate || "",
+                        recentActivities: child.recentActivities || [],
+                        feeBalance: child.feeBalance || 0,
+                        totalFees: child.totalFees || 0
+                      }));
+                      setChildren(transformedChildren);
+                      setDataLoadedSuccessfully(true); // Mark data as successfully loaded
+                      dataLoadedRef.current = true; // Set ref to true immediately
+                    } else {
+                      setChildren([]);
+                      const parentExists = parents.some(p => p.id == parentId);
+                      if (parentExists) {
+                        toast.info(`No linked students found. Please contact administration to link students to your account.`);
+                      } else {
+                        toast.error("Parent account not properly linked. Please contact administration.");
+                      }
+                    }
+                  } else {
+                    console.log('Universal Dashboard - Retry failed - Data still not loaded');
+                    // Don't set children to empty array if data was already loaded successfully
+                    // Use ref to check if data was ever loaded successfully (more reliable than state)
+                    if (children.length === 0 && !dataLoadedRef.current) {
+                      setChildren([]);
+                      const parentExists = parents.some(p => p.id == parentId);
+                      if (parentExists) {
+                        toast.info(`No linked students found. Please contact administration to link students to your account.`);
+                      } else {
+                        toast.error("Parent account not properly linked. Please contact administration.");
+                      }
+                    }
+                  }
+                  setRetryScheduled(false); // Reset retry flag
+                }, 1000);
+              }
             }
           } else {
+            console.log('=== NO PARENT ID FOUND ===');
+            console.log('Current user:', currentUser);
+            console.log('User linked_id:', currentUser?.linked_id);
+            console.log('Universal Dashboard - About to set children to empty array - NO PARENT ID');
             setChildren([]);
-            toast.error("Parent account not properly linked");
+            toast.error("Parent account not properly linked. Please contact administration.");
           }
         } catch (error) {
           console.error("Error loading parent data:", error);
@@ -764,15 +949,15 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           </div>
           
           {/* Compact Stats Cards */}
-          <div className="flex gap-3 lg:flex-col">
-            <div className="bg-blue-700 rounded-xl p-4 text-center min-w-[100px]">
-              <Users className="w-6 h-6 text-white mx-auto mb-2" />
-              <div className="text-xl md:text-2xl font-bold text-white">{children.length}</div>
+          <div className="flex gap-2 lg:flex-col lg:gap-3">
+            <div className="bg-blue-700 rounded-xl p-3 lg:p-4 text-center flex-1 lg:flex-none">
+              <Users className="w-5 h-5 lg:w-6 lg:h-6 text-white mx-auto mb-2" />
+              <div className="text-lg lg:text-xl md:text-2xl font-bold text-white">{children.length}</div>
               <p className="text-white text-xs font-medium">Children</p>
             </div>
-            <div className="bg-blue-700 rounded-xl p-4 text-center min-w-[100px]">
-              <Bell className="w-6 h-6 text-white mx-auto mb-2" />
-              <div className="text-xl md:text-2xl font-bold text-white">{unreadCount}</div>
+            <div className="bg-blue-700 rounded-xl p-3 lg:p-4 text-center flex-1 lg:flex-none">
+              <Bell className="w-5 h-5 lg:w-6 lg:h-6 text-white mx-auto mb-2" />
+              <div className="text-lg lg:text-xl md:text-2xl font-bold text-white">{unreadCount}</div>
               <p className="text-white text-xs font-medium">Notifications</p>
             </div>
           </div>
@@ -780,7 +965,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
       </div>
 
       {/* Modern Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
         <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-blue-50 to-blue-100 group">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div className="space-y-0.5">
@@ -862,7 +1047,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
       </div>
 
       {/* Dashboard Overview Widgets */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Children Overview Widget */}
         <Card className="border-0 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b">
@@ -983,33 +1168,46 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                       <p className="text-sm font-medium text-gray-900">Total Fees</p>
                       <p className="text-xs text-gray-500">Academic Year {currentAcademicYear || "2025/2026"}</p>
                     </div>
-                    <p className="text-lg font-bold text-purple-900">â‚¦{totalFees.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-purple-900">{NAIRA}{totalFees.toLocaleString()}</p>
                   </div>
                   <div className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
                     <div>
                       <p className="text-sm font-medium text-gray-900">Paid</p>
                       <p className="text-xs text-gray-500">This term</p>
                     </div>
-                    <p className="text-lg font-bold text-green-900">â‚¦{totalPaid.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-green-900">{NAIRA}{totalPaid.toLocaleString()}</p>
                   </div>
                   <div className="flex items-center justify-between p-2 bg-orange-50 rounded-lg">
                     <div>
                       <p className="text-sm font-medium text-gray-900">Outstanding</p>
                       <p className="text-xs text-gray-500">Due this month</p>
                     </div>
-                    <p className="text-lg font-bold text-orange-900">â‚¦{totalOutstanding.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-orange-900">{NAIRA}{totalOutstanding.toLocaleString()}</p>
                   </div>
                   <Button variant="outline" size="sm" className="w-full text-xs">
                     View Fee History
                   </Button>
-                  <Button variant="outline" size="sm" className="w-full text-xs">
-                    Make Payment
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full text-xs">
-                    Make Payment
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full text-xs">
-                    Make Payment
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full text-xs"
+                    disabled={loadingPayments}
+                    onClick={() => {
+                      if (children.length > 0) {
+                        handleMakePayment(children[0]);
+                      } else {
+                        toast.error("No children to make payment for");
+                      }
+                    }}
+                  >
+                    {loadingPayments ? (
+                      <>
+                        <div className="w-3 h-3 border border-gray-800 border-t-transparent rounded-full animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      "Make Payment"
+                    )}
                   </Button>
                 </div>
               );
@@ -1027,7 +1225,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           </div>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <Button 
               variant="outline" 
               className="flex flex-col items-center gap-2 h-16 p-3 hover:bg-blue-50"
@@ -1074,7 +1272,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             </div>
           </CardHeader>
           <CardContent className="p-4 md:p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 lg:gap-6">
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Personal Details</h4>
                 <div className="space-y-3">
@@ -1151,13 +1349,13 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             <p className="text-gray-600">View and manage fee payments for your children</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
             <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-50 to-blue-100 hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-blue-600">Total Outstanding</p>
-                    <p className="text-2xl font-bold text-blue-800">â‚¦{totalOutstanding.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-blue-800">{NAIRA}{totalOutstanding.toLocaleString()}</p>
                     <p className="text-xs text-blue-500 mt-1">Across all children</p>
                   </div>
                   <div className="p-3 rounded-full bg-blue-100">
@@ -1172,7 +1370,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-green-600">Total Paid</p>
-                    <p className="text-2xl font-bold text-green-800">â‚¦{totalPaid.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-green-800">{NAIRA}{totalPaid.toLocaleString()}</p>
                     <p className="text-xs text-green-500 mt-1">Total payments made</p>
                   </div>
                   <div className="p-3 rounded-full bg-green-100">
@@ -1187,7 +1385,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-purple-600">Current Term Fees</p>
-                    <p className="text-2xl font-bold text-purple-800">â‚¦{currentTermFees.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-purple-800">{NAIRA}{currentTermFees.toLocaleString()}</p>
                     <p className="text-xs text-purple-500 mt-1">For current term</p>
                   </div>
                   <div className="p-3 rounded-full bg-purple-100">
@@ -1275,14 +1473,14 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                               </div>
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
-                              â‚¦{(child.totalFees || 0).toLocaleString()}
+                              {NAIRA}{(child.totalFees || 0).toLocaleString()}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm text-green-600">
-                              â‚¦{paid.toLocaleString()}
+                              {NAIRA}{paid.toLocaleString()}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <span className={balance > 0 ? "text-red-600" : "text-green-600"}>
-                                â‚¦{balance.toLocaleString()}
+                                {NAIRA}{balance.toLocaleString()}
                               </span>
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-right">
@@ -1303,10 +1501,20 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                                 variant="outline"
                                 size="sm"
                                 className="mr-2"
+                                disabled={loadingPayments}
                                 onClick={() => handleMakePayment(child)}
                               >
-                                <CreditCard className="h-4 w-4 mr-1" />
-                                Pay
+                                {loadingPayments ? (
+                                  <>
+                                    <div className="w-3 h-3 border border-gray-800 border-t-transparent rounded-full animate-spin mr-1" />
+                                    Processing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CreditCard className="h-4 w-4 mr-1" />
+                                    Pay
+                                  </>
+                                )}
                               </Button>
                               <Button variant="ghost" size="sm">
                                 <FileText className="h-4 w-4" />
@@ -1363,10 +1571,16 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                             {payment.payment_type || "School Fees Payment"}
                           </TableCell>
                           <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-green-600">
-                            â‚¦{Number(payment.amount || 0).toLocaleString()}
+                            {NAIRA}{Number(payment.amount || 0).toLocaleString()}
                           </TableCell>
                           <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-blue-600 hover:text-blue-800"
+                              onClick={() => openReceiptDialog(payment)}
+                              disabled={payment.status !== 'Verified'}
+                            >
                               <Download className="h-4 w-4" />
                               <span className="ml-1">Receipt</span>
                             </Button>
@@ -1381,17 +1595,13 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           </Card>
 
           <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="max-w-[95vw] sm:max-w-[600px] mx-4 max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5" />
                   Make Payment
                 </DialogTitle>
-                <DialogDescription>
-                  {selectedChild
-                    ? `Complete the payment for ${selectedChild.fullName}'s fees`
-                    : "Select a student to make a payment"}
-                </DialogDescription>
+                <DialogDescription>Complete your payment using the available payment methods.</DialogDescription>
               </DialogHeader>
               <div className="space-y-6 py-4">
                 {selectedChild && (
@@ -1403,14 +1613,14 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                       <div>
                         <p className="font-medium text-gray-900">{selectedChild.fullName}</p>
                         <p className="text-sm text-gray-500">{selectedChild.className || "Class N/A"}</p>
-                        <p className="text-xs text-gray-400">Outstanding: â‚¦{(selectedChild.feeBalance || 0).toLocaleString()}</p>
+                        <p className="text-xs text-gray-400">Outstanding: {NAIRA}{(selectedChild.feeBalance || 0).toLocaleString()}</p>
                       </div>
                     </div>
                   </div>
                 )}
                 
                 <div className="space-y-2">
-                  <Label htmlFor="amount" className="text-sm font-medium">Payment Amount (â‚¦)</Label>
+                  <Label htmlFor="amount" className="text-sm font-medium">Payment Amount ({NAIRA})</Label>
                   <Input
                     id="amount"
                     type="number"
@@ -1421,7 +1631,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                   />
                   {selectedChild && paymentAmount > 0 && (
                     <p className="text-xs text-gray-500">
-                      Remaining balance after payment: â‚¦{Math.max(0, (selectedChild.feeBalance || 0) - paymentAmount).toLocaleString()}
+                      Remaining balance after payment: {NAIRA}{Math.max(0, (selectedChild.feeBalance || 0) - paymentAmount).toLocaleString()}
                     </p>
                   )}
                 </div>
@@ -1455,13 +1665,32 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                 </div>
 
                 {paymentMethod === "transfer" && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
                     <h4 className="font-medium text-blue-900 mb-2">Bank Transfer Details</h4>
                     <div className="space-y-1 text-sm text-blue-800">
-                      <p><strong>Bank:</strong> First Bank of Nigeria</p>
-                      <p><strong>Account Name:</strong> Graceland Royal Academy</p>
-                      <p><strong>Account Number:</strong> 1234567890</p>
+                      <p><strong>Bank:</strong> {bankDetails.bank}</p>
+                      <p><strong>Account Name:</strong> {bankDetails.accountName}</p>
+                      <p><strong>Account Number:</strong> {bankDetails.accountNumber}</p>
                       <p className="text-xs mt-2">Please upload receipt after payment</p>
+                    </div>
+                    <div className="flex flex-col gap-2 mt-3">
+                      <Label htmlFor="receipt-upload" className="text-sm font-medium">Upload Receipt Image</Label>
+                      <Input
+                        id="receipt-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setBankTransferReceipt(e.target.files[0]);
+                          }
+                        }}
+                        className="text-sm"
+                      />
+                      {bankTransferReceipt && (
+                        <div className="text-xs text-gray-600">
+                          Selected: {bankTransferReceipt.name}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1472,13 +1701,13 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                 </Button>
                 <Button
                   onClick={handlePaymentSubmit}
-                  disabled={!selectedChild || !paymentAmount || paymentAmount <= 0}
+                  disabled={!selectedChild || !paymentAmount || paymentAmount <= 0 || (paymentMethod === "transfer" && !bankTransferReceipt)}
                   className="w-full sm:w-auto"
                 >
                   {paymentMethod === "card" ? (
                     <>
                       <CreditCard className="h-4 w-4 mr-2" />
-                      Pay â‚¦{paymentAmount ? paymentAmount.toLocaleString() : "0"}
+                      Pay {NAIRA}{paymentAmount ? paymentAmount.toLocaleString() : "0"}
                     </>
                   ) : (
                     <>
@@ -1527,18 +1756,9 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
   ];
 
   const handleItemClick = (id: string) => {
-    // Add toast messages for navigation
-    const toastMessages: Record<string, string> = {
-      "dashboard": "Opening Dashboard",
-      "children": "Opening My Children",
-      "notifications": "Opening Notifications",
-      "settings": "Opening Settings",
-      "fees": "Opening Fee Management",
-      "messages": "Opening Messages"
-    };
-    
-    if (toastMessages[id]) {
-      toast.success(toastMessages[id]);
+    // Only show toast for important actions, not navigation
+    if (id === 'fees') {
+      toast.success("Opening Fee Management");
     }
     setActiveItem(id);
   };
@@ -1569,6 +1789,26 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           {activeItem === "messages" && renderMessagesPage()}
         </main>
       </div>
+
+      {/* Receipt Dialog */}
+      <Dialog open={isReceiptDialogOpen} onOpenChange={setIsReceiptDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg bg-white border border-[#E5E7EB] text-[#1F2937]">
+          <DialogHeader>
+            <DialogTitle className="text-[#1F2937] flex items-center gap-2">
+              <Printer className="w-5 h-5" />
+              Payment Receipt
+            </DialogTitle>
+            <DialogDescription>View and print the payment receipt details.</DialogDescription>
+          </DialogHeader>
+
+          {selectedPaymentForReceipt && (
+            <PaymentReceipt 
+              payment={selectedPaymentForReceipt} 
+              studentName={selectedPaymentForReceipt.student_name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

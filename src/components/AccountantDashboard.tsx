@@ -16,10 +16,12 @@ import { ManualPaymentEntryPage } from "./admin/ManualPaymentEntryPage";
 import { ChangePasswordPage } from "./ChangePasswordPage";
 import { AccountantMessagePage } from "./accountant/MessageParentsPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { useSchool } from "../contexts/SchoolContext";
 import { connectionMonitor } from "../utils/connectionMonitor";
 import { toast } from "sonner";
+
+const NAIRA = "\u20A6";
 
 interface AccountantDashboardProps {
   onLogout: () => void;
@@ -172,7 +174,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                       <span className="text-sm opacity-80">{collectionRate}%</span>
                     </div>
                     <p className="text-white/80 text-sm mb-1">Total Collected</p>
-                    <h3 className="text-white">₦{totalPaid.toLocaleString()}</h3>
+                    <h3 className="text-white">{NAIRA}{totalPaid.toLocaleString()}</h3>
                     <p className="text-xs text-white/60 mt-2">{currentTerm}</p>
                   </CardContent>
                 </Card>
@@ -186,7 +188,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                       <span className="text-sm opacity-80">Today</span>
                     </div>
                     <p className="text-white/80 text-sm mb-1">Today's Revenue</p>
-                    <h3 className="text-white">₦{todayRevenue.toLocaleString()}</h3>
+                    <h3 className="text-white">{NAIRA}{todayRevenue.toLocaleString()}</h3>
                     <p className="text-xs text-white/60 mt-2">{todayPayments.length} payments</p>
                   </CardContent>
                 </Card>
@@ -213,7 +215,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                       </div>
                     </div>
                     <p className="text-white/80 text-sm mb-1">Outstanding</p>
-                    <h3 className="text-white">₦{totalOutstanding.toLocaleString()}</h3>
+                    <h3 className="text-white">{NAIRA}{totalOutstanding.toLocaleString()}</h3>
                     <p className="text-xs text-white/60 mt-2">Requires follow-up</p>
                   </CardContent>
                 </Card>
@@ -236,23 +238,23 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                         style={{ width: `${collectionRate}%` }}
                       />
                     </div>
-                    <div className="grid grid-cols-3 gap-4 mt-4">
-                      <div className="p-4 bg-[#F9FAFB] rounded-lg">
-                        <p className="text-xs text-[#6B7280] mb-1">Expected</p>
-                        <p className="text-[#1F2937]">₦{totalFeeRequired.toLocaleString()}</p>
-                      </div>
-                      <div className="p-4 bg-[#10B981]/10 rounded-lg">
-                        <p className="text-xs text-[#6B7280] mb-1">Collected</p>
-                        <p className="text-[#10B981]">₦{totalPaid.toLocaleString()}</p>
-                      </div>
-                      <div className="p-4 bg-[#EF4444]/10 rounded-lg">
-                        <p className="text-xs text-[#6B7280] mb-1">Outstanding</p>
-                        <p className="text-[#EF4444]">₦{totalOutstanding.toLocaleString()}</p>
+                      <div className="grid grid-cols-3 gap-4 mt-4">
+                        <div className="p-4 bg-[#F9FAFB] rounded-lg">
+                          <p className="text-xs text-[#6B7280] mb-1">Expected</p>
+                          <p className="text-[#1F2937]">{NAIRA}{totalFeeRequired.toLocaleString()}</p>
+                        </div>
+                        <div className="p-4 bg-[#10B981]/10 rounded-lg">
+                          <p className="text-xs text-[#6B7280] mb-1">Collected</p>
+                          <p className="text-[#10B981]">{NAIRA}{totalPaid.toLocaleString()}</p>
+                        </div>
+                        <div className="p-4 bg-[#EF4444]/10 rounded-lg">
+                          <p className="text-xs text-[#6B7280] mb-1">Outstanding</p>
+                          <p className="text-[#EF4444]">{NAIRA}{totalOutstanding.toLocaleString()}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
               {/* Pending Payment Verifications */}
               <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
@@ -287,7 +289,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                             <TableRow key={payment.id} className="bg-white border-b border-[#E5E7EB] hover:bg-[#F9FAFB]">
                               <TableCell className="text-[#1F2937]">{payment.student_name}</TableCell>
                               <TableCell className="text-[#6B7280]">{payment.term}</TableCell>
-                              <TableCell className="text-[#007C91]">₦{payment.amount.toLocaleString()}</TableCell>
+                              <TableCell className="text-[#007C91]">{NAIRA}{payment.amount.toLocaleString()}</TableCell>
                               <TableCell className="text-[#6B7280]">{new Date(payment.recorded_date).toLocaleDateString()}</TableCell>
                               <TableCell className="text-[#6B7280]">{payment.payment_method}</TableCell>
                               <TableCell className="text-center">
@@ -334,7 +336,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                         <p className="text-sm text-[#6B7280]">{payment.payment_type}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[#007C91]">${payment.amount}</p>
+                        <p className="text-[#007C91]">{NAIRA}{payment.amount.toLocaleString()}</p>
                         <p className="text-xs text-[#6B7280]">{new Date(payment.recorded_date).toLocaleDateString()}</p>
                       </div>
                     </div>
@@ -414,6 +416,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
       <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
         <DialogHeader className="sr-only">
           <DialogTitle>Notifications</DialogTitle>
+          <DialogDescription>View system notifications and updates.</DialogDescription>
         </DialogHeader>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <ViewNotificationsPage />

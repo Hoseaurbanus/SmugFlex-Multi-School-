@@ -5,7 +5,7 @@ import { DashboardTopBar } from "./DashboardTopBar";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 // Regular imports for dashboard pages
 import { RegisterUserPage } from "./admin/RegisterUserPage";
 import { ManageUsersPage } from "./admin/ManageUsersPage";
@@ -395,6 +395,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
         <DialogHeader className="sr-only">
           <DialogTitle>Notifications</DialogTitle>
+          <DialogDescription>View system notifications and updates.</DialogDescription>
         </DialogHeader>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <ViewNotificationsPage />

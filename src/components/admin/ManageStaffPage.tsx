@@ -4,7 +4,7 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -627,6 +627,7 @@ export function ManageStaffPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Staff Details</DialogTitle>
+            <DialogDescription>View detailed information about this staff member, including assignments and status.</DialogDescription>
           </DialogHeader>
           {selectedTeacher && (
             <div className="space-y-4">

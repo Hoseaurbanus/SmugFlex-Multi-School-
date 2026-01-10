@@ -71,9 +71,12 @@ export function SendNotificationPage() {
       addNotification({
         title: formData.title.trim(),
         message: formData.message.trim(),
-        type: formData.type,
-        targetAudience: formData.targetAudience,
+        type: (formData.type || 'info') as 'info' | 'warning' | 'success' | 'error',
+        targetAudience: (formData.targetAudience || 'all') as 'all' | 'teachers' | 'parents' | 'students' | 'accountants',
         sentBy: currentUser.id,
+        sentDate: new Date().toISOString(),
+        isRead: false,
+        readBy: [],
       });
 
       toast.success(

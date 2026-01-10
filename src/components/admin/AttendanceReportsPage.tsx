@@ -231,7 +231,7 @@ export function AttendanceReportsPage() {
 
         <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
           <div className="flex items-center justify-between mb-2">
-            <span2 className="w-8 h-8 text-green-600" />
+            <span className="w-8 h-8 text-green-600" />
           </div>
           <p className="text-green-600 text-sm mb-1">Present</p>
           <p className="text-3xl text-green-900">{presentCount}</p>

@@ -545,8 +545,7 @@ class SubjectController {
      * Delete Subject Assignment
      */
     public function deleteAssignment($id) {
-        // Temporarily remove authentication for debugging
-        // Middleware::requireRole('admin');
+        Middleware::requireRole('admin');
         
         $assignment_id = Middleware::validateInteger($id, 'assignment_id');
         

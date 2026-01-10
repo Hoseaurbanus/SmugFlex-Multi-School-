@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
 import { useSchool } from "../../contexts/SchoolContext";
 import { useNotificationService } from "../../contexts/NotificationService";
 import { toast } from "sonner";
@@ -29,7 +29,7 @@ interface ScoreWithDetails {
   remark?: string;
   entered_by: number;
   entered_date: string;
-  status: 'Draft' | 'Submitted' | 'Rejected';
+  status: 'Draft' | 'Submitted' | 'Rejected' | 'Approved';
   rejection_reason?: string;
   rejected_by?: number;
   rejected_date?: string;
@@ -52,7 +52,8 @@ export function ScoreApprovalPage() {
     getTeacherClasses,
     currentAcademicYear,
     currentTerm,
-    addNotification
+    addNotification,
+    loadScoresFromAPI
   } = useSchool();
 
   const { broadcast } = useNotificationService();
@@ -79,7 +80,10 @@ export function ScoreApprovalPage() {
       
       setIsLoading(true);
       try {
-        // Trigger a refresh of scores data
+        // Load latest scores from API
+        await loadScoresFromAPI();
+        
+        // Then trigger a refresh of scores data
         await getPendingScores();
         setLastRefresh(new Date());
       } catch (error) {
@@ -96,7 +100,7 @@ export function ScoreApprovalPage() {
     const interval = setInterval(refreshScores, 30000);
 
     return () => clearInterval(interval);
-  }, [currentTeacher, getPendingScores]);
+  }, [currentTeacher, getPendingScores, loadScoresFromAPI]);
 
   // Listen for real-time notifications
   useEffect(() => {
@@ -105,6 +109,7 @@ export function ScoreApprovalPage() {
       if (notification.type === 'warning' || notification.type === 'success') {
         if (notification.title?.includes('Score') || notification.message?.includes('score')) {
           setTimeout(async () => {
+            await loadScoresFromAPI();
             await getPendingScores();
             setLastRefresh(new Date());
           }, 1000);
@@ -113,18 +118,21 @@ export function ScoreApprovalPage() {
     };
 
     // Set up notification listener
-    console.log('Setting up real-time score updates');
 
     return () => {
       // Cleanup listeners
     };
-  }, [getPendingScores]);
+  }, [getPendingScores, loadScoresFromAPI]);
 
   const handleRefresh = async () => {
     if (!currentTeacher) return;
     
     setIsLoading(true);
     try {
+      // Load latest scores from API
+      await loadScoresFromAPI();
+      
+      // Then trigger a refresh of scores data
       await getPendingScores();
       setLastRefresh(new Date());
       toast.success('Scores refreshed successfully');
@@ -168,7 +176,8 @@ export function ScoreApprovalPage() {
     if (selectedSubject !== "all" && score.subject_assignment_id !== parseInt(selectedSubject)) return false;
     if (selectedStatus === "submitted" && score.status !== "Submitted") return false;
     if (selectedStatus === "rejected" && score.status !== "Rejected") return false;
-    if (selectedStatus === "all" && !["Submitted", "Rejected"].includes(score.status)) return false;
+    if (selectedStatus === "approved" && score.status !== "Approved") return false;
+    if (selectedStatus === "all" && !["Submitted", "Rejected", "Approved"].includes(score.status)) return false;
 
     // Apply search filter
     if (searchTerm) {
@@ -235,6 +244,7 @@ export function ScoreApprovalPage() {
       setSelectedScore(null);
       
       // Trigger real-time refresh
+      await loadScoresFromAPI();
       await getPendingScores();
       setLastRefresh(new Date());
     } catch (error) {
@@ -277,6 +287,7 @@ export function ScoreApprovalPage() {
       toast.success("Score approved successfully");
       
       // Trigger real-time refresh
+      await loadScoresFromAPI();
       await getPendingScores();
       setLastRefresh(new Date());
     } catch (error) {
@@ -290,6 +301,8 @@ export function ScoreApprovalPage() {
         return <Badge className="bg-blue-100 text-blue-800">Pending Review</Badge>;
       case "Rejected":
         return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+      case "Approved":
+        return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800">Draft</Badge>;
     }
@@ -457,6 +470,7 @@ export function ScoreApprovalPage() {
                   <SelectContent>
                     <SelectItem value="submitted">Pending Review</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="all">All</SelectItem>
                   </SelectContent>
                 </Select>
@@ -594,6 +608,12 @@ export function ScoreApprovalPage() {
                         </Button>
                       </div>
                     )}
+                    {score.status === "Approved" && (
+                      <div className="flex items-center gap-2 text-xs text-green-600">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>Already Approved</span>
+                      </div>
+                    )}
                     <Button
                       variant="outline"
                       className="text-blue-600 border-blue-600 hover:bg-blue-50 w-full sm:w-auto h-8 text-xs"
@@ -618,11 +638,12 @@ export function ScoreApprovalPage() {
       {/* Compact Reject Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent className="sm:max-w-md mx-4">
-          <DialogHeader className="pb-3">
+          <DialogHeader>
             <DialogTitle className="text-red-600 flex items-center gap-2 text-base">
               <XCircle className="w-4 h-4" />
               Reject Score
             </DialogTitle>
+            <DialogDescription>Reject this score with an optional reason. The teacher will be notified.</DialogDescription>
           </DialogHeader>
           {selectedScore && (
             <div className="space-y-3">

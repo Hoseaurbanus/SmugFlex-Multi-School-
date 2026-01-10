@@ -124,9 +124,9 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
       return affectiveMappings[key] || psychomotorMappings[key] || key.replace(/_/g, ' ').replace(/(?:^|\s)\S/g, a => a.toUpperCase());
     };
 
-    // Get next term date from database
+    // Get next term date from compiled result or school settings
     const getNextTermBegin = () => {
-      return schoolSettings?.resumption_date || '';
+      return compiledResult?.next_term_begin || schoolSettings?.resumption_date || '';
     };
 
     return (

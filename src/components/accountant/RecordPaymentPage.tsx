@@ -22,6 +22,7 @@ export function RecordPaymentPage() {
     payments,
     parents,
     addNotification,
+    classes,
   } = useSchool();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -34,6 +35,10 @@ export function RecordPaymentPage() {
 
   const selectedStudent = selectedStudentId
     ? students.find((s) => s.id === selectedStudentId)
+    : null;
+
+  const selectedClass = selectedStudent
+    ? classes.find((c) => c.id === selectedStudent.class_id)
     : null;
 
   const selectedFeeStructure = selectedStudent
@@ -111,7 +116,11 @@ export function RecordPaymentPage() {
 
     // If cash payment, update balance immediately and notify parent
     if (isCashPayment) {
-      updateStudentFeeBalance(selectedStudentId);
+      const currentBalance = selectedFeeBalance?.total_paid || 0;
+      updateStudentFeeBalance(selectedStudentId, { 
+        total_paid: currentBalance + amount,
+        balance: (selectedFeeBalance?.total_fee_required || 0) - (currentBalance + amount)
+      });
       
       // Send notification to parent
       if (selectedStudent?.parent_id) {
@@ -123,6 +132,9 @@ export function RecordPaymentPage() {
             type: 'success',
             targetAudience: 'parents',
             sentBy: currentUser.id,
+            sentDate: new Date().toISOString(),
+            isRead: false,
+            readBy: []
           });
         }
       }
@@ -191,15 +203,15 @@ export function RecordPaymentPage() {
               </div>
               <div className="p-4 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
                 <p className="text-[#6B7280] mb-1">Class</p>
-                <p className="text-[#1F2937]">{selectedStudent.className}</p>
+                <p className="text-[#1F2937]">{selectedClass?.name || 'N/A'}</p>
               </div>
               <div className="p-4 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
                 <p className="text-[#6B7280] mb-1">Total Fee</p>
-                <p className="text-[#1F2937]">₦{selectedFeeStructure?.totalFee.toLocaleString() || '0'}</p>
+                <p className="text-[#1F2937]">₦{selectedFeeStructure?.total_fee?.toLocaleString() || '0'}</p>
               </div>
               <div className="p-4 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
                 <p className="text-[#6B7280] mb-1">Amount Paid</p>
-                <p className="text-[#10B981]">₦{selectedFeeBalance.totalPaid.toLocaleString()}</p>
+                <p className="text-[#1F2937]">₦{selectedFeeBalance?.total_paid?.toLocaleString() || '0'}</p>
               </div>
               <div className="p-4 bg-[#FEF2F2] border border-[#EF4444] rounded-lg md:col-span-2">
                 <p className="text-[#6B7280] mb-1">Outstanding Balance</p>

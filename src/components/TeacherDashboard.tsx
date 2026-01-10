@@ -1,5 +1,5 @@
 import { LogOut, Book, LayoutDashboard, BookOpen, FileSpreadsheet, Users, MessageSquare, Calendar, PenTool, Award, Heart, Activity } from 'lucide-react';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
 import { Card, CardContent, CardHeader } from "./ui/card";
@@ -15,7 +15,7 @@ import { ScoreApprovalPage } from "./teacher/ScoreApprovalPage";
 import { ViewExamTimetablePage } from "./shared/ViewExamTimetablePage";
 import { ChangePasswordPage } from "./ChangePasswordPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { useSchool } from "../contexts/SchoolContext";
 import { useNotificationListener } from "../contexts/NotificationService";
 import { connectionMonitor } from "../utils/connectionMonitor";
@@ -42,12 +42,12 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     const checkConnection = () => {
       if (!isMounted) return;
       
+      // Reduced connection monitoring toasts - only show critical issues
       if (!connectionMonitor.isHealthy()) {
-        toast.warning('Connection issues detected. Attempting to reconnect...');
+        // Only show warning if connection is critically bad
+        console.warn('Connection issues detected, attempting to reconnect...');
         connectionMonitor.forceReconnect().then(success => {
-          if (isMounted && success) {
-            toast.success('Connection restored');
-          } else if (isMounted) {
+          if (isMounted && !success) {
             toast.error('Connection failed. Please refresh the page.');
           }
         });
@@ -63,56 +63,60 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     };
   }, []);
 
-  // Get current teacher data
-  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+  // Get current teacher data - Defensive check for teachers being an array
+  const currentTeacher = currentUser && Array.isArray(teachers) && teachers.length > 0 ? teachers.find(t => t?.id === String(currentUser.linked_id)) : null;
   const teacherId = currentTeacher?.id;
   
-  // Only calculate responsibilities when classes are loaded to avoid race conditions
-  console.log('🎯 TEACHER DASHBOARD: Calculating responsibilities', {
-    hasTeacherId: !!teacherId,
-    teacherId: teacherId,
-    hasClasses: !!classes,
-    classesLength: classes?.length || 0,
-    shouldCalculate: teacherId && classes && classes.length > 0
-  });
+  // Memoize responsibilities calculation to prevent excessive re-calculations
+  const responsibilities = useMemo(() => {
+    if (!teacherId || !classes || classes.length === 0) {
+      return {
+        isClassTeacher: false,
+        assignedClassesCount: 0,
+        totalStudentsCount: 0,
+        subjectsCount: 0,
+        classTeacherClassesCount: 0,
+        canEnterScores: false,
+        canCompileResults: false,
+        canViewResults: false,
+        canManageAttendance: false,
+        departments: []
+      };
+    }
+    
+    return getTeacherResponsibilities(Number(teacherId));
+  }, [teacherId, classes, getTeacherResponsibilities]);
   
-  const responsibilities = teacherId && classes && classes.length > 0 ? getTeacherResponsibilities(Number(teacherId)) : {
-    isClassTeacher: false,
-    assignedClassesCount: 0,
-    totalStudentsCount: 0,
-    subjectsCount: 0,
-    classTeacherClassesCount: 0,
-    canEnterScores: false,
-    canCompileResults: false,
-    canViewResults: false,
-    canManageAttendance: false,
-    departments: []
-  };
+  // Memoize teacher classes calculation
+  const teacherClasses = useMemo(() => {
+    if (!teacherId) return [];
+    return getTeacherClasses(Number(teacherId));
+  }, [teacherId, getTeacherClasses]);
   
-  const teacherClasses = teacherId ? getTeacherClasses(Number(teacherId)) : [];
-  // Calculate class teacher status directly from teacherClasses and classTeacherAssignments
-  const isClassTeacherDirect = teacherId && classTeacherAssignments && Array.isArray(classTeacherAssignments) && classTeacherAssignments.length > 0 && classTeacherAssignments.some(
-    (cta: any) => String(cta.teacher_id) === String(teacherId) && 
-    cta.academic_year === currentAcademicYear && 
-    cta.term === currentTerm
-  );
-  
-  const classTeacherClassesCount = teacherClasses.filter((tc: any) => 
-    classTeacherAssignments && Array.isArray(classTeacherAssignments) && classTeacherAssignments.some((cta: any) => 
+  // Memoize class teacher status calculation
+  const isClassTeacherDirect = useMemo(() => {
+    if (!teacherId || !classTeacherAssignments || !Array.isArray(classTeacherAssignments) || classTeacherAssignments.length === 0) {
+      return false;
+    }
+    
+    return classTeacherAssignments.some((cta: any) => 
       String(cta.teacher_id) === String(teacherId) && 
-      cta.class_id === tc.classId &&
       cta.academic_year === currentAcademicYear && 
       cta.term === currentTerm
-    )
-  ).length;
+    );
+  }, [teacherId, classTeacherAssignments, currentAcademicYear, currentTerm]);
   
-  console.log('🎯 TEACHER DASHBOARD: Direct calculation', {
-    teacherId,
-    isClassTeacherDirect,
-    classTeacherClassesCount,
-    teacherClassesCount: teacherClasses.length,
-    classTeacherAssignments: Array.isArray(classTeacherAssignments) ? classTeacherAssignments.length : 0
-  });
+  // Memoize class teacher classes count
+  const classTeacherClassesCount = useMemo(() => {
+    return teacherClasses.filter((tc: any) => 
+      classTeacherAssignments && Array.isArray(classTeacherAssignments) && classTeacherAssignments.some((cta: any) => 
+        String(cta.teacher_id) === String(teacherId) && 
+        cta.class_id === tc.classId &&
+        cta.academic_year === currentAcademicYear && 
+        cta.term === currentTerm
+      )
+    ).length;
+  }, [teacherClasses, classTeacherAssignments, currentAcademicYear, currentTerm]);
   
   const isClassTeacher = isClassTeacherDirect;
   const teacherName = currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'Teacher';
@@ -139,24 +143,15 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
       toast.success("Logged out successfully");
       onLogout();
     } else {
-      // Add toast messages for navigation
-      const toastMessages: Record<string, string> = {
-        "dashboard": "Opening Dashboard",
-        "class-list": "Opening Class List",
-        "enter-scores": "Opening Score Entry",
-        "compile-results": "Opening Results Compilation",
-        "approve-scores": "Opening Score Approval",
-        "message-parents": "Opening Parent Messaging",
-        "change-password": "Opening Password Change",
-        "exam-timetable": "Opening Exam Timetable",
-        "mark-attendance": "Opening Attendance Marking",
-        "domains": "Opening Student Domains"
-      };
+      // Reduced navigation toasts - only show for important actions
+      const importantActions = ["logout"];
       
-      if (toastMessages[id]) {
-        toast.success(toastMessages[id]);
+      if (!importantActions.includes(id)) {
+        // Silent navigation for most items
+        setActiveItem(id);
+      } else {
+        setActiveItem(id);
       }
-      setActiveItem(id);
     }
   };
 
@@ -351,6 +346,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader className="sr-only">
             <DialogTitle>Notifications</DialogTitle>
+            <DialogDescription>View system notifications and updates.</DialogDescription>
           </DialogHeader>
           <ViewNotificationsPage />
         </DialogContent>

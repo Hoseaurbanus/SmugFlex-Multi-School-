@@ -12,10 +12,10 @@ export function StudentProfilePage() {
 
   const selectedStudent = students.find(s => s.id === selectedStudentId);
   const studentClass = selectedStudent ? classes.find(c => c.id === selectedStudent.classId) : null;
-  const studentParent = selectedStudent ? parents.find(p => p.studentIds.includes(selectedStudent.id)) : null;
+  const studentParent = selectedStudent ? parents.find(p => (p.studentIds?.includes(selectedStudent.id) ?? false)) : null;
   const studentScores = selectedStudent ? scores.filter(s => s.studentId === selectedStudent.id) : [];
   const studentPayments = selectedStudent ? payments.filter(p => p.studentId === selectedStudent.id) : [];
-  const studentResult = selectedStudent ? compiledResults.find(r => r.studentId === selectedStudent.id) : null;
+  const studentResult = selectedStudent ? compiledResults.find(r => ((r as any).studentId ?? (r as any).student_id) === selectedStudent.id) : null;
 
   const totalPaid = studentPayments.reduce((sum, p) => sum + p.amount, 0);
 

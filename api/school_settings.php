@@ -68,7 +68,44 @@ try {
         case 'POST':
             // Create or update school setting
             $data = json_decode(file_get_contents('php://input'), true);
-            
+
+            // Atomic update: update both current_academic_year and current_term in a single transaction
+            if ($data && isset($data['atomic']) && $data['atomic'] === true && isset($data['current_academic_year']) && isset($data['current_term'])) {
+                try {
+                    $conn->beginTransaction();
+
+                    // Upsert academic year
+                    $sql1 = "INSERT INTO school_settings (setting_key, setting_value, setting_type, description, created_at, updated_at) VALUES ('current_academic_year', ?, 'string', '', NOW(), NOW()) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()";
+                    $stmt1 = $conn->prepare($sql1);
+                    $stmt1->execute([$data['current_academic_year']]);
+
+                    // Upsert term
+                    $sql2 = "INSERT INTO school_settings (setting_key, setting_value, setting_type, description, created_at, updated_at) VALUES ('current_term', ?, 'string', '', NOW(), NOW()) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()";
+                    $stmt2 = $conn->prepare($sql2);
+                    $stmt2->execute([$data['current_term']]);
+
+                    $conn->commit();
+
+                    echo json_encode([
+                        'success' => true,
+                        'message' => 'Academic year and term updated atomically',
+                        'timestamp' => date('Y-m-d H:i:s')
+                    ]);
+                } catch (PDOException $e) {
+                    $conn->rollBack();
+                    error_log('Atomic update failed: ' . $e->getMessage());
+                    http_response_code(500);
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Failed to update both settings atomically',
+                        'error' => $e->getMessage(),
+                        'timestamp' => date('Y-m-d H:i:s')
+                    ]);
+                }
+
+                break;
+            }
+
             if (!$data || !isset($data['setting_key']) || !isset($data['setting_value'])) {
                 http_response_code(400);
                 echo json_encode([
@@ -78,12 +115,12 @@ try {
                 ]);
                 break;
             }
-            
+
             // Check if setting already exists
             $check_sql = "SELECT id FROM school_settings WHERE setting_key = ?";
             $check_stmt = $conn->prepare($check_sql);
             $check_stmt->execute([$data['setting_key']]);
-            
+
             if ($check_stmt->fetch()) {
                 // Update existing setting
                 $sql = "UPDATE school_settings SET setting_value = ?, setting_type = ?, description = ?, updated_at = NOW() WHERE setting_key = ?";
@@ -107,7 +144,7 @@ try {
                 ]);
                 $message = 'Setting created successfully';
             }
-            
+
             if ($success) {
                 echo json_encode([
                     'success' => true,

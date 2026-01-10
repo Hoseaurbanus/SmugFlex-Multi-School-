@@ -13,7 +13,7 @@ export function CreateAssignmentPage() {
   
   // Get current teacher
   const currentTeacher = teachers.find(t => t.id === currentUser?.linked_id);
-  const teacherAssignments = currentTeacher ? getTeacherAssignments(currentTeacher.id) : [];
+  const teacherAssignments = currentTeacher ? getTeacherAssignments(Number(currentTeacher.id)) : [];
   
   // Only include classes where teacher is assigned as class_teacher
   const teacherClasses = classes.filter((c: any) => c.classTeacherId === currentTeacher?.id);

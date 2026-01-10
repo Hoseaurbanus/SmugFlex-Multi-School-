@@ -300,7 +300,8 @@ export function CompileResultsPage() {
     getAttendanceRequirements,
     loadAttendanceRequirements,
     addNotification,
-    classTeacherAssignments
+    classTeacherAssignments,
+    getTermDates
   } = useSchool();
 
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -571,7 +572,7 @@ export function CompileResultsPage() {
   const classStudents = useMemo(() => {
     if (!selectedClassId) return [];
     return students
-      .filter(s => String(s.class_id) === selectedClassId && s.status === 'Active')
+      .filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
       .sort((a, b) => a.lastName.localeCompare(b.lastName));
   }, [selectedClassId, students]);
 
@@ -603,7 +604,7 @@ export function CompileResultsPage() {
     
     // Get subject assignments directly for this class, term, and academic year
     const subjectAssignmentsForClass = subjectAssignments.filter(
-      sa => sa.class_id === Number(selectedClassId) &&
+      sa => String(sa.class_id) === String(selectedClassId) &&
             sa.term === currentTerm &&
             sa.academic_year === currentAcademicYear &&
             sa.status === 'Active'
@@ -625,7 +626,6 @@ export function CompileResultsPage() {
     return mappedSubjects;
   }, [selectedClassId, subjectAssignments, currentTerm, currentAcademicYear]);
 
-  // Get selected student details
   const selectedStudent = useMemo(() => {
     if (!selectedStudentId) return null;
     return classStudents.find(s => s.id === selectedStudentId);
@@ -635,42 +635,40 @@ export function CompileResultsPage() {
   const studentAttendance = useMemo(() => {
     if (!selectedStudent || !selectedClassId) return null;
     
-    // First check if there's an existing compiled result with attendance data
-    const existingResult = compiledResults.find(cr => 
-      cr.student_id === selectedStudent.id &&
-      cr.class_id === Number(selectedClassId) &&
-      cr.term === currentTerm &&
-      cr.academic_year === currentAcademicYear
+    // Get attendance data from attendances table (not compiled results)
+    const attendance = attendances.find((a: any) => 
+      a.student_id === selectedStudent.id && 
+      String(a.class_id) === String(selectedClassId) &&
+      a.term === currentTerm && 
+      a.academic_year === currentAcademicYear
     );
     
-    if (existingResult) {
-      // Use attendance data from compiled result
+    if (attendance) {
       const attendanceRequirements = getAttendanceRequirements();
-      const requiredDays = existingResult.total_attendance_days || attendanceRequirements[currentTerm] || 0;
-      const attendedDays = Number(existingResult.times_present) || 0;
+      const requiredDays = attendanceRequirements[currentTerm] || 0;
+      const attendedDays = Number(attendance.attended_days) || 0;
       
       return {
         requiredDays,
         attendedDays,
         attendanceRate: requiredDays > 0 ? (attendedDays / requiredDays) * 100 : 0,
         ratio: `${attendedDays}/${requiredDays}`,
-        timesAbsent: existingResult.times_absent || 0
+        timesAbsent: Number(attendance.times_absent) || 0
       };
     }
     
-    // Fallback to compiled results for new results
+    // Fallback if no attendance found
     const attendanceRequirements = getAttendanceRequirements();
     const requiredDays = attendanceRequirements[currentTerm] || 0;
-    const attendedDays = 0; // No existing result found, default to 0
     
     return {
       requiredDays,
-      attendedDays,
-      attendanceRate: requiredDays > 0 ? (attendedDays / requiredDays) * 100 : 0,
-      ratio: `${attendedDays}/${requiredDays}`,
+      attendedDays: 0,
+      attendanceRate: 0,
+      ratio: `0/${requiredDays}`,
       timesAbsent: 0
     };
-  }, [selectedStudent, selectedClassId, currentTerm, currentAcademicYear, compiledResults, getAttendanceRequirements]);
+  }, [selectedStudent, selectedClassId, currentTerm, currentAcademicYear, attendances, getAttendanceRequirements]);
 
   // Reset affective and psychomotor data when student changes
   useEffect(() => {
@@ -678,7 +676,7 @@ export function CompileResultsPage() {
       // Load existing affective data
       const existingAffective = affectiveDomains.find(
         ad => ad.student_id === selectedStudent.id && 
-             ad.class_id === Number(selectedClassId) &&
+             String(ad.class_id) === String(selectedClassId) &&
              ad.term === currentTerm &&
              ad.academic_year === currentAcademicYear
       );
@@ -715,7 +713,7 @@ export function CompileResultsPage() {
       // Load existing psychomotor data
       const existingPsychomotor = psychomotorDomains.find(
         pd => pd.student_id === selectedStudent.id && 
-             pd.class_id === Number(selectedClassId) &&
+             String(pd.class_id) === String(selectedClassId) &&
              pd.term === currentTerm &&
              pd.academic_year === currentAcademicYear
       );
@@ -764,25 +762,20 @@ export function CompileResultsPage() {
       if (existingResult) {
         // Load existing class teacher comment but always validate it's correct for current average
         if (existingResult.class_teacher_comment) {
-          console.log('Existing comment found:', existingResult.class_teacher_comment);
-          
           // Always generate the expected comment for current average
           const expectedComment = generateAutoComment(
             existingResult.average_score || 0,
             existingResult.position || 1,
             existingResult.total_students || 1
           );
-          console.log('Expected comment:', expectedComment);
           
           // Only use existing comment if it's not generic and matches expected
           if (existingResult.class_teacher_comment !== 'Submitted successfully' && 
               !existingResult.class_teacher_comment.includes('fake') &&
               !existingResult.class_teacher_comment.includes('undefined') &&
               existingResult.class_teacher_comment === expectedComment) {
-            console.log('Using existing valid comment');
             setCustomComment(existingResult.class_teacher_comment);
           } else {
-            console.log('Replacing with new auto-comment');
             setCustomComment(expectedComment);
           }
         } else {
@@ -811,19 +804,19 @@ export function CompileResultsPage() {
       // This prevents mixing scores from other classes
       const relevantScores = studentScores.filter(s => 
         (s.status === 'Submitted' || s.status === 'Draft') && 
-        classSubjects.some((cs: any) => cs && Number(cs.id) === Number(s.subject_assignment_id))
+        classSubjects.some((cs: any) => cs && String(cs.id) === String(s.subject_assignment_id))
       );
       
       const affective = affectiveDomains.find(a => 
         a.student_id === student.id &&
-        a.class_id === Number(selectedClassId) &&
+        String(a.class_id) === String(selectedClassId) &&
         a.term === currentTerm &&
         a.academic_year === currentAcademicYear
       );
 
       const psychomotor = psychomotorDomains.find(p => 
         p.student_id === student.id &&
-        p.class_id === Number(selectedClassId) &&
+        String(p.class_id) === String(selectedClassId) &&
         p.term === currentTerm &&
         p.academic_year === currentAcademicYear
       );
@@ -839,7 +832,9 @@ export function CompileResultsPage() {
       const totalSubjects = classSubjects.length > 0 ? classSubjects.length : relevantScores.length;
       const hasAffective = affective !== undefined;
       const hasPsychomotor = psychomotor !== undefined;
-      const hasAttendance = existingResult && Number(existingResult.times_present) > 0;
+      // Check attendance from compiled results (primary source) or attendance table
+      const hasAttendance = (existingResult && existingResult.times_present > 0) || 
+                          (studentAttendance && studentAttendance.attendedDays > 0);
       const isSubmitted = existingResult?.status === 'Submitted' || existingResult?.status === 'Approved';
       const isRejected = existingResult?.status === 'Rejected';
 
@@ -924,29 +919,26 @@ export function CompileResultsPage() {
     // Filter for relevant scores that match current class subjects
     const relevantScores = studentScores.filter(s => 
       (s.status === 'Submitted' || s.status === 'Draft') &&
-      classSubjects.some((cs: any) => cs && Number(cs.id) === Number(s.subject_assignment_id))
+      classSubjects.some((cs: any) => cs && String(cs.id) === String(s.subject_assignment_id))
     );
-
-    // DEBUG: Log filtering details
-    // Score filtering details processed
 
     const affective = affectiveDomains.find(a => 
       a.student_id === selectedStudent.id &&
-      a.class_id === Number(selectedClassId) &&
+      String(a.class_id) === String(selectedClassId) &&
       a.term === currentTerm &&
       a.academic_year === currentAcademicYear
     );
 
     const psychomotor = psychomotorDomains.find(p => 
       p.student_id === selectedStudent.id &&
-      p.class_id === Number(selectedClassId) &&
+      String(p.class_id) === String(selectedClassId) &&
       p.term === currentTerm &&
       p.academic_year === currentAcademicYear
     );
 
     const existingResult = compiledResults.find(
       cr => cr.student_id === selectedStudent.id &&
-           cr.class_id === Number(selectedClassId) &&
+           String(cr.class_id) === String(selectedClassId) &&
            cr.term === currentTerm &&
            cr.academic_year === currentAcademicYear
     );
@@ -969,31 +961,14 @@ export function CompileResultsPage() {
     const position = studentCompletionData?.position || 0;
     const totalStudents = studentCompletionData?.totalStudents || 0;
 
-    // Get attendance data for this student
-    const studentAttendance = attendances.filter((a: any) => 
-      a.student_id === selectedStudent.id && 
-      a.term === currentTerm && 
-      a.academic_year === currentAcademicYear
-    );
-    const attendanceDays = studentAttendance.length;
-    const requiredAttendanceDays = 1; // Adjust based onrlen school settings
-
     // Check completion - use individual student validation
-    console.log('=== COMPLETION CHECK FOR STUDENT ===');
-    console.log('Student:', selectedStudent?.firstName, selectedStudent?.lastName);
-    console.log('Relevant Scores:', relevantScores.length, 'of', (classSubjects || []).length);
-    console.log('All scores submitted:', relevantScores.every(s => s.status === 'Submitted'));
-    console.log('Has affective:', !!affective);
-    console.log('Has psychomotor:', !!psychomotor);
-    
     const isComplete = 
       relevantScores.length === (classSubjects || []).length &&
       relevantScores.every(s => s.status === 'Submitted') &&
       affective !== undefined &&
-      psychomotor !== undefined;
-      // Removed attendance requirement as it might be blocking submission
-    
-    console.log('Is Complete:', isComplete);
+      psychomotor !== undefined &&
+      (studentAttendance && studentAttendance.attendedDays > 0) || 
+      (existingResult && existingResult.times_present > 0); // Add attendance requirement
 
     // Debug logging
     // Individual student validation processed
@@ -1003,6 +978,7 @@ export function CompileResultsPage() {
       scores: relevantScores, // Use relevant scores
       affective: affective,
       psychomotor: psychomotor,
+      studentAttendance: studentAttendance,
       totalScore,
       averageScore,
       position,
@@ -1020,8 +996,8 @@ export function CompileResultsPage() {
   const hasAllScores = (studentResultData?.scores?.length ?? 0) > 0;
   const hasAffective = !!studentResultData?.affective;
   const hasPsychomotor = !!studentResultData?.psychomotor;
-  const hasAttendance = studentResultData?.existingResult && Number(studentResultData.existingResult.times_present) > 0;
-  const canSubmit = hasAllScores && hasAffective && hasPsychomotor && hasAttendance && !studentResultData?.isSubmitted;
+  const hasAttendance = studentAttendance && studentAttendance.attendedDays > 0;
+  const canSubmit = hasAllScores && hasAffective && hasPsychomotor && hasAttendance && !studentResultData?.isSubmitted && studentResultData?.existingResult?.status !== 'Approved';
 
   // Calculate class statistics
   const classStatistics = useMemo(() => {
@@ -1094,14 +1070,14 @@ export function CompileResultsPage() {
       // 3. VALIDATE AFFECTIVE AND PSYCHOMOTOR DATA
       const affective = affectiveDomains.find(a => 
         a.student_id === selectedStudent.id &&
-        a.class_id === Number(selectedClassId) &&
+        String(a.class_id) === String(selectedClassId) &&
         a.term === currentTerm &&
         a.academic_year === currentAcademicYear
       );
 
       const psychomotor = psychomotorDomains.find(p => 
         p.student_id === selectedStudent.id &&
-        p.class_id === Number(selectedClassId) &&
+        String(p.class_id) === String(selectedClassId) &&
         p.term === currentTerm &&
         p.academic_year === currentAcademicYear
       );
@@ -1192,9 +1168,9 @@ export function CompileResultsPage() {
         times_present: attendedDays,
         times_absent: timesAbsent,
         total_attendance_days: requiredDays,
-        term_begin: '',
-        term_end: '',
-        next_term_begin: '',
+        term_begin: getTermDates().termStartDate || '',
+        term_end: getTermDates().termEndDate || '',
+        next_term_begin: getTermDates().nextTermStarts || '',
         class_teacher_name: currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'System Administrator',
         class_teacher_comment: customComment || generateAutoComment(averageScore, actualPosition, totalStudents),
         principal_name: 'Dr. Ibrahim Musa',
@@ -1431,9 +1407,9 @@ export function CompileResultsPage() {
           times_present: existingResult?.times_present || 0,
           times_absent: 0, // Will be calculated as required - present
           total_attendance_days: getAttendanceRequirements()[currentTerm] || 0,
-          term_begin: '',
-          term_end: '',
-          next_term_begin: '',
+          term_begin: getTermDates().termStartDate || '',
+          term_end: getTermDates().termEndDate || '',
+          next_term_begin: getTermDates().nextTermStarts || '',
           class_teacher_name: currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'System Administrator',
           class_teacher_comment: generateAutoComment(averageScore, position, classStudents.length),
           principal_name: 'Dr. Ibrahim Musa',
@@ -1540,6 +1516,7 @@ export function CompileResultsPage() {
                     {!hasPsychomotor && <div>• Psychomotor domains</div>}
                     {!hasAttendance && <div>• Attendance data</div>}
                     {studentResultData?.isSubmitted && <div>• Result already submitted</div>}
+                    {studentResultData?.existingResult?.status === 'Approved' && <div>• Result already approved - cannot be modified</div>}
                   </div>
                 </div>
               )}
@@ -1547,7 +1524,7 @@ export function CompileResultsPage() {
                 onClick={handleSubmitResult}
                 disabled={isSubmitting || !canSubmit}
                 className="bg-[#10B981] hover:bg-[#059669] active:bg-[#047857] text-white rounded-lg px-4 h-8 text-sm font-medium transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg active:shadow-xl flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                title={!canSubmit ? 'Complete all requirements (scores, attendance, affective & psychomotor domains) before submitting' : ''}
+                title={!canSubmit ? (studentResultData?.existingResult?.status === 'Approved' ? 'This result has been approved and cannot be modified' : 'Complete all requirements (scores, attendance, affective & psychomotor domains) before submitting') : ''}
               >
               {isSubmitting ? (
                 <>

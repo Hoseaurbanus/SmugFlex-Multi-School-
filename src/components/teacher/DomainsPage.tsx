@@ -84,7 +84,9 @@ export function DomainsPage() {
     );
   }
 
-  const classStudents = selectedClassId ? getStudentsByClass(selectedClassId) : [];
+  const classStudents = selectedClassId
+    ? (students || []).filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
+    : [];
 
   // Load existing data when class is selected
   useEffect(() => {
@@ -97,7 +99,7 @@ export function DomainsPage() {
           // Check compiled results first (priority), then domains tables
           const compiledResult = compiledResults.find(cr => 
             cr.student_id === student.id &&
-            cr.class_id === Number(selectedClassId) &&
+            String(cr.class_id) === String(selectedClassId) &&
             cr.term === currentTerm &&
             cr.academic_year === currentAcademicYear
           );
@@ -105,7 +107,7 @@ export function DomainsPage() {
           // Affective domains
           const existingAffective = affectiveDomains.find(ad => 
             ad.student_id === student.id &&
-            ad.class_id === Number(selectedClassId) &&
+            String(ad.class_id) === String(selectedClassId) &&
             ad.term === currentTerm &&
             ad.academic_year === currentAcademicYear
           );
@@ -143,7 +145,7 @@ export function DomainsPage() {
           // Psychomotor domains
           const existingPsychomotor = psychomotorDomains.find(pd => 
             pd.student_id === student.id &&
-            pd.class_id === Number(selectedClassId) &&
+            String(pd.class_id) === String(selectedClassId) &&
             pd.term === currentTerm &&
             pd.academic_year === currentAcademicYear
           );
@@ -577,21 +579,6 @@ export function DomainsPage() {
             <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Class</h3>
             <p className="text-sm text-gray-600">
               Choose a class to start recording {activeTab} domains
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* No Students in Selected Class */}
-      {selectedClassId > 0 && classStudents.length === 0 && (
-        <Card className="bg-white">
-          <CardContent className="p-8 text-center">
-            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="w-6 h-6 text-gray-600" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Students Found</h3>
-            <p className="text-sm text-gray-600">
-              There are no students assigned to this class yet.
             </p>
           </CardContent>
         </Card>

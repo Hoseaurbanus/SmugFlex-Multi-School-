@@ -268,6 +268,8 @@ try {
                         $paymentController->verifyPayment($path_parts[2]);
                     } elseif ($path_parts[1] === 'online-init') {
                         $paymentController->initializeOnlinePayment();
+                    } elseif ($path_parts[1] === 'bank-transfer-proof') {
+                        $paymentController->submitBankTransferProof();
                     } else {
                         Response::notFound('Payment endpoint not found');
                     }

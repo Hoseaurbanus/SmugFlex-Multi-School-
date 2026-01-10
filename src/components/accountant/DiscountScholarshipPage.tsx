@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { useSchool, Scholarship } from "../../contexts/SchoolContext";
+import { Percent } from "lucide-react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 
@@ -181,7 +182,7 @@ export function DiscountScholarshipPage() {
                   <Label className="text-[#0A2540]">Type *</Label>
                   <Select 
                     value={formData.type} 
-                    onValueChange={(value: 'Percentage' | 'Fixed Amount') => setFormData({ ...formData, type: value })}
+                    onValueChange={(value) => setFormData({ ...formData, type: value as 'Percentage' | 'Fixed Amount' })}
                   >
                     <SelectTrigger className="h-12 rounded-xl border-[#0A2540]/20">
                       <SelectValue />
@@ -245,7 +246,7 @@ export function DiscountScholarshipPage() {
                 <Label className="text-[#0A2540]">Status *</Label>
                 <Select 
                   value={formData.status} 
-                  onValueChange={(value: "Active" | "Inactive") => setFormData({ ...formData, status: value })}
+                  onValueChange={(value) => setFormData({ ...formData, status: value as "Active" | "Inactive" })}
                 >
                   <SelectTrigger className="h-12 rounded-xl border-[#0A2540]/20">
                     <SelectValue />

@@ -12,7 +12,7 @@ export function LandingPage({ onNavigateToLogin }: LandingPageProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white shadow-sm backdrop-blur-sm bg-white/95">
         <div className="container mx-auto px-4 py-4">
@@ -120,7 +120,7 @@ export function LandingPage({ onNavigateToLogin }: LandingPageProps) {
       </section>
 
       {/* About Us Section */}
-      <section id="about" className="py-20 bg-gray-50">
+      <section id="about" className="py-20 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-4xl text-[#0A2540] mb-4">About Us</h2>
@@ -170,7 +170,7 @@ export function LandingPage({ onNavigateToLogin }: LandingPageProps) {
       </section>
 
       {/* Why Choose Us Section */}
-      <section id="features" className="py-20 bg-white">
+      <section id="features" className="py-20 bg-gray-100">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-4xl text-[#0A2540] mb-4">Why Choose Us</h2>
@@ -202,16 +202,36 @@ export function LandingPage({ onNavigateToLogin }: LandingPageProps) {
       <section className="py-20 bg-[#0A2540] text-white">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-4xl mb-6">Our Mission</h2>
-          <p className="max-w-3xl mx-auto text-lg text-white/90">
-            To provide holistic education that develops intellectual, physical, social, and moral capabilities 
-            of our students, preparing them to be responsible citizens and leaders who will contribute positively 
-            to society with wisdom and illumination.
-          </p>
+          <div className="max-w-4xl mx-auto space-y-4 text-lg">
+            <p className="text-white/90">
+              To build mental, social and moral capacity in learners,
+            </p>
+            <p className="text-white/90">
+              To build competent minds and tenacity for maximum impact.
+            </p>
+            <p className="text-white/90">
+              To build on the foundation Christ has laid for the church
+            </p>
+            <p className="text-white/90">
+              To birth agents of Illumination.
+            </p>
+          </div>
+          
+          <div className="mt-12">
+            <h3 className="text-2xl mb-6 text-[#FFD700]">Core Values</h3>
+            <div className="flex flex-wrap justify-center gap-6">
+              {["Excellence", "Sound Character", "Impact"].map((value, index) => (
+                <div key={index} className="px-6 py-3 bg-[#FFD700] text-[#0A2540] rounded-full font-semibold">
+                  {value}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Admissions Section */}
-      <section id="admissions" className="py-20 bg-gray-50">
+      <section id="admissions" className="py-20 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-4xl text-[#0A2540] mb-4">Admissions Information</h2>
@@ -274,15 +294,15 @@ export function LandingPage({ onNavigateToLogin }: LandingPageProps) {
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <MapPin className="w-5 h-5 text-[#FFD700]" />
-                  <p className="text-sm text-white/80">Gombe State, Nigeria</p>
+                  <p className="text-sm text-white/80">God's Glorious Tabernacle of Witness, Opposite RainOil Filling Station Tumfure Gombe, Nigeria</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-5 h-5 text-[#FFD700]" />
-                  <p className="text-sm text-white/80">+234 XXX XXX XXXX</p>
+                  <p className="text-sm text-white/80">+2348036379511</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <Mail className="w-5 h-5 text-[#FFD700]" />
-                  <p className="text-sm text-white/80">info@gracelandroyalacademy.edu.ng</p>
+                  <p className="text-sm text-white/80">gracelandroyalacdemy09@gmail.com</p>
                 </div>
               </div>
             </div>

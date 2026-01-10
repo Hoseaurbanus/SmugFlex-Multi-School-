@@ -1,4 +1,4 @@
-import { Settings, Calculator, GraduationCap, KeyRound, User, CheckCircle, Edit, Trash2, Eye, Plus, Download } from 'lucide-react';
+import { Settings, Calculator, GraduationCap, KeyRound, User, CheckCircle, Edit, Trash2, Eye, Plus, Download, FileText } from 'lucide-react';
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
@@ -633,21 +633,25 @@ export function ManageUsersPage() {
             <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
             <p className="text-gray-600">Create and manage system users with role-based access</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <Button 
               onClick={handleCreateUser}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
+              size="sm"
             >
-              <Plus className="w-3 h-3 mr-2" />
-              Create User
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Create User</span>
+              <span className="sm:hidden">New User</span>
           </Button>
           <Button 
             onClick={handleExport}
             variant="outline"
-            className="border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl"
+            className="rounded-xl w-full sm:w-auto flex items-center gap-2"
+            size="sm"
           >
-            <Download className="w-3 h-3 mr-2" />
-            Export
+            <FileText className="w-4 h-4" />
+            <span className="hidden sm:inline">Export</span>
+            <span className="sm:hidden">Export</span>
           </Button>
         </div>
       </div>

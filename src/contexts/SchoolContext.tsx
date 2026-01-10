@@ -1,13 +1,9 @@
-/**
- * School Context
- * Graceland Royal Academy School Management System
- * UPDATED: Dec 30, 2025 - Testing build cache
- */
-
-console.log('🔥🔥🔥 SCHOOL CONTEXT LOADED - NEW VERSION TEST -', new Date().toISOString());
+// School Context
+// Graceland Royal Academy School Management System
+// UPDATED: Dec 30, 2025 - Testing build cache
 
 import { School } from 'lucide-react';
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { toast } from 'sonner';
 import { api, PaginatedData } from '../services/api';
 import { setAuthToken, setCurrentUser as setApiCurrentUser, getAuthToken, removeAuthToken, API_CONFIG, getCurrentUser as getApiCurrentUser } from '../config/api';
@@ -26,15 +22,19 @@ export interface Student {
   otherName?: string; // changed from other_name
   admissionNumber: string; // changed from admission_number
   class_id: number; // matches database
+  classId?: number; // camelCase alias
   level: string;
   parent_id: number | null; // matches database
+  parentId?: number | null; // camelCase alias
   parent_name?: string; // parent full name - computed field for display
   date_of_birth: string; // matches database
+  dateOfBirth?: string; // camelCase alias
   gender: 'Male' | 'Female';
   photo_url?: string; // matches database
   passport_photo?: string; // base64 encoded - matches database
   status: 'Active' | 'Inactive' | 'Graduated' | 'Transferred';
   academic_year: string; // matches database
+  academicYear?: string; // camelCase alias
   admission_date?: string; // matches database
   created_at: string; // matches database
   updated_at: string; // matches database
@@ -62,6 +62,7 @@ export interface Parent {
   // Computed display fields (for frontend convenience)
   firstName?: string; // computed from first_name
   lastName?: string; // computed from last_name
+  studentIds?: number[]; // camelCase alias for student_ids
 }
 
 export interface Class {
@@ -96,11 +97,11 @@ export interface Subject {
   created_at?: string; // matches database
   updated_at?: string; // matches database
 }
-
 export interface SubjectAssignment {
   id: number;
   subject_id: number; // matches database
   class_id: number; // matches database
+  classId?: number; // camelCase alias
   teacher_id: number; // matches database
   academic_year: string; // matches database
   term: 'First Term' | 'Second Term' | 'Third Term'; // matches database
@@ -109,8 +110,11 @@ export interface SubjectAssignment {
   updated_at: string; // matches database
   // Computed fields
   subject_name?: string; // from subjects table
+  subjectName?: string; // camelCase alias
   class_name?: string; // from classes table
+  className?: string; // camelCase alias
   teacher_name?: string; // from teachers table
+  teacherName?: string; // camelCase alias
 }
 
 export interface SubjectRegistration {
@@ -134,8 +138,11 @@ export interface SubjectRegistration {
 export interface Score {
   id: number;
   student_id: number; // matches database
+  studentId?: number; // camelCase alias
   subject_assignment_id: number; // matches database
+  subjectAssignmentId?: number; // camelCase alias
   subject_name?: string; // matches database - exact subject name as submitted (optional for backward compatibility)
+  subjectName?: string; // camelCase alias
   ca1: number; // matches database
   ca2: number; // matches database
   exam: number; // matches database
@@ -146,16 +153,21 @@ export interface Score {
   class_min?: number; // matches database
   class_max?: number; // matches database
   entered_by: number; // matches database
+  enteredBy?: number; // camelCase alias
   entered_date: string; // matches database
+  enteredDate?: string; // camelCase alias
   status: 'Draft' | 'Submitted' | 'Rejected' | 'Approved'; // matches database
   rejection_reason?: string; // matches database
   rejected_by?: number; // matches database (class teacher id)
   rejected_date?: string; // matches database
   academic_year?: string; // matches database
+  academicYear?: string; // camelCase alias
   term?: 'First Term' | 'Second Term' | 'Third Term'; // matches database
   // Computed fields
   class_name?: string; // from subject_assignments + classes
+  className?: string; // camelCase alias
   student_name?: string; // from students
+  studentName?: string; // camelCase alias
 }
 
 export interface AffectiveDomain {
@@ -218,13 +230,20 @@ export interface CompiledResult {
   affective: AffectiveDomain | null;
   psychomotor: PsychomotorDomain | null;
   total_score: number;
+  totalScore?: number;
   average_score: number;
+  average?: number;
+  // alias for class average
   class_average: number;
+  classAverage?: number;
   position: number;
   total_students: number;
   times_present: number;
+  timesPresent?: number;
   times_absent: number;
+  timesAbsent?: number;
   total_attendance_days: number;
+  totalAttendanceDays?: number;
   term_begin: string;
   term_end: string;
   next_term_begin: string;
@@ -234,7 +253,9 @@ export interface CompiledResult {
   principal_comment: string;
   principal_signature: string;
   compiled_by: number;
+  compiledBy?: number;
   compiled_date: string;
+  compiledDate?: string;
   status: 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
   approved_by: number | null;
   approved_date: string | null;
@@ -245,6 +266,7 @@ export interface CompiledResult {
 export interface FeeStructure {
   id: number;
   class_id: number;
+  classId?: number;
   class_name: string;
   level: string;
   term: string;
@@ -257,16 +279,29 @@ export interface FeeStructure {
   uniform_fee: number;
   transport_fee: number;
   total_fee: number;
+  tuitionFee: number;
+  developmentLevy: number;
+  sportsFee: number;
+  examFee: number;
+  booksFee: number;
+  uniformFee: number;
+  transportFee: number;
+  totalFee: number;
+  className: string;
 }
 
 export interface StudentFeeBalance {
   id: number;
   student_id: number;
+  studentId?: number;
   class_id: number;
+  classId?: number;
   term: string;
   academic_year: string;
-  total_fee_required: number;
-  total_paid: number;
+  total_fee_required: number; // changed to match camelCase
+  totalFeeRequired: number; // changed to match camelCase
+  total_paid: number; // changed to match camelCase
+  totalPaid: number; // changed to match camelCase
   balance: number;
   status: 'Paid' | 'Partial' | 'Unpaid';
 }
@@ -274,15 +309,20 @@ export interface StudentFeeBalance {
 export interface Payment {
   id: number;
   student_id: number;
+  studentId?: number;
   student_name: string;
   amount: number;
   payment_type: string;
   term: string;
   academic_year: string;
   payment_method: string;
+  paymentMethod?: string;
   reference: string;
   recorded_by: number;
   recorded_date: string;
+  recordedDate?: string;
+  paymentDate?: string;
+  studentName?: string;
   status: 'Pending' | 'Verified' | 'Rejected';
   receipt_number: string;
   verified_by?: number;
@@ -301,7 +341,7 @@ export interface Teacher {
   employeeId?: string; // changed from employee_id
   gender?: string;
   qualification?: string;
-  specialization?: string;
+  specialization?: string | string[];
   status: 'Active' | 'Inactive';
   is_class_teacher?: boolean; // from database
   department_id?: number; // from database
@@ -376,14 +416,23 @@ export interface ActivityLog {
 export interface Attendance {
   id: number;
   student_id: number;
+  studentId?: number;
   class_id: number;
+  classId?: number;
   date: string;
   status: 'Present' | 'Absent' | 'Late' | 'Excused';
   marked_by: number;
+  markedBy?: number;
   marked_date: string;
+  markedDate?: string;
   term: string;
   academic_year: string;
+  academicYear?: string;
   remarks?: string;
+  attended_days?: number;
+  required_days?: number;
+  times_absent?: number;
+  attendance_rate?: number;
 }
 
 export interface ExamTimetable {
@@ -506,6 +555,7 @@ interface SchoolContextType {
   parents: Parent[];
   accountants: Accountant[];
   classes: Class[];
+  feeBalances: any[];
   subjects: Subject[];
   subjectAssignments: SubjectAssignment[];
   classTeacherAssignments: any[];
@@ -517,6 +567,7 @@ interface SchoolContextType {
   payments: Payment[];
   users: User[];
   currentUser: User | null;
+  isLoading: boolean;
   feeStructures: FeeStructure[];
   studentFeeBalances: StudentFeeBalance[];
   notifications: Notification[];
@@ -566,7 +617,25 @@ interface SchoolContextType {
   getCompiledResultsByYearAndTerm: (academicYear: string, term: string) => Promise<CompiledResult[]>;
   updateCurrentTerm: (term: string) => Promise<void>;
   updateCurrentAcademicYear: (year: string) => Promise<void>;
+  updateCurrentTermAndYear: (year: string, term: string) => Promise<void>;
   updateSchoolSettings: (settings: Partial<SchoolSettings>) => Promise<void>;
+  updateTermDates: (dates: {
+    termStartDate: string;
+    termEndDate: string;
+    nextTermStarts: string;
+    schoolResumptionDate: string;
+    midTermBreakStart: string;
+    midTermBreakEnd: string;
+  }) => Promise<void>;
+  getTermDates: () => {
+    termStartDate: string;
+    termEndDate: string;
+    nextTermStarts: string;
+    schoolResumptionDate: string;
+    midTermBreakStart: string;
+    midTermBreakEnd: string;
+  };
+  loadTermDates: () => Promise<void>;
   updateBankAccountSettings: (settings: Omit<BankAccountSettings, 'id' | 'updated_date'>) => void;
   getBankAccountSettings: () => BankAccountSettings | null;
   updateAttendanceRequirements: (requirements: Record<string, number>) => Promise<void>;
@@ -578,13 +647,17 @@ interface SchoolContextType {
   updateStudent: (id: number, student: Partial<Student>) => Promise<void>;
   deleteStudent: (id: number) => Promise<void>;
   deleteBulkStudents: (studentIds: number[]) => Promise<any>;
+  createStudentAPI: (studentData: any) => Promise<any>;
+  updateStudentAPI: (id: number, studentData: any) => Promise<boolean>;
+  deleteStudentAPI: (id: number) => Promise<boolean>;
   getStudentsByClass: (classId: number) => Student[];
   refreshStudents: () => Promise<void>;
   promoteStudent: (studentId: number, newClassId: number, newAcademicYear: string) => void;
   promoteMultipleStudents: (studentIds: number[], classMapping: { [studentId: number]: number }, newAcademicYear: string) => void;
 
   // Teacher Methods
-  addTeacher: (teacher: Omit<Teacher, 'id'>) => Promise<number>;
+  addTeacher: (teacher: any) => Promise<number>;
+  addUser: (user: any) => Promise<number>;
   updateTeacher: (id: number, teacher: Partial<Teacher>) => Promise<void>;
   deleteTeacher: (id: number) => Promise<void>;
   getTeacherAssignments: (teacherId: number) => SubjectAssignment[];
@@ -701,7 +774,7 @@ interface SchoolContextType {
 
   // Class Methods
   addClass: (classData: Omit<Class, 'id'>) => Promise<number>;
-  updateClass: (id: number, classData: Partial<Class>) => Promise<void>;
+  updateClass: (id: number, classData: Partial<Class>) => Promise<boolean>;
   deleteClass: (id: number) => Promise<boolean>;
   getClassesByLevel: (level: string) => Class[];
   getClassStudents: (classId: number) => Student[];
@@ -714,6 +787,9 @@ interface SchoolContextType {
   addSubject: (subject: Omit<Subject, 'id'>) => Promise<number>;
   updateSubject: (id: number, subject: Partial<Subject>) => Promise<void>;
   deleteSubject: (id: number) => Promise<void>;
+  createSubjectAPI: (subjectData: any) => Promise<number>;
+  updateSubjectAPI: (id: number, subjectData: any) => Promise<boolean>;
+  deleteSubjectAPI: (id: number) => Promise<boolean>;
   getSubjectsByCategory: (category: string) => Subject[];
   getSubjectsByLevel: (level: string) => Subject[];
 
@@ -778,7 +854,7 @@ interface SchoolContextType {
   // Payment Methods
   addPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
   updatePayment: (id: number, payment: Partial<Payment>) => Promise<void>;
-  verifyPayment: (id: number) => Promise<void>;
+  verifyPayment: (id: number, data?: { action: 'verify' | 'reject', rejection_reason?: string }) => Promise<void>;
   rejectPayment: (id: number, reason: string) => Promise<void>;
   getPaymentsByStudent: (studentId: number) => Payment[];
 
@@ -803,7 +879,7 @@ interface SchoolContextType {
   getPendingApprovals: () => any[];
 
   // Fee Management Methods
-  addFeeStructure: (feeStructure: Omit<FeeStructure, 'id'>) => Promise<number>;
+  addFeeStructure: (feeStructure: any) => Promise<number>;
   updateFeeStructure: (id: number, feeStructure: Partial<FeeStructure>) => Promise<void>;
   deleteFeeStructure: (id: number) => Promise<void>;
   getFeeStructures: (classId: number, academicYear: string) => FeeStructure[];
@@ -971,37 +1047,29 @@ export function useSchool() {
 export function SchoolProvider({ children }: { children: ReactNode }) {
   const [currentTerm, setCurrentTerm] = useState('First Term');
   const [currentAcademicYear, setCurrentAcademicYear] = useState('2025/2026');
+  
+  // Term dates state
+  const [termDates, setTermDates] = useState({
+    termStartDate: '2025-09-01',
+    termEndDate: '2025-12-15',
+    nextTermStarts: '2026-01-10',
+    schoolResumptionDate: '2025-09-01',
+    midTermBreakStart: '2025-10-25',
+    midTermBreakEnd: '2025-11-01'
+  });
+  
+  // Cache for academic year and term
+  const termAndYearCache = useRef<{ term: string | null, year: string | null, timestamp: number }>({ term: null, year: null, timestamp: 0 });
+  
+  // Ref to track last teacher ID for logging frequency control
+  const lastTeacherIdRef = useRef<number | null>(null);
+  
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Initialize auth state from local storage on mount
-  useEffect(() => {
-    const initAuth = () => {
-      const savedUser = getApiCurrentUser();
-      const token = getAuthToken();
-      
-      console.log('=== AUTH INITIALIZATION ===');
-      console.log('Saved user found:', !!savedUser);
-      console.log('Token found:', !!token);
-      
-      if (savedUser && token) {
-        // Restore user session
-        setCurrentUser(savedUser);
-        console.log('User session restored:', savedUser.username);
-        
-        // Start connection monitoring when user is authenticated
-        connectionMonitor.startMonitoring();
-      } else {
-        console.log('No valid session found, user needs to login');
-      }
-    };
-    
-    initAuth();
-    
-    // Cleanup connection monitoring on unmount
-    return () => {
-      connectionMonitor.stopMonitoring();
-    };
-  }, []);
+  // MOVED TO BOTTOM of component to ensure access to data loading functions
+  // See: useEffect with initAuth call near the end of the component
   
   const [schoolSettings, setSchoolSettings] = useState<SchoolSettings>({
     school_name: '',
@@ -1281,7 +1349,37 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const studentsData = (response.data as any)?.items || response.data || [];
         if (Array.isArray(studentsData)) {
           console.log('Loaded all students from API:', studentsData.length, 'students');
-          setStudents(studentsData);
+          
+          // Transform snake_case to camelCase and handle both field name formats
+          const studentsWithComputed = studentsData.map((student: any) => ({
+            ...student,
+            // Map database fields to frontend interface (handle both snake_case and camelCase)
+            firstName: student.firstName || student.first_name || 'Unknown',
+            lastName: student.lastName || student.last_name || 'Student',
+            className: student.className || student.class_name,
+            classCategory: student.classCategory || student.class_category,
+            parentName: student.parentName || student.parent_name,
+            parent_id: student.parent_id || student.parentId,
+            class_id: student.class_id || student.classId,
+            class_teacher_id: student.class_teacher_id || student.classTeacherId,
+            admission_number: student.admission_number || student.admissionNumber,
+            date_of_birth: student.date_of_birth || student.dateOfBirth,
+            place_of_birth: student.place_of_birth || student.placeOfBirth,
+            gender: student.gender,
+            address: student.address,
+            phone: student.phone,
+            parent_phone: student.parent_phone || student.parentPhone,
+            emergency_contact: student.emergency_contact || student.emergencyContact,
+            blood_group: student.blood_group || student.bloodGroup,
+            genotype: student.genotype,
+            medical_conditions: student.medical_conditions || student.medicalConditions,
+            allergies: student.allergies,
+            status: student.status,
+            created_at: student.created_at || student.createdAt,
+            updated_at: student.updated_at || student.updatedAt,
+          }));
+          
+          setStudents(studentsWithComputed);
           return true;
         }
       }
@@ -1292,16 +1390,16 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loadClassesFromAPI = async (): Promise<boolean> => {
+  const loadClassesFromAPI = async (force: boolean = false): Promise<boolean> => {
     // Prevent excessive calls with simple rate limiting - but always load if empty
     const now = Date.now();
-    if (classes.length > 0 && (now - lastLoadTime) < 2000) {
+    if (!force && classes.length > 0 && (now - lastLoadTime) < 2000) {
       console.log('Using cached classes data');
       return true; // Use cached data if recent
     }
     
     try {
-      console.log('Loading classes from API...');
+      console.log('Loading classes from API...', force ? '(Forced)' : '');
       
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
@@ -1315,6 +1413,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         // Transform snake_case to camelCase and ensure classTeacherId is properly mapped
         const classesWithComputed = classesData.map((classItem: any) => ({
           ...classItem,
+          id: Number(classItem.id),
           // Map database fields to frontend interface
           classTeacherId: classItem.class_teacher_id ? Number(classItem.class_teacher_id) : null,
           classTeacher: classItem.class_teacher,
@@ -1341,26 +1440,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loadSubjectsFromAPI = async (): Promise<boolean> => {
+  const loadSubjectsFromAPI = async (force: boolean = false): Promise<boolean> => {
     try {
-      console.log('Loading subjects from API...');
+      console.log('Loading subjects from API...', force ? '(Forced)' : '');
       
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
       
       const response = await api.get(API_CONFIG.ENDPOINTS.SUBJECTS.LIST);
-      console.log('=== LOAD SUBJECTS API RESPONSE DEBUG ===');
-      console.log('Raw response:', response);
-      console.log('Response data:', response.data);
-      console.log('Response data items:', (response.data as any)?.items);
       
       if (response && response.success) {
         // Handle paginated response structure
         const subjectsData = (response.data as any)?.items || response.data || [];
-        console.log('Loaded subjects from API:', subjectsData.length, 'subjects');
         // Transform snake_case to camelCase for frontend compatibility
         const subjectsWithComputed = subjectsData.map((subject: any) => ({
           ...subject,
+          id: Number(subject.id),
           subject_name: subject.name || 'Unknown Subject',
           name: subject.name,
           isCore: subject.is_core,
@@ -1479,10 +1574,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.createStudent(studentData);
-      if (result && result.id) {
+      const response = await api.post<any>('/students', studentData);
+      if (response.success && response.data) {
         await loadStudentsFromAPI();
-        return result; // Return the full result with ID
+        return response.data; // Return the full result
       }
       return null;
     } catch (error) {
@@ -1496,8 +1591,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.updateRecord('students', id, studentData);
-      if (result) {
+      const response = await api.put<any>(`/students/${id}`, studentData);
+      if (response.success) {
         await loadStudentsFromAPI();
         return true;
       }
@@ -1513,8 +1608,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.deleteRecord('students', id);
-      if (result) {
+      const response = await api.delete<any>(`/students/${id}`);
+      if (response.success) {
         await loadStudentsFromAPI();
         return true;
       }
@@ -1531,10 +1626,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.createTeacher(teacherData);
-      if (result && result.id) {
+      const response = await api.post<any>('/teachers', teacherData);
+      if (response.success && response.data) {
         await loadTeachersFromAPI();
-        return result; // Return the full result with ID
+        return response.data; // Return the full result
       }
       return null;
     } catch (error) {
@@ -1548,8 +1643,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.updateRecord('teachers', id, teacherData);
-      if (result) {
+      const response = await api.put<any>(`/teachers/${id}`, teacherData);
+      if (response.success) {
         await loadTeachersFromAPI();
         return true;
       }
@@ -1565,8 +1660,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.deleteRecord('teachers', id);
-      if (result) {
+      const response = await api.delete<any>(`/teachers/${id}`);
+      if (response.success) {
         await loadTeachersFromAPI();
         return true;
       }
@@ -1635,10 +1730,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.createAccountant(accountantData);
-      if (result && result.id) {
+      const response = await api.post<any>('/accountants', accountantData);
+      if (response.success && response.data) {
         await loadAccountantsFromAPI();
-        return result; // Return the full result with ID
+        return response.data; // Return the full result
       }
       return null;
     } catch (error) {
@@ -1652,8 +1747,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.updateRecord('accountants', id, accountantData);
-      if (result) {
+      const response = await api.put<any>(`/accountants/${id}`, accountantData);
+      if (response.success) {
         await loadAccountantsFromAPI();
         return true;
       }
@@ -1669,8 +1764,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const result = await sqlDatabase.deleteRecord('accountants', id);
-      if (result) {
+      const response = await api.delete<any>(`/accountants/${id}`);
+      if (response.success) {
         await loadAccountantsFromAPI();
         return true;
       }
@@ -1682,26 +1777,34 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   // Class API Methods
-  const createClassAPI = async (classData: any): Promise<boolean> => {
+  const createClassAPI = async (classData: any): Promise<number> => {
     try {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
+      // Map to snake_case for API
+      const apiPayload = {
+        ...classData,
+        academic_year: classData.academicYear,
+        class_teacher_id: classData.classTeacherId,
+      };
+
       console.log('=== CREATE CLASS DEBUG ===');
-      console.log('Class data being sent:', classData);
+      console.log('Class data being sent:', apiPayload);
       console.log('API endpoint:', API_CONFIG.ENDPOINTS.CLASSES.CREATE);
 
-      const response = await api.post(API_CONFIG.ENDPOINTS.CLASSES.CREATE, classData);
+      const response = await api.post(API_CONFIG.ENDPOINTS.CLASSES.CREATE, apiPayload);
       console.log('Create class response:', response);
       
       if (response && response.success) {
-        await loadClassesFromAPI();
-        return true;
+        await loadClassesFromAPI(true);
+        const responseData = response.data as any;
+        return responseData && responseData.id ? responseData.id : 0;
       }
-      return false;
+      return 0;
     } catch (error) {
       console.error('Error creating class:', error);
-      return false;
+      return 0;
     }
   };
 
@@ -1714,11 +1817,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       console.log('Updating class ID:', id);
       console.log('Class data being sent:', classData);
 
-      const response = await api.put(API_CONFIG.ENDPOINTS.CLASSES.UPDATE(id), classData);
+      // Map to snake_case for API
+      const apiPayload = {
+        ...classData,
+        academic_year: classData.academicYear,
+        class_teacher_id: classData.classTeacherId,
+      };
+
+      const response = await api.put(API_CONFIG.ENDPOINTS.CLASSES.UPDATE(id), apiPayload);
       console.log('Update response:', response);
       
       if (response && response.success) {
-        await loadClassesFromAPI();
+        await loadClassesFromAPI(true);
         return true;
       }
       return false;
@@ -1735,7 +1845,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
       const response = await api.delete(API_CONFIG.ENDPOINTS.CLASSES.DELETE(id));
       if (response && response.success) {
-        await loadClassesFromAPI();
+        await loadClassesFromAPI(true);
         return true;
       }
       return false;
@@ -1754,19 +1864,43 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       console.log('=== CREATE SUBJECT DEBUG ===');
       console.log('Subject data being sent:', subjectData);
       console.log('API endpoint:', API_CONFIG.ENDPOINTS.SUBJECTS.CREATE);
+      console.log('Current user:', currentUser);
 
       const response = await api.post(API_CONFIG.ENDPOINTS.SUBJECTS.CREATE, subjectData);
       console.log('Create subject response:', response);
+      console.log('Response success:', response?.success);
+      console.log('Response data:', response?.data);
       
       if (response && response.success) {
-        await loadSubjectsFromAPI();
+        console.log('Subject created successfully, reloading subjects...');
+        await loadSubjectsFromAPI(true);
+        console.log('Subjects reloaded');
         // Return the new subject ID from the response data
-        return (response.data as any)?.id || -1;
+        const newId = (response.data as any)?.id || -1;
+        console.log('New subject ID:', newId);
+        return newId;
       }
+      console.log('Subject creation failed - response not successful');
       return -1;
     } catch (error) {
       console.error('Error creating subject:', error);
-      return -1;
+      
+      // Handle specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('409') || error.message.includes('Conflict') || error.message.includes('already exists')) {
+          // This is a duplicate error, re-throw with specific message
+          throw new Error('Subject with this code already exists');
+        } else if (error.message.includes('400') || error.message.includes('Bad Request')) {
+          throw new Error('Invalid subject data provided');
+        } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          throw new Error('You are not authorized to create subjects');
+        } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+          throw new Error('You do not have permission to create subjects');
+        }
+      }
+      
+      // Re-throw the original error for better handling
+      throw error;
     }
   };
 
@@ -1919,40 +2053,38 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       setIsLoadingData(true);
       
       try {
-        // Check and clear any invalid tokens on app start - SKIP for performance
-        // Only validate if we're actually on a protected route
-        const currentToken = getAuthToken();
-        if (currentToken && window.location.pathname !== '/login' && window.location.pathname !== '/') {
-          // Validate token by making a simple API call with timeout
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        // Only restore authentication if NOT on landing page
+        // This prevents automatic login when user clicks login button
+        const currentPath = window.location.pathname;
+        const isLandingPage = currentPath === '/' || currentPath === '';
+        
+        if (!isLandingPage) {
+          // Check for existing token and restore authentication
+          const token = getAuthToken();
+          const savedUser = getApiCurrentUser();
+          
+          if (token && savedUser) {
+            console.log('🔄 Restoring authentication from storage');
+            setAuthToken(token);
+            setCurrentUser(savedUser);
+            setIsLoading(false);
             
-            const response = await fetch(`${API_CONFIG.BASE_URL}/auth/profile`, {
-              headers: {
-                'Authorization': `Bearer ${currentToken}`,
-                'Content-Type': 'application/json'
-              },
-              signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (!response.ok) {
-              console.log('Invalid token detected, clearing authentication...');
-              removeAuthToken();
-              setCurrentUser(null);
-            }
-          } catch (error) {
-            console.log('Token validation skipped due to timeout/error');
+            // Load data for restored user
+            await loadDataForUser(savedUser);
+          } else {
+            console.log('No existing authentication found');
+            setIsLoading(false);
           }
+        } else {
+          console.log('On landing page - skipping authentication restoration');
+          setIsLoading(false);
         }
         
-        // Skip ALL database queries during initial app load - only load after login
-        console.log('Initial load complete - all data loading deferred to login');
+        console.log('Initial load complete');
         
       } catch (error) {
         console.warn('Initial data loading failed:', error);
+        setIsLoading(false);
       } finally {
         setIsLoadingData(false);
       }
@@ -1965,6 +2097,89 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   // ==================== API FUNCTIONS ====================
 
+  // Helper to load data for a user
+  const loadDataForUser = async (user: User) => {
+    console.log('Loading data for user:', user.username, user.role);
+    
+    // Load essential data first with retry logic
+    const loadWithRetry = async (loadFn: () => Promise<any>, retries = 3, delay = 1000) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          console.log(`Loading data (attempt ${i + 1}/${retries})...`);
+          const result = await loadFn();
+          console.log('Data loaded successfully');
+          return result;
+        } catch (error) {
+          console.warn(`Load attempt ${i + 1} failed:`, error);
+          if (i < retries - 1) {
+            console.log(`Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2; // Exponential backoff
+          } else {
+            console.error('All retry attempts failed');
+            throw error;
+          }
+        }
+      }
+    };
+
+    try {
+      // Ensure term/year are loaded first
+      await loadWithRetry(loadCurrentTermAndYear);
+      await loadWithRetry(loadTermDates);
+
+      // Load core data in parallel with error isolation
+      const coreLoads = [
+        loadWithRetry(() => loadStudentsFromAPI()).catch(e => { console.error('Students load failed:', e); return null; }),
+        loadWithRetry(() => loadClassesFromAPI()).catch(e => { console.error('Classes load failed:', e); return null; }),
+        loadWithRetry(() => loadSubjectsFromAPI()).catch(e => { console.error('Subjects load failed:', e); return null; }),
+      ];
+
+      // Wait for core data to complete
+      await Promise.allSettled(coreLoads);
+
+      // Load role-specific data
+      let roleSpecificLoads: Promise<any>[] = [];
+
+      if (user.role === 'admin') {
+        roleSpecificLoads = [
+          loadWithRetry(() => loadTeachersFromAPI()).catch(e => { console.error('Teachers load failed:', e); return null; }),
+          loadWithRetry(() => loadSubjectAssignmentsFromAPI()).catch(e => { console.error('Subject assignments load failed:', e); return null; }),
+          loadWithRetry(() => loadScoresFromAPI()).catch(e => { console.error('Scores load failed:', e); return null; }),
+          loadWithRetry(() => loadAffectiveDomainsFromAPI()).catch(e => { console.error('Affective domains load failed:', e); return null; }),
+          loadWithRetry(() => loadPsychomotorDomainsFromAPI()).catch(e => { console.error('Psychomotor domains load failed:', e); return null; }),
+          loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { console.error('Parent links load failed:', e); return null; }),
+        ];
+      } else if (user.role === 'teacher') {
+        roleSpecificLoads = [
+          loadWithRetry(() => loadTeachersFromAPI()).catch(e => { console.error('Teachers load failed:', e); return null; }),
+          loadWithRetry(() => loadSubjectAssignmentsFromAPI()).catch(e => { console.error('Subject assignments load failed:', e); return null; }),
+          loadWithRetry(() => loadClassTeacherAssignmentsFromAPI()).catch(e => { console.error('Class teacher assignments load failed:', e); return null; }),
+          loadWithRetry(() => loadScoresFromAPI()).catch(e => { console.error('Scores load failed:', e); return null; }),
+          loadWithRetry(() => loadAffectiveDomainsFromAPI()).catch(e => { console.error('Affective domains load failed:', e); return null; }),
+          loadWithRetry(() => loadPsychomotorDomainsFromAPI()).catch(e => { console.error('Psychomotor domains load failed:', e); return null; }),
+        ];
+      } else if (user.role === 'accountant') {
+        roleSpecificLoads = [
+          loadWithRetry(() => loadPaymentsFromAPI()).catch(e => { console.error('Payments load failed:', e); return null; }),
+          loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { console.error('Fee structures load failed:', e); return null; }),
+          loadWithRetry(() => loadStudentFeeBalancesFromAPI()).catch(e => { console.error('Fee balances load failed:', e); return null; }),
+        ];
+      } else if (user.role === 'parent') {
+        roleSpecificLoads = [
+          loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { console.error('Parent links load failed:', e); return null; }),
+          loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { console.error('Fee structures load failed:', e); return null; }),
+        ];
+      }
+
+      await Promise.allSettled(roleSpecificLoads);
+      return true;
+    } catch (error) {
+      console.error('Error loading data for user:', error);
+      return false;
+    }
+  };
+
   const login = async (username: string, password: string, role: string): Promise<User | null> => {
     try {
       console.log('Login attempt:', { username, role });
@@ -1974,111 +2189,35 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       const user = await sqlDatabase.authenticateUser(username, password, role);
       
-      console.log('=== LOGIN DEBUG ===');
-      console.log('User object received:', user);
-      console.log('User object type:', typeof user);
-      console.log('User object keys:', user ? Object.keys(user) : 'null');
-      
       if (user) {
         setCurrentUser(user);
+        setApiCurrentUser(user);
         
         // Extract token from API response structure
         const token = user.token || '';
-        console.log('Token extracted:', token);
-        console.log('Token length:', token.length);
-        console.log('Token starts with ey:', token.startsWith('ey'));
         
         setAuthToken(token);
         
         // Verify token was stored
         const storedToken = tokenManager.getToken();
-        console.log('Token in localStorage after set:', storedToken);
-        console.log('Stored token length:', storedToken ? storedToken.length : 0);
-        
-        console.log('Authentication successful for:', user.first_name);
-        console.log('Token stored:', !!token);
-        console.log('User object structure:', Object.keys(user));
         
         // Small delay to ensure token is stored before API calls
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Reload all data after successful login since they require authentication
-        console.log('Login successful, loading data based on user role...');
+        // Reload all data after successful login using the helper function
+        console.log('Login successful, loading data for user...');
         
-        // Load essential data first with retry logic
-        const loadWithRetry = async (loadFn: () => Promise<any>, retries = 3, delay = 1000) => {
-          for (let i = 0; i < retries; i++) {
-            try {
-              console.log(`Loading data (attempt ${i + 1}/${retries})...`);
-              const result = await loadFn();
-              console.log('Data loaded successfully');
-              return result;
-            } catch (error) {
-              console.warn(`Load attempt ${i + 1} failed:`, error);
-              if (i < retries - 1) {
-                console.log(`Retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                delay *= 2; // Exponential backoff
-              } else {
-                console.error('All retry attempts failed');
-                throw error;
-              }
-            }
-          }
-        };
-
-        // Ensure term/year are loaded first
-        await loadWithRetry(loadCurrentTermAndYear);
-
-        // Load core data in parallel with error isolation
-        const coreLoads = [
-          loadWithRetry(() => loadStudentsFromAPI()).catch(e => { console.error('Students load failed:', e); return null; }),
-          loadWithRetry(() => loadClassesFromAPI()).catch(e => { console.error('Classes load failed:', e); return null; }),
-          loadWithRetry(() => loadSubjectsFromAPI()).catch(e => { console.error('Subjects load failed:', e); return null; }),
-        ];
-
-        // Wait for core data to complete
-        await Promise.allSettled(coreLoads);
-
-        // Load role-specific data
-        let roleSpecificLoads: Promise<any>[] = [];
-
-        if (user.role === 'admin') {
-          roleSpecificLoads = [
-            loadWithRetry(() => loadTeachersFromAPI()).catch(e => { console.error('Teachers load failed:', e); return null; }),
-            loadWithRetry(() => loadSubjectAssignmentsFromAPI()).catch(e => { console.error('Subject assignments load failed:', e); return null; }),
-            loadWithRetry(() => loadScoresFromAPI()).catch(e => { console.error('Scores load failed:', e); return null; }),
-            loadWithRetry(() => loadAffectiveDomainsFromAPI()).catch(e => { console.error('Affective domains load failed:', e); return null; }),
-            loadWithRetry(() => loadPsychomotorDomainsFromAPI()).catch(e => { console.error('Psychomotor domains load failed:', e); return null; }),
-            loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { console.error('Parent links load failed:', e); return null; }),
-          ];
-        } else if (user.role === 'teacher') {
-          roleSpecificLoads = [
-            loadWithRetry(() => loadTeachersFromAPI()).catch(e => { console.error('Teachers load failed:', e); return null; }),
-            loadWithRetry(() => loadSubjectAssignmentsFromAPI()).catch(e => { console.error('Subject assignments load failed:', e); return null; }),
-            loadWithRetry(() => loadClassTeacherAssignmentsFromAPI()).catch(e => { console.error('Class teacher assignments load failed:', e); return null; }),
-            loadWithRetry(() => loadScoresFromAPI()).catch(e => { console.error('Scores load failed:', e); return null; }),
-            loadWithRetry(() => loadAffectiveDomainsFromAPI()).catch(e => { console.error('Affective domains load failed:', e); return null; }),
-            loadWithRetry(() => loadPsychomotorDomainsFromAPI()).catch(e => { console.error('Psychomotor domains load failed:', e); return null; }),
-          ];
-        } else if (user.role === 'accountant') {
-          roleSpecificLoads = [
-            loadWithRetry(() => loadPaymentsFromAPI()).catch(e => { console.error('Payments load failed:', e); return null; }),
-            loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { console.error('Fee structures load failed:', e); return null; }),
-            loadWithRetry(() => loadStudentFeeBalancesFromAPI()).catch(e => { console.error('Fee balances load failed:', e); return null; }),
-          ];
-        } else if (user.role === 'parent') {
-          roleSpecificLoads = [
-            loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { console.error('Parent links load failed:', e); return null; }),
-            loadWithRetry(() => loadPaymentsFromAPI()).catch(e => { console.error('Payments load failed:', e); return null; }),
-            loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { console.error('Fee structures load failed:', e); return null; }),
-            loadWithRetry(() => loadStudentFeeBalancesFromAPI()).catch(e => { console.error('Fee balances load failed:', e); return null; }),
-          ];
+        const dataLoaded = await loadDataForUser(user);
+        
+        if (!dataLoaded) {
+          console.warn('Some data failed to load, but login will proceed');
         }
-
-        await Promise.allSettled(roleSpecificLoads);
-        
-        toast.success(`Welcome back, ${user.first_name || user.username}!`);
+        setIsLoading(false);
+        // Reduced toast - only show for first login of the session
+        if (!sessionStorage.getItem('loginToastShown')) {
+          toast.success(`Welcome back, ${user.first_name || user.username}!`);
+          sessionStorage.setItem('loginToastShown', 'true');
+        }
         return user;
       }
       
@@ -2086,6 +2225,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.error('Login error:', error);
       toast.error(error.message || 'Login failed');
+      setIsLoading(false);
       return null;
     }
   };
@@ -2260,7 +2400,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   // Enhanced Teacher Assignment System
-  const getTeacherAssignments = (teacherId: number): SubjectAssignment[] => {
+  const getTeacherAssignments = useCallback((teacherId: number): SubjectAssignment[] => {
     // If term/year are not set yet, return all assignments for this teacher
     if (!currentTerm || !currentAcademicYear) {
       console.warn('Current term or academic year not set, returning all assignments for teacher', teacherId);
@@ -2272,12 +2412,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       a.term === currentTerm && 
       a.academic_year === currentAcademicYear
     );
-  };
+  }, [subjectAssignments, currentTerm, currentAcademicYear]);
 
   // Get teacher's classes with subjects and student counts
-  const getTeacherClasses = (teacherId: number): any[] => {
-    // Get teacher's subject assignments
-    const assignments = getTeacherAssignments(teacherId);
+  const getTeacherClasses = useCallback((teacherId: number): any[] => {
+    // Get teacher's subject assignments directly
+    const assignments = !currentTerm || !currentAcademicYear 
+      ? (subjectAssignments || []).filter(a => Number(a.teacher_id) === teacherId)
+      : (subjectAssignments || []).filter(a => 
+          Number(a.teacher_id) === teacherId && 
+          a.term === currentTerm && 
+          a.academic_year === currentAcademicYear
+        );
     
     // Get classes where teacher is assigned as class teacher (using class_teacher_assignments table)
     const classTeacherClasses = classes.filter((c: any) => {
@@ -2330,22 +2476,24 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       ...classGroup,
       studentCount: students.filter(s => s.class_id === classGroup.classId).length
     }));
-  };
+  }, [classes, classTeacherAssignments, currentAcademicYear, currentTerm, subjectAssignments, subjects, students]);
 
 // Get teacher's students for a specific class - UPDATED VERSION
-  const getTeacherResponsibilities_NEW = (teacherId: number): any => {
-    console.log(`🔥🔥🔥 NEW FUNCTION CALLED: teacherId=${teacherId}, type=${typeof teacherId}`);
-    console.log(`🚀 GET TEACHER RESPONSIBILITIES STARTED: teacherId=${teacherId}, type=${typeof teacherId}`);
+  const getTeacherResponsibilities_NEW = useCallback((teacherId: number): any => {
+    // Use ref to track the last teacherId for logging frequency control
+    const shouldLog = lastTeacherIdRef.current !== teacherId;
+    lastTeacherIdRef.current = teacherId;
+    
+    if (shouldLog) {
+      console.log(`🚀 GET TEACHER RESPONSIBILITIES: teacherId=${teacherId}`);
+    }
     
     try {
-      console.log(`🔍 GET TEACHER RESPONSIBILITIES DEBUG: teacherId=${teacherId}`);
-      console.log(`🔍 CLASSES STATUS: length=${classes?.length || 0}, exists=${!!classes}`);
-      console.log(`🔍 CLASS TEACHER ASSIGNMENTS STATUS: length=${classTeacherAssignments?.length || 0}, exists=${!!classTeacherAssignments}`);
-      
       // Ensure classes are loaded before proceeding
       if (!classes || classes.length === 0) {
-        console.log('🔄🔄🔄 FALLBACK TRIGGERED - CLASSES EMPTY - VERSION 2.0 -', new Date().toISOString());
-        console.log('🔄 Classes not loaded yet, using class_teacher_assignments as fallback');
+        if (shouldLog) {
+          console.log('🔄 Classes not loaded yet, using class_teacher_assignments as fallback');
+        }
         
         // Fallback: Use class_teacher_assignments data if classes aren't loaded yet
         const classTeacherAssignmentsForTeacher = classTeacherAssignments.filter(
@@ -2354,25 +2502,13 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           cta.term === currentTerm
         );
         
-        console.log(`🔄 FALLBACK: Using class_teacher_assignments for teacher ${teacherId}:`, {
-          totalAssignments: classTeacherAssignmentsForTeacher.length,
-          assignments: classTeacherAssignmentsForTeacher,
-          currentAcademicYear,
-          currentTerm,
-          debugFilter: {
-            teacherIdType: typeof teacherId,
-            teacherIdValue: teacherId,
-            sampleAssignment: classTeacherAssignments[0],
-            sampleTeacherIdType: typeof classTeacherAssignments[0]?.teacher_id,
-            sampleTeacherIdValue: classTeacherAssignments[0]?.teacher_id
-          }
-        });
-        
         const isClassTeacher = classTeacherAssignmentsForTeacher.length > 0;
         const classTeacherClassIds = classTeacherAssignmentsForTeacher.map(cta => cta.class_id);
         const classTeacherClassesCount = classTeacherClassIds.length;
         
-        console.log(`🔄🔄🔄 FALLBACK RESULT - VERSION 2.0: isClassTeacher=${isClassTeacher}, classCount=${classTeacherClassesCount} -`, new Date().toISOString());
+        if (shouldLog) {
+          console.log(`🔄 FALLBACK RESULT: isClassTeacher=${isClassTeacher}, classCount=${classTeacherClassesCount}`);
+        }
         
         return {
           isClassTeacher,
@@ -2395,7 +2531,13 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
 
       // Get teacher's subject assignments (already term-aware)
-      const assignments = getTeacherAssignments(teacherId);
+      const assignments = !currentTerm || !currentAcademicYear 
+        ? (subjectAssignments || []).filter(a => Number(a.teacher_id) === teacherId)
+        : (subjectAssignments || []).filter(a => 
+            Number(a.teacher_id) === teacherId && 
+            a.term === currentTerm && 
+            a.academic_year === currentAcademicYear
+          );
       
       // Get classes where teacher is assigned as class teacher (using class_teacher_assignments table)
       const classTeacherClasses = classes.filter((c: any) => {
@@ -2410,17 +2552,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         
         const isMatch = !!assignment;
         
-        console.log(`🔍 CLASS TEACHER CHECK:`, {
-          classId: c.id,
-          className: c.name,
-          teacherId: teacherId,
-          assignment: assignment,
-          isMatch: isMatch
-        });
-        
-        if (isMatch) {
+        if (shouldLog && isMatch) {
           console.log(`✅ CLASS TEACHER MATCH: Teacher ${teacherId} assigned to class ${c.id} (${c.name})`);
         }
+        
         return isMatch;
       });
       
@@ -2430,19 +2565,16 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         String(cta.teacher_id) === '39' && String(cta.class_id) === '13' && 
         cta.academic_year === currentAcademicYear && cta.term === currentTerm
       )) {
-        console.log('🔧 FORCE FIX: Applied for Teacher TALI (39) - Class 13 assignment found');
+        if (shouldLog) {
+          console.log('🔧 FORCE FIX: Applied for Teacher TALI (39) - Class 13 assignment found');
+        }
         forcedClassTeacherClasses = classes.filter((c: any) => String(c.id) === '13');
-        if (forcedClassTeacherClasses.length > 0) {
+        if (forcedClassTeacherClasses.length > 0 && shouldLog) {
           console.log('✅ FORCE FIX SUCCESS: Teacher 39 now recognized as class teacher for Class 13');
         }
       }
       
-      console.log(`🔍 TEACHER ${teacherId} CLASS TEACHER ANALYSIS:`, {
-        totalClasses: classes.length,
-        classTeacherClassesFound: classTeacherClasses.length,
-        classTeacherClasses: classTeacherClasses.map(c => ({ id: c.id, name: c.name, classTeacherId: c.classTeacherId, type: typeof c.classTeacherId }))
-      });
-      
+            
       // Get unique classes from subject assignments
       const assignedClassIds = [...new Set(assignments.map(a => a.class_id))];
       const assignedClasses = classes.filter(c => assignedClassIds.includes(c.id));
@@ -2486,7 +2618,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         departments: []
       };
     }
-  };
+  }, [classes, classTeacherAssignments, currentAcademicYear, currentTerm, subjectAssignments, teachers, lastTeacherIdRef]);
 
   // Get teacher's students for a specific class
   const getTeacherStudentsForClass = (classId: number): any[] => {
@@ -2553,22 +2685,57 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   // Class Methods
   const addClass = async (newClass: Omit<Class, 'id'>): Promise<number> => {
-    const success = await createClassAPI(newClass);
-    if (success) {
-      await loadClassesFromAPI();
-      // Find the newly added class to return its ID
-      const classes = await sqlDatabase.executeQuery('SELECT * FROM classes ORDER BY created_at DESC LIMIT 1');
-      return classes.data && classes.data[0] ? classes.data[0].id : -1;
-    } else {
-      return -1;
+    // Check teacher assignment limit
+    if (newClass.classTeacherId) {
+      const teacherAssignments = classTeacherAssignments.filter(cta => 
+        String(cta.teacher_id) === String(newClass.classTeacherId) &&
+        cta.academic_year === currentAcademicYear &&
+        cta.term === currentTerm
+      );
+      
+      if (teacherAssignments.length >= 3) {
+        toast.error('This teacher is already assigned to 3 classes (maximum limit reached)');
+        return -1;
+      }
     }
+    
+    const newId = await createClassAPI(newClass);
+    if (newId > 0) {
+      await loadClassesFromAPI();
+    }
+    return newId;
   };
 
-  const updateClass = async (id: number, classData: Partial<Class>): Promise<void> => {
+  const updateClass = async (id: number, classData: Partial<Class>): Promise<boolean> => {
+    // Check teacher assignment limit if teacher is being changed
+    if (classData.classTeacherId) {
+      // Check if the teacher is already assigned to THIS class (no change needed in count)
+      const isAlreadyAssignedToThisClass = classTeacherAssignments.some(cta => 
+        String(cta.teacher_id) === String(classData.classTeacherId) &&
+        String(cta.class_id) === String(id) &&
+        cta.academic_year === currentAcademicYear &&
+        cta.term === currentTerm
+      );
+      
+      if (!isAlreadyAssignedToThisClass) {
+        const teacherAssignments = classTeacherAssignments.filter(cta => 
+          String(cta.teacher_id) === String(classData.classTeacherId) &&
+          cta.academic_year === currentAcademicYear &&
+          cta.term === currentTerm
+        );
+        
+        if (teacherAssignments.length >= 3) {
+          toast.error('This teacher is already assigned to 3 classes (maximum limit reached)');
+          return false;
+        }
+      }
+    }
+
     const success = await updateClassAPI(id, classData);
     if (success) {
       await loadClassesFromAPI();
     }
+    return success;
   };
 
   const deleteClass = async (id: number): Promise<boolean> => {
@@ -2582,19 +2749,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const updateSubject = async (id: number, subject: Partial<Subject>) => {
     const success = await updateSubjectAPI(id, subject);
     if (success) {
-      await loadSubjectsFromAPI();
+      await loadSubjectsFromAPI(true);
     }
   };
 
   const addSubject = async (subject: Omit<Subject, 'id'>): Promise<number> => {
     const newId = await createSubjectAPI(subject);
+    if (newId > 0) {
+      await loadSubjectsFromAPI(true);
+    }
     return newId; // Return the ID from API response (or -1 if failed)
   };
 
   const deleteSubject = async (id: number) => {
     const success = await deleteSubjectAPI(id);
     if (success) {
-      await loadSubjectsFromAPI();
+      await loadSubjectsFromAPI(true);
     }
   };
 
@@ -2609,6 +2779,17 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // System Settings Methods
   const loadCurrentTermAndYear = async () => {
     try {
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+      // Check cache validity
+      if (termAndYearCache.current.timestamp > 0 && (now - termAndYearCache.current.timestamp < CACHE_DURATION)) {
+        console.log('Using cached term and year');
+        if (termAndYearCache.current.term) setCurrentTerm(termAndYearCache.current.term);
+        if (termAndYearCache.current.year) setCurrentAcademicYear(termAndYearCache.current.year);
+        return;
+      }
+
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
       
@@ -2623,12 +2804,25 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const termData = termResult?.data || termResult;
       const yearData = yearResult?.data || yearResult;
       
+      let newTerm = null;
+      let newYear = null;
+
       if (termData && termData.length > 0) {
-        setCurrentTerm(termData[0].setting_value);
+        newTerm = termData[0].setting_value;
+        setCurrentTerm(newTerm);
       }
       if (yearData && yearData.length > 0) {
-        setCurrentAcademicYear(yearData[0].setting_value);
+        newYear = yearData[0].setting_value;
+        setCurrentAcademicYear(newYear);
       }
+      
+      // Update cache
+      termAndYearCache.current = {
+        term: newTerm,
+        year: newYear,
+        timestamp: now
+      };
+      
     } catch (error) {
       console.error('Error loading current term and year:', error);
     }
@@ -2738,8 +2932,70 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         "INSERT INTO school_settings (setting_key, setting_value) VALUES ('current_term', ?) ON DUPLICATE KEY UPDATE setting_value = ?",
         [term, term]
       );
+      
+      // Invalidate cache
+      termAndYearCache.current = {
+        term: null,
+        year: null,
+        timestamp: 0
+      };
+      
+      // Force refresh of data that depends on term/year
+      await loadCompiledResultsFromAPI();
+      await loadScoresFromAPI();
+      await loadAttendancesFromAPI();
+      await loadAffectiveDomainsFromAPI();
+      await loadPsychomotorDomainsFromAPI();
+      
     } catch (error) {
       console.error('Error updating current term in database:', error);
+    }
+  };
+
+  // Combined update to set both academic year and term in a single operation
+  const updateCurrentTermAndYear = async (year: string, term: string) => {
+    // Update local state first so dependent UI uses new values immediately
+    setCurrentAcademicYear(year);
+    setCurrentTerm(term);
+
+    try {
+      // Persist both settings atomically via API endpoint
+      const token = tokenManager.getToken();
+      const resp = await fetch(`${API_CONFIG.BASE_URL}/school_settings.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ atomic: true, current_academic_year: year, current_term: term })
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Failed to persist term/year: ${resp.status} ${text}`);
+      }
+
+      const json = await resp.json();
+      if (!json || json.success !== true) {
+        throw new Error(`API error persisting term/year: ${JSON.stringify(json)}`);
+      }
+
+      // Invalidate cache once
+      termAndYearCache.current = {
+        term,
+        year,
+        timestamp: 0
+      };
+
+      // Force refresh of dependent data only once
+      await loadCompiledResultsFromAPI();
+      await loadScoresFromAPI();
+      await loadAttendancesFromAPI();
+      await loadAffectiveDomainsFromAPI();
+      await loadPsychomotorDomainsFromAPI();
+
+    } catch (error) {
+      console.error('Error updating academic year and term in database:', error);
     }
   };
 
@@ -2823,8 +3079,104 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         "INSERT INTO school_settings (setting_key, setting_value) VALUES ('current_academic_year', ?) ON DUPLICATE KEY UPDATE setting_value = ?",
         [year, year]
       );
+      
+      // Invalidate cache
+      termAndYearCache.current = {
+        term: null,
+        year: null,
+        timestamp: 0
+      };
+      
+      // Force refresh of data that depends on term/year
+      await loadCompiledResultsFromAPI();
+      await loadScoresFromAPI();
+      await loadAttendancesFromAPI();
+      await loadAffectiveDomainsFromAPI();
+      await loadPsychomotorDomainsFromAPI();
+      
     } catch (error) {
       console.error('Error updating academic year in database:', error);
+    }
+  };
+
+  const updateTermDates = async (dates: {
+    termStartDate: string;
+    termEndDate: string;
+    nextTermStarts: string;
+    schoolResumptionDate: string;
+    midTermBreakStart: string;
+    midTermBreakEnd: string;
+  }) => {
+    setTermDates(dates);
+    // Save to database
+    try {
+      const dateSettings = [
+        { key: 'term_start_date', value: dates.termStartDate },
+        { key: 'term_end_date', value: dates.termEndDate },
+        { key: 'next_term_starts', value: dates.nextTermStarts },
+        { key: 'school_resumption_date', value: dates.schoolResumptionDate },
+        { key: 'mid_term_break_start', value: dates.midTermBreakStart },
+        { key: 'mid_term_break_end', value: dates.midTermBreakEnd }
+      ];
+
+      for (const setting of dateSettings) {
+        await sqlDatabase.executeQuery(`
+          INSERT INTO school_settings (setting_key, setting_value, updated_date) 
+          VALUES (?, ?, NOW())
+          ON DUPLICATE KEY UPDATE setting_value = ?, updated_date = NOW()
+        `, [setting.key, setting.value, setting.value]);
+      }
+      
+      console.log('Term dates saved successfully');
+    } catch (error) {
+      console.error('Error updating term dates in database:', error);
+    }
+  };
+
+  const getTermDates = () => {
+    return termDates;
+  };
+
+  const loadTermDates = async () => {
+    try {
+      const dateKeys = [
+        'term_start_date',
+        'term_end_date', 
+        'next_term_starts',
+        'school_resumption_date',
+        'mid_term_break_start',
+        'mid_term_break_end'
+      ];
+
+      const loadedDates: any = {};
+      
+      for (const key of dateKeys) {
+        const result = await sqlDatabase.executeQuery(
+          "SELECT setting_value FROM school_settings WHERE setting_key = ?",
+          [key]
+        );
+        
+        const data = result?.data || result;
+        
+        if (data && data.length > 0) {
+          const camelCaseKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
+          loadedDates[camelCaseKey] = data[0].setting_value;
+        }
+      }
+
+      // Update state with loaded dates, keeping defaults for missing ones
+      setTermDates(prev => ({
+        termStartDate: loadedDates.termStartDate || prev.termStartDate,
+        termEndDate: loadedDates.termEndDate || prev.termEndDate,
+        nextTermStarts: loadedDates.nextTermStarts || prev.nextTermStarts,
+        schoolResumptionDate: loadedDates.schoolResumptionDate || prev.schoolResumptionDate,
+        midTermBreakStart: loadedDates.midTermBreakStart || prev.midTermBreakStart,
+        midTermBreakEnd: loadedDates.midTermBreakEnd || prev.midTermBreakEnd
+      }));
+
+      console.log('Term dates loaded successfully');
+    } catch (error) {
+      console.error('Error loading term dates:', error);
     }
   };
 
@@ -3210,186 +3562,98 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // Helper function to update class student count
   const compileResult = async (resultData: any): Promise<number> => {
     try {
-      // Check if a compiled result already exists for this student, class, term, and academic year
-      const existingResultQuery = `
-        SELECT id FROM compiled_results 
-        WHERE student_id = ? AND class_id = ? AND term = ? AND academic_year = ?
+      // Use INSERT ... ON DUPLICATE KEY UPDATE to handle race conditions and duplicates atomically
+      const query = `
+        INSERT INTO compiled_results (
+          student_id, class_id, term, academic_year, 
+          total_score, average_score, class_average, position, 
+          total_students, times_present, times_absent, total_attendance_days, 
+          term_begin, term_end, next_term_begin,
+          class_teacher_name, class_teacher_comment, 
+          principal_name, principal_comment, principal_signature, 
+          compiled_by, compiled_date, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          total_score = VALUES(total_score),
+          average_score = VALUES(average_score),
+          class_average = VALUES(class_average),
+          position = VALUES(position),
+          total_students = VALUES(total_students),
+          times_present = VALUES(times_present),
+          times_absent = VALUES(times_absent),
+          total_attendance_days = VALUES(total_attendance_days),
+          term_begin = VALUES(term_begin),
+          term_end = VALUES(term_end),
+          next_term_begin = VALUES(next_term_begin),
+          class_teacher_name = VALUES(class_teacher_name),
+          class_teacher_comment = VALUES(class_teacher_comment),
+          principal_name = VALUES(principal_name),
+          principal_comment = VALUES(principal_comment),
+          principal_signature = VALUES(principal_signature),
+          compiled_by = VALUES(compiled_by),
+          compiled_date = VALUES(compiled_date),
+          status = VALUES(status)
       `;
       
-      const existingParams = [
+      const params = [
         resultData.student_id,
         resultData.class_id,
         resultData.term,
-        resultData.academic_year
+        resultData.academic_year,
+        resultData.total_score,
+        resultData.average_score,
+        resultData.class_average || 0,
+        resultData.position,
+        resultData.total_students,
+        resultData.times_present || 0,
+        resultData.times_absent || 0,
+        resultData.total_attendance_days || 0,
+        resultData.term_begin || null,
+        resultData.term_end || null,
+        resultData.next_term_begin || null,
+        resultData.class_teacher_name,
+        resultData.class_teacher_comment,
+        resultData.principal_name || '',
+        resultData.principal_comment,
+        resultData.principal_signature || '',
+        resultData.compiled_by || null,
+        resultData.compiled_date,
+        resultData.status
       ];
-      
-      const existingResult = await sqlDatabase.executeQuery(existingResultQuery, existingParams);
-      
-      if (existingResult && existingResult.length > 0) {
-        // Update existing record
-        const updateQuery = `
-          UPDATE compiled_results SET
-            total_score = ?, average_score = ?, class_average = ?, position = ?, 
-            total_students = ?, times_present = ?, times_absent = ?, total_attendance_days = ?,
-            term_begin = ?, term_end = ?, next_term_begin = ?, class_teacher_name = ?,
-            class_teacher_comment = ?, principal_name = ?, principal_comment = ?,
-            principal_signature = ?, compiled_by = ?, compiled_date = ?, status = ?
-          WHERE id = ?
-        `;
-        
-        const updateParams = [
-          resultData.total_score,
-          resultData.average_score,
-          resultData.class_average || 0,
-          resultData.position,
-          resultData.total_students,
-          resultData.times_present || 0,
-          resultData.times_absent || 0,
-          resultData.total_attendance_days || 0,
-          resultData.term_begin || null,
-          resultData.term_end || null,
-          resultData.next_term_begin || null,
-          resultData.class_teacher_name,
-          resultData.class_teacher_comment,
-          resultData.principal_name || '',
-          resultData.principal_comment,
-          resultData.principal_signature || '',
-          resultData.compiled_by || null,
-          resultData.compiled_date,
-          resultData.status,
-          existingResult[0].id
-        ];
-        
-        await sqlDatabase.executeQuery(updateQuery, updateParams);
-        
-        // Update local state
-        const updatedResult = { ...resultData, id: existingResult[0].id };
-        setCompiledResults(compiledResults.map((r: any) => 
-          r.id === existingResult[0].id ? updatedResult : r
-        ));
-        
-        return existingResult[0].id;
-      } else {
-        // Insert new record
-        const insertQuery = `
-          INSERT INTO compiled_results (
-            student_id, class_id, term, academic_year, total_score, average_score, 
-            class_average, position, total_students, times_present, times_absent, 
-            total_attendance_days, term_begin, term_end, next_term_begin,
-            class_teacher_name, class_teacher_comment, principal_name, principal_comment,
-            principal_signature, compiled_by, compiled_date, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        
-        const insertParams = [
-          resultData.student_id,
-          resultData.class_id,
-          resultData.term,
-          resultData.academic_year,
-          resultData.total_score,
-          resultData.average_score,
-          resultData.class_average || 0,
-          resultData.position,
-          resultData.total_students,
-          resultData.times_present || 0,
-          resultData.times_absent || 0,
-          resultData.total_attendance_days || 0,
-          resultData.term_begin || null,
-          resultData.term_end || null,
-          resultData.next_term_begin || null,
-          resultData.class_teacher_name,
-          resultData.class_teacher_comment,
-          resultData.principal_name || '',
-          resultData.principal_comment,
-          resultData.principal_signature || '',
-          resultData.compiled_by || null,
-          resultData.compiled_date,
-          resultData.status
-        ];
-        
-        const result = await sqlDatabase.executeQuery(insertQuery, insertParams);
-        
-        if (result && result.insertId) {
-          // Update local state with database-generated ID
+
+      const result = await sqlDatabase.executeQuery(query, params);
+
+      // If insertId is present, it's a new record. 
+      if (result && result.insertId) {
           const newResult = { ...resultData, id: result.insertId };
-          setCompiledResults([...compiledResults, newResult]);
+          setCompiledResults(prev => {
+              // Check just in case
+              const exists = prev.find(r => r.id === result.insertId);
+              if (exists) return prev.map(r => r.id === result.insertId ? newResult : r);
+              return [...prev, newResult];
+          });
           return result.insertId;
-        } else {
-          throw new Error('No insert ID returned from database');
-        }
+      } else {
+         // Updated record. Fetch the ID to ensure we return the correct ID and update state correctly.
+         const idQuery = `SELECT id FROM compiled_results WHERE student_id = ? AND class_id = ? AND term = ? AND academic_year = ?`;
+         const idResult = await sqlDatabase.executeQuery(idQuery, [resultData.student_id, resultData.class_id, resultData.term, resultData.academic_year]);
+         
+         if (idResult && (idResult.length > 0 || idResult.data?.length > 0)) {
+             const rows = idResult.data || idResult;
+             const id = rows[0].id;
+             const updatedResult = { ...resultData, id };
+             
+             setCompiledResults(prev => {
+                 const exists = prev.find(r => r.id === id);
+                 if (exists) return prev.map(r => r.id === id ? updatedResult : r);
+                 return [...prev, updatedResult];
+             });
+             return id;
+         }
+         return 0;
       }
-    } catch (error: any) {
-      // Check if this is a duplicate entry error
-      if (error.message && error.message.includes('Integrity constraint violation: 1062 Duplicate entry')) {
-        // This means the record already exists, so update it instead
-        try {
-          const existingResultQuery = `
-            SELECT id FROM compiled_results 
-            WHERE student_id = ? AND class_id = ? AND term = ? AND academic_year = ?
-          `;
-          
-          const existingParams = [
-            resultData.student_id,
-            resultData.class_id,
-            resultData.term,
-            resultData.academic_year
-          ];
-          
-          const existingResult = await sqlDatabase.executeQuery(existingResultQuery, existingParams);
-          
-          if (existingResult && existingResult.length > 0) {
-            // Update the existing record
-            const updateQuery = `
-              UPDATE compiled_results SET
-                total_score = ?, average_score = ?, class_average = ?, position = ?, 
-                total_students = ?, times_present = ?, times_absent = ?, total_attendance_days = ?,
-                term_begin = ?, term_end = ?, next_term_begin = ?, class_teacher_name = ?,
-                class_teacher_comment = ?, principal_name = ?, principal_comment = ?,
-                principal_signature = ?, compiled_by = ?, compiled_date = ?, status = ?
-              WHERE id = ?
-            `;
-            
-            const updateParams = [
-              resultData.total_score,
-              resultData.average_score,
-              resultData.class_average || 0,
-              resultData.position,
-              resultData.total_students,
-              resultData.times_present || 0,
-              resultData.times_absent || 0,
-              resultData.total_attendance_days || 0,
-              resultData.term_begin || null,
-              resultData.term_end || null,
-              resultData.next_term_begin || null,
-              resultData.class_teacher_name,
-              resultData.class_teacher_comment,
-              resultData.principal_name || '',
-              resultData.principal_comment,
-              resultData.principal_signature || '',
-              resultData.compiled_by || 1,
-              resultData.compiled_date,
-              resultData.status,
-              existingResult[0].id
-            ];
-            
-            await sqlDatabase.executeQuery(updateQuery, updateParams);
-            
-            // Update local state
-            const updatedResult = { ...resultData, id: existingResult[0].id };
-            setCompiledResults(compiledResults.map((r: any) => 
-              r.id === existingResult[0].id ? updatedResult : r
-            ));
-            
-            return existingResult[0].id;
-          }
-        } catch (updateError) {
-          console.error('Error updating existing compiled result:', updateError);
-          throw updateError;
-        }
-      }
-      
-      console.error('Error saving compiled result to database:', error);
-      // Don't fallback to local storage - throw the error so it can be handled properly
+    } catch (error) {
+      console.error('Error compiling result:', error);
       throw error;
     }
   };
@@ -3524,7 +3788,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // Payment Functions
   const addPayment = async (payment: Omit<Payment, 'id'>): Promise<void> => {
     try {
-      // Map frontend fields to backend expected fields if necessary
+      // Map frontend fields to backend expected fields
       // Backend expects: student_id, amount, payment_type, payment_method, term, academic_year, notes
       const payload = {
         student_id: payment.student_id,
@@ -3537,7 +3801,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         transaction_reference: payment.transaction_reference
       };
 
-      const response = await api.post<any>('/payments/create', payload);
+      // Use the main payments endpoint (POST /payments) which is wired to createPayment
+      const response = await api.post<any>('/payments', payload);
       
       if (response.success) {
         // Refresh payments list
@@ -3560,17 +3825,29 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     setPayments(payments.map((p: Payment) => (p.id === id ? { ...p, ...payment } : p)));
   };
 
-  const verifyPayment = async (id: number): Promise<void> => {
+  const verifyPayment = async (id: number, data?: { action: 'verify' | 'reject', rejection_reason?: string }): Promise<void> => {
     try {
-      const response = await api.post<any>(`/payments/verify/${id}`, { action: 'verify' });
+      const response = await api.post<any>(`/payments/verify/${id}`, data || { action: 'verify' });
       
       if (response.success) {
-        // Update local state
-        setPayments(payments.map((p: Payment) => (p.id === id ? { ...p, status: 'Verified', verified_date: new Date().toISOString() } : p)));
-        toast.success('Payment verified successfully');
+        // Update local state based on action
+        const updatedStatus = data?.action === 'reject' ? 'Rejected' : 'Verified';
+        setPayments(payments.map((p: Payment) => (p.id === id ? { 
+          ...p, 
+          status: updatedStatus, 
+          verified_date: new Date().toISOString(),
+          notes: data?.action === 'reject' && data.rejection_reason 
+            ? `${p.notes || ''}\nRejection: ${data.rejection_reason}` 
+            : p.notes
+        } : p)));
         
-        // Refresh student fee balances as verification affects it (if logic changes on backend)
-        // Currently backend updates balance on create for manual payments, but verifying ensures it stays valid
+        if (data?.action === 'reject') {
+          toast.error('Payment rejected');
+        } else {
+          toast.success('Payment verified successfully');
+        }
+        
+        // Refresh student fee balances as verification affects it
         await loadStudentFeeBalancesFromAPI(); 
       } else {
         throw new Error(response.message || 'Failed to verify payment');
@@ -3895,16 +4172,37 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   const getParentChildren = (parentId: number): any[] => {
+    console.log('=== GET PARENT CHILDREN DEBUG ===');
+    console.log('Parent ID requested:', parentId);
+    console.log('Available parent-student links:', parentStudentLinksData);
+    console.log('Available students:', students);
+    
     // Get children from parent_student_links table
-    const parentStudentLinks = parentStudentLinksData.filter(link => link.parent_id === parentId);
+    // Handle both string and number parent_id formats
+    const parentStudentLinks = parentStudentLinksData.filter(link => {
+      const linkParentId = typeof link.parent_id === 'string' ? parseInt(link.parent_id) : link.parent_id;
+      return linkParentId === parentId;
+    });
+    
+    console.log('Filtered links for this parent:', parentStudentLinks);
+    console.log('Number of links found:', parentStudentLinks.length);
     
     return parentStudentLinks.map(link => {
       const student = students.find(s => s.id === link.student_id);
-      if (!student) return null;
+      
+      if (!student) {
+        console.log('Student not found for link:', link);
+        return null;
+      }
       
       // Check status - only Active students should be shown
       const isActive = student.status === 'Active';
-      if (!isActive) return null;
+      if (!isActive) {
+        console.log('Student not active:', student);
+        return null;
+      }
+      
+      console.log('Valid child found:', student);
       
       // Get total fees from fee structures
       const feeStructure = feeStructures.find(fs => 
@@ -3971,23 +4269,38 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       console.log(`Linking student ${studentId} to parent ${parentId} with relationship: ${relationship}`);
       
-      // Check if this link already exists
+      // First, refresh the parent-student links to ensure we have the latest data
+      console.log('Refreshing parent-student links before checking...');
+      await loadParentStudentLinksFromAPI();
+      
+      // Check if this link already exists with fresh data
       const existingLink = Array.isArray(parentStudentLinksData) ? parentStudentLinksData.find(
         (link: any) => link.parent_id === parentId && link.student_id === studentId
       ) : null;
       
+      console.log('Existing link check:', existingLink);
+      
       if (existingLink) {
-        console.log('Student is already linked to this parent');
+        console.log('Student is already linked to this parent (found in refreshed data)');
         toast.error('This student is already linked to this parent');
         return false;
       }
       
       // Use API to create link in actual database
+      console.log('Making API call to:', `/parents/link/${parentId}`);
+      console.log('Request data:', {
+        student_id: studentId,
+        relationship: relationship,
+        is_primary: true
+      });
+      
       const response = await api.post(`/parents/link/${parentId}`, {
         student_id: studentId,
         relationship: relationship,
         is_primary: true
       });
+      
+      console.log('API response:', response);
       
       if (response && response.success) {
         // Get parent information to update student record
@@ -4012,19 +4325,33 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       
       console.error('API response failed:', response);
+      toast.error('Failed to link student - API response error');
       return false;
     } catch (error: any) {
       console.error('Error linking student to parent via API:', error);
       
       // Handle specific error cases
       if (error.response?.status === 409) {
-        toast.error('This student is already linked to this parent');
+        console.log('409 Conflict detected - refreshing data and checking again...');
+        // Refresh data and check if link now appears
+        await loadParentStudentLinksFromAPI();
+        const refreshedLink = Array.isArray(parentStudentLinksData) ? parentStudentLinksData.find(
+          (link: any) => link.parent_id === parentId && link.student_id === studentId
+        ) : null;
+        
+        if (refreshedLink) {
+          console.log('Link found after refresh - student was already linked');
+          toast.error('This student is already linked to this parent');
+        } else {
+          console.log('Link still not found after refresh - possible database inconsistency');
+          toast.error('Link already exists in database but not visible in frontend. Please refresh the page.');
+        }
       } else if (error.response?.status === 404) {
         toast.error('Parent or student not found');
       } else if (error.response?.status === 403) {
         toast.error('You do not have permission to link students');
       } else {
-        toast.error('An error occurred while linking student to parent');
+        toast.error(`An error occurred while linking student to parent: ${error.message || 'Unknown error'}`);
       }
       
       return false;
@@ -4196,6 +4523,21 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const removeSubjectAssignmentAPI = async (teacherId: number, subjectId: number, classId: number, academicYear: string, term: string): Promise<boolean> => {
     try {
+      // Validate inputs
+      if (!currentUser) {
+        console.error('No current user found for assignment removal');
+        return false;
+      }
+      
+      if (!subjectAssignments || subjectAssignments.length === 0) {
+        console.error('No subject assignments loaded');
+        return false;
+      }
+      
+      console.log('=== REMOVE ASSIGNMENT DEBUG ===');
+      console.log('Removing assignment:', { teacherId, subjectId, classId, academicYear, term });
+      console.log('Available assignments:', subjectAssignments.length);
+      
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
@@ -4207,6 +4549,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         assignment.academic_year === academicYear &&
         assignment.term === term
       );
+      
+      console.log('Found assignment:', existingAssignment);
       
       if (!existingAssignment) {
         console.warn('Assignment not found for removal:', { teacherId, subjectId, classId, academicYear, term });
@@ -4249,8 +4593,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const loadScoresFromAPI = async (): Promise<boolean> => {
     try {
-      console.log('=== LOAD SCORES FROM API STARTED ===');
-      
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
       
@@ -4328,12 +4670,29 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const loadPaymentsFromAPI = async (): Promise<boolean> => {
     try {
-      // Use the API to get payments with student details
+      // IMMEDIATE EXIT FOR PARENTS - Don't process anything else
+      if (currentUser && currentUser.role === 'parent') {
+        console.log('Parent user detected - skipping all payments loading');
+        setPayments([]);
+        return true;
+      }
+      
+      // Additional safety check - prevent any non-admin/accountant from accessing payments
+      if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'accountant')) {
+        console.warn('Unauthorized role attempting to access payments:', currentUser?.role);
+        setPayments([]);
+        return false;
+      }
+      
+      // Default behaviour (admin/accountant only): use the global payments endpoint
       const response = await api.get<any>('/payments?limit=1000');
       
       if (response.success && response.data) {
+        // Ensure response.data is an array before mapping
+        const paymentsData = Array.isArray(response.data) ? response.data : [];
+        
         // Transform data to match Payment interface
-        const transformedData = response.data.map((payment: any) => ({
+        const transformedData = paymentsData.map((payment: any) => ({
           id: payment.id,
           student_id: payment.student_id,
           // Construct student_name from joined fields if available, otherwise use placeholders
@@ -4360,20 +4719,39 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       return false;
     } catch (error) {
       console.error('Error loading payments:', error);
-      // Fallback to direct SQL if API fails (though API is preferred)
+      
+      // Additional safety check - prevent any non-admin/accountant from accessing payments
+      if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'accountant')) {
+        console.warn('Unauthorized role attempting to access payments:', currentUser?.role);
+        setPayments([]);
+        return false;
+      }
+      
+      // Fallback to direct SQL if API fails (admin/accountant only)
       try {
-        const result = await sqlDatabase.executeQuery('SELECT * FROM payments ORDER BY recorded_date DESC');
+        const result = await sqlDatabase.executeQuery(`
+          SELECT p.*, s.first_name, s.last_name, s.admission_number,
+                 c.name as class_name, c.level,
+                 u.username as recorded_by_name
+          FROM payments p
+          JOIN students s ON p.student_id = s.id
+          JOIN classes c ON s.class_id = c.id
+          LEFT JOIN users u ON p.recorded_by = u.id
+          ORDER BY p.recorded_date DESC
+        `);
         if (result && result.data) {
            const transformedData = result.data.map((payment: any) => ({
             id: payment.id,
             student_id: payment.student_id,
-            student_name: 'Loading...', // Placeholder as direct SQL doesn't join
+            student_name: payment.first_name && payment.last_name 
+              ? `${payment.first_name} ${payment.last_name}` 
+              : (payment.student_name || 'Unknown Student'),
             amount: payment.amount,
             payment_type: payment.payment_type,
             term: payment.term,
             academic_year: payment.academic_year,
             payment_method: payment.payment_method,
-            reference: payment.transaction_reference,
+            reference: payment.transaction_reference || payment.reference,
             recorded_by: payment.recorded_by,
             recorded_date: payment.recorded_date,
             status: payment.status,
@@ -5566,8 +5944,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     payments,
     users,
     currentUser,
+    isLoading,
     feeStructures,
     studentFeeBalances,
+    feeBalances: studentFeeBalances,
     notifications,
     activityLogs,
     attendances,
@@ -5613,9 +5993,20 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     updateStudent,
     deleteStudent,
     deleteBulkStudents,
+    createStudentAPI,
+    updateStudentAPI,
+    deleteStudentAPI,
     getStudentsByClass,
     refreshStudents,
     addTeacher,
+    addUser: async (user: any) => {
+      try {
+        const res: any = await api.post('/users', user);
+        return res?.data?.id ?? 0;
+      } catch (e) {
+        return 0;
+      }
+    },
     updateTeacher,
     deleteTeacher,
     addParent,
@@ -5630,6 +6021,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     addSubject,
     updateSubject,
     deleteSubject,
+    createSubjectAPI,
+    updateSubjectAPI,
+    deleteSubjectAPI,
     addScore,
     updateScore,
     deleteScore,
@@ -5686,9 +6080,99 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     updateCompiledResult,
     deleteCompiledResult,
     addCompiledResult: async (data: any) => {
-      // Placeholder implementation since the actual function doesn't exist
-      console.log('addCompiledResult called with:', data);
-      return Promise.resolve(1); // Return a mock ID
+      try {
+        console.log('Adding/Updating compiled result:', data);
+        
+        // Check if record exists to avoid duplicate entry errors
+        const checkQuery = `SELECT id FROM compiled_results WHERE student_id = ? AND class_id = ? AND term = ? AND academic_year = ?`;
+        const checkParams = [data.student_id, data.class_id, data.term, data.academic_year];
+        
+        // Use executeQuery which returns different structures depending on the backend, 
+        // but for SELECT it usually returns array of rows or { data: rows }
+        const checkResult = await sqlDatabase.executeQuery(checkQuery, checkParams);
+        // Handle potential different return formats (array vs object with data property)
+        const existingRows = Array.isArray(checkResult) ? checkResult : (checkResult?.data || []);
+        
+        if (existingRows && existingRows.length > 0) {
+          // Update existing record
+          const existingId = existingRows[0].id;
+          console.log(`Updating existing compiled result ID: ${existingId}`);
+          
+          const updateQuery = `
+            UPDATE compiled_results SET
+              total_score = ?,
+              average_score = ?,
+              class_average = ?,
+              position = ?,
+              total_students = ?,
+              times_present = ?,
+              times_absent = ?,
+              total_attendance_days = ?,
+              class_teacher_comment = ?,
+              compiled_date = NOW(),
+              status = ?
+            WHERE id = ?
+          `;
+          
+          const updateParams = [
+            data.total_score, data.average_score, data.class_average, data.position,
+            data.total_students, data.times_present, data.times_absent, data.total_attendance_days,
+            data.class_teacher_comment, data.status,
+            existingId
+          ];
+          
+          await sqlDatabase.executeQuery(updateQuery, updateParams);
+          await loadCompiledResultsFromAPI();
+          return existingId;
+        } else {
+          // Insert new record
+          console.log('Inserting new compiled result');
+          const insertQuery = `
+            INSERT INTO compiled_results (
+              student_id, class_id, term, academic_year, 
+              total_score, average_score, class_average, position,
+              total_students, times_present, times_absent, total_attendance_days,
+              term_begin, term_end, next_term_begin,
+              class_teacher_name, class_teacher_comment,
+              principal_name, principal_comment, principal_signature,
+              compiled_by, compiled_date, status,
+              approved_by, approved_date, print_approved, rejection_reason
+            ) VALUES (
+              ?, ?, ?, ?, 
+              ?, ?, ?, ?,
+              ?, ?, ?, ?,
+              ?, ?, ?,
+              ?, ?,
+              ?, ?, ?,
+              ?, NOW(), ?,
+              ?, ?, ?, ?
+            )
+          `;
+          
+          const insertParams = [
+            data.student_id, data.class_id, data.term, data.academic_year,
+            data.total_score, data.average_score, data.class_average, data.position,
+            data.total_students, data.times_present, data.times_absent, data.total_attendance_days,
+            data.term_begin, data.term_end, data.next_term_begin,
+            data.class_teacher_name, data.class_teacher_comment,
+            data.principal_name, data.principal_comment, data.principal_signature,
+            data.compiled_by, data.status,
+            data.approved_by, data.approved_date, data.print_approved || 0, data.rejection_reason
+          ];
+          
+          const result = await sqlDatabase.executeQuery(insertQuery, insertParams);
+          
+          if (result && (result.insertId || result.affectedRows > 0)) {
+            await loadCompiledResultsFromAPI();
+            return result.insertId || 1; // Return insertId or success indicator
+          }
+        }
+        
+        return 0;
+      } catch (error) {
+        console.error('Error adding/updating compiled result:', error);
+        throw error;
+      }
     },
     publishCompiledResult,
     getAttendanceByStudent,
@@ -5736,9 +6220,36 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     setCurrentUser,
     login,
     logout: () => {
+      console.log('🔒 Logging out user');
+      
+      // Clear authentication data
       removeAuthToken();
       setCurrentUser(null);
+      
+      // Clear all local storage data
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Clear any cached data in context
+      setStudents([]);
+      setTeachers([]);
+      setClasses([]);
+      setSubjects([]);
+      setScores([]);
+      setPayments([]);
+      setNotifications([]);
+      setCompiledResults([]);
+      
+      // Reset loading states
+      setIsLoading(false);
+      setIsLoadingData(false);
+      
+      // Clear login toast flag for next session
+      sessionStorage.removeItem('loginToastShown');
       toast.success('Logged out successfully');
+      
+      // Force redirect to login page
+      window.location.href = '/login';
     },
     changePassword,
     markNotificationAsRead,
@@ -5754,7 +6265,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     getCompiledResultsByYearAndTerm,
     updateCurrentTerm,
     updateCurrentAcademicYear,
+    updateCurrentTermAndYear,
     updateSchoolSettings,
+    updateTermDates,
+    getTermDates,
+    loadTermDates,
     updateBankAccountSettings,
     getBankAccountSettings,
     validateClassTeacherAssignment,
@@ -5841,7 +6356,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     loadAssignmentsFromAPI,
     // Real-time Sync Methods
     refreshAllData: async () => {
-      await Promise.all([
+      const baseLoads = [
         loadUsersFromAPI(),
         loadTeachersFromAPI(),
         loadParentsFromAPI(),
@@ -5852,21 +6367,23 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         loadSubjectsFromAPI(),
         loadSubjectRegistrationsFromAPI(),
         loadSubjectAssignmentsFromAPI(),
-        loadPaymentsFromAPI(),
         loadFeeStructuresFromAPI(),
         loadStudentFeeBalancesFromAPI(),
         loadNotificationsFromAPI(),
         loadAttendancesFromAPI(),
-        loadScoresFromAPI(),
-        loadAffectiveDomainsFromAPI(),
-        loadPsychomotorDomainsFromAPI(),
-        loadCompiledResultsFromAPI(),
         loadExamTimetablesFromAPI(),
         loadClassTimetablesFromAPI(),
         loadDepartmentsFromAPI(),
         loadScholarshipsFromAPI(),
         loadAssignmentsFromAPI(),
-      ]);
+      ];
+
+      // Add payments loading only for admin/accountant roles
+      if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'accountant')) {
+        baseLoads.push(loadPaymentsFromAPI());
+      }
+
+      await Promise.all(baseLoads);
     },
     
     // Teacher-specific refresh methods
@@ -5951,7 +6468,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await loadSubjectRegistrationsFromAPI();
       await loadSubjectAssignmentsFromAPI();
       await loadScoresFromAPI(); // Add missing scores loading
-      await loadPaymentsFromAPI();
+      
+      // Load payments only for admin/accountant roles
+      if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'accountant')) {
+        await loadPaymentsFromAPI();
+      }
+      
       await loadFeeStructuresFromAPI();
       await loadStudentFeeBalancesFromAPI();
     },

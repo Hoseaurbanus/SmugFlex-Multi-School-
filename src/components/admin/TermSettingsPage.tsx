@@ -13,10 +13,14 @@ export function TermSettingsPage() {
     currentAcademicYear,
     updateCurrentTerm,
     updateCurrentAcademicYear,
+    updateCurrentTermAndYear,
     updateAttendanceRequirements,
     getAttendanceRequirements,
     loadAttendanceRequirements,
     attendanceRequirements,
+    updateTermDates,
+    getTermDates,
+    loadTermDates,
     currentUser
   } = useSchool();
   const [settings, setSettings] = useState({
@@ -34,12 +38,13 @@ export function TermSettingsPage() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  // Refresh attendance requirements from database when component loads and user is authenticated
+  // Load attendance requirements and term dates from database when component loads and user is authenticated
   useEffect(() => {
     if (currentUser) {
       loadAttendanceRequirements();
+      loadTermDates();
     }
-  }, [currentUser]); // Remove loadAttendanceRequirements from dependencies
+  }, [currentUser]); // Remove loadAttendanceRequirements and loadTermDates from dependencies
 
   // Update local state when attendance requirements change
   useEffect(() => {
@@ -49,12 +54,36 @@ export function TermSettingsPage() {
     }));
   }, [attendanceRequirements]); // Use the state, not the function
 
+  // Update local state when term dates change
+  useEffect(() => {
+    const termDates = getTermDates();
+    setSettings(prev => ({
+      ...prev,
+      termStartDate: termDates.termStartDate,
+      termEndDate: termDates.termEndDate,
+      nextTermStarts: termDates.nextTermStarts,
+      schoolResumptionDate: termDates.schoolResumptionDate,
+      midTermBreakStart: termDates.midTermBreakStart,
+      midTermBreakEnd: termDates.midTermBreakEnd
+    }));
+  }, [getTermDates]);
+
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      await updateCurrentAcademicYear(settings.academicYear);
-      await updateCurrentTerm(settings.currentTerm);
+      await updateCurrentTermAndYear(settings.academicYear, settings.currentTerm);
       await updateAttendanceRequirements(settings.attendanceRequirements);
+      
+      // Save term dates
+      await updateTermDates({
+        termStartDate: settings.termStartDate,
+        termEndDate: settings.termEndDate,
+        nextTermStarts: settings.nextTermStarts,
+        schoolResumptionDate: settings.schoolResumptionDate,
+        midTermBreakStart: settings.midTermBreakStart,
+        midTermBreakEnd: settings.midTermBreakEnd
+      });
+      
       toast.success("Term and attendance settings updated successfully!");
     } catch (error) {
       console.error('Error saving term settings:', error);

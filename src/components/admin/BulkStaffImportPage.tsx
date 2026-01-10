@@ -159,7 +159,7 @@ export function BulkStaffImportPage() {
         const newUsernames: string[] = [...existingUsernames];
 
         // Skip header and process each row
-        lines.slice(1).forEach((line, index) => {
+        lines.slice(1).forEach(async (line, index) => {
           const values = parseCSVLine(line);
           const rowNum = index + 2; // +2 because we skipped header and arrays are 0-indexed
 
@@ -411,7 +411,7 @@ export function BulkStaffImportPage() {
         <Card className="border-[#0A2540]/10 rounded-xl">
           <CardHeader className="bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-white rounded-t-xl">
             <CardTitle className="flex items-center gap-2">
-              <span2 className="w-5 h-5" />
+              <span className="w-5 h-5" />
               Import Results
             </CardTitle>
           </CardHeader>

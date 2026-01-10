@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -43,7 +43,11 @@ export function ClassListPage() {
     classTeacherAssignments,
     compiledResults,
     currentTerm,
-    currentAcademicYear
+    currentAcademicYear,
+    loadStudentsFromAPI,
+    loadParentsFromAPI,
+    loadCompiledResultsFromAPI,
+    loadClassesFromAPI
   } = useSchool();
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,11 +63,57 @@ export function ClassListPage() {
       );
       return !!assignment;
     });
-    const firstClassTeacherClass = classTeacherClasses[0];
-    return firstClassTeacherClass?.id || classes[0]?.id || 1;
+    // Fallback to all classes if no class teacher assignments
+    const availableClasses = classTeacherClasses.length > 0 ? classTeacherClasses : classes;
+    const firstAvailableClass = availableClasses[0];
+    return firstAvailableClass?.id || classes[0]?.id || 1;
   });
   const [genderFilter, setGenderFilter] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<ExtendedStudent | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load data when component mounts
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Load all necessary data in parallel
+        await Promise.all([
+          loadStudentsFromAPI(),
+          loadParentsFromAPI(),
+          loadCompiledResultsFromAPI(),
+          loadClassesFromAPI()
+        ]);
+      } catch (error) {
+        console.error('Error loading class list data:', error);
+        setError('Failed to load class data. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []); // Empty dependency array - only load once on mount
+
+  // Refresh data when class changes (optional)
+  useEffect(() => {
+    if (selectedClassId && !isLoading) {
+      const refreshData = async () => {
+        try {
+          await Promise.all([
+            loadStudentsFromAPI(),
+            loadCompiledResultsFromAPI()
+          ]);
+        } catch (error) {
+          console.error('Error refreshing class data:', error);
+        }
+      };
+
+      refreshData();
+    }
+  }, [selectedClassId, isLoading]);
 
   // Get teacher's classes based on class teacher assignment only
   const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
@@ -78,15 +128,21 @@ export function ClassListPage() {
     return !!assignment;
   });
 
-  // Get current class - only from teacher's assigned classes
-  const selectedClass = teacherClasses.find(c => c.id === selectedClassId) || teacherClasses[0];
+  // Fallback: If teacher has no class teacher assignments, show all classes
+  const availableClasses = teacherClasses.length > 0 ? teacherClasses : classes;
+
+  // Get current class - from available classes, but prefer one with students
+  const selectedClass = availableClasses.find(c => c.id === selectedClassId) || 
+    availableClasses.find(c => allStudents.some(s => s.class_id === c.id && s.status === 'Active')) || 
+    availableClasses.find(c => allStudents.some(s => s.class_id === c.id)) || 
+    availableClasses[0];
 
   // Get students from selected class with extended data
   const students: ExtendedStudent[] = useMemo(() => {
     if (!selectedClass) return []; // Return empty if no class is selected
     
     return allStudents
-      .filter(s => s.class_id === selectedClassId && s.status === 'Active')
+      .filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
       .map((student, index) => {
         const parent = parents.find(p => p.id === student.parent_id);
         const studentResults = compiledResults.filter(r => r.student_id === student.id && r.status === 'Approved');
@@ -141,6 +197,13 @@ export function ClassListPage() {
       .toUpperCase();
   };
 
+  const getStudentFullName = (student: any) => {
+    const firstName = student?.firstName || '';
+    const lastName = student?.lastName || '';
+    const fullName = `${firstName} ${lastName}`.trim() || 'Unknown Student';
+    return fullName;
+  };
+
   const exportToCSV = () => {
     const headers = ['Student ID', 'Name', 'Gender', 'DOB', 'Parent Name', 'Parent Phone', 'Parent Email', 'Attendance %', 'Average Score', 'Position'];
     const rows = filteredStudents.map(s => [
@@ -158,6 +221,34 @@ export function ClassListPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Loading State */}
+      {isLoading && (
+        <Card className="border-[#0A2540]/10">
+          <CardContent className="p-6 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0A2540] mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading class data...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6 text-center">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Main Content */}
+      {!isLoading && !error && (
+      <>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -191,72 +282,72 @@ export function ClassListPage() {
       {teacherClasses.length > 0 && (
       <>
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Total Students</p>
-                <p className="text-[#0A2540]">{classStats.totalStudents}</p>
+                <p className="text-gray-600 text-xs sm:text-sm mb-1">Total Students</p>
+                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.totalStudents}</p>
               </div>
-              <div className="bg-blue-100 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-blue-600" />
+              <div className="bg-blue-100 p-2 sm:p-3 rounded-xl">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Male</p>
-                <p className="text-[#0A2540]">{classStats.maleCount}</p>
+                <p className="text-gray-600 text-xs sm:text-sm mb-1">Male</p>
+                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.maleCount}</p>
               </div>
-              <div className="bg-indigo-100 p-3 rounded-xl">
-                <User className="w-6 h-6 text-indigo-600" />
+              <div className="bg-indigo-100 p-2 sm:p-3 rounded-xl">
+                <User className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Female</p>
-                <p className="text-[#0A2540]">{classStats.femaleCount}</p>
+                <p className="text-gray-600 text-xs sm:text-sm mb-1">Female</p>
+                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.femaleCount}</p>
               </div>
-              <div className="bg-pink-100 p-3 rounded-xl">
-                <User className="w-6 h-6 text-pink-600" />
+              <div className="bg-pink-100 p-2 sm:p-3 rounded-xl">
+                <User className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Avg Attendance</p>
-                <p className="text-[#0A2540]">{classStats.averageAttendance.toFixed(1)}%</p>
+                <p className="text-gray-600 text-xs sm:text-sm mb-1">Avg Attendance</p>
+                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.averageAttendance.toFixed(1)}%</p>
               </div>
-              <div className="bg-green-100 p-3 rounded-xl">
-                <TrendingUp className="w-6 h-6 text-green-600" />
+              <div className="bg-green-100 p-2 sm:p-3 rounded-xl">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Class Average</p>
-                <p className="text-[#0A2540]">{classStats.averageScore.toFixed(1)}%</p>
+                <p className="text-gray-600 text-xs sm:text-sm mb-1">Class Average</p>
+                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.averageScore.toFixed(1)}%</p>
               </div>
-              <div className="bg-yellow-100 p-3 rounded-xl">
-                <Target className="w-6 h-6 text-yellow-600" />
+              <div className="bg-yellow-100 p-2 sm:p-3 rounded-xl">
+                <Target className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
               </div>
             </div>
           </CardContent>
@@ -265,40 +356,45 @@ export function ClassListPage() {
 
       {/* Filters and Search */}
       <Card className="border-[#0A2540]/10">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {/* Search */}
-            <div className="relative">
+            <div className="relative sm:col-span-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 type="text"
                 placeholder="Search by name, ID, or parent..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-[#0A2540]/20 focus:border-[#FFD700] rounded-xl"
+                className="pl-10 border-[#0A2540]/20 focus:border-[#FFD700] rounded-xl text-sm sm:text-base"
               />
             </div>
 
             {/* Gender Filter */}
-            <Select value={genderFilter} onValueChange={setGenderFilter}>
-              <SelectTrigger className="border-[#0A2540]/20 rounded-xl">
-                <SelectValue placeholder="Gender" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Genders</SelectItem>
-                <SelectItem value="Male">Male</SelectItem>
-                <SelectItem value="Female">Female</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="sm:col-span-1">
+              <Select value={genderFilter} onValueChange={setGenderFilter}>
+                <SelectTrigger className="border-[#0A2540]/20 rounded-xl text-sm sm:text-base">
+                  <SelectValue placeholder="Gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Genders</SelectItem>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Export Button */}
-            <Button 
-              onClick={exportToCSV}
-              className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export Class List
-            </Button>
+            <div className="sm:col-span-1">
+              <Button 
+                onClick={exportToCSV}
+                className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl w-full sm:w-auto text-sm sm:text-base"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Export Class List</span>
+                <span className="sm:hidden">Export</span>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -306,20 +402,134 @@ export function ClassListPage() {
       {/* Students Table */}
       <Card className="border-[#0A2540]/10 shadow-lg">
         <CardHeader className="border-b border-[#0A2540]/10 bg-gradient-to-r from-[#0A2540]/5 to-[#1E40AF]/5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <CardTitle className="text-[#0A2540] font-semibold">Students ({(filteredStudents || []).length})</CardTitle>
             <div className="flex items-center gap-2">
-              <Badge className="bg-blue-100 text-blue-800 border-0">
+              <Badge className="bg-blue-100 text-blue-800 border-0 text-xs">
                 {classStats.totalStudents} Total
               </Badge>
-              <Badge className="bg-green-100 text-green-800 border-0">
+              <Badge className="bg-green-100 text-green-800 border-0 text-xs">
                 {filteredStudents?.length || 0} Filtered
               </Badge>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* Mobile View - Card Layout */}
+          <div className="block lg:hidden">
+            {(filteredStudents || []).length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No students found</p>
+                <p className="text-gray-400 text-sm">Try adjusting your filters or search criteria</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {filteredStudents.map((student) => (
+                  <div key={student.id} className="p-4 space-y-3 hover:bg-gray-50 transition-colors">
+                    {/* Student Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                          student.position === 1 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white' :
+                          student.position === 2 ? 'bg-gradient-to-r from-gray-300 to-gray-500 text-white' :
+                          student.position === 3 ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {student.position}
+                        </div>
+                        <Avatar className="h-10 w-10 bg-gradient-to-br from-[#0A2540] to-[#1E40AF] text-white font-semibold">
+                          <AvatarFallback className="bg-transparent text-sm">
+                            {getInitials(getStudentFullName(student))}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-[#0A2540] font-semibold text-sm">{getStudentFullName(student)}</p>
+                          <p className="text-xs text-gray-500 font-mono">{student.admissionNumber}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewDetails(student)}
+                        className="text-[#0A2540] hover:text-white hover:bg-gradient-to-r hover:from-[#0A2540] hover:to-[#1E40AF] rounded-xl transition-all duration-200"
+                      >
+                        <Search className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {/* Student Details Grid */}
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-gray-600 text-xs mb-1">Gender</p>
+                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                          student.gender === 'Male' 
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                            : 'bg-pink-100 text-pink-800 border border-pink-200'
+                        }`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${
+                            student.gender === 'Male' ? 'bg-blue-500' : 'bg-pink-500'
+                          }`} />
+                          {student.gender}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 text-xs mb-1">Attendance</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-gray-200 rounded-full h-2 relative overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                student.attendance >= 90 ? 'bg-gradient-to-r from-green-400 to-green-600' :
+                                student.attendance >= 75 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                                'bg-gradient-to-r from-red-400 to-red-600'
+                              }`}
+                              style={{ width: `${student.attendance}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold text-[#0A2540]">{student.attendance}%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 text-xs mb-1">Parent</p>
+                        <p className="text-[#0A2540] font-medium text-xs truncate">{student.parentName}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 text-xs mb-1">Performance</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-[#0A2540]">{student.averageScore.toFixed(1)}%</span>
+                          <Badge 
+                            className={`rounded-full text-xs font-semibold ${
+                              student.averageScore >= 70 ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300' :
+                              student.averageScore >= 50 ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300' :
+                              'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300'
+                            }`}
+                          >
+                            {student.averageScore >= 70 ? 'Excellent' :
+                             student.averageScore >= 50 ? 'Good' : 'Needs Improvement'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact Info */}
+                    <div className="space-y-1 pt-2 border-t border-gray-100">
+                      <div className="flex items-center gap-2 text-xs">
+                        <Phone className="w-3 h-3 text-gray-400" />
+                        <span className="text-gray-600">{student.parentPhone}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <Mail className="w-3 h-3 text-gray-400" />
+                        <span className="text-gray-600 truncate">{student.parentEmail}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop View - Table Layout */}
+          <div className="hidden lg:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gradient-to-r from-[#0A2540]/8 to-[#1E40AF]/8 border-b border-[#0A2540]/10">
@@ -370,11 +580,11 @@ export function ClassListPage() {
                         <div className="flex items-center gap-3">
                           <Avatar className="h-12 w-12 bg-gradient-to-br from-[#0A2540] to-[#1E40AF] text-white font-semibold">
                             <AvatarFallback className="bg-transparent">
-                              {getInitials(`${student.firstName} ${student.lastName}`)}
+                              {getInitials(getStudentFullName(student))}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="text-[#0A2540] font-semibold">{student.firstName} {student.lastName}</p>
+                            <p className="text-[#0A2540] font-semibold">{getStudentFullName(student)}</p>
                             <p className="text-sm text-gray-500 font-mono">{student.admissionNumber}</p>
                           </div>
                         </div>
@@ -465,13 +675,16 @@ export function ClassListPage() {
         </CardContent>
       </Card>
 
+      </>
+      )}
+
       {/* Student Details Dialog */}
       <Dialog open={!!selectedStudent} onOpenChange={() => setSelectedStudent(null)}>
         <DialogContent className="max-w-2xl rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-[#0A2540]">Student Details</DialogTitle>
             <DialogDescription>
-              Complete information for {selectedStudent && `${selectedStudent.firstName} ${selectedStudent.lastName}`}
+              Complete information for {selectedStudent && getStudentFullName(selectedStudent)}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -479,11 +692,11 @@ export function ClassListPage() {
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20 bg-[#0A2540] text-white text-xl">
                 <AvatarFallback className="bg-[#0A2540] text-white">
-                  {selectedStudent && getInitials(`${selectedStudent.firstName} ${selectedStudent.lastName}`)}
+                  {selectedStudent && getInitials(getStudentFullName(selectedStudent))}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="text-[#0A2540]">{selectedStudent && `${selectedStudent.firstName} ${selectedStudent.lastName}`}</h3>
+                <h3 className="text-[#0A2540]">{selectedStudent && getStudentFullName(selectedStudent)}</h3>
                 <p className="text-gray-600">{selectedStudent?.admissionNumber}</p>
                 <Badge variant="secondary" className="mt-1 rounded-xl">{selectedStudent?.gender}</Badge>
               </div>
