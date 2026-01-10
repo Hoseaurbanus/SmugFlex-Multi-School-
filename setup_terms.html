@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Term Structure - Graceland Royal Academy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl p-8 max-w-3xl w-full mx-4">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-blue-600 mb-2">Setup Term Structure</h1>
+            <p class="text-gray-600">Create independent term structure for all academic years</p>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+                <div>
+                    <h3 class="text-sm font-semibold text-blue-800">Important Information</h3>
+                    <p class="text-sm text-blue-700 mt-1">
+                        This creates the structure for all three terms. Each term will have its own independent assignments - 
+                        no copying between terms. You'll need to assign teachers separately for each term.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-4 mb-6">
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h3 class="font-semibold text-green-800 mb-2">What this script does:</h3>
+                <ul class="text-sm text-green-700 space-y-1">
+                    <li>• Creates subject registration structure for all three terms</li>
+                    <li>• Sets up available terms in school settings</li>
+                    <li>• Prepares independent assignment structure for each term</li>
+                    <li>• Does NOT copy assignments between terms</li>
+                    <li>• Works with your live domain: gracelandroyalacademy.com</li>
+                </ul>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <h3 class="font-semibold text-amber-800 mb-2">After running this script:</h3>
+                <ul class="text-sm text-amber-700 space-y-1">
+                    <li>• Go to <strong>Admin Dashboard → Term & Session Settings</strong></li>
+                    <li>• Set your desired current term (First/Second/Third Term)</li>
+                    <li>• For each term, manually assign:</li>
+                    <li> - Class teachers (Admin → Teacher Assignments)</li>
+                    <li> - Subject teachers (Admin → Subject Assignments)</li>
+                    <li>• Each term maintains completely independent assignments</li>
+                </ul>
+            </div>
+
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h3 class="font-semibold text-purple-800 mb-2">Benefits:</h3>
+                <ul class="text-sm text-purple-700 space-y-1">
+                    <li>• All three terms available for each academic year</li>
+                    <li>• Independent teacher assignments per term</li>
+                    <li>• No conflicts between terms</li>
+                    <li>• Proper term-based data management</li>
+                    <li>• Users, classes, and subjects remain constant across terms</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="flex space-x-4 mb-6">
+            <button onclick="setupTermStructure()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Setup Term Structure
+            </button>
+            
+            <button onclick="checkStatus()" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200">
+                Check Current Status
+            </button>
+            
+            <button onclick="checkDetailedStatus()" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200">
+                Detailed Terms Status
+            </button>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <p class="text-xs text-gray-600 text-center">
+                <strong>Domain:</strong> gracelandroyalacademy.com.ng | 
+                <strong>Note:</strong> This is a one-time setup. After running, assign teachers manually for each term.
+            </p>
+        </div>
+
+        <div id="result" class="mt-6 hidden"></div>
+    </div>
+
+    <script>
+        async function setupTermStructure() {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Setting up structure...';
+            button.disabled = true;
+
+            try {
+                const response = await fetch('api/setup_term_structure.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const result = await response.json();
+                displayResult(result);
+            } catch (error) {
+                displayResult({
+                    success: false,
+                    message: 'Error: ' + error.message
+                });
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        async function checkDetailedStatus() {
+            try {
+                const response = await fetch('api/check_terms_status.php');
+                const result = await response.json();
+                
+                if (result.success) {
+                    let html = `
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <h3 class="font-semibold text-purple-800 mb-3">Detailed Terms Status</h3>
+                            
+                            <div class="bg-white rounded p-3 mb-4">
+                                <h4 class="font-semibold text-gray-800 mb-2">Current Settings:</h4>
+                                <div class="text-sm text-gray-700 space-y-1">
+                                    <p><strong>Current Term:</strong> ${result.current_settings.current_term}</p>
+                                    <p><strong>Current Academic Year:</strong> ${result.current_settings.current_academic_year}</p>
+                                    <p><strong>Available Terms:</strong> ${result.current_settings.available_terms}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white rounded p-3 mb-4">
+                                <h4 class="font-semibold text-gray-800 mb-2">Summary:</h4>
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <p class="font-semibold text-blue-600">Total Academic Years</p>
+                                        <p class="text-xl font-bold">${result.summary.total_academic_years}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-green-600">Years with All Terms</p>
+                                        <p class="text-xl font-bold">${result.summary.years_with_all_terms}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-amber-600">Years with Only First Term</p>
+                                        <p class="text-xl font-bold">${result.summary.years_with_only_first_term}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-purple-600">Total Subject Registrations</p>
+                                        <p class="text-xl font-bold">${result.summary.total_subject_registrations}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white rounded p-3">
+                                <h4 class="font-semibold text-gray-800 mb-2">Term Distribution by Academic Year:</h4>
+                                <div class="space-y-3">
+                    `;
+                    
+                    result.term_distribution.forEach(year => {
+                        html += `
+                            <div class="border border-gray-200 rounded p-3">
+                                <h5 class="font-semibold text-gray-700 mb-2">${year.academic_year}</h5>
+                                <div class="grid grid-cols-3 gap-3 text-xs">
+                                    <div>
+                                        <p class="font-semibold text-blue-600">Subject Registrations</p>
+                                        <p>First: ${year.subject_registrations['First Term']}</p>
+                                        <p>Second: ${year.subject_registrations['Second Term']}</p>
+                                        <p>Third: ${year.subject_registrations['Third Term']}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-green-600">Class Teacher Assignments</p>
+                                        <p>First: ${year.class_teacher_assignments['First Term']}</p>
+                                        <p>Second: ${year.class_teacher_assignments['Second Term']}</p>
+                                        <p>Third: ${year.class_teacher_assignments['Third Term']}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-purple-600">Subject Assignments</p>
+                                        <p>First: ${year.subject_assignments['First Term']}</p>
+                                        <p>Second: ${year.subject_assignments['Second Term']}</p>
+                                        <p>Third: ${year.subject_assignments['Third Term']}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.getElementById('result').innerHTML = html;
+                } else {
+                    throw new Error(result.message);
+                }
+                
+                document.getElementById('result').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <p class="text-red-700">Error checking detailed status: ${error.message}</p>
+                    </div>
+                `;
+                document.getElementById('result').classList.remove('hidden');
+            }
+        }
+
+        async function checkStatus() {
+            try {
+                const response = await fetch('api/check_term.php');
+                const result = await response.json();
+                
+                const statusHtml = `
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">Current Status:</h3>
+                        <div class="text-sm text-gray-700 space-y-1">
+                            <p><strong>Current Term:</strong> ${result.current_term}</p>
+                            <p><strong>Current Academic Year:</strong> ${result.current_academic_year}</p>
+                            <p class="text-xs text-gray-500 mt-2">Timestamp: ${result.timestamp}</p>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('result').innerHTML = statusHtml;
+                document.getElementById('result').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <p class="text-red-700">Error checking status: ${error.message}</p>
+                    </div>
+                `;
+                document.getElementById('result').classList.remove('hidden');
+            }
+        }
+
+        function displayResult(result) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.classList.remove('hidden');
+
+            if (result.success) {
+                let html = `
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h3 class="font-semibold text-green-800 mb-2">✅ Success!</h3>
+                        <p class="text-green-700 mb-4">${result.message}</p>
+                        <div class="bg-white rounded p-3 mb-4">
+                            <h4 class="font-semibold text-gray-800 mb-2">Summary:</h4>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p class="font-semibold text-blue-600">Subject Registrations Created</p>
+                                    <p class="text-2xl font-bold">${result.summary.subject_registrations_created}</p>
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-purple-600">Academic Years Setup</p>
+                                    <p class="text-2xl font-bold">${result.summary.academic_years_setup}</p>
+                                </div>
+                            </div>
+                        </div>
+                `;
+
+                if (result.domain) {
+                    html += `
+                        <div class="bg-blue-100 rounded p-2 mb-3">
+                            <p class="text-sm text-blue-800"><strong>Domain:</strong> ${result.domain}</p>
+                        </div>
+                    `;
+                }
+
+                html += `
+                        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <h4 class="font-semibold text-amber-800 mb-2">Next Steps:</h4>
+                            <ol class="text-sm text-amber-700 space-y-1">
+                `;
+
+                result.next_steps.forEach(step => {
+                    html += `<li>${step}</li>`;
+                });
+
+                html += `
+                            </ol>
+                        </div>
+                        <div class="mt-3 p-2 bg-gray-100 rounded text-xs text-gray-600">
+                            <strong>Note:</strong> ${result.note}
+                        </div>
+                    </div>
+                `;
+
+                resultDiv.innerHTML = html;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <h3 class="font-semibold text-red-800 mb-2">❌ Error</h3>
+                        <p class="text-red-700">${result.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Check status on page load
+        window.addEventListener('load', checkStatus);
+    </script>
+</body>
+</html>
