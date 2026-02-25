@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { api } from '../../services/api';
 import { API_CONFIG } from '../../config/api';
@@ -36,6 +36,8 @@ export function ManageTeacherAssignmentsPage() {
     loadClassesFromAPI,
     validateClassTeacherAssignment,
     loadCurrentTermAndYear,
+    subjectRegistrations,
+    loadSubjectRegistrationsFromAPI,
   } = useSchool();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,6 +50,7 @@ export function ManageTeacherAssignmentsPage() {
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
   const [selectedAssignments, setSelectedAssignments] = useState<{ subject_id: number; class_id: number }[]>([]);
   const [selectedClassForTeacher, setSelectedClassForTeacher] = useState<string>('');
+  const [selectedClassIdForAssignments, setSelectedClassIdForAssignments] = useState<number | null>(null);
   const [classTeacherAssignments, setClassTeacherAssignments] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<Array<{
     id: string;
@@ -63,6 +66,106 @@ export function ManageTeacherAssignmentsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
+  const [classSearchTerm, setClassSearchTerm] = useState('');
+
+  // Map of valid subject/class combinations (filtered by current term and academic year)
+  // Key format: `${class_id}-${subject_id}`
+  const subjectRegistrationMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+
+    if (!subjectRegistrations || !Array.isArray(subjectRegistrations)) return map;
+
+    subjectRegistrations
+      .filter((sr: any) =>
+        sr.status === 'Active' &&
+        sr.academic_year === currentAcademicYear &&
+        sr.term === currentTerm
+      )
+      .forEach((sr: any) => {
+        map.set(`${sr.class_id}-${sr.subject_id}`, true);
+      });
+
+    return map;
+  }, [subjectRegistrations, currentAcademicYear, currentTerm]);
+
+  // Subjects available for the currently selected class (based on database structure)
+  const availableSubjectsForSelectedClass = useMemo(() => {
+    if (!subjects) return [];
+    
+    // Get selected class to determine level
+    const selectedClass = classes?.find(c => c.id === selectedClassIdForAssignments);
+    if (!selectedClass) return subjects;
+    
+    // Filter subjects based on actual database class levels
+    const classLevelSubjects = subjects.filter((subject: any) => {
+      const classLevel = selectedClass.level?.toLowerCase();
+      const subjectCategory = subject.category?.toLowerCase();
+      
+      // Handle empty subject categories - include them for appropriate classes
+      if (!subjectCategory || subjectCategory === '') {
+        // Empty category subjects are for KG and Kindergarten classes
+        return classLevel.includes('kg') || classLevel.includes('kindergarten') || classLevel.includes('grade k');
+      }
+      
+      // Exact category match
+      if (subjectCategory === classLevel) return true;
+      
+      // Creche classes
+      if (classLevel === 'creche' && subjectCategory === 'creche') return true;
+      
+      // KG/Kindergarten classes
+      if ((classLevel.includes('kg') || classLevel.includes('kindergarten')) && subjectCategory === 'nursery') return true;
+      
+      // Primary classes (Grade 1, Grade 2, etc.)
+      if (classLevel.includes('grade') && subjectCategory === 'primary') return true;
+      
+      // JSS classes (JSS 1, JSS 2, etc.)
+      if (classLevel.includes('jss') && subjectCategory === 'jss') return true;
+      
+      // SS classes (if any exist)
+      if (classLevel.includes('ss') && subjectCategory === 'ss') return true;
+      
+      // General subjects for all classes
+      if (subjectCategory === 'general') return true;
+      
+      return false;
+    });
+    
+    return classLevelSubjects.map((subject: any) => ({
+      ...subject,
+      canAssign: true // All subjects can be assigned
+    }));
+  }, [selectedClassIdForAssignments, subjects, classes]);
+
+  // Filtered teachers for search
+  const filteredTeachers = useMemo(() => {
+    if (!teachers || !Array.isArray(teachers)) return [];
+    
+    if (!teacherSearchTerm.trim()) return teachers;
+    
+    const searchTerm = teacherSearchTerm.toLowerCase();
+    return teachers.filter((teacher: any) => 
+      teacher.firstName?.toLowerCase().includes(searchTerm) ||
+      teacher.lastName?.toLowerCase().includes(searchTerm) ||
+      `${teacher.firstName} ${teacher.lastName}`.toLowerCase().includes(searchTerm) ||
+      teacher.id?.toString().includes(searchTerm)
+    );
+  }, [teachers, teacherSearchTerm]);
+
+  // Filtered classes for search
+  const filteredClasses = useMemo(() => {
+    if (!classes || !Array.isArray(classes)) return [];
+    
+    if (!classSearchTerm.trim()) return classes;
+    
+    const searchTerm = classSearchTerm.toLowerCase();
+    return classes.filter((cls: any) => 
+      cls.name?.toLowerCase().includes(searchTerm) ||
+      cls.level?.toLowerCase().includes(searchTerm) ||
+      cls.id?.toString().includes(searchTerm)
+    );
+  }, [classes, classSearchTerm]);
 
   // Statistics
   const stats = {
@@ -103,6 +206,9 @@ export function ManageTeacherAssignmentsPage() {
   const handleOpenAssignDialog = () => {
     setSelectedAssignments([]);
     setSelectedTeacherId(null);
+    setSelectedClassIdForAssignments(null);
+    setTeacherSearchTerm('');
+    setClassSearchTerm('');
     setIsAssignDialogOpen(true);
   };
 
@@ -125,6 +231,20 @@ export function ManageTeacherAssignmentsPage() {
       return;
     }
 
+    // Validate current term and academic year
+    if (!currentAcademicYear || !currentTerm) {
+      toast.error('Current academic year or term is not set. Please refresh the page.');
+      console.error('Missing term/year data:', { currentAcademicYear, currentTerm });
+      return;
+    }
+
+    console.log('Saving assignments with:', {
+      selectedTeacherId,
+      numAssignments: selectedAssignments.length,
+      currentAcademicYear,
+      currentTerm
+    });
+
     setIsSaving(true);
     setSaveStatus('saving');
 
@@ -144,12 +264,20 @@ export function ManageTeacherAssignmentsPage() {
         );
 
         if (!exists) {
+          console.log('Creating assignment:', {
+            teacherId: selectedTeacherId,
+            subjectId: assignment.subject_id,
+            classId: assignment.class_id,
+            academicYear: currentAcademicYear,
+            term: currentTerm
+          });
+
           const success = await assignSubjectToTeacherAPI(
-            selectedTeacherId,
+            selectedTeacherId!,
             assignment.subject_id,
             assignment.class_id,
-            currentAcademicYear,
-            currentTerm
+            currentAcademicYear!,
+            currentTerm!
           );
 
           if (success) {
@@ -166,30 +294,38 @@ export function ManageTeacherAssignmentsPage() {
             );
           } else {
             failureCount++;
+            console.error('Failed to create assignment:', assignment);
           }
+        } else {
+          console.log('Assignment already exists:', assignment);
         }
       }
 
       if (successCount > 0) {
-        toast.success(`${successCount} assignments created successfully`);
+        toast.success(`${successCount} assignments created successfully for ${currentTerm} ${currentAcademicYear}`);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus('idle'), 2000);
         setSelectedAssignments([]);
         setSelectedTeacherId(null);
         setIsAssignDialogOpen(false);
-        // Refresh data to show new assignments
-        await loadSubjectAssignmentsFromAPI();
+        
+        // Refresh data to show new assignments and update counts
+        console.log('Refreshing assignments data...');
+        await Promise.all([
+          loadSubjectAssignmentsFromAPI(),
+          loadTeachersFromAPI(), // Refresh to update assignment counts
+          loadClassesFromAPI()    // Refresh to update teacher counts
+        ]);
+      } else if (failureCount === 0) {
+        toast.info('All selected assignments already exist');
+      } else {
+        toast.error(`Failed to create ${failureCount} assignments`);
       }
       
-      if (failureCount > 0) {
-        toast.error(`${failureCount} assignments failed - some may already exist`);
-        setSaveStatus('error');
-        setTimeout(() => setSaveStatus('idle'), 2000);
-      }
     } catch (error) {
-      toast.error('An error occurred while saving assignments');
+      console.error('Error saving assignments:', error);
+      toast.error('Failed to save assignments. Please try again.');
       setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 2000);
     } finally {
       setIsSaving(false);
     }
@@ -199,6 +335,8 @@ export function ManageTeacherAssignmentsPage() {
   const handleOpenClassTeacherDialog = () => {
     setSelectedTeacherId(null);
     setSelectedClassForTeacher('');
+    setTeacherSearchTerm('');
+    setClassSearchTerm('');
     setIsClassTeacherDialogOpen(true);
   };
 
@@ -212,6 +350,13 @@ export function ManageTeacherAssignmentsPage() {
     
     if (!selectedTeacherId || !selectedClassForTeacher) {
       toast.error('Please select both teacher and class');
+      return;
+    }
+
+    // Validate current term and academic year
+    if (!currentAcademicYear || !currentTerm) {
+      toast.error('Current academic year or term is not set. Please refresh the page.');
+      console.error('Missing term/year data:', { currentAcademicYear, currentTerm });
       return;
     }
 
@@ -253,9 +398,13 @@ export function ManageTeacherAssignmentsPage() {
           'class_teacher'
         );
 
-        // Refresh class teacher assignments
-        console.log('Refreshing class teacher assignments...');
-        await loadClassTeacherAssignmentsFromAPI();
+        // Refresh data to show new assignments and update counts
+        console.log('Refreshing class teacher assignments data...');
+        await Promise.all([
+          loadClassTeacherAssignmentsFromAPI(),
+          loadTeachersFromAPI(), // Refresh to update assignment counts
+          loadClassesFromAPI()    // Refresh to update teacher counts
+        ]);
 
         setSelectedTeacherId(null);
         setSelectedClassForTeacher('');
@@ -276,7 +425,7 @@ export function ManageTeacherAssignmentsPage() {
 
     try {
       // Find the assignment ID for current term
-      const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear, currentTerm));
+      const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear!, currentTerm!));
       
       if (response && response.success) {
         const assignments = (response.data as any[]) || [];
@@ -324,6 +473,7 @@ export function ManageTeacherAssignmentsPage() {
           loadClassTeacherAssignmentsFromAPI(),
           loadTeachersFromAPI(),
           loadClassesFromAPI(),
+          loadSubjectRegistrationsFromAPI(),
         ]);
       } catch (error) {
         toast.error('Failed to load data');
@@ -340,7 +490,7 @@ export function ManageTeacherAssignmentsPage() {
     const loadClassTeacherData = async () => {
       if (activeTab === 'class-teachers') {
         try {
-          const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear, currentTerm));
+          const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear!, currentTerm!));
           if (response && response.success) {
             setClassTeacherAssignments((response.data as any[]) || []);
           }
@@ -928,76 +1078,177 @@ export function ManageTeacherAssignmentsPage() {
             </DialogHeader>
             
             <div className="space-y-6 mt-6">
-              {/* Teacher Selection */}
+              {/* Teacher Selection with Search */}
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Teacher</Label>
-                <Select value={selectedTeacherId?.toString() || ''} onValueChange={(value: string) => setSelectedTeacherId(parseInt(value))}>
-                  <SelectTrigger className="h-12 rounded-xl">
-                    <SelectValue placeholder="Choose a teacher" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 overflow-y-auto">
-                    {teachers?.map((teacher) => (
-                      <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                        {teacher.firstName} {teacher.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search teachers..."
+                    value={teacherSearchTerm}
+                    onChange={(e) => setTeacherSearchTerm(e.target.value)}
+                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
+                  {filteredTeachers.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No teachers found
+                    </div>
+                  ) : (
+                    filteredTeachers.map((teacher) => (
+                      <div
+                        key={teacher.id}
+                        onClick={() => {
+                          setSelectedTeacherId(Number(teacher.id));
+                          setTeacherSearchTerm(`${teacher.firstName} ${teacher.lastName}`);
+                        }}
+                        className={`p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 ${
+                          selectedTeacherId === Number(teacher.id) ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                            {teacher.firstName?.[0]}{teacher.lastName?.[0]}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 text-sm">
+                              {teacher.firstName} {teacher.lastName}
+                            </p>
+                            <p className="text-xs text-gray-500">ID: {teacher.id}</p>
+                          </div>
+                          {selectedTeacherId === teacher.id && (
+                            <Check className="w-4 h-4 text-blue-600" />
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Class Selection with Search */}
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Class</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search classes..."
+                    value={classSearchTerm}
+                    onChange={(e) => setClassSearchTerm(e.target.value)}
+                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
+                  {filteredClasses.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No classes found
+                    </div>
+                  ) : (
+                    filteredClasses.map((cls) => (
+                      <div
+                        key={cls.id}
+                        onClick={() => {
+                          setSelectedClassIdForAssignments(cls.id);
+                          setClassSearchTerm(cls.name);
+                        }}
+                        className={`p-3 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-b-0 ${
+                          selectedClassIdForAssignments === cls.id ? 'bg-green-50 border-l-4 border-l-green-500' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                            {cls.name?.[0]}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 text-sm">{cls.name}</p>
+                            <p className="text-xs text-gray-500">{cls.level}</p>
+                          </div>
+                          {selectedClassIdForAssignments === cls.id && (
+                            <Check className="w-4 h-4 text-green-600" />
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               {/* Subject-Class Matrix */}
-              {selectedTeacherId && (
+              {selectedTeacherId && selectedClassIdForAssignments && (
                 <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-4 block">Select Assignments</Label>
-                  <div className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="grid grid-cols-12 bg-gray-50 border-b border-gray-200">
-                      <div className="col-span-5 p-3 font-semibold text-gray-700">Subject</div>
-                      <div className="col-span-7 p-3 font-semibold text-gray-700">Classes</div>
+                  <Label className="text-sm font-medium text-gray-700 mb-4 block">
+                    Select Subjects for {
+                      classes?.find(c => c.id === selectedClassIdForAssignments)?.name || 'Selected Class'
+                    }
+                  </Label>
+                  
+                  {/* Subject Selection Info */}
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-start gap-2">
+                      <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-blue-600 text-xs font-semibold">📚</span>
+                      </div>
+                      <div className="text-sm text-blue-800">
+                        <p className="font-medium">Subjects for {
+                          classes?.find(c => c.id === selectedClassIdForAssignments)?.name || 'Selected Class'
+                        }</p>
+                        <p className="text-xs mt-1">
+                          Showing subjects available for this specific class. Assignments will be saved for {currentTerm} {currentAcademicYear}.
+                        </p>
+                      </div>
                     </div>
+                  </div>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
                     <div className="max-h-96 overflow-y-auto">
-                      {subjects?.map((subject) => (
-                        <div key={subject.id} className="border-b border-gray-100">
-                          <div className="grid grid-cols-12">
-                            <div className="col-span-5 p-3 border-r border-gray-100">
-                              <div className="flex items-center gap-2">
-                                <div className="p-1 bg-orange-100 rounded">
-                                  <BookOpen className="w-3 h-3 text-orange-600" />
-                                </div>
-                                <div>
-                                  <p className="font-medium text-gray-900 text-sm">{subject.name}</p>
-                                  <p className="text-xs text-gray-500">{subject.code}</p>
-                                </div>
+                      {availableSubjectsForSelectedClass.length === 0 && (
+                        <div className="p-4 text-center text-sm text-gray-500">
+                          No subjects available for {
+                            classes?.find(c => c.id === selectedClassIdForAssignments)?.name || 'this class'
+                          }
+                        </div>
+                      )}
+
+                      {availableSubjectsForSelectedClass.map((subject: any) => {
+                        const isSelected = selectedAssignments.some(
+                          (a) =>
+                            a.subject_id === subject.id &&
+                            a.class_id === selectedClassIdForAssignments
+                        );
+
+                        return (
+                          <div
+                            key={subject.id}
+                            className="flex items-center justify-between p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50"
+                            onClick={() =>
+                              handleAddAssignment(subject.id, selectedClassIdForAssignments)
+                            }
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 bg-blue-100 rounded">
+                                <BookOpen className="w-3 h-3 text-blue-600" />
                               </div>
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{subject.name}</p>
+                                <p className="text-xs text-gray-500">{subject.code} • {subject.category}</p>
+                              </div>
+                              {subject.is_core && (
+                                <Badge variant="outline" className="bg-purple-100 text-purple-800 text-xs ml-2">
+                                  Core
+                                </Badge>
+                              )}
                             </div>
-                            <div className="col-span-7 p-3">
-                              <div className="flex flex-wrap gap-2">
-                                {classes?.map((cls) => {
-                                  const isSelected = selectedAssignments.some(
-                                    (a) => a.subject_id === subject.id && a.class_id === cls.id
-                                  );
-                                  return (
-                                    <div
-                                      key={cls.id}
-                                      className={`flex items-center gap-1 px-2 py-1 rounded-lg border cursor-pointer transition-colors ${
-                                        isSelected
-                                          ? 'bg-blue-100 border-blue-300 text-blue-700'
-                                          : 'bg-white border-gray-200 hover:bg-gray-50'
-                                      }`}
-                                      onClick={() => handleAddAssignment(subject.id, cls.id)}
-                                    >
-                                      <Checkbox
-                                        checked={isSelected}
-                                        className="w-3 h-3"
-                                      />
-                                      <span className="text-xs font-medium">{cls.name}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                checked={isSelected}
+                                className="w-3 h-3"
+                              />
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1068,36 +1319,102 @@ export function ManageTeacherAssignmentsPage() {
             </DialogHeader>
             
             <div className="space-y-4 mt-6">
+              {/* Teacher Selection with Search */}
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Teacher</Label>
-                <Select value={selectedTeacherId?.toString() || ''} onValueChange={(value: string) => setSelectedTeacherId(parseInt(value))}>
-                  <SelectTrigger className="h-12 rounded-xl">
-                    <SelectValue placeholder="Choose a teacher" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 overflow-y-auto">
-                    {teachers?.map((teacher) => (
-                      <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                        {teacher.firstName} {teacher.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search teachers..."
+                    value={teacherSearchTerm}
+                    onChange={(e) => setTeacherSearchTerm(e.target.value)}
+                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-green-500 focus:ring-green-500"
+                  />
+                </div>
+                <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
+                  {filteredTeachers.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No teachers found
+                    </div>
+                  ) : (
+                    filteredTeachers.map((teacher) => (
+                      <div
+                        key={teacher.id}
+                        onClick={() => {
+                          setSelectedTeacherId(Number(teacher.id));
+                          setTeacherSearchTerm(`${teacher.firstName} ${teacher.lastName}`);
+                        }}
+                        className={`p-3 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-b-0 ${
+                          selectedTeacherId === Number(teacher.id) ? 'bg-green-50 border-l-4 border-l-green-500' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                            {teacher.firstName?.[0]}{teacher.lastName?.[0]}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 text-sm">
+                              {teacher.firstName} {teacher.lastName}
+                            </p>
+                            <p className="text-xs text-gray-500">ID: {teacher.id}</p>
+                          </div>
+                          {selectedTeacherId === teacher.id && (
+                            <Check className="w-4 h-4 text-green-600" />
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
+              {/* Class Selection with Search */}
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Class</Label>
-                <Select value={selectedClassForTeacher} onValueChange={setSelectedClassForTeacher}>
-                  <SelectTrigger className="h-12 rounded-xl">
-                    <SelectValue placeholder="Choose a class" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 overflow-y-auto">
-                    {classes?.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.id.toString()}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search classes..."
+                    value={classSearchTerm}
+                    onChange={(e) => setClassSearchTerm(e.target.value)}
+                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-green-500 focus:ring-green-500"
+                  />
+                </div>
+                <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
+                  {filteredClasses.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No classes found
+                    </div>
+                  ) : (
+                    filteredClasses.map((cls) => (
+                      <div
+                        key={cls.id}
+                        onClick={() => {
+                          setSelectedClassForTeacher(cls.id.toString());
+                          setClassSearchTerm(cls.name);
+                        }}
+                        className={`p-3 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-b-0 ${
+                          selectedClassForTeacher === cls.id.toString() ? 'bg-green-50 border-l-4 border-l-green-500' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                            {cls.name?.[0]}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 text-sm">{cls.name}</p>
+                            <p className="text-xs text-gray-500">{cls.level}</p>
+                          </div>
+                          {selectedClassForTeacher === cls.id.toString() && (
+                            <Check className="w-4 h-4 text-green-600" />
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 

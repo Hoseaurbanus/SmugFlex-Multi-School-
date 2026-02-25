@@ -37,33 +37,40 @@ class JWT {
      */
     public static function decode($jwt) {
         $parts = explode('.', $jwt);
-        
+
         if (count($parts) !== 3) {
+            error_log("JWT decode: Invalid JWT format - wrong number of parts: " . count($parts));
             return false;
         }
-        
+
         list($header_encoded, $payload_encoded, $signature_encoded) = $parts;
-        
+
         $header = json_decode(self::base64url_decode($header_encoded), true);
         $payload = json_decode(self::base64url_decode($payload_encoded), true);
-        
+
         if (!$header || !$payload) {
+            error_log("JWT decode: Failed to decode header or payload JSON");
             return false;
         }
-        
+
         // Verify signature
         $signature = hash_hmac('sha256', "$header_encoded.$payload_encoded", self::getSecret(), true);
         $signature_check = self::base64url_decode($signature_encoded);
-        
+
         if (!hash_equals($signature, $signature_check)) {
+            error_log("JWT decode: Signature verification failed");
+            error_log("JWT decode: Expected signature: " . bin2hex($signature));
+            error_log("JWT decode: Received signature: " . bin2hex($signature_check));
             return false;
         }
-        
+
         // Check expiration
         if (isset($payload['exp']) && $payload['exp'] < time()) {
+            error_log("JWT decode: Token expired - exp: " . date('Y-m-d H:i:s', $payload['exp']) . ", now: " . date('Y-m-d H:i:s', time()));
             return false;
         }
-        
+
+        error_log("JWT decode: Token validation successful for user: " . ($payload['username'] ?? 'unknown'));
         return $payload;
     }
     
@@ -84,27 +91,57 @@ class JWT {
     
     /**
      * Validate token from request headers
+     * Checks all possible locations for the Authorization header, since Apache/CGI/FastCGI
+     * environments may place it in different $_SERVER or getallheaders() locations.
      */
     public static function validateToken($headers) {
         $auth_header = '';
-        
+
+        // Check getallheaders() output (works on mod_php)
         if (isset($headers['Authorization'])) {
             $auth_header = $headers['Authorization'];
         } elseif (isset($headers['authorization'])) {
             $auth_header = $headers['authorization'];
-        } elseif (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        }
+
+        // Additional header checks for different server configurations
+        if (!$auth_header && isset($_SERVER['HTTP_AUTHORIZATION'])) {
             $auth_header = $_SERVER['HTTP_AUTHORIZATION'];
         }
-        
+        if (!$auth_header && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+            $auth_header = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+        }
         if (!$auth_header) {
+            $env_auth = getenv('HTTP_AUTHORIZATION');
+            if ($env_auth) {
+                $auth_header = $env_auth;
+            }
+        }
+
+        error_log("JWT validateToken: Auth header found: " . substr($auth_header, 0, 50) . "...");
+
+        if (!$auth_header) {
+            error_log("JWT validateToken: No Authorization header found. Available headers: " . json_encode(array_keys($headers)));
+            error_log("JWT validateToken: Server vars: " . json_encode(array_filter(array_keys($_SERVER), function($k) {
+                return strpos($k, 'AUTH') !== false || strpos($k, 'HTTP_') !== false;
+            })));
             return false;
         }
-        
+
         if (preg_match('/Bearer\s(\S+)/', $auth_header, $matches)) {
             $jwt = $matches[1];
-            return self::decode($jwt);
+            error_log("JWT validateToken: Found Bearer token, attempting to decode. Token length: " . strlen($jwt));
+            $result = self::decode($jwt);
+            if (!$result) {
+                error_log("JWT validateToken: Token decode failed for token: " . substr($jwt, 0, 50) . "...");
+                return false;
+            } else {
+                error_log("JWT validateToken: Token decoded successfully for user: " . ($result['username'] ?? 'unknown'));
+                return $result;
+            }
         }
-        
+
+        error_log("JWT validateToken: Bearer token not found in auth header: " . substr($auth_header, 0, 50) . "...");
         return false;
     }
     
@@ -122,8 +159,8 @@ class JWT {
         ];
         
         // Ensure linked_id is always set for parent role
-        if ($payload['role'] === 'parent') {
-            $payload['linked_id'] = 149; // Temporary fix for parent user umaru.anthony
+        if ($payload['role'] === 'parent' && !isset($payload['linked_id'])) {
+            $payload['linked_id'] = null; // Don't hardcode - let it be set from user data
         }
         
         return self::encode($payload);

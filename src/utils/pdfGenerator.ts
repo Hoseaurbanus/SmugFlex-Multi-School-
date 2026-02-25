@@ -57,12 +57,12 @@ const getDomainName = (key: string) => {
 export const generatePDFFromData = async (student: any, result: any, context: any) => {
   const { schoolSettings, teachers, classes, affectiveDomains, psychomotorDomains } = context;
   
-  console.log('=== PDF GENERATION - ALL DATA MODE (NO VALIDATION) ===');
-  console.log('School settings available:', !!schoolSettings);
-  console.log('Student data available:', !!student);
-  console.log('Result data available:', !!result);
-  console.log('Affective domains available:', !!affectiveDomains);
-  console.log('Psychomotor domains available:', !!psychomotorDomains);
+  //console.log('=== PDF GENERATION - ALL DATA MODE (NO VALIDATION) ===');
+  
+  
+  
+  
+  
   
   // MINIMAL VALIDATION - Only check for absolutely required data
   if (!student || !student.id) {
@@ -73,7 +73,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
     throw new Error('Result data is required for PDF generation');
   }
   
-  console.log('✅ Minimal validation passed - generating PDF with all available data');
+  
   
   const { default: jsPDF } = await import('jspdf');
   const pdf = new jsPDF({
@@ -83,7 +83,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
     compress: false
   });
 
-  console.log('PDF instance created');
+  
 
   // Exact page dimensions from StudentResultSheet
   const pageWidth = 210; // A4 width in mm
@@ -105,13 +105,9 @@ export const generatePDFFromData = async (student: any, result: any, context: an
       pdf.setFont('times', 'normal'); // Professional Times font for normal text
     }
     
-    // Set black color for maximum contrast
-    pdf.setTextColor(0, 0, 0);
+    pdf.setTextColor(0, 0, 0); // Ensure black text
     
-    if (align === 'right') {
-      const textWidth = pdf.getTextWidth(text);
-      pdf.text(text, x - textWidth, y);
-    } else if (align === 'center') {
+    if (align === 'center') {
       pdf.text(text, x, y, { align: 'center' });
     } else {
       pdf.text(text, x, y);
@@ -120,13 +116,19 @@ export const generatePDFFromData = async (student: any, result: any, context: an
     return y + (fontSize * 0.35); // Line height based on font size
   };
 
-  const studentClassData = classes.find((c: any) => c.id === result.class_id);
+  // Ensure arrays are safe before using .find()
+  const safeClasses = Array.isArray(classes) ? classes : [];
+  const safeAffectiveDomains = Array.isArray(affectiveDomains) ? affectiveDomains : [];
+  const safePsychomotorDomains = Array.isArray(psychomotorDomains) ? psychomotorDomains : [];
+  const safeTeachers = Array.isArray(teachers) ? teachers : [];
+
+  const studentClassData = safeClasses.find((c: any) => c.id === result.class_id);
   
   // Get student's affective domain data - same as admin ResultsManagementPage
   const getStudentAffectiveData = () => {
-    if (!result || !result.student_id || !affectiveDomains) return {} as any;
+    if (!result || !result.student_id || !safeAffectiveDomains || safeAffectiveDomains.length === 0) return {} as any;
     
-    const studentAffective = affectiveDomains.find((domain: any) => 
+    const studentAffective = safeAffectiveDomains.find((domain: any) => 
       domain.student_id === result.student_id &&
       domain.academic_year === result.academic_year &&
       domain.term === result.term
@@ -137,9 +139,9 @@ export const generatePDFFromData = async (student: any, result: any, context: an
 
   // Get student's psychomotor domain data - same as admin ResultsManagementPage
   const getStudentPsychomotorData = () => {
-    if (!result || !result.student_id || !psychomotorDomains) return {} as any;
+    if (!result || !result.student_id || !safePsychomotorDomains || safePsychomotorDomains.length === 0) return {} as any;
     
-    const studentPsychomotor = psychomotorDomains.find((domain: any) => 
+    const studentPsychomotor = safePsychomotorDomains.find((domain: any) => 
       domain.student_id === result.student_id &&
       domain.academic_year === result.academic_year &&
       domain.term === result.term
@@ -182,15 +184,15 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   let detailedScoresData: any[] = [];
   
   // SCORES DATA - Handle missing data gracefully
-  console.log('Processing scores data...');
-  console.log('Context.scores available:', !!context.scores);
-  console.log('Result.scores available:', !!result?.scores);
-  console.log('Result.scores type:', typeof result?.scores);
-  console.log('Result.scores length:', result?.scores?.length);
+  
+  
+  
+  
+  
   
   // Try to get scores from multiple sources with fallbacks
   if (result?.scores && Array.isArray(result.scores) && result.scores.length > 0) {
-    console.log('Using result.scores directly');
+    
     detailedScoresData = result.scores.map((score: any) => ({
       ...score,
       subject_name: score.subject_name || 'Unknown Subject',
@@ -204,7 +206,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
       total: score.total || 0
     })).sort((a: any, b: any) => a.subject_name.localeCompare(b.subject_name));
   } else if (context.scores && Array.isArray(context.scores) && context.scores.length > 0) {
-    console.log('Using context.scores with filtering');
+    
     let studentScores = context.scores.filter((score: any) => 
       score.student_id === result.student_id &&
       score.academic_year === result.academic_year &&
@@ -212,12 +214,12 @@ export const generatePDFFromData = async (student: any, result: any, context: an
     );
     detailedScoresData = studentScores;
   } else {
-    console.log('No scores available - will show empty scores section');
+    
     detailedScoresData = [];
   }
 
-  console.log('Final detailedScoresData count:', detailedScoresData.length);
-  console.log('Final detailedScoresData sample:', detailedScoresData.slice(0, 2));
+  
+  //console.log('Final detailedScoresData sample:', detailedScoresData.slice(0, 2));
 
   // === PAGE BACKGROUND (Exact StudentResultCard: background: white) ===
   // Pure white background to match StudentResultCard exactly
@@ -258,9 +260,9 @@ export const generatePDFFromData = async (student: any, result: any, context: an
       try {
         pdf.addImage(schoolSettings.school_logo_url, 'PNG', pageWidth / 2 - 70, pageHeight / 2 - 70, 140, 140); // Centered
         watermarkLoaded = true;
-        console.log('School logo loaded from settings');
+        
       } catch (error) {
-        console.log('Settings logo failed to load:', error);
+        
       }
     }
     
@@ -270,15 +272,15 @@ export const generatePDFFromData = async (student: any, result: any, context: an
         const publicLogoUrl = "./assets/images/school-logo.jpg"; // Exact StudentResultCard path
         pdf.addImage(publicLogoUrl, 'PNG', pageWidth / 2 - 70, pageHeight / 2 - 70, 140, 140); // Centered
         watermarkLoaded = true;
-        console.log('Fallback watermark loaded - centered position');
+        
       } catch (error) {
-        console.log('All watermark attempts failed:', error);
+        
       }
     }
   }
 
   // === HEADER SECTION (Exact StudentResultCard structure - what you see in view button) ===
-  console.log('Drawing header section...');
+  
   
   // Header container - exact StudentResultCard: centered layout
   const headerY = currentY;
@@ -304,9 +306,9 @@ export const generatePDFFromData = async (student: any, result: any, context: an
       // Add image within circular bounds
       pdf.addImage(schoolSettings.school_logo_url, 'PNG', logoX, headerY, logoSize, logoSize);
       logoLoaded = true;
-      console.log('School logo loaded from settings');
+      
     } catch (error) {
-      console.log('Settings logo failed to load:', error);
+      
     }
   }
   
@@ -325,9 +327,9 @@ export const generatePDFFromData = async (student: any, result: any, context: an
       // Add image within circular bounds
       pdf.addImage(publicLogoUrl, 'PNG', logoX, headerY, logoSize, logoSize);
       logoLoaded = true;
-      console.log('Public logo loaded from exact StudentResultCard path');
+      
     } catch (error) {
-      console.log('Public logo failed to load:', error);
+      
     }
   }
   
@@ -337,9 +339,9 @@ export const generatePDFFromData = async (student: any, result: any, context: an
       const fallbackUrl = "./assets/images/school-logo.png"; // Exact StudentResultCard fallback
       pdf.addImage(fallbackUrl, 'PNG', pageWidth / 2 - 70, pageHeight / 2 - 70, 140, 140); // Centered
       watermarkLoaded = true;
-      console.log('Fallback watermark loaded - centered position');
+      
     } catch (fallbackError) {
-      console.log('All logo attempts failed, using text fallback:', fallbackError);
+      
     }
   }
   
@@ -398,7 +400,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   currentY = currentTextY + 8; // Header marginBottom: increased from 3mm to 8mm for better separation
 
   // === STUDENT INFORMATION SECTION (Exact StudentResultCard copy) ===
-  console.log('Drawing student info section...');
+  
   
   // Student info section container (exact StudentResultCard: marginBottom: 2mm, gap: 1mm, centered)
   const studentInfoY = currentY;
@@ -496,7 +498,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   currentY = studentInfoY + 25; // Space below student info table
 
   // === RESULT TABLE (Exact StudentResultCard copy) ===
-  console.log('Drawing result table...');
+  
   
   const resultTableY = currentY;
   const tableWidth = contentWidth * 0.95; // 95% width
@@ -540,10 +542,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   let rowY = resultTableY + 8;
   const scoresList = detailedScoresData; // Use exact same data as StudentResultCard
   
-  console.log('=== TABLE RENDERING DEBUG ===');
-  console.log('scoresList length:', scoresList.length);
-  console.log('scoresList data:', scoresList);
-  
+    
   if (scoresList.length > 0) {
     scoresList.forEach((score: any, index: number) => {
       if (rowY > pageHeight - 20) {
@@ -611,7 +610,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   currentY = rowY + 10; // Space below result table
 
   // === SCORE SUMMARY (Exact StudentResultCard copy) ===
-  console.log('Drawing score summary...');
+  
   
   const summaryY = currentY;
   const summaryWidth = contentWidth * 0.95; // 95% width
@@ -660,7 +659,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   currentY = summaryY + 12; // Space below summary
 
   // === SIGNATURE SECTION (Exact StudentResultCard copy) ===
-  console.log('Drawing signature section...');
+  
   
   const signatureY = currentY;
   const signatureWidth = contentWidth * 0.45; // 45% width for each signature box
@@ -684,7 +683,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   // Exact StudentResultCard teacher name logic
   const getClassTeacherName = () => {
     if (studentClassData?.classTeacherId) {
-      const classTeacher = teachers.find((t: any) => t.id === studentClassData.classTeacherId);
+      const classTeacher = safeTeachers.find((t: any) => t.id === studentClassData.classTeacherId);
       if (classTeacher) {
         return `${classTeacher.firstName} ${classTeacher.lastName}`;
       }
@@ -745,14 +744,14 @@ export const generatePDFFromData = async (student: any, result: any, context: an
     try {
       pdf.addImage(result.principal_signature, 'PNG', signatureRightX + 2, signatureY + 18, signatureWidth - 4, 6);
     } catch (error) {
-      console.log('Could not add signature:', error);
+      
     }
   }
 
   currentY = signatureY + 45; // Increased from 35 to 45 for more spacing
 
   // === AFFECTIVE AND PSYCHOMOTOR DOMAINS (Exact StudentResultCard copy) ===
-  console.log('Drawing affective and psychomotor domains...');
+  
   
   const domainsY = currentY;
   const domainWidth = contentWidth * 0.48; // 48% width each
@@ -910,24 +909,24 @@ export const generatePDFFromData = async (student: any, result: any, context: an
 
   currentY = affectiveTableY + 35; // Move below domains section
 
-  console.log('PDF generation completed successfully');
+  
 
   // Save the PDF
   const filename = `${student.firstName}_${student.lastName}_${result?.term}_${result?.academic_year}_Progress_Report.pdf`;
-  console.log('Saving PDF with filename:', filename);
+  
   pdf.save(filename);
-  console.log('PDF save command executed');
+  
 };
 
 // Wrapper function for easy import
 export const handleDownloadStudentPDF = async (student: any, result: any, context: any) => {
   try {
-    console.log('=== DIRECT PDF DOWNLOAD STARTED ===');
-    console.log('Student:', student.firstName, student.lastName);
-    console.log('Student ID:', student.id);
-    console.log('Result ID:', result.id);
-    console.log('Student data:', student);
-    console.log('Result data:', result);
+    
+    
+    
+    
+    
+    
     
     // Get school context from parameters or global window
     const pdfContext = context || {
@@ -949,19 +948,19 @@ export const handleDownloadStudentPDF = async (student: any, result: any, contex
       psychomotorDomains: (window as any).psychomotorDomains || [] // ← Add psychomotor domains
     };
     
-    console.log('School settings available:', !!(window as any).schoolSettings);
-    console.log('Scores context available:', pdfContext.scores.length);
-    console.log('Affective domains available:', pdfContext.affectiveDomains.length);
-    console.log('Psychomotor domains available:', pdfContext.psychomotorDomains.length);
-    console.log('Using context:', pdfContext);
+    //console.log('School settings available:', !!(window as any).schoolSettings);
+    
+    
+    
+    
     
     // Generate PDF directly from compiled result data (same as StudentResultSheet)
     await generatePDFFromData(student, result, pdfContext);
     
-    console.log('=== DIRECT PDF COMPLETED SUCCESSFULLY ===');
+    
   } catch (error) {
-    console.error('=== DIRECT PDF GENERATION FAILED ===');
-    console.error('Error:', error);
+    
+    
     throw error;
   }
 };

@@ -147,19 +147,21 @@ export function NotificationArchivesPage() {
 
     try {
       // Extract parent info from the original message
-      const originalMessage = replyingTo.originalNotification;
-      const parentInfo = originalMessage.message.split('\n')[0]; // First line should contain parent info
+      const originalMessage = replyingTo.originalNotification || replyingTo;
+      const originalSenderUserId = Number(originalMessage.sentBy) || undefined;
       
       // Send reply notification to the specific parent
       await addNotification({
         title: `Re: ${replyingTo.title}`,
         message: `Admin Reply:\n\n${replyMessage}\n\n---\nOriginal Message:\n${replyingTo.message}`,
         type: 'info' as any, // Using 'info' type for reply messages
-        targetAudience: 'parents', // Send to all parents (in a real app, you'd send to specific parent)
+        targetAudience: 'parents',
         sentBy: currentUser.id,
         sentDate: new Date().toISOString(),
         isRead: false,
-        readBy: []
+        readBy: [],
+        targetUsers: originalSenderUserId ? [originalSenderUserId] : [],
+        deletedBy: []
       });
 
       toast.success('Reply sent successfully!');

@@ -9,7 +9,7 @@ export default defineConfig({
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
   },
   build: {
-    target: 'esnext',
+    target: 'es2015', // More compatible target
     outDir: 'build',
     assetsDir: 'assets',
     rollupOptions: {
@@ -17,6 +17,7 @@ export default defineConfig({
         assetFileNames: 'assets/[name]-[hash].[ext]',
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
+        format: 'es', // Ensure ES modules
         manualChunks: {
           // Split vendor dependencies
           vendor: ['react', 'react-dom'],

@@ -120,8 +120,9 @@ export function ManageSubjectsPageFixed() {
       toast.success(`Subject "${selectedSubject.name}" deleted successfully!`);
       setDeleteDialogOpen(false);
       setSelectedSubject(null);
-    } catch (error) {
-      toast.error('Failed to delete subject');
+    } catch (error: any) {
+      const message = error?.message || 'Failed to delete subject';
+      toast.error(message);
     } finally {
       setActionLoading(null);
     }

@@ -1,0 +1,304 @@
+general.js:205 [LaunchDarkly] LaunchDarkly client initialized
+login:1  Uncaught (in promise) {name: 'n', httpError: false, httpStatus: 200, httpStatusText: '', code: 403, …}
+login:1  Uncaught (in promise) {name: 'n', httpError: false, httpStatus: 200, httpStatusText: '', code: 403, …}
+[NEW] Explain Console errors by using Copilot in Edge: click
+         
+         to explain an error. 
+        Learn more
+        Don't show again
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+Ls @ index-Dprj4YbB.js:94
+t @ index-Dprj4YbB.js:86
+Is @ index-Dprj4YbB.js:86
+await in Is
+$a @ index-Dprj4YbB.js:86
+await in $a
+R @ index-Dprj4YbB.js:125
+Pa @ vendor-7PqXWhc5.js:29
+za @ vendor-7PqXWhc5.js:29
+Ta @ vendor-7PqXWhc5.js:29
+Do @ vendor-7PqXWhc5.js:29
+Oo @ vendor-7PqXWhc5.js:29
+(anonymous) @ vendor-7PqXWhc5.js:29
+ai @ vendor-7PqXWhc5.js:32
+Vi @ vendor-7PqXWhc5.js:29
+au @ vendor-7PqXWhc5.js:29
+$l @ vendor-7PqXWhc5.js:29
+$a @ vendor-7PqXWhc5.js:29
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86 ✅ CLASS TEACHER MATCH: Teacher 47 assigned to class 5 (GRADE K. RUBY)
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+yt @ index-Dprj4YbB.js:121
+(anonymous) @ index-Dprj4YbB.js:86
+t @ index-Dprj4YbB.js:86
+Is @ index-Dprj4YbB.js:86
+await in Is
+$a @ index-Dprj4YbB.js:86
+await in $a
+R @ index-Dprj4YbB.js:125
+Pa @ vendor-7PqXWhc5.js:29
+za @ vendor-7PqXWhc5.js:29
+Ta @ vendor-7PqXWhc5.js:29
+Do @ vendor-7PqXWhc5.js:29
+Oo @ vendor-7PqXWhc5.js:29
+(anonymous) @ vendor-7PqXWhc5.js:29
+ai @ vendor-7PqXWhc5.js:32
+Vi @ vendor-7PqXWhc5.js:29
+au @ vendor-7PqXWhc5.js:29
+$l @ vendor-7PqXWhc5.js:29
+$a @ vendor-7PqXWhc5.js:29
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+ve @ index-Dprj4YbB.js:108
+await in ve
+(anonymous) @ index-Dprj4YbB.js:86
+t @ index-Dprj4YbB.js:86
+Is @ index-Dprj4YbB.js:86
+await in Is
+$a @ index-Dprj4YbB.js:86
+await in $a
+R @ index-Dprj4YbB.js:125
+Pa @ vendor-7PqXWhc5.js:29
+za @ vendor-7PqXWhc5.js:29
+Ta @ vendor-7PqXWhc5.js:29
+Do @ vendor-7PqXWhc5.js:29
+Oo @ vendor-7PqXWhc5.js:29
+(anonymous) @ vendor-7PqXWhc5.js:29
+ai @ vendor-7PqXWhc5.js:32
+Vi @ vendor-7PqXWhc5.js:29
+au @ vendor-7PqXWhc5.js:29
+$l @ vendor-7PqXWhc5.js:29
+$a @ vendor-7PqXWhc5.js:29
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+gt @ index-Dprj4YbB.js:117
+(anonymous) @ index-Dprj4YbB.js:86
+t @ index-Dprj4YbB.js:86
+Is @ index-Dprj4YbB.js:86
+await in Is
+$a @ index-Dprj4YbB.js:86
+await in $a
+R @ index-Dprj4YbB.js:125
+Pa @ vendor-7PqXWhc5.js:29
+za @ vendor-7PqXWhc5.js:29
+Ta @ vendor-7PqXWhc5.js:29
+Do @ vendor-7PqXWhc5.js:29
+Oo @ vendor-7PqXWhc5.js:29
+(anonymous) @ vendor-7PqXWhc5.js:29
+ai @ vendor-7PqXWhc5.js:32
+Vi @ vendor-7PqXWhc5.js:29
+au @ vendor-7PqXWhc5.js:29
+$l @ vendor-7PqXWhc5.js:29
+$a @ vendor-7PqXWhc5.js:29
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:07"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+ve @ index-Dprj4YbB.js:96
+await in ve
+(anonymous) @ TeacherDashboard-BKO88c-m.js:14
+(anonymous) @ TeacherDashboard-BKO88c-m.js:17
+al @ vendor-7PqXWhc5.js:32
+Ln @ vendor-7PqXWhc5.js:32
+sc @ vendor-7PqXWhc5.js:32
+nn @ vendor-7PqXWhc5.js:32
+la @ vendor-7PqXWhc5.js:32
+Ot @ vendor-7PqXWhc5.js:30
+(anonymous) @ vendor-7PqXWhc5.js:32
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:18"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:18"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:18"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+$t @ index-Dprj4YbB.js:125
+(anonymous) @ TeacherDashboard-BKO88c-m.js:14
+await in (anonymous)
+(anonymous) @ TeacherDashboard-BKO88c-m.js:17
+al @ vendor-7PqXWhc5.js:32
+Ln @ vendor-7PqXWhc5.js:32
+sc @ vendor-7PqXWhc5.js:32
+nn @ vendor-7PqXWhc5.js:32
+la @ vendor-7PqXWhc5.js:32
+Ot @ vendor-7PqXWhc5.js:30
+(anonymous) @ vendor-7PqXWhc5.js:32
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:125   GET https://gracelandroyalacademy.com.ng/api/results/compiled?term=Second+Term&academic_year=2025%2F2026 net::ERR_ABORTED 500 (Internal Server Error)
+Vs @ index-Dprj4YbB.js:125
+ot @ index-Dprj4YbB.js:125
+(anonymous) @ TeacherDashboard-BKO88c-m.js:14
+await in (anonymous)
+(anonymous) @ TeacherDashboard-BKO88c-m.js:17
+al @ vendor-7PqXWhc5.js:32
+Ln @ vendor-7PqXWhc5.js:32
+sc @ vendor-7PqXWhc5.js:32
+nn @ vendor-7PqXWhc5.js:32
+la @ vendor-7PqXWhc5.js:32
+Ot @ vendor-7PqXWhc5.js:30
+(anonymous) @ vendor-7PqXWhc5.js:32
+index-Dprj4YbB.js:125   GET https://gracelandroyalacademy.com.ng/api/results/compiled?term=Second+Term&academic_year=2025%2F2026 net::ERR_ABORTED 500 (Internal Server Error)
+Vs @ index-Dprj4YbB.js:125
+ot @ index-Dprj4YbB.js:125
+refreshClassData @ index-Dprj4YbB.js:125
+(anonymous) @ TeacherDashboard-BKO88c-m.js:14
+await in (anonymous)
+(anonymous) @ TeacherDashboard-BKO88c-m.js:17
+al @ vendor-7PqXWhc5.js:32
+Ln @ vendor-7PqXWhc5.js:32
+sc @ vendor-7PqXWhc5.js:32
+nn @ vendor-7PqXWhc5.js:32
+la @ vendor-7PqXWhc5.js:32
+Ot @ vendor-7PqXWhc5.js:30
+(anonymous) @ vendor-7PqXWhc5.js:32
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+gt @ index-Dprj4YbB.js:117
+refreshClassData @ index-Dprj4YbB.js:125
+(anonymous) @ TeacherDashboard-BKO88c-m.js:14
+await in (anonymous)
+(anonymous) @ TeacherDashboard-BKO88c-m.js:17
+al @ vendor-7PqXWhc5.js:32
+Ln @ vendor-7PqXWhc5.js:32
+sc @ vendor-7PqXWhc5.js:32
+nn @ vendor-7PqXWhc5.js:32
+la @ vendor-7PqXWhc5.js:32
+Ot @ vendor-7PqXWhc5.js:30
+(anonymous) @ vendor-7PqXWhc5.js:32
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+yt @ index-Dprj4YbB.js:121
+refreshClassData @ index-Dprj4YbB.js:125
+(anonymous) @ TeacherDashboard-BKO88c-m.js:14
+await in (anonymous)
+(anonymous) @ TeacherDashboard-BKO88c-m.js:17
+al @ vendor-7PqXWhc5.js:32
+Ln @ vendor-7PqXWhc5.js:32
+sc @ vendor-7PqXWhc5.js:32
+nn @ vendor-7PqXWhc5.js:32
+la @ vendor-7PqXWhc5.js:32
+Ot @ vendor-7PqXWhc5.js:30
+(anonymous) @ vendor-7PqXWhc5.js:32
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+ve @ index-Dprj4YbB.js:96
+await in ve
+refreshClassData @ index-Dprj4YbB.js:125
+(anonymous) @ TeacherDashboard-BKO88c-m.js:14
+await in (anonymous)
+(anonymous) @ TeacherDashboard-BKO88c-m.js:17
+al @ vendor-7PqXWhc5.js:32
+Ln @ vendor-7PqXWhc5.js:32
+sc @ vendor-7PqXWhc5.js:32
+nn @ vendor-7PqXWhc5.js:32
+la @ vendor-7PqXWhc5.js:32
+Ot @ vendor-7PqXWhc5.js:30
+(anonymous) @ vendor-7PqXWhc5.js:32
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 05:59:19"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:125   GET https://gracelandroyalacademy.com.ng/api/results/compiled?term=Second+Term&academic_year=2025%2F2026 500 (Internal Server Error)
+Vs @ index-Dprj4YbB.js:125
+ot @ index-Dprj4YbB.js:125
+ie @ TeacherDashboard-BKO88c-m.js:14
+be @ TeacherDashboard-BKO88c-m.js:14
+index-Dprj4YbB.js:29   POST https://gracelandroyalacademy.com.ng/api/database/query 401 (Unauthorized)
+(anonymous) @ index-Dprj4YbB.js:29
+executeRequestWithRetry @ index-Dprj4YbB.js:29
+debouncedRequest @ index-Dprj4YbB.js:29
+executeQueryInternal @ index-Dprj4YbB.js:29
+executeQuery @ index-Dprj4YbB.js:29
+ve @ index-Dprj4YbB.js:96
+await in ve
+ie @ TeacherDashboard-BKO88c-m.js:17
+be @ TeacherDashboard-BKO88c-m.js:17
+index-Dprj4YbB.js:125  Authentication error (401) - handled globally: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 06:01:39"\n}'}
+(anonymous) @ index-Dprj4YbB.js:125
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 06:01:39"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:86  Authentication error (401) - handled gracefully: {code: undefined, status: undefined, message: 'Database query failed:  - {\n    "success": false,\n…": null,\n    "timestamp": "2026-02-21 06:01:39"\n}'}
+e @ index-Dprj4YbB.js:86
+index-Dprj4YbB.js:125   GET https://gracelandroyalacademy.com.ng/api/results/compiled?term=Second+Term&academic_year=2025%2F2026 500 (Internal Server Error)
+Vs @ index-Dprj4YbB.js:125
+ot @ index-Dprj4YbB.js:125
+a @ TeacherDashboard-BKO88c-m.js:14

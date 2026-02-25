@@ -8,6 +8,7 @@ import { Checkbox } from "../ui/checkbox";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from 'sonner';
 import { Save, Edit, Check, X, AlertTriangle, Users, BookOpen, Calculator } from 'lucide-react';
+import logger from "../../utils/logger";
 
 export function ScoreEntryPage() {
   const {
@@ -36,13 +37,20 @@ export function ScoreEntryPage() {
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<string>('');
   const [lastSavedData, setLastSavedData] = useState<Record<number, { ca1: string; ca2: string; exam: string }>>({});
-  const [selectedTerm, setSelectedTerm] = useState<string>(currentTerm);
-  const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [lastManualSave, setLastManualSave] = useState<number>(0);
+  const [selectedTerm, setSelectedTerm] = useState<string>(currentTerm || '');
+  const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear || '');
 
-  // Check if selected class is CRECHE (Onyx)
+  // Check if selected class is CRECHE (dynamic detection)
   const isCrecheClass = useMemo(() => {
-    return selectedClassId === '1'; // CRECHE (Onyx) has ID = 1
-  }, [selectedClassId]);
+    const selectedClass = classes.find(c => String(c.id) === selectedClassId);
+    return selectedClass?.name?.toLowerCase().includes('creche') || 
+           selectedClass?.level?.toLowerCase().includes('creche') ||
+           selectedClass?.name?.toLowerCase().includes('onyx') ||
+           selectedClass?.name?.toLowerCase().includes('nursery') ||
+           selectedClass?.name?.toLowerCase().includes('kindergarten');
+  }, [selectedClassId, classes]);
 
   // Get current teacher
   const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
@@ -149,18 +157,23 @@ export function ScoreEntryPage() {
 
   // Load existing scores into form when component mounts or selection changes
   useEffect(() => {
-    const loadedScores: Record<number, { ca1: string; ca2: string; exam: string }> = {};
-    
-    // Load ALL existing scores (approved, pending, and rejected)
-    existingScores.forEach((score: any) => {
-      loadedScores[score.student_id] = {
-        ca1: (score.ca1 || '').toString(),
-        ca2: (score.ca2 || '').toString(),
-        exam: (score.exam || '').toString()
-      };
+    // Merge DB scores into local state WITHOUT overwriting what the user is currently typing.
+    // This prevents inputs snapping back to DB values (often 0) when scores refresh/auto-save.
+    setScoresData(prev => {
+      const updated = { ...prev };
+
+      // Load ALL existing scores (approved, pending, and rejected)
+      existingScores.forEach((score: any) => {
+        const current = updated[score.student_id] || { ca1: '', ca2: '', exam: '' };
+        updated[score.student_id] = {
+          ca1: current.ca1 !== '' ? current.ca1 : (score.ca1 ?? '').toString(),
+          ca2: current.ca2 !== '' ? current.ca2 : (score.ca2 ?? '').toString(),
+          exam: current.exam !== '' ? current.exam : (score.exam ?? '').toString()
+        };
+      });
+
+      return updated;
     });
-    
-    setScoresData(loadedScores);
     
     // Auto-enable edit mode if there are rejected scores
     const rejectedScores = existingScores.filter(s => s.status === 'Rejected');
@@ -174,144 +187,141 @@ export function ScoreEntryPage() {
   // Refresh scores data when component mounts or when selection changes
   useEffect(() => {
     if (selectedClassId && selectedSubjectId) {
-      loadScoresFromAPI();
+      loadScoresFromAPI(selectedTerm, selectedYear);
     }
   }, [selectedClassId, selectedSubjectId, selectedTerm, selectedYear]);
 
-  // Auto-save functionality - Save as DRAFT only, no automatic submission
+  // Auto-save functionality with race condition protection
   const autoSaveScores = useCallback(async () => {
-    if (!selectedClassId || !selectedSubjectId || !currentTeacher) {
-      return;
-    }
-
-    // Check if data has changed since last save
-    const dataChanged = JSON.stringify(scoresData) !== JSON.stringify(lastSavedData);
-    if (!dataChanged) {
-      return;
-    }
-
-    const assignment = teacherAssignments.find(
-      a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
-    );
-
-    if (!assignment) {
-      return;
-    }
-
-    // Only save non-empty scores
-    const validScores: Record<number, { ca1: string; ca2: string; exam: string }> = {};
-    let hasValidScores = false;
-
-    Object.entries(scoresData).forEach(([studentId, data]) => {
-      if (data.ca1 || data.ca2 || data.exam) {
-        validScores[Number(studentId)] = data;
-        hasValidScores = true;
-      }
-    });
-
-    if (!hasValidScores) {
-      return;
-    }
-
+    if (isAutoSaving || isEditMode) return;
+    
+    setIsAutoSaving(true);
     try {
       setAutoSaveStatus('Auto-saving...');
       
-      // Save each score as DRAFT (not submitted)
+      // Only save if data has changed
+      const dataChanged = JSON.stringify(scoresData) !== JSON.stringify(lastSavedData);
+      if (!dataChanged) {
+        setIsAutoSaving(false);
+        return;
+      }
+      
+      const assignment = teacherAssignments.find(
+        a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
+      );
+      
+      if (!assignment) {
+        setIsAutoSaving(false);
+        return;
+      }
+      
+      // Save each score as DRAFT
       const savePromises: Promise<number | void>[] = [];
       
-      Object.entries(validScores).forEach(([studentId, data]: [string, any]) => {
-        const studentIdNum = Number(studentId);
-        const existingScore = existingScores.find((s: any) => s.student_id === studentIdNum);
-        
-        // Calculate totals and statistics
-        const allValidScores = Object.values(validScores);
-        const allTotals = allValidScores.map(scoreData => {
-          if (isCrecheClass) {
-            return parseFloat(scoreData.exam) || 0;
+      Object.entries(scoresData).forEach(([studentId, data]) => {
+        if (data.ca1 !== '' || data.ca2 !== '' || data.exam !== '') {
+          const studentIdNum = Number(studentId);
+          const existingScore = existingScores.find((s: any) => s.student_id === studentIdNum);
+          
+          // Calculate totals and statistics
+          const allValidScores = Object.values(scoresData).filter(d => d.ca1 || d.ca2 || d.exam);
+          const allTotals = allValidScores.map(scoreData => {
+            if (isCrecheClass) {
+              return parseFloat(scoreData.exam) || 0;
+            } else {
+              return (parseFloat(scoreData.ca1) || 0) + (parseFloat(scoreData.ca2) || 0) + (parseFloat(scoreData.exam) || 0);
+            }
+          });
+
+          const classMax = Math.max(...allTotals, 0);
+          const classMin = Math.min(...allTotals, 0);
+          const classAverage = allTotals.length > 0 ? allTotals.reduce((sum, t) => sum + t, 0) / allTotals.length : 0;
+
+          const totalScore = isCrecheClass 
+            ? (parseFloat(data.exam) || 0)
+            : ((parseFloat(data.ca1) || 0) + (parseFloat(data.ca2) || 0) + (parseFloat(data.exam) || 0));
+          
+          const grade = getGrade(totalScore);
+          const remark = getRemark(totalScore);
+          
+          const scoreData = {
+            student_id: studentIdNum,
+            subject_assignment_id: assignment.id,
+            subject_name: assignment.subject_name || 'Unknown Subject',
+            // Use undefined for "not entered" so JSON omits the key (prevents DB saving 0 for missing components)
+            ca1: isCrecheClass ? 0 : (data.ca1 === '' ? undefined : (parseFloat(data.ca1) || 0)),
+            ca2: isCrecheClass ? 0 : (data.ca2 === '' ? undefined : (parseFloat(data.ca2) || 0)),
+            exam: data.exam === '' ? undefined : (parseFloat(data.exam) || 0),
+            total: totalScore,
+            class_average: Math.round(classAverage * 100) / 100,
+            class_min: classMin,
+            class_max: classMax,
+            grade,
+            remark,
+            entered_by: currentUser?.id || 0,
+            entered_date: new Date().toISOString(),
+            term: selectedTerm as 'First Term' | 'Second Term' | 'Third Term',
+            academic_year: selectedYear,
+            status: 'Draft' as const
+          };
+
+          if (existingScore) {
+            if (isEditMode || existingScore.status === 'Draft' || existingScore.status === 'Rejected' || !isLocked) {
+              savePromises.push(updateScore(existingScore.id, scoreData));
+              logger.debug('Auto-saving score for student', { studentId: studentIdNum }, 'ScoreEntryPage');
+            }
           } else {
-            return (parseFloat(scoreData.ca1) || 0) + (parseFloat(scoreData.ca2) || 0) + (parseFloat(scoreData.exam) || 0);
+            savePromises.push(addScore(scoreData));
           }
-        });
-
-        const classMax = Math.max(...allTotals);
-        const classMin = Math.min(...allTotals);
-        const classAverage = allTotals.reduce((sum, t) => sum + t, 0) / allTotals.length;
-
-        const totalScore = isCrecheClass 
-          ? (parseFloat(data.exam) || 0)
-          : ((parseFloat(data.ca1) || 0) + (parseFloat(data.ca2) || 0) + (parseFloat(data.exam) || 0));
-        
-        const grade = getGrade(totalScore);
-        const remark = getRemark(totalScore);
-        
-        const scoreData = {
-          student_id: studentIdNum,
-          subject_assignment_id: assignment.id,
-          subject_name: assignment.subject_name || 'Unknown Subject',
-          ca1: isCrecheClass ? 0 : (parseFloat(data.ca1) || 0),
-          ca2: isCrecheClass ? 0 : (parseFloat(data.ca2) || 0),
-          exam: parseFloat(data.exam) || 0,
-          total: totalScore,
-          class_average: Math.round(classAverage * 100) / 100,
-          class_min: classMin,
-          class_max: classMax,
-          grade,
-          remark,
-          entered_by: currentUser?.id || 0,
-          entered_date: new Date().toISOString(),
-          term: selectedTerm as 'First Term' | 'Second Term' | 'Third Term',
-          academic_year: selectedYear,
-          status: 'Draft' as const // Save as DRAFT, not submitted
-        };
-
-        if (existingScore) {
-          // Update existing score with proper locking logic and feedback
-          // Allow updates if: (1) Edit mode active, (2) Score not submitted yet, OR (3) Results not admin-approved
-          if (isEditMode || existingScore.status === 'Draft' || existingScore.status === 'Rejected' || !isLocked) {
-            savePromises.push(updateScore(existingScore.id, scoreData));
-            console.log(`Updating score for student ${studentIdNum} - allowed`);
-          } else {
-            console.log(`Score update blocked for student ${studentIdNum} - results are admin-approved`);
-            // Provide user feedback for blocked updates
-            const student = classStudents.find(s => s.id === studentIdNum);
-            toast.error(`Cannot update score for ${student?.firstName} ${student?.lastName}: Results have been approved by admin`, {
-              id: `blocked-update-${studentIdNum}`,
-              duration: 5000
-            });
-          }
-        } else {
-          savePromises.push(addScore(scoreData));
         }
       });
 
       await Promise.all(savePromises);
-      
-      // Update last saved data
       setLastSavedData(scoresData);
       setAutoSaveStatus('Auto-saved');
+      logger.debug('Auto-save completed', {
+        selectedClassId,
+        selectedSubjectId,
+        scoresCount: Object.keys(scoresData).length
+      }, 'ScoreEntryPage');
       
       // Clear status after 2 seconds
       setTimeout(() => setAutoSaveStatus(''), 2000);
       
     } catch (error) {
-      console.error('Auto-save error:', error);
+      logger.error('Auto-save error:', {
+        selectedClassId,
+        selectedSubjectId,
+        error
+      }, 'ScoreEntryPage');
       setAutoSaveStatus('Save failed');
       toast.error('Auto-save failed. Please try manual save.');
+    } finally {
+      setIsAutoSaving(false);
     }
-  }, [scoresData, lastSavedData, selectedClassId, selectedSubjectId, selectedTerm, selectedYear, currentTeacher, teacherAssignments, existingScores, currentUser, isEditMode, isCrecheClass]);
+  }, [scoresData, lastSavedData, isAutoSaving, isEditMode, selectedClassId, selectedSubjectId, selectedTerm, selectedYear, currentTeacher, teacherAssignments, existingScores, currentUser, isCrecheClass]);
 
-    // Auto-refresh scores for real-time updates
+    // Auto-refresh scores for real-time updates (optimized frequency)
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        await loadScoresFromAPI();
+        await loadScoresFromAPI(selectedTerm, selectedYear);
+        logger.debug('Auto-refreshed scores data:', {
+          selectedClassId,
+          selectedSubjectId,
+          interval: '5 minutes'
+        }, 'ScoreEntryPage');
       } catch (error) {
-        console.error('Error auto-refreshing scores:', error);
+        logger.error('Error auto-refreshing scores:', {
+          selectedClassId,
+          selectedSubjectId,
+          error
+        }, 'ScoreEntryPage');
       }
-    }, 30000); // Changed from 5000 to 30000 to reduce frequency
+    }, 300000); // 5 minutes instead of 30 seconds to reduce API load
 
     return () => clearInterval(interval);
-  }, [selectedClassId, selectedSubjectId]); // Remove loadScoresFromAPI from dependencies
+  }, [selectedClassId, selectedSubjectId, selectedTerm, selectedYear]); // Remove loadScoresFromAPI from dependencies
 
   // Auto-save on data change with debounce
   useEffect(() => {
@@ -321,6 +331,15 @@ export function ScoreEntryPage() {
 
     return () => clearTimeout(timeoutId);
   }, [autoSaveScores]);
+
+  // Block auto-save for 5 seconds after manual save
+  useEffect(() => {
+    const blockDuration = 5000;
+    const timeout = setTimeout(() => {
+      setLastManualSave(0);
+    }, blockDuration);
+    return () => clearTimeout(timeout);
+  }, [lastManualSave]);
 
   // Get class and subject details
   const selectedClass = classes.find(c => String(c.id) === String(selectedClassId));
@@ -377,7 +396,7 @@ export function ScoreEntryPage() {
   const isLocked = useMemo(() => {
     // Always allow editing in edit mode (after admin rejection)
     if (isEditMode) {
-      console.log('Edit mode active - scores unlocked');
+      //console.log('Edit mode active - scores unlocked');
       return false;
     }
     
@@ -398,34 +417,9 @@ export function ScoreEntryPage() {
     // Lock only if: (1) Any scores are approved AND (2) No rejected scores
     const locked = (hasApprovedScores || hasApprovedCompiledResults) && !hasRejectedScores;
     
-    console.log('Score Lock Status Analysis:', {
-      selectedClass: selectedClass?.name,
-      selectedSubject: selectedAssignment?.subject_name,
-      selectedTerm,
-      selectedYear,
-      isEditMode,
-      hasApprovedScores,
-      hasApprovedCompiledResults,
-      hasRejectedScores,
-      existingScoresCount: existingScores.length,
-      approvedScoresCount: existingScores.filter(s => s.status === 'Approved').length,
-      rejectedScoresCount: existingScores.filter(s => s.status === 'Rejected').length,
-      compiledResultsCount: compiledResults.length,
-      approvedCompiledResultsCount: compiledResults.filter((cr: any) => 
-        String(cr.class_id) === String(selectedClassId) &&
-        cr.term === selectedTerm &&
-        cr.academic_year === selectedYear &&
-        cr.status === 'Approved'
-      ).length,
-      finalLockedStatus: locked,
-      lockReason: locked 
-        ? 'Admin approved scores/compiled results - scores locked' 
-        : hasRejectedScores 
-        ? 'Rejected scores found - editing allowed'
-        : (hasApprovedScores || hasApprovedCompiledResults)
-        ? 'Admin approved - scores locked'
-        : 'No admin approval - editing allowed'
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      // Score lock status analysis removed for production
+    }
     
     return locked;
   }, [selectedClassId, selectedSubjectId, selectedTerm, selectedYear, isEditMode, existingScores, compiledResults, selectedClass, selectedAssignment]);
@@ -467,7 +461,7 @@ export function ScoreEntryPage() {
             };
           }
         });
-        console.log('Updated scoresData (preserving user input):', updated);
+        //console.log('Updated scoresData (preserving user input):', updated);
         return updated;
       });
     }
@@ -475,35 +469,72 @@ export function ScoreEntryPage() {
 
   // Debug: Force reload scores when component mounts
   useEffect(() => {
-    console.log('ScoreEntryPage mounted, reloading scores from database...');
-    // This will trigger the existingScores to update
+    //console.log('ScoreEntryPage mounted, reloading scores from database...');
+    // This will trigger to existingScores to update
     const reloadScores = async () => {
       try {
-        await loadScoresFromAPI();
+        await loadScoresFromAPI(selectedTerm, selectedYear);
       } catch (error) {
-        console.error('Failed to reload scores:', error);
+        logger.error('Failed to reload scores:', {
+        selectedClassId,
+        selectedSubjectId,
+        error
+      }, 'ScoreEntryPage');
       }
     };
     reloadScores();
   }, []); // Only run once on mount
 
+  // Initialize logger for this component
+  useEffect(() => {
+    logger.info('ScoreEntryPage initialized', {
+      currentUser: currentUser?.id,
+      currentTerm,
+      currentAcademicYear
+    }, 'ScoreEntryPage');
+  }, [currentUser, currentTerm, currentAcademicYear]);
+
   const handleScoreChange = (studentId: number, field: 'ca1' | 'ca2' | 'exam', value: string) => {
+    // Allow empty values and intermediate typing
+    if (value === '') {
+      setScoresData(prev => ({
+        ...prev,
+        [studentId]: {
+          ...prev[studentId],
+          [field]: value
+        }
+      }));
+      return;
+    }
+
     const numValue = parseFloat(value);
     let maxValue: number;
-    
+
     if (isCrecheClass) {
       if (field !== 'exam') {
-        toast.error(`CRECHE (Onyx) only allows exam scores`);
+        const selectedClass = classes.find(c => String(c.id) === selectedClassId);
+        const className = selectedClass?.name || 'Creche class';
+        toast.error(`${className} only allows exam scores`);
         return;
       }
-      maxValue = 200;
+      maxValue = 100;
     } else {
       maxValue = field === 'exam' ? 60 : 20;
     }
-    
-    if (value && (isNaN(numValue) || numValue < 0 || numValue > maxValue)) {
-      toast.error(`${field.toUpperCase()} must be between 0 and ${maxValue}`);
-      return;
+
+    // Only validate if the value is a complete number (not during typing)
+    if (!isNaN(numValue)) {
+      // Allow typing numbers that might temporarily exceed max during input
+      // Only reject if clearly invalid (negative or way over limit)
+      if (numValue < 0) {
+        toast.error(`${field.toUpperCase()} cannot be negative`);
+        return;
+      }
+      // Allow values up to 2x the max limit to accommodate typing
+      if (numValue > maxValue * 2) {
+        toast.error(`${field.toUpperCase()} cannot exceed ${maxValue}`);
+        return;
+      }
     }
 
     setScoresData(prev => ({
@@ -531,11 +562,11 @@ export function ScoreEntryPage() {
   const getGrade = useCallback((total: string | number) => {
     const score = parseFloat(total.toString()) || 0;
     if (isCrecheClass) {
-      if (score >= 150) return 'A';
-      if (score >= 120) return 'B';
-      if (score >= 100) return 'C';
-      if (score >= 80) return 'D';
-      if (score >= 60) return 'E';
+      if (score >= 80) return 'A';
+      if (score >= 70) return 'B';
+      if (score >= 60) return 'C';
+      if (score >= 50) return 'D';
+      if (score >= 40) return 'E';
       return 'F';
     }
     if (score >= 70) return 'A';
@@ -549,11 +580,11 @@ export function ScoreEntryPage() {
   const getRemark = useCallback((total: string | number) => {
     const score = parseFloat(total.toString()) || 0;
     if (isCrecheClass) {
-      if (score >= 150) return 'Outstanding';
-      if (score >= 120) return 'Excellent';
-      if (score >= 100) return 'Very Good';
-      if (score >= 80) return 'Good';
-      if (score >= 60) return 'Fair';
+      if (score >= 80) return 'Outstanding';
+      if (score >= 70) return 'Excellent';
+      if (score >= 60) return 'Very Good';
+      if (score >= 50) return 'Good';
+      if (score >= 40) return 'Fair';
       return 'Needs Improvement';
     }
     if (score >= 70) return 'Excellent';
@@ -564,52 +595,47 @@ export function ScoreEntryPage() {
     return 'Fail';
   }, [isCrecheClass]);
 
-  // Validate score completeness before submission
-  const validateScoreCompleteness = useCallback(() => {
-    const missingScores = classStudents.filter(student => {
-      const data = scoresData[student.id];
-      if (isCrecheClass) {
-        return !data || !data.exam || data.exam === '';
-      } else {
-        return !data || !data.ca1 || !data.ca2 || !data.exam || 
-               data.ca1 === '' || data.ca2 === '' || data.exam === '';
-      }
-    });
-    
-    if (missingScores.length > 0) {
-      const studentNames = missingScores.map(s => `${s.firstName} ${s.lastName}`).join(', ');
-      toast.error(`Cannot submit: Missing scores for ${missingScores.length} student(s): ${studentNames}`);
-      return false;
-    }
-    
-    // Check if all scores are valid (within range)
+  // Validate score values before submission (partial entries allowed)
+  const validateScoreValues = useCallback(() => {
     const invalidScores = classStudents.filter(student => {
       const data = scoresData[student.id];
       if (!data) return false;
-      
+
       if (isCrecheClass) {
-        const exam = parseFloat(data.exam) || 0;
-        return exam < 0 || exam > 200;
-      } else {
-        const ca1 = parseFloat(data.ca1) || 0;
-        const ca2 = parseFloat(data.ca2) || 0;
-        const exam = parseFloat(data.exam) || 0;
-        return ca1 < 0 || ca1 > 20 || ca2 < 0 || ca2 > 20 || exam < 0 || exam > 60;
+        if (data.exam === '' || data.exam == null) return false;
+        const exam = parseFloat(data.exam);
+        if (Number.isNaN(exam)) return true;
+        return exam < 0 || exam > 100;
       }
+
+      if (data.ca1 !== '' && data.ca1 != null) {
+        const ca1 = parseFloat(data.ca1);
+        if (Number.isNaN(ca1) || ca1 < 0 || ca1 > 20) return true;
+      }
+      if (data.ca2 !== '' && data.ca2 != null) {
+        const ca2 = parseFloat(data.ca2);
+        if (Number.isNaN(ca2) || ca2 < 0 || ca2 > 20) return true;
+      }
+      if (data.exam !== '' && data.exam != null) {
+        const exam = parseFloat(data.exam);
+        if (Number.isNaN(exam) || exam < 0 || exam > 60) return true;
+      }
+
+      return false;
     });
-    
+
     if (invalidScores.length > 0) {
       const studentNames = invalidScores.map(s => `${s.firstName} ${s.lastName}`).join(', ');
       toast.error(`Cannot submit: Invalid score values for ${invalidScores.length} student(s): ${studentNames}`);
       return false;
     }
-    
+
     return true;
   }, [classStudents, scoresData, isCrecheClass]);
 
   // Submit scores for approval
   const submitScoresForApproval = async () => {
-    if (!validateScoreCompleteness()) {
+    if (!validateScoreValues()) {
       return;
     }
     
@@ -622,55 +648,6 @@ export function ScoreEntryPage() {
       return;
     }
     
-    try {
-      // Update all scores to 'Submitted' status
-      const updatePromises: Promise<number | void>[] = [];
-      
-      Object.entries(scoresData).forEach(([studentId, data]: [string, any]) => {
-        const studentIdNum = Number(studentId);
-        const existingScore = existingScores.find((s: any) => s.student_id === studentIdNum);
-        
-        if (existingScore && existingScore.status === 'Draft') {
-          // Update existing draft score to submitted
-          updatePromises.push(updateScore(existingScore.id, {
-            ...existingScore,
-            status: 'Submitted'
-          }));
-        }
-      });
-      
-      await Promise.all(updatePromises);
-      
-      // Submit the assignment for approval
-      await submitScores(assignment.id);
-      
-      toast.success('Scores submitted for approval successfully!');
-      
-      // Refresh scores data
-      await loadScoresFromAPI();
-      
-    } catch (error) {
-      console.error('Error submitting scores:', error);
-      toast.error('Failed to submit scores. Please try again.');
-    }
-  };
-
-  // Toggle edit mode
-  const toggleEditMode = () => {
-    setIsEditMode(!isEditMode);
-    if (!isEditMode) {
-      // Entering edit mode - show a message
-      toast.info("Edit mode enabled. You can now modify submitted scores.");
-    }
-  };
-
-  // Submit scores (Process Result)
-  const handleSubmit = async () => {
-    if (!selectedClassId || !selectedSubjectId || !currentTeacher) {
-      toast.error("Please select class and subject");
-      return;
-    }
-
     const hasAnyScores = classStudents.some(student => {
       const data = scoresData[student.id];
       if (isCrecheClass) {
@@ -681,15 +658,6 @@ export function ScoreEntryPage() {
 
     if (!hasAnyScores) {
       toast.error("Please enter scores for at least one student");
-      return;
-    }
-
-    const assignment = teacherAssignments.find(
-      a => String(a.subject_id) === String(selectedSubjectId) && String(a.class_id) === String(selectedClassId)
-    );
-
-    if (!assignment) {
-      toast.error("Assignment not found");
       return;
     }
 
@@ -709,9 +677,15 @@ export function ScoreEntryPage() {
     const allTotals = participatingStudents.map(student => {
       const data = scoresData[student.id];
       if (!data) return 0;
-      return isCrecheClass 
-        ? parseFloat(data.exam) || 0
-        : parseFloat(calculateScore(data.ca1, data.ca2, data.exam).total) || 0;
+
+      if (isCrecheClass) {
+        return data.exam !== '' && data.exam != null ? (parseFloat(data.exam) || 0) : 0;
+      }
+
+      const ca1 = data.ca1 !== '' && data.ca1 != null ? (parseFloat(data.ca1) || 0) : 0;
+      const ca2 = data.ca2 !== '' && data.ca2 != null ? (parseFloat(data.ca2) || 0) : 0;
+      const exam = data.exam !== '' && data.exam != null ? (parseFloat(data.exam) || 0) : 0;
+      return ca1 + ca2 + exam;
     });
 
     const classMax = Math.max(...allTotals);
@@ -725,9 +699,12 @@ export function ScoreEntryPage() {
       let totalScore: number;
       
       if (isCrecheClass) {
-        totalScore = parseFloat(data.exam) || 0;
+        totalScore = data.exam !== '' && data.exam != null ? (parseFloat(data.exam) || 0) : 0;
       } else {
-        totalScore = (parseFloat(data.ca1) || 0) + (parseFloat(data.ca2) || 0) + (parseFloat(data.exam) || 0);
+        const ca1 = data.ca1 !== '' && data.ca1 != null ? (parseFloat(data.ca1) || 0) : 0;
+        const ca2 = data.ca2 !== '' && data.ca2 != null ? (parseFloat(data.ca2) || 0) : 0;
+        const exam = data.exam !== '' && data.exam != null ? (parseFloat(data.exam) || 0) : 0;
+        totalScore = ca1 + ca2 + exam;
       }
       
       const grade = getGrade(totalScore);
@@ -738,9 +715,13 @@ export function ScoreEntryPage() {
         student_id: student.id,
         subject_assignment_id: assignment.id,
         subject_name: assignment.subject_name || 'Unknown Subject',
-        ca1: isCrecheClass ? 0 : (parseFloat(data.ca1) || 0),
-        ca2: isCrecheClass ? 0 : (parseFloat(data.ca2) || 0),
-        exam: parseFloat(data.exam) || 0,
+        ca1: isCrecheClass
+          ? undefined
+          : (data.ca1 !== '' && data.ca1 != null ? (parseFloat(data.ca1) || 0) : undefined),
+        ca2: isCrecheClass
+          ? undefined
+          : (data.ca2 !== '' && data.ca2 != null ? (parseFloat(data.ca2) || 0) : undefined),
+        exam: data.exam !== '' && data.exam != null ? (parseFloat(data.exam) || 0) : undefined,
         total: totalScore,
         class_average: Math.round(classAverage * 100) / 100,
         class_min: classMin,
@@ -764,13 +745,16 @@ export function ScoreEntryPage() {
     try {
       await Promise.all(savePromises);
       
+      // Set manual save timestamp to block auto-save
+      setLastManualSave(Date.now());
+      
       if (isEditMode) {
         toast.success(`Scores updated successfully! ${participatingStudents.length} student(s) scores updated in database in real-time.`);
       } else {
         toast.success(`Scores submitted successfully! ${participatingStudents.length} student(s) scores saved to database in real-time.`);
       }
       
-      await loadScoresFromAPI();
+      await loadScoresFromAPI(selectedTerm, selectedYear);
     } catch (submitError) {
       const errorMessage = submitError instanceof Error ? submitError.message : 'Failed to submit scores';
       
@@ -837,20 +821,25 @@ export function ScoreEntryPage() {
       return;
     }
 
-    // Get only the rejected scores that have been modified
+    // Get only rejected scores that have been modified
     const rejectedScores = existingScores.filter(s => s.status === 'Rejected');
     const modifiedRejectedScores = rejectedScores.filter(score => {
       const data = scoresData[score.student_id];
       if (!data) return false;
       
-      const originalTotal = score.total;
-      const newTotal = parseFloat(calculateScore(data.ca1, data.ca2, data.exam).total) || 0;
+      const originalTotal = parseFloat(
+        calculateScore(
+          (score.ca1 ?? 0).toString(),
+          (score.ca2 ?? 0).toString(),
+          (score.exam ?? 0).toString()
+        ).total
+      );
+      const newTotal = parseFloat(calculateScore(data.ca1, data.ca2, data.exam).total);
       
-      // Check if any score values have changed
       return (
-        (data.ca1 && parseFloat(data.ca1) !== score.ca1) ||
-        (data.ca2 && parseFloat(data.ca2) !== score.ca2) ||
-        (data.exam && parseFloat(data.exam) !== score.exam) ||
+        (data.ca1 && parseFloat(data.ca1) !== (score.ca1 ?? 0)) ||
+        (data.ca2 && parseFloat(data.ca2) !== (score.ca2 ?? 0)) ||
+        (data.exam && parseFloat(data.exam) !== (score.exam ?? 0)) ||
         newTotal !== originalTotal
       );
     });
@@ -871,46 +860,53 @@ export function ScoreEntryPage() {
     const classMin = Math.min(...allTotals);
     const classAverage = allTotals.reduce((sum, t) => sum + t, 0) / allTotals.length;
 
-    // Update the rejected scores
+    // Update rejected scores
     let resubmittedCount = 0;
     const updatePromises: Promise<void>[] = [];
 
-    for (const score of modifiedRejectedScores) {
-      const data = scoresData[score.student_id];
-      if (!data) continue;
-
-      const totalScore = parseFloat(calculateScore(data.ca1, data.ca2, data.exam).total) || 0;
-      const grade = getGrade(totalScore);
-      const remark = getRemark(totalScore);
-
-      const scoreData = {
-        ...score,
-        ca1: parseFloat(data.ca1) || 0,
-        ca2: parseFloat(data.ca2) || 0,
-        exam: parseFloat(data.exam) || 0,
-        total: totalScore,
-        class_average: Math.round(classAverage * 100) / 100,
-        class_min: classMin,
-        class_max: classMax,
-        grade,
-        remark,
-        entered_date: new Date().toISOString(),
-        status: 'Submitted' as const,
-        rejection_reason: undefined,
-        rejected_by: undefined,
-        rejected_date: undefined
-      };
-
-      updatePromises.push(updateScore(score.id, scoreData));
-      resubmittedCount++;
-    }
-
     try {
-      console.log('Attempting to resubmit', resubmittedCount, 'rejected scores...');
+      logger.debug('Attempting to resubmit', {
+        modifiedCount: modifiedRejectedScores.length
+      }, 'ScoreEntryPage');
+      
+      modifiedRejectedScores.forEach((score: any) => {
+        const data = scoresData[score.student_id];
+        const totalScore = parseFloat(calculateScore(data.ca1, data.ca2, data.exam).total) || 0;
+        const grade = getGrade(totalScore);
+        const remark = getRemark(totalScore);
+        
+        const scoreData = {
+          ...score,
+          ca1: parseFloat(data.ca1) || 0,
+          ca2: parseFloat(data.ca2) || 0,
+          exam: parseFloat(data.exam) || 0,
+          total: totalScore,
+          class_average: Math.round(classAverage * 100) / 100,
+          class_min: classMin,
+          class_max: classMax,
+          grade,
+          remark,
+          entered_date: new Date().toISOString(),
+          status: 'Submitted' as const,
+          rejection_reason: undefined,
+          rejected_by: undefined,
+          rejected_date: undefined
+        };
+
+        updatePromises.push(updateScore(score.id, scoreData));
+        resubmittedCount++;
+      });
+
       await Promise.all(updatePromises);
-      console.log('All rejected scores resubmitted successfully');
+      logger.debug('All rejected scores resubmitted successfully', {
+        resubmittedCount,
+        modifiedCount: modifiedRejectedScores.length
+      }, 'ScoreEntryPage');
       
       toast.success(`Rejected scores resubmitted successfully! ${resubmittedCount} score(s) corrected and sent for review.`);
+      
+      // Set manual save timestamp to block auto-save
+      setLastManualSave(Date.now());
       
       // Clear the scores data for resubmitted scores
       const newScoresData = { ...scoresData };
@@ -922,7 +918,10 @@ export function ScoreEntryPage() {
       // Switch back to normal mode after resubmission
       setIsEditMode(false);
     } catch (error: unknown) {
-      console.error('Error resubmitting scores:', error);
+      logger.error('Error resubmitting scores:', {
+        modifiedCount: modifiedRejectedScores.length,
+        error
+      }, 'ScoreEntryPage');
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to resubmit scores: ${errorMessage}`);
     }
@@ -937,6 +936,10 @@ export function ScoreEntryPage() {
     }
     return num.toString();
   }, []);
+
+  const toggleEditMode = () => {
+    setIsEditMode(!isEditMode);
+  };
 
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1004,7 +1007,7 @@ export function ScoreEntryPage() {
 
             const expectedColumns = isCrecheClass ? 5 : 7;
             if (parts.length < expectedColumns) {
-              console.warn(`Line ${index + 2}: Insufficient columns (${parts.length} found, ${expectedColumns} expected)`);
+              //console.warn(`Line ${index + 2}: Insufficient columns (${parts.length} found, ${expectedColumns} expected)`);
               errorCount++;
               return;
             }
@@ -1022,7 +1025,7 @@ export function ScoreEntryPage() {
             // Find student by registration number
             const student = classStudents.find(s => s.admissionNumber === regId);
             if (!student) {
-              console.warn(`Line ${index + 2}: Student with Reg ID '${regId}' not found`);
+              //console.warn(`Line ${index + 2}: Student with Reg ID '${regId}' not found`);
               errorCount++;
               return;
             }
@@ -1031,7 +1034,7 @@ export function ScoreEntryPage() {
             
             if (isCrecheClass) {
               // CRECHE: Only validate exam score
-              const examResult = validateScore(exam, 200, 'Exam');
+              const examResult = validateScore(exam, 100, 'Exam');
               cleanExam = examResult !== null ? examResult : '';
               if (examResult === null) {
                 errorCount++;
@@ -1066,7 +1069,7 @@ export function ScoreEntryPage() {
               }
               
               if (expectedTotal && Math.abs(parseFloat(total) - parseFloat(expectedTotal)) > 0.01) {
-                console.warn(`Line ${index + 2}: Total mismatch (expected: ${expectedTotal}, provided: ${total})`);
+                //console.warn(`Line ${index + 2}: Total mismatch (expected: ${expectedTotal}, provided: ${total})`);
                 // Don't fail import for total mismatch, just warn
               }
             }
@@ -1078,7 +1081,7 @@ export function ScoreEntryPage() {
             };
             importedCount++;
           } catch (error) {
-            console.error(`Line ${index + 2}: Error processing line - ${error}`);
+            //console.error(`Line ${index + 2}: Error processing line - ${error}`);
             errorCount++;
           }
         });
@@ -1097,7 +1100,7 @@ export function ScoreEntryPage() {
           toast.info("No valid student records found in CSV");
         }
       } catch (error) {
-        console.error('CSV import error:', error);
+        //console.error('CSV import error:', error);
         toast.error('Failed to process CSV file. Please check file format.');
       }
     };
@@ -1130,7 +1133,7 @@ export function ScoreEntryPage() {
           <div>
             <h2 className="text-[#2563EB] mb-1">✏️ STUDENTS ASSESSMENT SCORE</h2>
             <p className="text-[#6B7280]">
-              {currentTerm.toUpperCase()} - {currentAcademicYear}
+              {currentTerm?.toUpperCase() || ''} - {currentAcademicYear || ''}
             </p>
           </div>
           
@@ -1450,26 +1453,24 @@ export function ScoreEntryPage() {
                     
                     // Always show submitted scores in input fields to avoid confusion
                     // Keep them visible but locked until results are compiled and submitted
-                    const displayData = studentScore ? {
-                      ca1: studentScore.ca1.toString(),
-                      ca2: studentScore.ca2.toString(),
-                      exam: studentScore.exam.toString()
-                    } : data;
+                    const displayData = {
+                      ca1: data.ca1 !== ''
+                        ? data.ca1
+                        : (studentScore?.ca1 === null || studentScore?.ca1 === undefined ? '' : studentScore.ca1.toString()),
+                      ca2: data.ca2 !== ''
+                        ? data.ca2
+                        : (studentScore?.ca2 === null || studentScore?.ca2 === undefined ? '' : studentScore.ca2.toString()),
+                      exam: data.exam !== ''
+                        ? data.exam
+                        : (studentScore?.exam === null || studentScore?.exam === undefined ? '' : studentScore.exam.toString())
+                    };
                     
                     const { total } = calculateScore(displayData.ca1, displayData.ca2, displayData.exam);
                     const hasScore = displayData.ca1 || displayData.ca2 || displayData.exam;
                     
-                    // Debug logging for first few students
-                    if (index < 3) {
-                      console.log(`Student ${index + 1} lock debug:`, {
-                        studentId: student.id,
-                        studentName: `${student.firstName} ${student.lastName}`,
-                        scoreStatus: studentScore?.status || 'No score',
-                        hasScore: !!studentScore,
-                        isEditMode,
-                        isStudentLocked,
-                        canEdit: !isStudentLocked
-                      });
+                    // Debug logging for first few students (disabled in production)
+                    if (index < 3 && process.env.NODE_ENV !== 'production') {
+                      // Student lock debug removed for production
                     }
 
                     return (
@@ -1485,7 +1486,6 @@ export function ScoreEntryPage() {
                               <Input
                                 type="number"
                                 min="0"
-                                max="20"
                                 value={displayData.ca1}
                                 onChange={(e) => handleScoreChange(student.id, 'ca1', e.target.value)}
                                 className="w-16 mx-auto text-center rounded-lg border-[#E5E7EB] text-xs"
@@ -1497,7 +1497,6 @@ export function ScoreEntryPage() {
                               <Input
                                 type="number"
                                 min="0"
-                                max="20"
                                 value={displayData.ca2}
                                 onChange={(e) => handleScoreChange(student.id, 'ca2', e.target.value)}
                                 className="w-16 mx-auto text-center rounded-lg border-[#E5E7EB] text-xs"
@@ -1511,7 +1510,6 @@ export function ScoreEntryPage() {
                           <Input
                             type="number"
                             min="0"
-                            max={isCrecheClass ? "150" : "60"}
                             value={displayData.exam}
                             onChange={(e) => handleScoreChange(student.id, 'exam', e.target.value)}
                             className="w-16 mx-auto text-center rounded-lg border-[#E5E7EB] text-xs"
@@ -1596,7 +1594,7 @@ export function ScoreEntryPage() {
                 <Button
                   onClick={() => {
                     toast.success(isEditMode ? "Updating scores" : "Submitting scores");
-                    handleSubmit();
+                    submitScoresForApproval();
                   }}
                   className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg px-4 sm:px-6 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
                   disabled={isLocked || !selectedClassId || !selectedSubjectId}

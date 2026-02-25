@@ -50,6 +50,10 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           if (isMounted && !success) {
             toast.error('Connection failed. Please refresh the page.');
           }
+        }).catch(error => {
+          if (isMounted) {
+            console.error('Connection reconnection failed:', error);
+          }
         });
       }
     };
@@ -64,8 +68,11 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   }, []);
 
   // Get current teacher data - Defensive check for teachers being an array
-  const currentTeacher = currentUser && Array.isArray(teachers) && teachers.length > 0 ? teachers.find(t => t?.id === String(currentUser.linked_id)) : null;
-  const teacherId = currentTeacher?.id;
+  const currentTeacher =
+    currentUser && Array.isArray(teachers) && teachers.length > 0
+      ? teachers.find(t => String(t?.id) === String(currentUser.linked_id))
+      : null;
+  const teacherId = currentTeacher ? Number(currentTeacher.id) : null;
   
   // Memoize responsibilities calculation to prevent excessive re-calculations
   const responsibilities = useMemo(() => {
@@ -88,9 +95,33 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   }, [teacherId, classes, getTeacherResponsibilities]);
   
   // Memoize teacher classes calculation
-  const teacherClasses = useMemo(() => {
-    if (!teacherId) return [];
-    return getTeacherClasses(Number(teacherId));
+  const [teacherClasses, setTeacherClasses] = useState<Array<{
+    classId: number;
+    className: string;
+    classLevel: string;
+    studentCount: number;
+    subjects: Array<{
+      subjectId: number;
+      subjectName: string;
+      subjectCode: string;
+    }>;
+  }>>([]);
+  
+  useEffect(() => {
+    if (!teacherId) return;
+    
+    let isMounted = true;
+    getTeacherClasses(Number(teacherId)).then(classes => {
+      if (isMounted) {
+        setTeacherClasses(classes);
+      }
+    }).catch(error => {
+      if (isMounted) {
+        console.error('Failed to load teacher classes:', error);
+      }
+    });
+    
+    return () => { isMounted = false; };
   }, [teacherId, getTeacherClasses]);
   
   // Memoize class teacher status calculation
@@ -325,13 +356,13 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                 <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical max-w-md w-full">
                   <CardContent className="p-12 text-center">
                     <div className="w-16 h-16 rounded-full bg-[#3B82F6] flex items-center justify-center mx-auto mb-4 text-white">
-                      {sidebarItems.find(item => item.id === activeItem)?.icon}
+                      {Array.isArray(sidebarItems) && sidebarItems.find(item => item.id === activeItem)?.icon}
                     </div>
                     <h3 className="text-[#1F2937] mb-3">
-                      {sidebarItems.find(item => item.id === activeItem)?.label}
+                      {Array.isArray(sidebarItems) && sidebarItems.find(item => item.id === activeItem)?.label}
                     </h3>
                     <p className="text-[#6B7280]">
-                      This section contains the functionality for {sidebarItems.find(item => item.id === activeItem)?.label.toLowerCase()}.
+                      This section contains the functionality for {Array.isArray(sidebarItems) && sidebarItems.find(item => item.id === activeItem)?.label?.toLowerCase()}.
                     </p>
                   </CardContent>
                 </Card>

@@ -17,13 +17,12 @@ class TeacherController {
     }
     
     /**
-     * Get All Teachers
+     * Get All Teachers (without pagination for frontend compatibility)
      */
     public function getAllTeachers() {
         // Temporarily remove authentication for debugging
         // Middleware::requireAnyRole(['admin', 'teacher', 'accountant']);
         
-        $pagination = Middleware::getPaginationParams();
         $search_params = Middleware::getSearchParams();
         
         try {
@@ -32,8 +31,6 @@ class TeacherController {
                       FROM teachers t
                       LEFT JOIN departments d ON t.department_id = d.id
                       LEFT JOIN classes c ON t.is_class_teacher = TRUE AND t.id = c.class_teacher_id";
-            
-            $count_query = "SELECT COUNT(*) as total FROM teachers t";
             
             // Add search conditions
             $conditions = [];
@@ -47,11 +44,9 @@ class TeacherController {
             
             if (!empty($conditions)) {
                 $query .= " WHERE " . implode(' AND ', $conditions);
-                $count_query .= " WHERE " . implode(' AND ', $conditions);
             }
             
-            $query .= " ORDER BY t.{$search_params['sort_by']} {$search_params['sort_order']}";
-            $query .= " LIMIT :limit OFFSET :offset";
+            $query .= " ORDER BY t.first_name, t.last_name";
             
             $stmt = $this->conn->prepare($query);
             
@@ -59,8 +54,6 @@ class TeacherController {
                 $stmt->bindValue($key, $value);
             }
             
-            $stmt->bindValue(':limit', $pagination['limit'], PDO::PARAM_INT);
-            $stmt->bindValue(':offset', $pagination['offset'], PDO::PARAM_INT);
             $stmt->execute();
             
             $teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -88,16 +81,9 @@ class TeacherController {
                     'updatedAt' => $teacher['updated_at']
                 ];
             }, $teachers);
-
-            // Get total count
-            $count_stmt = $this->conn->prepare($count_query);
-            foreach ($params as $key => $value) {
-                $count_stmt->bindValue($key, $value);
-            }
-            $count_stmt->execute();
-            $total = $count_stmt->fetch()['total'];
             
-            Response::paginated($mappedTeachers, $pagination['page'], $pagination['limit'], $total);
+            // Return all teachers without pagination
+            Response::success($mappedTeachers, 'All teachers retrieved successfully');
             
         } catch (PDOException $e) {
             Response::serverError('Database error retrieving teachers');
@@ -407,7 +393,7 @@ class TeacherController {
     }
     
     /**
-     * Get Teacher's Subject Assignments
+     * Get Teacher's Subject Assignments - Current Term/Year Only
      */
     public function getTeacherAssignments($teacher_id) {
         $token_data = Middleware::requireAuth();
@@ -418,20 +404,42 @@ class TeacherController {
         }
         
         try {
+            // Get current academic year and term from settings
+            $settings_query = "SELECT current_academic_year, current_term FROM school_settings LIMIT 1";
+            $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->execute();
+            $settings = $settings_stmt->fetch();
+            
+            $academic_year = $settings ? $settings['current_academic_year'] : '2025/2026';
+            $term = $settings ? $settings['current_term'] : 'First Term';
+            
+            // Optional query parameters to override defaults (admin only)
+            if ($token_data['role'] === 'admin' && isset($_GET['academic_year'])) {
+                $academic_year = Middleware::sanitizeString($_GET['academic_year']);
+            }
+            if ($token_data['role'] === 'admin' && isset($_GET['term'])) {
+                $term = Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
+            }
+            
             $query = "SELECT sa.*, sub.name as subject_name, sub.code as subject_code, c.name as class_name, c.level
                       FROM subject_assignments sa
                       JOIN subjects sub ON sa.subject_id = sub.id
                       JOIN classes c ON sa.class_id = c.id
-                      WHERE sa.teacher_id = :teacher_id AND sa.status = 'Active'
+                      WHERE sa.teacher_id = :teacher_id 
+                      AND sa.academic_year = :academic_year 
+                      AND sa.term = :term 
+                      AND sa.status = 'Active'
                       ORDER BY c.level, c.name, sub.name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':teacher_id', $teacher_id);
+            $stmt->bindParam(':academic_year', $academic_year);
+            $stmt->bindParam(':term', $term);
             $stmt->execute();
             
             $assignments = $stmt->fetchAll();
             
-            Response::success($assignments, 'Teacher assignments retrieved successfully');
+            Response::success($assignments, 'Teacher assignments for ' . $term . ' ' . $academic_year . ' retrieved successfully');
             
         } catch (PDOException $e) {
             Response::serverError('Database error retrieving teacher assignments');

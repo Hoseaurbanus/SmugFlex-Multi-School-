@@ -1,17 +1,12 @@
 <?php
-// School Settings endpoint
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+// School Settings endpoint (standardized responses)
+require_once __DIR__ . '/helpers/Response.php';
+require_once __DIR__ . '/config/database.php';
 
+// Handle preflight OPTIONS requests consistently
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
+    Response::options();
 }
-
-require_once 'config/database.php';
-require_once 'helpers/JWT.php';
 
 try {
     $database = new Database();
@@ -36,29 +31,19 @@ try {
                     }
                 }
                 
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'School settings loaded successfully',
-                    'data' => $settings,
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+                Response::success($settings, 'School settings loaded successfully');
             } catch (PDOException $e) {
                 // Log the actual error for debugging
                 error_log("School Settings Error: " . $e->getMessage());
                 
                 // If table doesn't exist, return default settings
                 if (strpos($e->getMessage(), "doesn't exist") !== false || strpos($e->getMessage(), "Table") !== false) {
-                    echo json_encode([
-                        'success' => true,
-                        'message' => 'Using default school settings',
-                        'data' => [
-                            ['setting_key' => 'school_name', 'setting_value' => 'Graceland Royal Academy Gombe', 'setting_type' => 'string', 'description' => 'Official school name'],
-                            ['setting_key' => 'school_motto', 'setting_value' => 'Wisdom & Illumination', 'setting_type' => 'string', 'description' => 'School motto'],
-                            ['setting_key' => 'current_term', 'setting_value' => 'First Term', 'setting_type' => 'string', 'description' => 'Current academic term'],
-                            ['setting_key' => 'current_academic_year', 'setting_value' => '2025/2026', 'setting_type' => 'string', 'description' => 'Current academic year']
-                        ],
-                        'timestamp' => date('Y-m-d H:i:s')
-                    ]);
+                    Response::success([
+                        ['setting_key' => 'school_name', 'setting_value' => 'Graceland Royal Academy Gombe', 'setting_type' => 'string', 'description' => 'Official school name'],
+                        ['setting_key' => 'school_motto', 'setting_value' => 'Wisdom & Illumination', 'setting_type' => 'string', 'description' => 'School motto'],
+                        ['setting_key' => 'current_term', 'setting_value' => 'First Term', 'setting_type' => 'string', 'description' => 'Current academic term'],
+                        ['setting_key' => 'current_academic_year', 'setting_value' => '2025/2026', 'setting_type' => 'string', 'description' => 'Current academic year']
+                    ], 'Using default school settings');
                 } else {
                     throw $e;
                 }
@@ -86,33 +71,18 @@ try {
 
                     $conn->commit();
 
-                    echo json_encode([
-                        'success' => true,
-                        'message' => 'Academic year and term updated atomically',
-                        'timestamp' => date('Y-m-d H:i:s')
-                    ]);
+                    Response::success(null, 'Academic year and term updated atomically');
                 } catch (PDOException $e) {
                     $conn->rollBack();
                     error_log('Atomic update failed: ' . $e->getMessage());
-                    http_response_code(500);
-                    echo json_encode([
-                        'success' => false,
-                        'message' => 'Failed to update both settings atomically',
-                        'error' => $e->getMessage(),
-                        'timestamp' => date('Y-m-d H:i:s')
-                    ]);
+                    Response::serverError('Failed to update both settings atomically');
                 }
 
                 break;
             }
 
             if (!$data || !isset($data['setting_key']) || !isset($data['setting_value'])) {
-                http_response_code(400);
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Setting key and value are required',
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+                Response::badRequest('Setting key and value are required');
                 break;
             }
 
@@ -146,18 +116,9 @@ try {
             }
 
             if ($success) {
-                echo json_encode([
-                    'success' => true,
-                    'message' => $message,
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+                Response::success(null, $message);
             } else {
-                http_response_code(500);
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Failed to save setting',
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+                Response::serverError('Failed to save setting');
             }
             break;
             
@@ -165,12 +126,7 @@ try {
             // Update school setting
             $path_parts = explode('/', trim($_SERVER['PATH_INFO'] ?? '', '/'));
             if (empty($path_parts[0])) {
-                http_response_code(400);
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Setting key is required',
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+                Response::badRequest('Setting key is required');
                 break;
             }
             
@@ -178,12 +134,7 @@ try {
             $data = json_decode(file_get_contents('php://input'), true);
             
             if (!$data || !isset($data['setting_value'])) {
-                http_response_code(400);
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Setting value is required',
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+                Response::badRequest('Setting value is required');
                 break;
             }
             
@@ -197,37 +148,18 @@ try {
             ]);
             
             if ($success) {
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Setting updated successfully',
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+                Response::success(null, 'Setting updated successfully');
             } else {
-                http_response_code(500);
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Failed to update setting',
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+                Response::serverError('Failed to update setting');
             }
             break;
             
         default:
-            http_response_code(405);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Method not allowed',
-                'timestamp' => date('Y-m-d H:i:s')
-            ]);
+            Response::error('Method not allowed', 405);
             break;
     }
     
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Database error: ' . $e->getMessage(),
-        'timestamp' => date('Y-m-d H:i:s')
-    ]);
+    Response::serverError('Database error');
 }
 ?>

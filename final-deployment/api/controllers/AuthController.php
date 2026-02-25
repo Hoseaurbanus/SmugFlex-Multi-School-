@@ -24,12 +24,18 @@ class AuthController {
         // Get request data
         $data = json_decode(file_get_contents('php://input'), true);
         
+        // DEBUG: Log login attempt
+        error_log("LOGIN DEBUG: Attempting login - Username: " . ($data['username'] ?? 'NULL') . ", Role: " . ($data['role'] ?? 'NULL') . ", Data: " . json_encode($data));
+        
         // Validate required fields
         Middleware::validateRequired($data, ['username', 'password', 'role']);
         
         $username = Middleware::sanitizeString($data['username']);
         $password = $data['password'];
         $role = Middleware::validateEnum($data['role'], ['admin', 'teacher', 'accountant', 'parent'], 'role');
+        
+        // DEBUG: Log sanitized data
+        error_log("LOGIN DEBUG: Sanitized data - Username: " . $username . ", Role: " . $role);
         
         try {
             // Find user
@@ -60,6 +66,11 @@ class AuthController {
             $user = $stmt->fetch();
             
             if (!$user || !password_verify($password, $user['password_hash'])) {
+                if (!$user) {
+                    error_log("LOGIN DEBUG: User not found for username: " . $username);
+                } else {
+                    error_log("LOGIN DEBUG: Password verification failed for username: " . $username);
+                }
                 Middleware::logActivity($username, ucfirst($role), 'LOGIN_FAILED', 'Authentication', 'Failed', 'Invalid credentials');
                 Response::unauthorized('Invalid username or password');
             }
@@ -196,23 +207,30 @@ class AuthController {
      * Refresh Token
      */
     public function refreshToken() {
+        error_log("AuthController: refreshToken called");
         $token_data = Middleware::requireAuth();
-        
+        error_log("AuthController: Current token data: " . json_encode($token_data));
+
         try {
             // Get updated user data
             $user_data = $this->getUserDetails($token_data['user_id'], $token_data['role']);
-            
+            error_log("AuthController: Retrieved user data for refresh: " . json_encode(array_keys($user_data)));
+
             if (!$user_data) {
+                error_log("AuthController: User data not found for refresh");
                 Response::notFound('User not found');
             }
-            
+
             // Generate new token
             $token = JWT::generateUserToken($user_data);
+            error_log("AuthController: Generated new token, length: " . strlen($token));
             $user_data['token'] = $token;
-            
+
+            error_log("AuthController: Token refresh successful for user: " . ($user_data['username'] ?? 'unknown'));
             Response::success($user_data, 'Token refreshed successfully');
-            
+
         } catch (PDOException $e) {
+            error_log("AuthController: Database error in refreshToken: " . $e->getMessage());
             Response::serverError('Database error refreshing token');
         }
     }

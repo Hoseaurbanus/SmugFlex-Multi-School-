@@ -26,6 +26,19 @@ class PaymentController {
         $search_params = Middleware::getSearchParams();
         
         try {
+            // Get current academic year and term from settings (default filter)
+            $settings_query = "SELECT setting_key, setting_value FROM school_settings 
+                              WHERE setting_key IN ('current_academic_year', 'current_term')";
+            $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->execute();
+            $settings = [];
+            while ($setting = $settings_stmt->fetch(PDO::FETCH_ASSOC)) {
+                $settings[$setting['setting_key']] = $setting['setting_value'];
+            }
+            
+            $default_academic_year = $settings['current_academic_year'] ?? '2024/2025';
+            $default_term = $settings['current_term'] ?? 'First Term';
+            
             $query = "SELECT p.*, s.first_name, s.last_name, s.admission_number,
                              c.name as class_name, c.level,
                              u.username as recorded_by_name
@@ -62,6 +75,19 @@ class PaymentController {
                 $conditions[] = "p.recorded_date <= :date_to";
                 $params[':date_to'] = Middleware::validateDate($_GET['date_to']);
             }
+            
+            // ============ NEW: TERM AND ACADEMIC YEAR FILTERING ============
+            // Allow filtering by specific term/year, or use current defaults
+            $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : $default_term;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : $default_academic_year;
+            
+            // CRITICAL: Always filter by academic year and term
+            $conditions[] = "p.academic_year = :academic_year";
+            $params[':academic_year'] = $academic_year;
+            
+            $conditions[] = "p.term = :term";
+            $params[':term'] = $term;
+            // ============ END: TERM AND ACADEMIC YEAR FILTERING ============
             
             if (!empty($conditions)) {
                 $query .= " WHERE " . implode(' AND ', $conditions);
@@ -312,14 +338,49 @@ class PaymentController {
         }
         
         try {
+            // ============ NEW: GET CURRENT SETTINGS FOR DEFAULT FILTERING ============
+            $settings_query = "SELECT setting_key, setting_value FROM school_settings 
+                              WHERE setting_key IN ('current_academic_year', 'current_term')";
+            $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->execute();
+            $settings = [];
+            while ($setting = $settings_stmt->fetch(PDO::FETCH_ASSOC)) {
+                $settings[$setting['setting_key']] = $setting['setting_value'];
+            }
+            
+            $default_academic_year = $settings['current_academic_year'] ?? '2024/2025';
+            $default_term = $settings['current_term'] ?? 'First Term';
+            // ============ END: GET CURRENT SETTINGS ============
+            
+            // ============ NEW: ALLOW OPTIONAL FILTERING BY TERM/YEAR ============
+            // If not specified, default to current academic year and term
+            $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : $default_term;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : $default_academic_year;
+            
+            $return_all = isset($_GET['all_history']) && $_GET['all_history'] === 'true' && $token_data['role'] === 'admin';
+            // ============ END: ALLOW OPTIONAL FILTERING ============
+            
             $query = "SELECT p.*, u.username as recorded_by_name
                       FROM payments p
                       LEFT JOIN users u ON p.recorded_by = u.id
-                      WHERE p.student_id = :student_id
-                      ORDER BY p.recorded_date DESC";
+                      WHERE p.student_id = :student_id";
+            
+            $params = [':student_id' => $student_id];
+            
+            // ============ NEW: MANDATORY FILTERING BY ACADEMIC YEAR AND TERM ============
+            if (!$return_all) {
+                $query .= " AND p.academic_year = :academic_year AND p.term = :term";
+                $params[':academic_year'] = $academic_year;
+                $params[':term'] = $term;
+            }
+            // ============ END: MANDATORY FILTERING ============
+            
+            $query .= " ORDER BY p.recorded_date DESC";
             
             $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':student_id', $student_id);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value);
+            }
             $stmt->execute();
             
             $payments = $stmt->fetchAll();

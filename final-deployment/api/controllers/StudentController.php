@@ -479,17 +479,44 @@ class StudentController {
             
             $this->conn->beginTransaction();
             
-            foreach ($promotions as $promotion) {
+            // Validate batch size (max 50 students per call)
+        if (count($promotions) > 50) {
+            Response::error('Maximum 50 students can be processed per call');
+            return;
+        }
+        
+        // Load progression controller for validation
+        require_once 'ProgressionController.php';
+        $progressionController = new ProgressionController($this->database);
+        
+        $this->conn->beginTransaction();
+        $processed_students = [];
+        $failed_students = [];
+        
+        foreach ($promotions as $index => $promotion) {
+            try {
                 $student_id = Middleware::validateInteger($promotion['student_id'], 'student_id');
                 $from_class_id = Middleware::validateInteger($promotion['from_class_id'], 'from_class_id');
                 $to_class_id = Middleware::validateInteger($promotion['to_class_id'], 'to_class_id');
-                $status = Middleware::validateEnum($promotion['status'], ['Promoted', 'Repeated', 'Transferred'], 'status');
+                $status = Middleware::validateEnum($promotion['status'], ['Promoted', 'Repeated', 'Transferred', 'On Hold', 'Withdrawn', 'Pending Approval', 'Conditional', 'Manual'], 'status');
                 
                 // Get current academic year
                 $from_academic_year = $promotion['from_academic_year'] ?? '2024/2025';
                 
+                // Validate progression path (skip for manual overrides)
+                if ($status !== 'Manual') {
+                    $validation = $progressionController->validatePromotion($student_id, $to_class_id, $to_academic_year);
+                    if (!$validation['valid']) {
+                        $failed_students[] = [
+                            'student_id' => $student_id,
+                            'error' => $validation['message']
+                        ];
+                        continue;
+                    }
+                }
+                
                 // Update student class and academic year
-                if ($status === 'Promoted') {
+                if (in_array($status, ['Promoted', 'Manual'])) {
                     $update_query = "UPDATE students SET class_id = :to_class_id, academic_year = :to_academic_year WHERE id = :student_id";
                     $update_stmt = $this->conn->prepare($update_query);
                     $update_stmt->bindParam(':to_class_id', $to_class_id);
@@ -511,13 +538,17 @@ class StudentController {
                         $level_update_stmt->bindParam(':student_id', $student_id);
                         $level_update_stmt->execute();
                     }
+                    
+                    // Update class counts
+                    $this->updateClassCounts($from_class_id, $to_class_id);
                 }
                 
-                // Record promotion
+                // Record promotion with enhanced fields
                 $promotion_query = "INSERT INTO student_promotions (student_id, from_class_id, to_class_id, 
-                                    from_academic_year, to_academic_year, promotion_status, promoted_by, promotion_date)
+                                    from_academic_year, to_academic_year, promotion_status, promoted_by, promotion_date,
+                                    manual_override, override_reason)
                                     VALUES (:student_id, :from_class_id, :to_class_id, :from_academic_year, 
-                                           :to_academic_year, :status, :promoted_by, :promotion_date)";
+                                           :to_academic_year, :status, :promoted_by, :promotion_date, :manual_override, :override_reason)";
                 
                 $promotion_stmt = $this->conn->prepare($promotion_query);
                 $promotion_stmt->bindParam(':student_id', $student_id);
@@ -529,8 +560,21 @@ class StudentController {
                 $promoted_by = $_SESSION['user_id'] ?? 1;
                 $promotion_stmt->bindParam(':promoted_by', $promoted_by);
                 $promotion_stmt->bindParam(':promotion_date', $promotion_date);
+                $manual_override = ($status === 'Manual') ? 1 : 0;
+                $promotion_stmt->bindParam(':manual_override', $manual_override);
+                $override_reason = $promotion['override_reason'] ?? null;
+                $promotion_stmt->bindParam(':override_reason', $override_reason);
                 $promotion_stmt->execute();
+                
+                $processed_students[] = $student_id;
+                
+            } catch (Exception $e) {
+                $failed_students[] = [
+                    'student_id' => $promotion['student_id'] ?? 'unknown',
+                    'error' => $e->getMessage()
+                ];
             }
+        }
             
             $this->conn->commit();
             
@@ -541,15 +585,125 @@ class StudentController {
                 'PROMOTE_STUDENTS',
                 'Batch Promotion',
                 'Success',
-                count($promotions) . ' students processed for promotion',
+                count($processed_students) . ' students processed for promotion',
                 $_SESSION['user_id'] ?? null
             );
             
-            Response::success(null, 'Students promoted successfully');
+            // Return detailed response
+            Response::success([
+                'processed_students' => count($processed_students),
+                'failed_students' => count($failed_students),
+                'failed_details' => $failed_students,
+                'total_attempted' => count($promotions)
+            ], 'Promotion processing completed');
             
         } catch (PDOException $e) {
             $this->conn->rollBack();
             Response::serverError('Database error during student promotion');
+        }
+    }
+    
+    /**
+     * Update class counts after promotion
+     */
+    private function updateClassCounts($fromClassId, $toClassId) {
+        try {
+            // Decrement from class
+            $decrement_query = "UPDATE classes SET current_students = current_students - 1 WHERE id = :from_class_id AND current_students > 0";
+            $decrement_stmt = $this->conn->prepare($decrement_query);
+            $decrement_stmt->bindParam(':from_class_id', $fromClassId);
+            $decrement_stmt->execute();
+            
+            // Increment to class
+            $increment_query = "UPDATE classes SET current_students = current_students + 1 WHERE id = :to_class_id";
+            $increment_stmt = $this->conn->prepare($increment_query);
+            $increment_stmt->bindParam(':to_class_id', $toClassId);
+            $increment_stmt->execute();
+            
+        } catch (PDOException $e) {
+            // Log error but don't fail the promotion
+            error_log("Error updating class counts: " . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Manual Class Change (Admin can change student class anytime)
+     */
+    public function manualClassChange() {
+        Middleware::requireRole('admin');
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        Middleware::validateRequired($data, ['student_id', 'from_class_id', 'to_class_id', 'reason']);
+        
+        try {
+            $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
+            $from_class_id = Middleware::validateInteger($data['from_class_id'], 'from_class_id');
+            $to_class_id = Middleware::validateInteger($data['to_class_id'], 'to_class_id');
+            $reason = Middleware::sanitizeString($data['reason']);
+            $academic_year = $data['academic_year'] ?? '2024/2025';
+            
+            $this->conn->beginTransaction();
+            
+            // Update student class
+            $update_query = "UPDATE students SET class_id = :to_class_id WHERE id = :student_id";
+            $update_stmt = $this->conn->prepare($update_query);
+            $update_stmt->bindParam(':to_class_id', $to_class_id);
+            $update_stmt->bindParam(':student_id', $student_id);
+            $update_stmt->execute();
+            
+            // Update student level
+            $class_query = "SELECT level FROM classes WHERE id = :class_id";
+            $class_stmt = $this->conn->prepare($class_query);
+            $class_stmt->bindParam(':class_id', $to_class_id);
+            $class_stmt->execute();
+            $class_info = $class_stmt->fetch();
+            
+            if ($class_info) {
+                $level_update_query = "UPDATE students SET level = :level WHERE id = :student_id";
+                $level_update_stmt = $this->conn->prepare($level_update_query);
+                $level_update_stmt->bindParam(':level', $class_info['level']);
+                $level_update_stmt->bindParam(':student_id', $student_id);
+                $level_update_stmt->execute();
+            }
+            
+            // Record manual change
+            $change_query = "INSERT INTO manual_class_changes 
+                           (student_id, from_class_id, to_class_id, academic_year, reason, changed_by, change_date) 
+                           VALUES (:student_id, :from_class_id, :to_class_id, :academic_year, :reason, :changed_by, :change_date)";
+            
+            $change_stmt = $this->conn->prepare($change_query);
+            $change_stmt->bindParam(':student_id', $student_id);
+            $change_stmt->bindParam(':from_class_id', $from_class_id);
+            $change_stmt->bindParam(':to_class_id', $to_class_id);
+            $change_stmt->bindParam(':academic_year', $academic_year);
+            $change_stmt->bindParam(':reason', $reason);
+            $changed_by = $_SESSION['user_id'] ?? 1;
+            $change_stmt->bindParam(':changed_by', $changed_by);
+            $change_date = date('Y-m-d H:i:s');
+            $change_stmt->bindParam(':change_date', $change_date);
+            $change_stmt->execute();
+            
+            // Update class counts
+            $this->updateClassCounts($from_class_id, $to_class_id);
+            
+            $this->conn->commit();
+            
+            // Log activity
+            Middleware::logActivity(
+                'Admin',
+                'Admin',
+                'MANUAL_CLASS_CHANGE',
+                "Student ID: {$student_id} moved from class {$from_class_id} to {$to_class_id}",
+                'Success',
+                "Reason: {$reason}",
+                $_SESSION['user_id'] ?? null
+            );
+            
+            Response::success(null, 'Manual class change completed successfully');
+            
+        } catch (PDOException $e) {
+            $this->conn->rollBack();
+            Response::serverError('Database error during manual class change');
         }
     }
     
@@ -750,16 +904,20 @@ class StudentController {
                 Response::badRequest('Student not found in this class');
             }
             
-            // Teacher can only save for their classes
+            // Teacher can only save for their classes in current term
             if ($token_data['role'] === 'teacher') {
-                $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+                $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments 
+                                       WHERE teacher_id = :teacher_id AND class_id = :class_id 
+                                       AND academic_year = :academic_year AND term = :term AND status = 'Active'";
                 $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
                 $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $teacher_check_stmt->bindParam(':class_id', $class_id);
+                $teacher_check_stmt->bindParam(':academic_year', $academic_year);
+                $teacher_check_stmt->bindParam(':term', $term);
                 $teacher_check_stmt->execute();
                 
                 if ($teacher_check_stmt->fetch()['count'] == 0) {
-                    Response::forbidden('Access denied to this class');
+                    Response::forbidden('Access denied: Teacher not assigned to this class for ' . $term . ' ' . $academic_year);
                 }
             }
             
@@ -885,16 +1043,20 @@ class StudentController {
                 Response::badRequest('Student not found in this class');
             }
             
-            // Teacher can only save for their classes
+            // Teacher can only save for their classes in current term
             if ($token_data['role'] === 'teacher') {
-                $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+                $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments 
+                                       WHERE teacher_id = :teacher_id AND class_id = :class_id 
+                                       AND academic_year = :academic_year AND term = :term AND status = 'Active'";
                 $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
                 $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $teacher_check_stmt->bindParam(':class_id', $class_id);
+                $teacher_check_stmt->bindParam(':academic_year', $academic_year);
+                $teacher_check_stmt->bindParam(':term', $term);
                 $teacher_check_stmt->execute();
                 
                 if ($teacher_check_stmt->fetch()['count'] == 0) {
-                    Response::forbidden('Access denied to this class');
+                    Response::forbidden('Access denied: Teacher not assigned to this class for ' . $term . ' ' . $academic_year);
                 }
             }
             

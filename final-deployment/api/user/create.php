@@ -82,19 +82,24 @@ try {
         throw new Exception('Database connection failed');
     }
     
-    // Check if username already exists
+    // Begin transaction for data consistency
+    $conn->beginTransaction();
+    
+    // Check for duplicate username
     $stmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
     $stmt->execute([$username]);
     if ($stmt->fetch()) {
+        $conn->rollBack();
         http_response_code(400);
         echo json_encode(['error' => 'Username already exists']);
         exit();
     }
     
-    // Check if email already exists
+    // Check for duplicate email
     $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
     $stmt->execute([$email]);
     if ($stmt->fetch()) {
+        $conn->rollBack();
         http_response_code(400);
         echo json_encode(['error' => 'Email already exists']);
         exit();
@@ -185,6 +190,9 @@ try {
     $stmt->execute([$username, $password_hash, $role, $linked_id, $email, $status]);
     $user_id = $conn->lastInsertId();
     
+    // Commit transaction
+    $conn->commit();
+    
     // Return success response
     echo json_encode([
         'success' => true,
@@ -202,9 +210,11 @@ try {
     ]);
     
 } catch (Exception $e) {
+    // Roll back transaction on error
+    if (isset($conn) && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
     http_response_code(500);
-    echo json_encode([
-        'error' => 'Database error: ' . $e->getMessage()
-    ]);
+    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
 }
 ?>

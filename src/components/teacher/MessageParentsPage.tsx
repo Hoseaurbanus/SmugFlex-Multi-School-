@@ -191,21 +191,20 @@ export function MessageParentsPage() {
         return;
       }
 
-      // Create notifications for each parent
-      const notificationPromises = recipients.map(parent => 
-        addNotification({
-          title: messageData.subject,
-          message: messageData.message + (uploadedImages.length > 0 ? `\n\nAttachments: ${uploadedImages.length} photo(s)` : ""),
-          type: messageData.priority === "urgent" ? "warning" : "info",
-          targetAudience: "parents",
-          sentBy: currentUser!.id,
-          sentDate: new Date().toISOString(),
-          isRead: false,
-          readBy: []
-        })
-      );
-
-      await Promise.all(notificationPromises);
+      // Create a single notification targeted to specific parent user IDs
+      const targetUserIds = recipients.map(r => Number(r.id)).filter(id => Number.isFinite(id));
+      await addNotification({
+        title: messageData.subject,
+        message: messageData.message + (uploadedImages.length > 0 ? `\n\nAttachments: ${uploadedImages.length} photo(s)` : ""),
+        type: messageData.priority === "urgent" ? "warning" : "info",
+        targetAudience: "parents",
+        sentBy: currentUser!.id,
+        sentDate: new Date().toISOString(),
+        isRead: false,
+        readBy: [],
+        targetUsers: targetUserIds,
+        deletedBy: []
+      });
 
       // Enhanced broadcast
       broadcast({

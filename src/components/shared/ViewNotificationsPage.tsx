@@ -6,7 +6,7 @@ import { useSchool } from '../../contexts/SchoolContext';
 import { toast } from 'sonner';
 
 export function ViewNotificationsPage() {
-  const { notifications, currentUser, markNotificationAsRead, deleteNotification, loadNotificationsFromAPI } = useSchool();
+  const { notifications, currentUser, markNotificationAsRead, deleteNotification, loadNotificationsFromAPI, getAllNotifications } = useSchool();
   const [selectedNotification, setSelectedNotification] = useState<any>(null);
 
   // Load notifications when component mounts
@@ -14,19 +14,8 @@ export function ViewNotificationsPage() {
     loadNotificationsFromAPI();
   }, [loadNotificationsFromAPI]);
 
-  // Filter notifications for the current user based on their role
-  const userNotifications = notifications.filter(n => {
-    if (!currentUser) return false;
-    
-    // Check if notification targets the user's role
-    const targetsUser = 
-      n.targetAudience === 'all' ||
-      (currentUser.role === 'accountant' && n.targetAudience === 'accountants') ||
-      (currentUser.role === 'teacher' && n.targetAudience === 'teachers') ||
-      (currentUser.role === 'parent' && n.targetAudience === 'parents');
-    
-    return targetsUser;
-  });
+  // Use context getter to filter notifications by audience, targetUsers, and deletedBy
+  const userNotifications = getAllNotifications();
 
   // Sort by date (newest first)
   const sortedNotifications = userNotifications.sort((a, b) => 

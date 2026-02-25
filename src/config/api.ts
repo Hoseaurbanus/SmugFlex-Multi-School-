@@ -27,7 +27,7 @@ export const API_CONFIG = {
   ENDPOINTS: {
     // Authentication
     AUTH: {
-      LOGIN: '/working_login.php',
+      LOGIN: '/auth/login',
       LOGOUT: '/auth/logout',
       PROFILE: '/auth/profile',
       CHANGE_PASSWORD: '/auth/change-password',
@@ -119,6 +119,7 @@ export const API_CONFIG = {
       SUBMIT: (assignmentId: number) => `/results/submit/${assignmentId}`,
       STUDENT_RESULTS: (studentId: number) => `/results/student/${studentId}`,
       COMPILE: '/results/compile',
+      COMPILED: '/results/compiled',
       PENDING_APPROVALS: '/results/pending-approvals',
       APPROVE: (resultId: number) => `/results/approve/${resultId}`
     },

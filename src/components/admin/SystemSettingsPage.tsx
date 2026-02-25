@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -12,7 +12,8 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { API_CONFIG } from '../../config/api';
 
 export function SystemSettingsPage() {
-  console.log("=== SYSTEM SETTINGS PAGE MOUNTED ===");
+  // Remove console.log from render body - move to useEffect for initial mount only
+  const isInitialMount = useRef(true);
   
   const {
     students,
@@ -38,25 +39,11 @@ export function SystemSettingsPage() {
     addNotification
   } = useSchool();
   
-  console.log("SystemSettingsPage - Context data:", {
-    currentUser: currentUser ? { id: currentUser.id, role: currentUser.role, username: currentUser.username } : null,
-    currentAcademicYear,
-    currentTerm,
-    schoolSettings: Object.keys(schoolSettings).length > 0 ? "loaded" : "empty",
-    usersCount: users.length
-  });
-  
   // Simplified permission check - allow admin users
   const hasAccess = currentUser && currentUser.role === 'admin';
 
-  console.log("SystemSettingsPage - Permission check:", {
-    currentUser: currentUser ? { id: currentUser.id, role: currentUser.role, username: currentUser.username } : null,
-    hasAccess
-  });
-
   // Show access denied if no permission
   if (!hasAccess) {
-    console.log("SystemSettingsPage - Access denied for user:", currentUser);
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="max-w-md w-full">
@@ -77,7 +64,25 @@ export function SystemSettingsPage() {
     );
   }
 
-  console.log("SystemSettingsPage - Access granted, rendering page...");
+  // Log initial mount only once
+  useEffect(() => {
+    if (isInitialMount.current) {
+      console.log("=== SYSTEM SETTINGS PAGE MOUNTED ===");
+      console.log("SystemSettingsPage - Context data:", {
+        currentUser: currentUser ? { id: currentUser.id, role: currentUser.role, username: currentUser.username } : null,
+        currentAcademicYear,
+        currentTerm,
+        schoolSettings: Object.keys(schoolSettings).length > 0 ? "loaded" : "empty",
+        usersCount: users.length
+      });
+      console.log("SystemSettingsPage - Permission check:", {
+        currentUser: currentUser ? { id: currentUser.id, role: currentUser.role, username: currentUser.username } : null,
+        hasAccess
+      });
+      console.log("SystemSettingsPage - Access granted, rendering page...");
+      isInitialMount.current = false;
+    }
+  }, [currentUser, currentAcademicYear, currentTerm, schoolSettings, users.length, hasAccess]);
 
   // Initialize state with empty objects to avoid dependency issues
   const [sessionData, setSessionData] = useState({
@@ -120,33 +125,43 @@ export function SystemSettingsPage() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  // Update local state when context changes
-  useEffect(() => {
+  // Update local state when context changes - use useCallback to prevent unnecessary re-renders
+  const updateSessionData = useCallback(() => {
     setSessionData({
-      currentSession: currentAcademicYear,
-      currentTerm: currentTerm,
+      currentSession: currentAcademicYear || '',
+      currentTerm: currentTerm || '',
     });
   }, [currentAcademicYear, currentTerm]);
 
-  // Refresh attendance requirements from database when component loads and user is authenticated
   useEffect(() => {
+    updateSessionData();
+  }, [updateSessionData]);
+
+  // Memoized attendance requirements loading to prevent repeated calls
+  const loadAttendanceRequirementsOnce = useCallback(async () => {
     if (currentUser) {
       console.log('SystemSettingsPage - currentUser detected, loading attendance requirements');
-      loadAttendanceRequirements().then(() => {
+      try {
+        await loadAttendanceRequirements();
         console.log('SystemSettingsPage - attendance requirements loaded, updating local state');
         const requirements = getAttendanceRequirements();
         console.log('SystemSettingsPage - requirements after load:', requirements);
         if (requirements && Object.keys(requirements).length > 0) {
           setAttendanceData(requirements);
         }
-      });
+      } catch (error) {
+        console.error('SystemSettingsPage - Error loading attendance requirements:', error);
+      }
     }
-  }, [currentUser]); // Remove loadAttendanceRequirements from dependencies
+  }, [currentUser, loadAttendanceRequirements, getAttendanceRequirements]);
 
-  // Update local state when attendance requirements change - removed to prevent infinite loop
-
-  // Update branding when school settings change
+  // Load attendance requirements only when currentUser changes
   useEffect(() => {
+    loadAttendanceRequirementsOnce();
+  }, [loadAttendanceRequirementsOnce]);
+
+  // Memoized branding data update
+  const updateBrandingData = useCallback(() => {
     if (schoolSettings && Object.keys(schoolSettings).length > 0) {
       setBrandingData({
         schoolName: schoolSettings.school_name || '',
@@ -156,8 +171,12 @@ export function SystemSettingsPage() {
     }
   }, [schoolSettings]);
 
-  // Update signature data when school settings change
   useEffect(() => {
+    updateBrandingData();
+  }, [updateBrandingData]);
+
+  // Memoized signature data update
+  const updateSignatureData = useCallback(() => {
     if (schoolSettings && Object.keys(schoolSettings).length > 0) {
       setSignatureData({
         principal_name: schoolSettings.principal_name || '',
@@ -182,16 +201,31 @@ export function SystemSettingsPage() {
     }
   }, [schoolSettings]);
 
-  // Refresh school settings when component mounts - only once
   useEffect(() => {
-    // Refresh settings from database to ensure latest data (only if user is authenticated)
-    if (currentUser) {
-      // Add longer delay to ensure token is available after login
-      setTimeout(() => {
-        loadSchoolSettings();
-      }, 500);
-    }
-  }, []); // Empty dependency array - run only once
+    updateSignatureData();
+  }, [updateSignatureData]);
+
+  // Refresh school settings when component mounts - only once with proper cleanup
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadSettings = async () => {
+      if (currentUser && isMounted) {
+        // Add longer delay to ensure token is available after login
+        setTimeout(() => {
+          if (isMounted) {
+            loadSchoolSettings();
+          }
+        }, 500);
+      }
+    };
+    
+    loadSettings();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser, loadSchoolSettings]);
 
   const [adminData, setAdminData] = useState({
     username: "",

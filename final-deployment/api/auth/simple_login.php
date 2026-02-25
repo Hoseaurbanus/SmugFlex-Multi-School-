@@ -1,41 +1,28 @@
 <?php
+http_response_code(403);
+echo json_encode(["error" => "This endpoint is disabled for security reasons. Use AuthController login only."]);
+exit;
+
 /**
  * Professional Simple Login Endpoint
  * Bypasses complex middleware for reliable authentication
  */
-
-// Set headers FIRST
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
-header('Access-Control-Allow-Credentials: true');
+require_once __DIR__ . '/../helpers/Response.php';
 
 // Handle preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
+    Response::options();
 }
 
 // Only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Method not allowed',
-        'timestamp' => date('Y-m-d H:i:s')
-    ]);
-    exit;
+    Response::error('Method not allowed', 405);
 }
 
 // Get and validate input
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Invalid JSON input',
-        'timestamp' => date('Y-m-d H:i:s')
-    ]);
-    exit;
+    Response::badRequest('Invalid JSON input');
 }
 
 $username = trim($input['username'] ?? '');
@@ -44,23 +31,13 @@ $role = trim($input['role'] ?? '');
 
 // Validate required fields
 if (empty($username) || empty($password) || empty($role)) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Username, password, and role are required',
-        'timestamp' => date('Y-m-d H:i:s')
-    ]);
-    exit;
+    Response::badRequest('Username, password, and role are required');
 }
 
 // Validate role
 $validRoles = ['admin', 'teacher', 'accountant', 'parent'];
 if (!in_array($role, $validRoles)) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Invalid role. Must be: admin, teacher, accountant, or parent',
-        'timestamp' => date('Y-m-d H:i:s')
-    ]);
-    exit;
+    Response::badRequest('Invalid role. Must be: admin, teacher, accountant, or parent');
 }
 
 // Database connection
@@ -91,12 +68,7 @@ try {
     }
     
     if (!$user) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'User not found or inactive',
-            'timestamp' => date('Y-m-d H:i:s')
-        ]);
-        exit;
+        Response::unauthorized('User not found or inactive');
     }
     
     // Enhanced password verification - handles both hashed and plain text
@@ -152,31 +124,21 @@ try {
         }
         
         // Return success response
-        echo json_encode([
-            'success' => true,
-            'message' => 'Login successful',
-            'data' => [
-                'id' => (int)$user['id'],
-                'username' => $user['username'],
-                'role' => $user['role'],
-                'linked_id' => (int)($user['linked_id'] ?? 0),
-                'email' => $user['email'] ?? '',
-                'first_name' => $first_name,
-                'last_name' => $last_name,
-                'linked_email' => $user['linked_email'] ?? '',
-                'token' => $token,
-                'permissions' => getRolePermissions($role, $pdo)
-            ],
-            'timestamp' => date('Y-m-d H:i:s')
-        ]);
+        Response::success([
+            'id' => (int)$user['id'],
+            'username' => $user['username'],
+            'role' => $user['role'],
+            'linked_id' => (int)($user['linked_id'] ?? 0),
+            'email' => $user['email'] ?? '',
+            'first_name' => $first_name,
+            'last_name' => $last_name,
+            'linked_email' => $user['linked_email'] ?? '',
+            'token' => $token,
+            'permissions' => getRolePermissions($role, $pdo)
+        ], 'Login successful');
         
     } else {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Invalid credentials',
-            'timestamp' => date('Y-m-d H:i:s')
-        ]);
-        exit;
+        Response::unauthorized('Invalid credentials');
     }
     
 } catch (PDOException $e) {
@@ -191,28 +153,19 @@ try {
             'exp' => time() + 86400
         ]);
         
-        echo json_encode([
-            'success' => true,
-            'message' => 'Login successful (fallback mode)',
-            'data' => [
-                'id' => 1,
-                'username' => 'admin',
-                'role' => 'admin',
-                'linked_id' => 0,
-                'email' => 'admin@graceland.edu.ng',
-                'first_name' => 'System',
-                'last_name' => 'Administrator',
-                'token' => $token,
-                'permissions' => getRolePermissions('admin', null)
-            ],
-            'timestamp' => date('Y-m-d H:i:s')
-        ]);
+        Response::success([
+            'id' => 1,
+            'username' => 'admin',
+            'role' => 'admin',
+            'linked_id' => 0,
+            'email' => 'admin@graceland.edu.ng',
+            'first_name' => 'System',
+            'last_name' => 'Administrator',
+            'token' => $token,
+            'permissions' => getRolePermissions('admin', null)
+        ], 'Login successful (fallback mode)');
     } else {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Database error: ' . $e->getMessage(),
-            'timestamp' => date('Y-m-d H:i:s')
-        ]);
+        Response::serverError('Database error');
     }
 }
 

@@ -56,6 +56,10 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
           } else if (isMounted) {
             toast.error('Connection failed. Please refresh the page.');
           }
+        }).catch(error => {
+          if (isMounted) {
+            console.error('Connection reconnection failed:', error);
+          }
         });
       }
     };

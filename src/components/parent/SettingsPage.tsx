@@ -121,17 +121,17 @@ export function SettingsPage() {
           
           const parentId = currentUser?.linked_id;
           
-          console.log('=== SETTINGS PAGE PARENT ID DEBUG ===');
-          console.log('Current user:', currentUser);
-          console.log('Parent ID from linked_id:', parentId);
-          console.log('Parent ID type:', typeof parentId);
-          console.log('Parent ID exists:', !!parentId);
+          //console.log('=== SETTINGS PAGE PARENT ID DEBUG ===');
+          //console.log('Current user:', currentUser);
+          //console.log('Parent ID from linked_id:', parentId);
+          //console.log('Parent ID type:', typeof parentId);
+          //console.log('Parent ID exists:', !!parentId);
           
           if (parentId) {
-            console.log('Settings Page - Fetching children for parent ID:', parentId);
-            console.log('Settings Page - Available parent-student links:', parentStudentLinks);
-            console.log('Settings Page - Available students:', students);
-            console.log('Settings Page - Data loaded check - links length:', parentStudentLinks.length, 'students length:', students.length);
+            //console.log('Settings Page - Fetching children for parent ID:', parentId);
+            //console.log('Settings Page - Available parent-student links:', parentStudentLinks);
+            //console.log('Settings Page - Available students:', students);
+            //console.log('Settings Page - Data loaded check - links length:', parentStudentLinks.length, 'students length:', students.length);
             
             // Only proceed if data is actually loaded
             if (parentStudentLinks.length > 0 && students.length > 0) {
@@ -164,8 +164,8 @@ export function SettingsPage() {
                 });
               }
             } else {
-              console.log('Settings Page - Data not loaded yet - links:', parentStudentLinks.length, 'students:', students.length);
-              console.log('Settings Page - Retrying in 1 second...');
+              //console.log('Settings Page - Data not loaded yet - links:', parentStudentLinks.length, 'students:', students.length);
+              //console.log('Settings Page - Retrying in 1 second...');
               
               // Only schedule retry if not already scheduled
               if (!retryScheduled) {
@@ -173,8 +173,8 @@ export function SettingsPage() {
                 
                 // Retry once more after 1 second
                 setTimeout(async () => {
-                  console.log('Settings Page - Retry - Available parent-student links:', parentStudentLinks.length);
-                  console.log('Settings Page - Retry - Available students:', students.length);
+                  //console.log('Settings Page - Retry - Available parent-student links:', parentStudentLinks.length);
+                  //console.log('Settings Page - Retry - Available students:', students.length);
                   
                   if (parentStudentLinks.length > 0 && students.length > 0) {
                     const parent = parents.find(p => p.id === currentUser.linked_id);
@@ -206,19 +206,19 @@ export function SettingsPage() {
                       });
                     }
                   } else {
-                    console.log('Settings Page - Retry failed - Data still not loaded');
+                    //console.log('Settings Page - Retry failed - Data still not loaded');
                   }
                   setRetryScheduled(false); // Reset retry flag
                 }, 1000);
               }
             }
           } else {
-            console.log('=== SETTINGS PAGE - NO PARENT ID FOUND ===');
-            console.log('Current user:', currentUser);
-            console.log('User linked_id:', currentUser?.linked_id);
+            //console.log('=== SETTINGS PAGE - NO PARENT ID FOUND ===');
+            //console.log('Current user:', currentUser);
+            //console.log('User linked_id:', currentUser?.linked_id);
           }
         } catch (error) {
-          console.error("Error loading parent data:", error);
+          //console.error("Error loading parent data:", error);
           toast.error("Failed to load parent data");
         } finally {
           setLoading(false);
@@ -240,7 +240,7 @@ export function SettingsPage() {
       await updateParent(profileData.id, profileData);
       toast.success('Profile updated successfully');
     } catch (error) {
-      console.error('Error updating profile:', error);
+      //console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
     } finally {
       setSaving(false);
@@ -270,7 +270,7 @@ export function SettingsPage() {
       setShowPasswordDialog(false);
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error) {
-      console.error('Error changing password:', error);
+      //console.error('Error changing password:', error);
       toast.error('Failed to change password. Please check your current password.');
     } finally {
       setSaving(false);

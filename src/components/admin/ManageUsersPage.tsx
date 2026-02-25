@@ -1,4 +1,4 @@
-import { Settings, Calculator, GraduationCap, KeyRound, User, CheckCircle, Edit, Trash2, Eye, Plus, Download, FileText } from 'lucide-react';
+import { Settings, Calculator, GraduationCap, KeyRound, User, CheckCircle, Edit, Trash2, Eye, Plus, Download, FileText, Search, Key, UserX, UserCheck } from 'lucide-react';
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
@@ -39,7 +39,6 @@ export function ManageUsersPage() {
   const { users, teachers, parents, accountants, classes, setUsers, setTeachers, setParents, setAccountants, createUserAPI, updateUserAPI, deleteUserAPI, updateUserStatusAPI, resetUserPasswordAPI, loadUsersFromAPI, loadTeachersFromAPI, loadParentsFromAPI, loadAccountantsFromAPI, deleteTeacherAPI, deleteParentAPI, deleteAccountantAPI, updateTeacherStatusAPI, updateParentStatusAPI, updateAccountantStatusAPI } = useSchool();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
   const [activeTab, setActiveTab] = useState("users");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
@@ -96,11 +95,26 @@ export function ManageUsersPage() {
     department: ''
   });
 
-  const [editFormData, setEditFormData] = useState<Partial<UserType>>({
+  const [editFormData, setEditFormData] = useState({
     username: '',
     email: '',
     role: 'teacher' as 'admin' | 'teacher' | 'accountant' | 'parent',
-    status: 'Active' as 'Active' | 'Inactive'
+    status: 'Active' as 'Active' | 'Inactive',
+    first_name: '',
+    last_name: '',
+    other_name: '',
+    phone: '',
+    employee_id: '',
+    department: '',
+    address: '',
+    gender: '',
+    qualification: '',
+    specialization: [] as string[],
+    isClassTeacher: false,
+    assignedClassId: null as number | null,
+    departmentId: '',
+    alternatePhone: '',
+    occupation: ''
   });
 
   // Load all data on component mount
@@ -120,25 +134,41 @@ export function ManageUsersPage() {
         setIsLoading(false);
       }
     };
-
     loadAllData();
   }, []);
+
+  const getUserFullName = (user: UserType): string => {
+    const anyUser = user as any;
+    const dn = (anyUser?.display_name || '').toString().trim();
+    if (dn) return dn;
+    const parts = [anyUser?.first_name, anyUser?.other_name, anyUser?.last_name]
+      .map((p: any) => (p ?? '').toString().trim())
+      .filter(Boolean);
+    return parts.length ? parts.join(' ') : (user.username || '');
+  };
+
+  const handleRoleNav = (role: string) => {
+    setActiveTab('users');
+    setFilterRole(role);
+  };
 
   // Filter users - optimized with useMemo
   const filteredUsers = useMemo(() => {
     if (!users || users.length === 0) return [];
     
     return users.filter((user: UserType) => {
-      const matchesSearch = 
-        (user.username?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
-        (user.email?.toLowerCase() || '').includes((searchTerm || '').toLowerCase());
+      const s = (searchTerm || '').toLowerCase().trim();
+      const name = ((user as any).display_name || `${(user as any).first_name || ''} ${(user as any).last_name || ''}` || user.username || '').toString().toLowerCase();
+      const email = (user.email || '').toString().toLowerCase();
+      const phone = (((user as any).phone ?? '') as any).toString().toLowerCase();
+
+      const matchesSearch = !s || name.includes(s) || email.includes(s) || phone.includes(s);
       
       const matchesRole = filterRole === "all" || user.role === filterRole;
-      const matchesStatus = filterStatus === "all" || user.status === filterStatus;
       
-      return matchesSearch && matchesRole && matchesStatus;
+      return matchesSearch && matchesRole;
     });
-  }, [users, searchTerm, filterRole, filterStatus]);
+  }, [users, searchTerm, filterRole]);
 
   // Filter teachers - optimized with useMemo
   const filteredTeachers = useMemo(() => {
@@ -151,11 +181,9 @@ export function ManageUsersPage() {
         (teacher.email?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
         (teacher.employeeId?.toLowerCase() || '').includes((searchTerm || '').toLowerCase());
       
-      const matchesStatus = filterStatus === "all" || teacher.status === filterStatus;
-      
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
-  }, [teachers, searchTerm, filterStatus]);
+  }, [teachers, searchTerm]);
 
   // Filter parents - optimized with useMemo
   const filteredParents = useMemo(() => {
@@ -168,11 +196,9 @@ export function ManageUsersPage() {
         (parent.email?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
         (parent.phone?.toLowerCase() || '').includes((searchTerm || '').toLowerCase());
       
-      const matchesStatus = filterStatus === "all" || parent.status === filterStatus;
-      
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
-  }, [parents, searchTerm, filterStatus]);
+  }, [parents, searchTerm]);
 
   // Filter accountants - optimized with useMemo
   const filteredAccountants = useMemo(() => {
@@ -185,11 +211,9 @@ export function ManageUsersPage() {
         (accountant.email?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
         (accountant.employeeId?.toLowerCase() || '').includes((searchTerm || '').toLowerCase());
       
-      const matchesStatus = filterStatus === "all" || accountant.status === filterStatus;
-      
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
-  }, [accountants, searchTerm, filterStatus]);
+  }, [accountants, searchTerm]);
 
   // Statistics calculations - optimized with useMemo
   const stats = useMemo(() => {
@@ -267,11 +291,27 @@ export function ManageUsersPage() {
 
   const handleEdit = (user: UserType) => {
     setSelectedUser(user);
+    const anyUser = user as any;
     setEditFormData({
       username: user.username,
       email: user.email,
       role: user.role,
-      status: user.status
+      status: user.status,
+      first_name: anyUser.first_name || '',
+      last_name: anyUser.last_name || '',
+      other_name: anyUser.other_name || '',
+      phone: anyUser.phone || '',
+      employee_id: anyUser.employee_id || '',
+      department: anyUser.department || '',
+      address: anyUser.address || '',
+      gender: anyUser.gender || '',
+      qualification: anyUser.qualification || '',
+      specialization: anyUser.specialization || [],
+      isClassTeacher: anyUser.isClassTeacher || false,
+      assignedClassId: anyUser.assignedClassId || null,
+      departmentId: anyUser.departmentId || '',
+      alternatePhone: anyUser.alternatePhone || '',
+      occupation: anyUser.occupation || ''
     });
     setShowEditDialog(true);
   };
@@ -287,18 +327,19 @@ export function ManageUsersPage() {
     setIsLoading(true);
     try {
       await deleteUserAPI(selectedUser.id);
-      toast.success(`User ${selectedUser.username} deleted successfully`);
+
+      // Close dialogs first
       setShowDeleteDialog(false);
       setSelectedUser(null);
-      // Optimistic update - remove user from local state immediately
-      setUsers(users.filter(user => user.id !== selectedUser.id));
-      // Then refresh in background
-      await loadUsersFromAPI();
+      
+      // Show success toast
+      toast.success(`User ${selectedUser.username} deleted successfully`);
+      
+      // The API function already reloads users, no need to call again
     } catch (error) {
       console.error('Delete user error:', error);
       toast.error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      // Refresh data on error to restore correct state
-      await loadUsersFromAPI();
+      // The API function already handles reloading on error
     } finally {
       setIsLoading(false);
     }
@@ -312,22 +353,19 @@ export function ManageUsersPage() {
       const currentStatus = selectedUser.status;
       const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
       await updateUserStatusAPI(selectedUser.id, newStatus);
-      toast.success(`User ${selectedUser.username} ${newStatus.toLowerCase()}d successfully`);
+
+      // Close dialogs first
       setShowDeactivateDialog(false);
       setSelectedUser(null);
-      // Optimistic update - update user status in local state immediately
-      setUsers(users.map(user => 
-        user.id === selectedUser.id 
-          ? { ...user, status: newStatus }
-          : user
-      ));
-      // Then refresh in background
-      await loadUsersFromAPI();
+      
+      // Show success toast
+      toast.success(`User ${selectedUser.username} ${newStatus.toLowerCase()}d successfully`);
+      
+      // The API function already reloads users, no need to call again
     } catch (error) {
       console.error('Deactivate user error:', error);
       toast.error(`Failed to update user status: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      // Refresh data on error to restore correct state
-      await loadUsersFromAPI();
+      // The API function already handles reloading on error
     } finally {
       setIsLoading(false);
     }
@@ -358,7 +396,11 @@ export function ManageUsersPage() {
     setIsLoading(true);
     try {
       const newUser = await createUserAPI(createFormData);
-      toast.success("User created successfully");
+      if (!newUser || !(newUser as any).id) {
+        throw new Error('User was not created');
+      }
+
+      // Close dialog and reset form
       setShowCreateDialog(false);
       setCreateFormData({
         username: '',
@@ -381,12 +423,11 @@ export function ManageUsersPage() {
         alternatePhone: '',
         department: ''
       });
-      // Optimistic update - add new user to local state immediately if we have the data
-      if (newUser) {
-        setUsers([newUser, ...users]);
-      }
-      // Then refresh in background to get complete data
-      await loadUsersFromAPI();
+      
+      // Show success toast
+      toast.success("User created successfully");
+      
+      // The API function already reloads users, no need to call again
     } catch (error) {
       toast.error(`Failed to create user: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
@@ -400,21 +441,18 @@ export function ManageUsersPage() {
     setIsLoading(true);
     try {
       await updateUserAPI(selectedUser.id, editFormData);
-      toast.success("User updated successfully");
+
+      // Close dialogs first
       setShowEditDialog(false);
       setSelectedUser(null);
-      // Optimistic update - update user in local state immediately
-      setUsers(users.map(user => 
-        user.id === selectedUser.id 
-          ? { ...user, ...editFormData }
-          : user
-      ));
-      // Then refresh in background to get complete data
-      await loadUsersFromAPI();
+      
+      // Show success toast
+      toast.success("User updated successfully");
+      
+      // The API function already reloads users, no need to call again
     } catch (error) {
       toast.error(`Failed to update user: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      // Refresh data on error to restore correct state
-      await loadUsersFromAPI();
+      // The API function already handles reloading on error
     } finally {
       setIsLoading(false);
     }
@@ -627,27 +665,30 @@ export function ManageUsersPage() {
       )}
       
       {/* Header */}
-      {!isLoading && (
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <p className="text-gray-600">Create and manage system users with role-based access</p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-            <Button 
-              onClick={handleCreateUser}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
-              size="sm"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Create User</span>
-              <span className="sm:hidden">New User</span>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+          <p className="text-gray-600">Create and manage system users with role-based access</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <Button
+            onClick={handleCreateUser}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
+            size="sm"
+            disabled={isLoading}
+            type="button"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Create User</span>
+            <span className="sm:hidden">New User</span>
           </Button>
-          <Button 
+          <Button
             onClick={handleExport}
             variant="outline"
             className="rounded-xl w-full sm:w-auto flex items-center gap-2"
             size="sm"
+            disabled={isLoading}
+            type="button"
           >
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">Export</span>
@@ -655,10 +696,8 @@ export function ManageUsersPage() {
           </Button>
         </div>
       </div>
-      )}
 
       {/* Statistics Cards */}
-      {!isLoading && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-4">
@@ -708,107 +747,76 @@ export function ManageUsersPage() {
           </CardContent>
         </Card>
       </div>
-      )}
 
-      {/* Tabs */}
-      {!isLoading && (
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <UserIcon className="w-3 h-3" />
-            Users ({stats.users.total})
-          </TabsTrigger>
-          <TabsTrigger value="teachers" className="flex items-center gap-2">
-            <GraduationCap className="w-3 h-3" />
-            Teachers ({stats.teachers.total})
-          </TabsTrigger>
-          <TabsTrigger value="parents" className="flex items-center gap-2">
-            <CheckCircle className="w-3 h-3" />
-            Parents ({stats.parents.total})
-          </TabsTrigger>
-          <TabsTrigger value="accountants" className="flex items-center gap-2">
-            <Calculator className="w-3 h-3" />
-            Accountants ({stats.accountants.total})
-          </TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Button
+          onClick={() => handleRoleNav('all')}
+          variant={filterRole === 'all' ? 'default' : 'outline'}
+          className="rounded-xl"
+          type="button"
+        >
+          All ({stats.users.total})
+        </Button>
+        <Button
+          onClick={() => handleRoleNav('teacher')}
+          variant={filterRole === 'teacher' ? 'default' : 'outline'}
+          className="rounded-xl"
+          type="button"
+        >
+          Teachers ({stats.users.teacher})
+        </Button>
+        <Button
+          onClick={() => handleRoleNav('parent')}
+          variant={filterRole === 'parent' ? 'default' : 'outline'}
+          className="rounded-xl"
+          type="button"
+        >
+          Parents ({stats.users.parent})
+        </Button>
+        <Button
+          onClick={() => handleRoleNav('accountant')}
+          variant={filterRole === 'accountant' ? 'default' : 'outline'}
+          className="rounded-xl"
+          type="button"
+        >
+          Accountants ({stats.users.accountant})
+        </Button>
+      </div>
 
-        {/* Users Tab Content */}
-        <TabsContent value="users" className="space-y-4">
-          {/* Filters */}
-          <Card className="border-gray-200">
+      {/* Users Table - Always show users filtered by role buttons */}
+      <div className="space-y-4">
+
+        {/* Filters */}
+        <Card className="border-gray-200">
             <CardContent className="p-6">
-              {/* Primary Filters */}
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-                  <UserIcon className="w-3 h-3 mr-2" />
-                  Primary Filters
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                    <UserIcon className="w-3 h-3" />
-                  </span>
-                    <Input
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search by username, email..."
-                      className="pl-10 rounded-xl border-gray-300"
-                    />
-                  </div>
-                  <div className="flex items-center justify-center text-sm text-gray-500">
-                    <span className="bg-gray-100 px-3 py-2 rounded-lg">
-                      {filteredUsers.length} of {users.length} users
-                    </span>
-                  </div>
+            {/* Search only - role filter handled by navigation buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search by name, email, or phone..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 h-11 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                  />
                 </div>
               </div>
-
-              {/* Secondary Filters */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-                  <Settings className="w-3 h-3 mr-2" />
-                  Secondary Filters
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Select value={filterRole} onValueChange={setFilterRole}>
-                    <SelectTrigger className="rounded-xl border-gray-300">
-                      <SelectValue placeholder="Select Role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="teacher">Teacher</SelectItem>
-                      <SelectItem value="accountant">Accountant</SelectItem>
-                      <SelectItem value="parent">Parent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="rounded-xl border-gray-300">
-                      <SelectValue placeholder="Select Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <div className="bg-gray-50 p-3 rounded-lg text-center">
-                    <div className="text-lg font-semibold text-gray-900">{stats.users.teacher}</div>
-                    <div className="text-xs text-gray-600">Teachers</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="md:col-span-3 flex items-center justify-center text-sm text-gray-500">
+              <span className="bg-gray-100 px-3 py-2 rounded-lg">
+                {filteredUsers.length} of {users.length} users
+              </span>
+            </div>
+          </CardContent>
+        </Card>
 
           {/* Users Table */}
-          <Card className="border-gray-200">
-            <CardHeader className="border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
-            </CardHeader>
-            <CardContent className="p-0">
+        <Card className="border-gray-200">
+          <CardHeader className="border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
+          </CardHeader>
+          <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -833,9 +841,9 @@ export function ManageUsersPage() {
                           <TableCell>
                             <div>
                               <div className="font-medium text-gray-900 text-sm">
-                                {user.username}
+                                {getUserFullName(user)}
                               </div>
-                              <div className="text-xs text-gray-500">{user.email}</div>
+                              <div className="text-xs text-gray-500">{user.email}{(user as any).phone ? ` • ${(user as any).phone}` : ''}</div>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -854,50 +862,50 @@ export function ManageUsersPage() {
                           <TableCell>
                             <div className="flex items-center justify-center gap-2">
                               <Button
-                                onClick={() => handleView(user)}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleView(user); }}
                                 size="sm"
                                 variant="outline"
                                 className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
                                 title="View Details"
+                                type="button"
                               >
                                 <Eye className="w-3 h-3" />
                               </Button>
                               <Button
-                                onClick={() => handleEdit(user)}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(user); }}
                                 size="sm"
                                 variant="outline"
-                                className="h-8 w-8 p-0 border-blue-300 hover:bg-blue-50 text-blue-600"
+                                className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
                                 title="Edit User"
+                                type="button"
                               >
                                 <Edit className="w-3 h-3" />
                               </Button>
                               <Button
-                                onClick={() => handleResetPassword(user)}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleResetPassword(user); }}
                                 size="sm"
                                 variant="outline"
-                                className="h-8 w-8 p-0 border-orange-300 hover:bg-orange-50 text-orange-600"
+                                className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
                                 title="Reset Password"
+                                type="button"
                               >
-                                <KeyRound className="w-3 h-3" />
+                                <Key className="w-3 h-3" />
                               </Button>
                               <Button
-                                onClick={() => handleDeactivate(user)}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeactivate(user); }}
                                 size="sm"
-                                variant="outline"
-                                className={`h-8 w-8 p-0 ${user.status === 'Active' ? 'border-red-300 hover:bg-red-50 text-red-600' : 'border-green-300 hover:bg-green-50 text-green-600'}`}
+                                variant={user.status === 'Active' ? 'outline' : 'default'}
+                                className={`h-8 w-8 p-0 ${user.status === 'Active' ? 'border-gray-300 hover:bg-gray-100' : 'bg-green-600 hover:bg-green-700 text-white'}`}
                                 title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+                                type="button"
                               >
-                                <Settings className="w-3 h-3" />
+                                {user.status === 'Active' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
                               </Button>
                               <Button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDelete(user);
-                                }}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(user); }}
                                 size="sm"
                                 variant="outline"
-                                className="h-8 w-8 p-0 border-red-300 hover:bg-red-50 text-red-600"
+                                className="h-8 w-8 p-0 text-red-600 border-red-300 hover:bg-red-50"
                                 title="Delete User"
                                 type="button"
                               >
@@ -913,299 +921,9 @@ export function ManageUsersPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Teachers Tab Content */}
-        <TabsContent value="teachers" className="space-y-4">
-          <Card className="border-gray-200">
-            <CardHeader className="border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Teachers ({filteredTeachers.length})</h3>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="text-gray-700">Name</TableHead>
-                      <TableHead className="text-gray-700">Employee ID</TableHead>
-                      <TableHead className="text-gray-700">Email</TableHead>
-                      <TableHead className="text-gray-700">Phone</TableHead>
-                      <TableHead className="text-gray-700">Status</TableHead>
-                      <TableHead className="text-gray-700 text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTeachers.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                          No teachers found matching your criteria
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredTeachers.map((teacher) => (
-                        <TableRow key={teacher.id} className="hover:bg-gray-50">
-                          <TableCell>
-                            <div className="font-medium text-gray-900">
-                              {teacher.firstName} {teacher.lastName}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-gray-600">{teacher.employeeId}</TableCell>
-                          <TableCell className="text-gray-600">{teacher.email}</TableCell>
-                          <TableCell className="text-gray-600">{teacher.phone || 'N/A'}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-between">
-                              <Badge className={teacher.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                                {teacher.status}
-                              </Badge>
-                              <Switch
-                                checked={teacher.status === 'Active'}
-                                onCheckedChange={() => handleToggleTeacherStatus(teacher)}
-                                className="ml-2"
-                              />
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                onClick={() => handleViewTeacher(teacher)}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
-                                title="View Details"
-                              >
-                                <Eye className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                onClick={() => handleEditTeacher(teacher)}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-blue-300 hover:bg-blue-50 text-blue-600"
-                                title="Edit Teacher"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDeleteTeacher(teacher);
-                                }}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-red-300 hover:bg-red-50 text-red-600"
-                                title="Delete Teacher"
-                                type="button"
-                              >
-                                <span className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Parents Tab Content */}
-        <TabsContent value="parents" className="space-y-4">
-          <Card className="border-gray-200">
-            <CardHeader className="border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Parents ({filteredParents.length})</h3>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="text-gray-700">Name</TableHead>
-                      <TableHead className="text-gray-700">Email</TableHead>
-                      <TableHead className="text-gray-700">Phone</TableHead>
-                      <TableHead className="text-gray-700">Address</TableHead>
-                      <TableHead className="text-gray-700">Status</TableHead>
-                      <TableHead className="text-gray-700 text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredParents.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                          No parents found matching your criteria
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredParents.map((parent) => (
-                        <TableRow key={parent.id} className="hover:bg-gray-50">
-                          <TableCell>
-                            <div className="font-medium text-gray-900">
-                              {parent.firstName} {parent.lastName}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-gray-600">{parent.email}</TableCell>
-                          <TableCell className="text-gray-600">{parent.phone || 'N/A'}</TableCell>
-                          <TableCell className="text-gray-600">{parent.address || 'N/A'}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-between">
-                              <Badge className={parent.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                                {parent.status}
-                              </Badge>
-                              <Switch
-                                checked={parent.status === 'Active'}
-                                onCheckedChange={() => handleToggleParentStatus(parent)}
-                                className="ml-2"
-                              />
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                onClick={() => handleViewParent(parent)}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
-                                title="View Details"
-                              >
-                                <Eye className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                onClick={() => handleEditParent(parent)}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-blue-300 hover:bg-blue-50 text-blue-600"
-                                title="Edit Parent"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDeleteParent(parent);
-                                }}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-red-300 hover:bg-red-50 text-red-600"
-                                title="Delete Parent"
-                                type="button"
-                              >
-                                <span className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Accountants Tab Content */}
-        <TabsContent value="accountants" className="space-y-4">
-          <Card className="border-gray-200">
-            <CardHeader className="border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Accountants ({filteredAccountants.length})</h3>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="text-gray-700">Name</TableHead>
-                      <TableHead className="text-gray-700">Employee ID</TableHead>
-                      <TableHead className="text-gray-700">Email</TableHead>
-                      <TableHead className="text-gray-700">Phone</TableHead>
-                      <TableHead className="text-gray-700">Department</TableHead>
-                      <TableHead className="text-gray-700">Status</TableHead>
-                      <TableHead className="text-gray-700 text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredAccountants.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                          No accountants found matching your criteria
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredAccountants.map((accountant) => (
-                        <TableRow key={accountant.id} className="hover:bg-gray-50">
-                          <TableCell>
-                            <div className="font-medium text-gray-900">
-                              {accountant.firstName} {accountant.lastName}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-gray-600">{accountant.employeeId}</TableCell>
-                          <TableCell className="text-gray-600">{accountant.email}</TableCell>
-                          <TableCell className="text-gray-600">{accountant.phone || 'N/A'}</TableCell>
-                          <TableCell className="text-gray-600">{accountant.department || 'N/A'}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-between">
-                              <Badge className={accountant.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                                {accountant.status}
-                              </Badge>
-                              <Switch
-                                checked={accountant.status === 'Active'}
-                                onCheckedChange={() => handleToggleAccountantStatus(accountant)}
-                                className="ml-2"
-                              />
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                onClick={() => handleViewAccountant(accountant)}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
-                                title="View Details"
-                              >
-                                <Eye className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                onClick={() => handleEditAccountant(accountant)}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-blue-300 hover:bg-blue-50 text-blue-600"
-                                title="Edit Accountant"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDeleteAccountant(accountant);
-                                }}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-red-300 hover:bg-red-50 text-red-600"
-                                title="Delete Accountant"
-                                type="button"
-                              >
-                                <span className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-      )}
+      </div>
 
       {/* Create User Dialog */}
-      {!isLoading && (
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1459,12 +1177,10 @@ export function ManageUsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      )}
 
       {/* Edit User Dialog */}
-      {!isLoading && (
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
@@ -1473,54 +1189,241 @@ export function ManageUsersPage() {
           </DialogHeader>
           
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-username">Username</Label>
-              <Input
-                id="edit-username"
-                value={editFormData.username}
-                onChange={(e) => setEditFormData({...editFormData, username: e.target.value})}
-                placeholder="Enter username"
-              />
+            {/* User Photo Display */}
+            {selectedUser && (
+              <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="w-8 h-8 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">{getUserFullName(selectedUser)}</h3>
+                  <p className="text-sm text-gray-500">@{selectedUser.username}</p>
+                  <Badge className={getRoleBadgeColor(selectedUser.role)}>
+                    {selectedUser.role}
+                  </Badge>
+                </div>
+              </div>
+            )}
+            
+            {/* Basic Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-username">Username *</Label>
+                <Input
+                  id="edit-username"
+                  value={editFormData.username}
+                  onChange={(e) => setEditFormData({...editFormData, username: e.target.value})}
+                  placeholder="Enter username"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-email">Email *</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                  placeholder="Enter email address"
+                />
+              </div>
             </div>
             
-            <div>
-              <Label htmlFor="edit-email">Email</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={editFormData.email}
-                onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
-                placeholder="Enter email address"
-              />
+            {/* Complete Name Fields */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-900">Complete Name</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="edit-firstName">First Name *</Label>
+                  <Input
+                    id="edit-firstName"
+                    value={editFormData.first_name || ''}
+                    onChange={(e) => setEditFormData({...editFormData, first_name: e.target.value})}
+                    placeholder="First name"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-otherName">Other Name</Label>
+                  <Input
+                    id="edit-otherName"
+                    value={editFormData.other_name || ''}
+                    onChange={(e) => setEditFormData({...editFormData, other_name: e.target.value})}
+                    placeholder="Middle/other name"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-lastName">Last Name *</Label>
+                  <Input
+                    id="edit-lastName"
+                    value={editFormData.last_name || ''}
+                    onChange={(e) => setEditFormData({...editFormData, last_name: e.target.value})}
+                    placeholder="Last name"
+                  />
+                </div>
+              </div>
             </div>
             
-            <div>
-              <Label htmlFor="edit-role">Role</Label>
-              <Select value={editFormData.role} onValueChange={(value: any) => setEditFormData({...editFormData, role: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="teacher">Teacher</SelectItem>
-                  <SelectItem value="accountant">Accountant</SelectItem>
-                  <SelectItem value="parent">Parent</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Contact Information */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-900">Contact Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-phone">Primary Phone</Label>
+                  <Input
+                    id="edit-phone"
+                    value={editFormData.phone || ''}
+                    onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                    placeholder="Primary phone number"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-alternatePhone">Alternate Phone</Label>
+                  <Input
+                    id="edit-alternatePhone"
+                    value={editFormData.alternatePhone || ''}
+                    onChange={(e) => setEditFormData({...editFormData, alternatePhone: e.target.value})}
+                    placeholder="Alternate phone number"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-address">Address</Label>
+                <Input
+                  id="edit-address"
+                  value={editFormData.address || ''}
+                  onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
+                  placeholder="Residential address"
+                />
+              </div>
             </div>
             
-            <div>
-              <Label htmlFor="edit-status">Status</Label>
-              <Select value={editFormData.status} onValueChange={(value: any) => setEditFormData({...editFormData, status: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Role and Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-role">Role *</Label>
+                <Select value={editFormData.role} onValueChange={(value: any) => setEditFormData({...editFormData, role: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="teacher">Teacher</SelectItem>
+                    <SelectItem value="accountant">Accountant</SelectItem>
+                    <SelectItem value="parent">Parent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-status">Status</Label>
+                <Select value={editFormData.status} onValueChange={(value: any) => setEditFormData({...editFormData, status: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            
+            {/* Role-specific fields */}
+            {editFormData.role === 'teacher' && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Teacher Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-employeeId">Employee ID</Label>
+                    <Input
+                      id="edit-employeeId"
+                      value={editFormData.employee_id || ''}
+                      onChange={(e) => setEditFormData({...editFormData, employee_id: e.target.value})}
+                      placeholder="Employee ID"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="edit-gender">Gender</Label>
+                    <Select value={editFormData.gender || ''} onValueChange={(value: any) => setEditFormData({...editFormData, gender: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="edit-qualification">Qualification</Label>
+                    <Input
+                      id="edit-qualification"
+                      value={editFormData.qualification || ''}
+                      onChange={(e) => setEditFormData({...editFormData, qualification: e.target.value})}
+                      placeholder="e.g., B.Ed, M.Sc, Ph.D"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="edit-department">Department</Label>
+                    <Input
+                      id="edit-department"
+                      value={editFormData.department || ''}
+                      onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
+                      placeholder="e.g., Mathematics, Science, Arts"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {editFormData.role === 'accountant' && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Accountant Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-employeeId">Employee ID</Label>
+                    <Input
+                      id="edit-employeeId"
+                      value={editFormData.employee_id || ''}
+                      onChange={(e) => setEditFormData({...editFormData, employee_id: e.target.value})}
+                      placeholder="Employee ID"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="edit-department">Department</Label>
+                    <Input
+                      id="edit-department"
+                      value={editFormData.department || ''}
+                      onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
+                      placeholder="e.g., Finance, Accounts, Bursary"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {editFormData.role === 'parent' && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Parent Information</h4>
+                <div>
+                  <Label htmlFor="edit-occupation">Occupation</Label>
+                  <Input
+                    id="edit-occupation"
+                    value={editFormData.occupation || ''}
+                    onChange={(e) => setEditFormData({...editFormData, occupation: e.target.value})}
+                    placeholder="Parent's occupation"
+                  />
+                </div>
+              </div>
+            )}
           </div>
           
           <DialogFooter>
@@ -1533,10 +1436,8 @@ export function ManageUsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      )}
 
       {/* Reset Password Dialog */}
-      {!isLoading && (
       <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1575,10 +1476,8 @@ export function ManageUsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      )}
 
       {/* Deactivate/Activate Dialog */}
-      {!isLoading && (
       <AlertDialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1603,10 +1502,8 @@ export function ManageUsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      )}
 
       {/* Delete User Dialog */}
-      {!isLoading && (
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1633,10 +1530,8 @@ export function ManageUsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      )}
 
       {/* View User Dialog */}
-      {!isLoading && (
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1684,7 +1579,6 @@ export function ManageUsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      )}
     </div>
   );
 }

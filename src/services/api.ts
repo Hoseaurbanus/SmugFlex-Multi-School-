@@ -67,7 +67,7 @@ class ApiService {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    retries = 2 // Reduced retries for faster failure
+    retries = 3 // Increased retries for low networks
   ): Promise<ApiResponse<T>> {
     const url = buildUrl(endpoint);
     const token = getAuthToken();
@@ -83,26 +83,21 @@ class ApiService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // Adaptive timeout based on connection status
+    const baseTimeout = API_CONFIG.TIMEOUT;
+    const adaptiveTimeout = this.connectionStatus.isSlow ? baseTimeout * 2 : baseTimeout;
+
     // Merge with provided headers
     if (options.headers) {
       Object.assign(headers, options.headers);
     }
 
-    // Request configuration with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-    const config: RequestInit = {
-      ...options,
-      headers,
-      signal: controller.signal,
-    };
-
-    // Retry logic for network errors
+    // Retry logic for network/server/auth errors
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
-        console.log(`API Request (attempt ${attempt + 1}/${retries}): ${endpoint}`);
-        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
+        const config: RequestInit = { ...options, headers, signal: controller.signal };
         const response = await fetch(url, config);
         clearTimeout(timeoutId);
         
@@ -117,14 +112,10 @@ class ApiService {
 
         // Handle authentication errors with token refresh
         if (response.status === 401) {
-          // Try to refresh the token
           try {
             const refreshResponse = await this.refreshToken();
             if (refreshResponse && refreshResponse.success && refreshResponse.data?.token) {
-              // Update the stored token
               setAuthToken(refreshResponse.data.token);
-              
-              // Retry the original request with new token
               const retryResponse = await fetch(url, {
                 ...config,
                 headers: {
@@ -137,43 +128,74 @@ class ApiService {
               return retryData;
             }
           } catch (refreshError) {
-            console.error('Token refresh failed:', refreshError);
             removeAuthToken();
+            if (attempt < retries - 1) {
+              if ((headers as any)['Authorization']) {
+                delete (headers as any)['Authorization'];
+              }
+              const baseDelay = this.connectionStatus.isSlow ? 1000 : 500;
+              await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
+              continue;
+            }
             throw new Error('Session expired. Please login again.');
           }
         }
 
         if (!response.ok) {
-          throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+          if (response.status >= 500 && attempt < retries - 1) {
+            const baseDelay = this.connectionStatus.isSlow ? 2000 : 1000;
+            await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
+            continue;
+          }
+          throw new Error(data?.message || `HTTP ${response.status}: ${response.statusText}`);
         }
 
-        console.log(`API Request successful: ${endpoint}`);
+        // Normalize payload-level failures (e.g., success:false with embedded status)
+        if (data && typeof data === 'object' && data.success === false) {
+          const payloadStatus = typeof data.status === 'number' ? data.status : Number(data.status);
+          const statusCode = Number.isFinite(payloadStatus) ? payloadStatus : response.status;
+          const msg = data.error || data.message || 'Request failed';
+          // If backend embeds 401/403/4xx in JSON while HTTP status is 200, surface it as an error
+          if (statusCode >= 400) {
+            if ((statusCode === 401 || statusCode === 403) && (headers as any)['Authorization']) {
+              removeAuthToken();
+              if (attempt < retries - 1) {
+                delete (headers as any)['Authorization'];
+                const baseDelay = this.connectionStatus.isSlow ? 1000 : 500;
+                await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
+                continue;
+              }
+            }
+            throw new Error(`${statusCode} ${msg}`);
+          }
+          // Otherwise still treat success:false as an error
+          throw new Error(msg);
+        }
+
+        // API Request successful
         return data;
 
       } catch (error: any) {
-        clearTimeout(timeoutId);
+        // timeoutId cleared above in try block; safe to continue
         
         if (error.name === 'AbortError') {
-          console.error(`Request timeout (attempt ${attempt + 1}): ${endpoint}`);
           if (attempt < retries - 1) {
-            console.log(`Retrying in ${1000 * (attempt + 1)}ms...`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+            const baseDelay = this.connectionStatus.isSlow ? 2000 : 1000;
+            await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
             continue;
           }
           throw new Error('Request timeout. Please check your connection.');
         }
         
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          console.error(`Network error (attempt ${attempt + 1}): ${endpoint}`, error);
           if (attempt < retries - 1) {
-            console.log(`Retrying in ${2000 * (attempt + 1)}ms...`);
-            await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+            const baseDelay = this.connectionStatus.isSlow ? 4000 : 2000;
+            await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
             continue;
           }
           throw new Error('Network connection failed. Please check your internet connection.');
         }
         
-        // For other errors, don't retry
         throw error;
       }
     }

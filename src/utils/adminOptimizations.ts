@@ -224,7 +224,7 @@ export class AdminPageOptimizer {
         result.status === 'fulfilled' ? result.value : null
       );
     } catch (error) {
-      console.error('Batch loading failed:', error);
+      //console.error('Batch loading failed:', error);
       return [];
     }
   }
@@ -260,15 +260,15 @@ export function useAdminPageOptimizations(pageName: string, currentUser: any) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log(`useAdminPageOptimizations - Checking access for ${pageName}`, { currentUser });
+    //console.log(`useAdminPageOptimizations - Checking access for ${pageName}`, { currentUser });
     
     const checkAccess = async () => {
       try {
         const access = await AdminPageOptimizer.checkPageAccess(pageName, currentUser);
-        console.log(`useAdminPageOptimizations - Access result for ${pageName}:`, access);
+        //console.log(`useAdminPageOptimizations - Access result for ${pageName}:`, access);
         setHasAccess(access);
       } catch (error) {
-        console.error(`useAdminPageOptimizations - Error checking access for ${pageName}:`, error);
+        //console.error(`useAdminPageOptimizations - Error checking access for ${pageName}:`, error);
         setHasAccess(false);
       } finally {
         setLoading(false);
@@ -278,7 +278,7 @@ export function useAdminPageOptimizations(pageName: string, currentUser: any) {
     if (currentUser) {
       checkAccess();
     } else {
-      console.log(`useAdminPageOptimizations - No current user, denying access to ${pageName}`);
+      //console.log(`useAdminPageOptimizations - No current user, denying access to ${pageName}`);
       setHasAccess(false);
       setLoading(false);
     }

@@ -26,6 +26,20 @@ class AttendanceController {
         $search_params = Middleware::getSearchParams();
         
         try {
+            // ============ NEW: GET CURRENT SETTINGS FOR DEFAULT FILTERING ============
+            $settings_query = "SELECT setting_key, setting_value FROM school_settings 
+                              WHERE setting_key IN ('current_academic_year', 'current_term')";
+            $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->execute();
+            $settings = [];
+            while ($setting = $settings_stmt->fetch(PDO::FETCH_ASSOC)) {
+                $settings[$setting['setting_key']] = $setting['setting_value'];
+            }
+            
+            $default_academic_year = $settings['current_academic_year'] ?? '2024/2025';
+            $default_term = $settings['current_term'] ?? 'First Term';
+            // ============ END: GET CURRENT SETTINGS ============
+            
             $query = "SELECT a.*, s.first_name, s.last_name, s.admission_number,
                              c.name as class_name, c.level,
                              CONCAT(t.first_name, ' ', t.last_name) as recorded_by_name
@@ -89,6 +103,19 @@ class AttendanceController {
                 $params[':parent_id'] = $token_data['linked_id'];
             }
             
+            // ============ NEW: MANDATORY TERM AND ACADEMIC YEAR FILTERING ============
+            // Allow filtering by specific term/year, or use current defaults
+            $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : $default_term;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : $default_academic_year;
+            
+            // CRITICAL: Always filter by academic year and term
+            $conditions[] = "a.academic_year = :academic_year";
+            $params[':academic_year'] = $academic_year;
+            
+            $conditions[] = "a.term = :term";
+            $params[':term'] = $term;
+            // ============ END: MANDATORY FILTERING ============
+            
             if (!empty($conditions)) {
                 $query .= " WHERE " . implode(' AND ', $conditions);
                 $count_query .= " WHERE " . implode(' AND ', $conditions);
@@ -134,6 +161,25 @@ class AttendanceController {
         $class_id = isset($_GET['class_id']) ? Middleware::validateInteger($_GET['class_id'], 'class_id') : null;
         
         try {
+            // ============ NEW: GET CURRENT SETTINGS FOR DEFAULT FILTERING ============
+            $settings_query = "SELECT setting_key, setting_value FROM school_settings 
+                              WHERE setting_key IN ('current_academic_year', 'current_term')";
+            $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->execute();
+            $settings = [];
+            while ($setting = $settings_stmt->fetch(PDO::FETCH_ASSOC)) {
+                $settings[$setting['setting_key']] = $setting['setting_value'];
+            }
+            
+            $default_academic_year = $settings['current_academic_year'] ?? '2024/2025';
+            $default_term = $settings['current_term'] ?? 'First Term';
+            // ============ END: GET CURRENT SETTINGS ============
+            
+            // ============ NEW: ALLOW FILTERING BY TERM/YEAR OR USE DEFAULTS ============
+            $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : $default_term;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : $default_academic_year;
+            // ============ END: PARAMETER VALIDATION ============
+            
             // Teacher can only see attendance for their classes
             if ($token_data['role'] === 'teacher') {
                 if (!$class_id) {
@@ -157,9 +203,11 @@ class AttendanceController {
                       FROM attendance a
                       JOIN students s ON a.student_id = s.id
                       JOIN classes c ON s.class_id = c.id
-                      WHERE a.date = :date";
+                      WHERE a.date = :date
+                            AND a.academic_year = :academic_year
+                            AND a.term = :term";
             
-            $params = [':date' => $date];
+            $params = [':date' => $date, ':academic_year' => $academic_year, ':term' => $term];
             
             if ($class_id) {
                 $query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";

@@ -2,6 +2,22 @@
 // Graceland Royal Academy School Management System
 // UPDATED: Dec 30, 2025 - Testing build cache
 
+// Module-level guard to prevent duplicate initial loads across StrictMode
+let globalInitialLoadStarted = false;
+let globalInitialLoadCompleted = false;
+
+// Detect page refresh to reset guards
+if (typeof window !== 'undefined') {
+  const navigationType = (window.performance && window.performance.navigation) 
+    ? window.performance.navigation.type 
+    : null;
+  // 1 = TYPE_RELOAD (page refresh)
+  if (navigationType === 1) {
+    globalInitialLoadStarted = false;
+    globalInitialLoadCompleted = false;
+  }
+}
+
 import { School } from 'lucide-react';
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { toast } from 'sonner';
@@ -11,7 +27,6 @@ import { saveToLocalStorage, loadFromLocalStorage, type StorageData } from '../u
 import { tokenManager } from '../utils/tokenManager';
 import { connectionMonitor } from '../utils/connectionMonitor';
 import sqlDatabase from '../services/sqlDatabase';
-import { useTermChangeDetector, useTermSync } from '../hooks/useTermChangeDetector';
 
 // ==================== INTERFACES ====================
 
@@ -143,9 +158,9 @@ export interface Score {
   subjectAssignmentId?: number; // camelCase alias
   subject_name?: string; // matches database - exact subject name as submitted (optional for backward compatibility)
   subjectName?: string; // camelCase alias
-  ca1: number; // matches database
-  ca2: number; // matches database
-  exam: number; // matches database
+  ca1?: number | null; // matches database (can be NULL/omitted for partial drafts)
+  ca2?: number | null; // matches database (can be NULL/omitted for partial drafts)
+  exam?: number | null; // matches database (can be NULL/omitted for partial drafts)
   total: number; // matches database (generated column)
   grade?: string; // matches database
   remark?: string; // matches database
@@ -357,11 +372,28 @@ export interface User {
   role: 'admin' | 'teacher' | 'accountant' | 'parent';
   linked_id: number; // links to teacher/parent/accountant id - matches database
   email: string;
+  display_name?: string;
+  first_name?: string;
+  other_name?: string | null;
+  last_name?: string;
+  phone?: string | null;
+  employee_id?: string | null;
   status: 'Active' | 'Inactive';
   last_login: string | null; // matches database
   created_at: string; // matches database
   updated_at: string; // matches database
   token?: string; // JWT token for API authentication (runtime only)
+  // Additional fields for complete user editing
+  address?: string | null;
+  gender?: string | null;
+  qualification?: string | null;
+  specialization?: string[] | null;
+  isClassTeacher?: boolean | null;
+  assignedClassId?: number | null;
+  departmentId?: string | null;
+  alternatePhone?: string | null;
+  department?: string | null;
+  occupation?: string | null;
 }
 
 export interface LoginResponse {
@@ -398,6 +430,8 @@ export interface Notification {
   sentDate: string;
   isRead: boolean;
   readBy: number[]; // user ids who have read this
+  targetUsers?: number[]; // optional specific user IDs to receive this
+  deletedBy?: number[]; // user ids who have deleted this
 }
 
 export interface ActivityLog {
@@ -583,10 +617,10 @@ interface SchoolContextType {
   sqlDatabase: any;
 
   // State Setters
-  setUsers: (users: User[]) => void;
-  setTeachers: (teachers: Teacher[]) => void;
-  setParents: (parents: Parent[]) => void;
-  setAccountants: (accountants: Accountant[]) => void;
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>>;
+  setParents: React.Dispatch<React.SetStateAction<Parent[]>>;
+  setAccountants: React.Dispatch<React.SetStateAction<Accountant[]>>;
   setStudents: (students: Student[]) => void;
   setClasses: (classes: Class[]) => void;
   setSubjects: (subjects: Subject[]) => void;
@@ -605,13 +639,13 @@ interface SchoolContextType {
   setAttendances: (attendances: Attendance[]) => void;
 
   // Settings
-  currentTerm: string;
-  currentAcademicYear: string;
+  currentTerm: string | null;
+  currentAcademicYear: string | null;
   schoolSettings: SchoolSettings;
   bankAccountSettings: BankAccountSettings | null;
   
   // System Settings Methods
-  loadCurrentTermAndYear: () => Promise<void>;
+  loadCurrentTermAndYear: () => Promise<{term: string | null, year: string | null}>;
   loadSchoolSettings: () => Promise<void>;
   getAllAcademicYears: () => Promise<string[]>;
   getCompiledResultsByYearAndTerm: (academicYear: string, term: string) => Promise<CompiledResult[]>;
@@ -667,7 +701,7 @@ interface SchoolContextType {
     subject: Subject | undefined;
     class: Class | undefined;
   }>;
-  getTeacherClasses: (teacherId: number) => Array<{
+  getTeacherClasses: (teacherId: number) => Promise<Array<{
     classId: number;
     className: string;
     classLevel: string;
@@ -677,7 +711,7 @@ interface SchoolContextType {
       subjectName: string;
       subjectCode: string;
     }>;
-  }>;
+  }>>;
   updateTeacherStatus: (id: number, status: string) => Promise<void>;
   getTeacherClassTeacherAssignments: (teacherId: number) => number[];
   validateClassTeacherAssignment: (teacherId: number, newClassId: number) => { valid: boolean; message: string };
@@ -949,7 +983,7 @@ interface SchoolContextType {
   loadStudentFeeBalancesFromAPI: () => Promise<boolean>;
   loadNotificationsFromAPI: () => Promise<boolean>;
   loadAttendancesFromAPI: () => Promise<boolean>;
-  loadScoresFromAPI: () => Promise<boolean>;
+  loadScoresFromAPI: (termParam?: string | null, academicYearParam?: string | null) => Promise<boolean>;
   loadCompiledResultsFromAPI: () => Promise<boolean>;
   loadAffectiveDomainsFromAPI: () => Promise<boolean>;
   loadPsychomotorDomainsFromAPI: () => Promise<boolean>;
@@ -975,8 +1009,8 @@ interface SchoolContextType {
   removeSubjectRegistrationAPI: (classId: number, subjectId: number, academicYear: string, term: string) => Promise<boolean>;
   getSubjectRegistrationsAPI: (classId?: number, academicYear?: string, term?: string) => Promise<any>;
   getRegisteredSubjectsAPI: (classId: number, academicYear: string, term: string) => Promise<any>;
-  getActiveAcademicYearAPI: () => Promise<string>;
-  getActiveTermAPI: () => Promise<string>;
+  getActiveAcademicYearAPI: () => Promise<string | null>;
+  getActiveTermAPI: () => Promise<string | null>;
 
   // Subject Assignment API Methods
   getSubjectAssignmentsAPI: (academicYear: string, term: string) => Promise<any>;
@@ -1013,8 +1047,8 @@ interface SchoolContextType {
   updatePsychomotorDomain: (id: number, psychomotorData: any) => Promise<any>;
   deletePsychomotorDomain: (id: number) => Promise<any>;
 
-  // Real-time Sync Methods
-  refreshAllData: () => Promise<void>;
+  // Real-time Sync Methods (MINIMAL)
+  refreshTermData: () => Promise<void>;
   refreshTeacherData: (teacherId: number) => Promise<void>;
   refreshClassData: (classId: number) => Promise<void>;
   
@@ -1045,17 +1079,17 @@ export function useSchool() {
 // ==================== PROVIDER ====================
 
 export function SchoolProvider({ children }: { children: ReactNode }) {
-  const [currentTerm, setCurrentTerm] = useState('First Term');
-  const [currentAcademicYear, setCurrentAcademicYear] = useState('2025/2026');
+  const [currentTerm, setCurrentTerm] = useState<string | null>(null);
+  const [currentAcademicYear, setCurrentAcademicYear] = useState<string | null>(null);
   
-  // Term dates state
+  // Term dates state - initialize empty, load from database
   const [termDates, setTermDates] = useState({
-    termStartDate: '2025-09-01',
-    termEndDate: '2025-12-15',
-    nextTermStarts: '2026-01-10',
-    schoolResumptionDate: '2025-09-01',
-    midTermBreakStart: '2025-10-25',
-    midTermBreakEnd: '2025-11-01'
+    termStartDate: '',
+    termEndDate: '',
+    nextTermStarts: '',
+    schoolResumptionDate: '',
+    midTermBreakStart: '',
+    midTermBreakEnd: ''
   });
   
   // Cache for academic year and term
@@ -1115,17 +1149,68 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [parentStudentLinksData, setParentStudentLinksData] = useState<any[]>([]);
 
-  // ==================== API IMPLEMENTATIONS ====================
+  // Loading guards to prevent concurrent calls
+  const [isLoadingTeachers, setIsLoadingTeachers] = useState(false);
+  
+  // Ref to prevent duplicate initial loads
+  const initialLoadDone = useRef(false);
+
+  // Ref to prevent concurrent loadDataForUser calls (do not tie to isDataLoading state)
+  const loadDataForUserInFlight = useRef(false);
+
+  // ==================== SETTINGS LOADING ====================
+
+  const loadCurrentTermAndYear = async (): Promise<{term: string | null, year: string | null}> => {
+    try {
+      // Loading current term and academic year from database
+      
+      // Try to load from API first
+      const response = await api.get('/school_settings.php');
+      const responseData = response.data as any;
+      let loadedTerm: string | null = null;
+      let loadedYear: string | null = null;
+      
+      if (response && response.success && Array.isArray(responseData)) {
+        const settings: any[] = responseData;
+        
+        // Find current_term and current_academic_year
+        const termSetting = settings.find((s: any) => s.setting_key === 'current_term');
+        const yearSetting = settings.find((s: any) => s.setting_key === 'current_academic_year');
+        
+        if (termSetting && termSetting.setting_value) {
+          loadedTerm = termSetting.setting_value;
+          setCurrentTerm(loadedTerm);
+        }
+        
+        if (yearSetting && yearSetting.setting_value) {
+          loadedYear = yearSetting.setting_value;
+          setCurrentAcademicYear(loadedYear);
+        }
+        
+        // Update cache
+        termAndYearCache.current = {
+          term: loadedTerm,
+          year: loadedYear,
+          timestamp: Date.now()
+        };
+      } else {
+        // Failed to load settings from API, keeping defaults
+      }
+      
+      return { term: loadedTerm, year: loadedYear };
+    } catch (error) {
+      return { term: null, year: null };
+    }
+  };
 
   // User API Methods
   const loadUsersFromAPI = async (): Promise<boolean> => {
     try {
-      console.log('=== LOAD USERS FROM API STARTED ===');
+      // Loading users from API
       
       // Ensure token is available
       const hasToken = await tokenManager.ensureToken(currentUser);
       if (!hasToken) {
-        console.error('Authentication required: No token found');
         return false;
       }
       
@@ -1133,8 +1218,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       let page = 1;
       let hasMore = true;
       const MAX_RETRIES = 3;
+      const MAX_PAGES = 100; // Safeguard to prevent infinite loops
       
-      while (hasMore) {
+      while (hasMore && page <= MAX_PAGES) {
         let retries = 0;
         let success = false;
         
@@ -1147,32 +1233,27 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
             const response = await api.get(API_CONFIG.ENDPOINTS.USERS.LIST, { page, limit: 50 });
             
-            console.log(`Users API response status for page ${page}:`, response.success ? 'Success' : 'Failed');
-            
             if (response.success && response.data) {
               const data = response.data as any;
               const items = data.items || [];
+              const pagination = data.pagination || {};
               
               allUsers = allUsers.concat(items);
-              console.log(`Loaded ${items.length} users from page ${page}`);
               
-              // Check if there are more pages
-              if (page >= data.total_pages) {
+              // Check if there are more pages using pagination data
+              if (page >= pagination.total_pages || !pagination.has_next) {
                 hasMore = false;
               } else {
                 page++;
               }
               success = true;
             } else {
-              console.error('Users API failed:', response.error);
               hasMore = false;
               success = true; // Exit retry loop on API error
             }
           } catch (error) {
-            console.warn(`Error loading users page ${page} (Attempt ${retries + 1}/${MAX_RETRIES}):`, error);
             retries++;
             if (retries >= MAX_RETRIES) {
-              console.error(`Failed to load users page ${page} after ${MAX_RETRIES} attempts`);
               hasMore = false; // Stop fetching
             } else {
               // Exponential backoff
@@ -1184,12 +1265,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       if (allUsers.length > 0) {
         setUsers(allUsers);
-        console.log('Loaded total users from API:', allUsers.length, 'users');
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error loading users:', error);
       return false;
     }
   };
@@ -1221,44 +1300,84 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading activity logs:', error);
       return false;
     }
   };
 
   const loadTeachersFromAPI = async (): Promise<boolean> => {
-    // Prevent excessive calls with simple rate limiting
+    // Prevent concurrent calls
+    if (isLoadingTeachers) {
+      return true;
+    }
+    
+    // Prevent excessive calls with better rate limiting
     const now = Date.now();
-    if (teachers.length > 0 && (now - lastLoadTime) < 2000) {
+    const TEACHERS_CACHE_DURATION = 5000; // 5 seconds cache
+    
+    // Check if we have teachers data and it's recent
+    if (teachers.length > 0 && (now - lastLoadTime) < TEACHERS_CACHE_DURATION) {
       return true; // Use cached data if recent
     }
     
     try {
+      setIsLoadingTeachers(true);
+      
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const response = await api.get('/teachers');
-      if (response && response.success) {
-        const teachersData = (response.data as any)?.items || response.data || [];
-        if (Array.isArray(teachersData)) {
-          console.log('Loaded all teachers from API:', teachersData.length, 'teachers');
-          
-          // The API already returns data with correct field names, no mapping needed
-          const teachersWithComputed = teachersData.map((teacher: any) => ({
-            ...teacher,
-            // Keep existing fields, just add computed ones
-            is_class_teacher: teacher.is_class_teacher || teacher.isClassTeacher,
-            department_id: teacher.department_id || teacher.departmentId,
-          }));
-          
-          setTeachers(teachersWithComputed);
-          return true;
+      // Robust pagination to fetch the full list (fixes 20-item limit)
+      let allTeachers: any[] = [];
+      let page = 1;
+      const limit = 100; // fetch larger pages to reduce requests
+      const MAX_PAGES = 100;
+      let hasMore = true;
+
+      while (hasMore && page <= MAX_PAGES) {
+        const res = await api.get(API_CONFIG.ENDPOINTS.TEACHERS.LIST, { page, limit });
+        if (res && res.success) {
+          const payload: any = res.data || {};
+          const items: any[] = Array.isArray(payload?.items) ? payload.items : (Array.isArray(payload) ? payload : []);
+          const pagination = payload?.pagination || res.pagination || {};
+
+          if (items.length > 0) {
+            allTeachers = allTeachers.concat(items);
+          }
+
+          const totalPages = pagination.totalPages || pagination.total_pages;
+          const hasNext = pagination.has_next ?? (totalPages ? page < totalPages : items.length === limit);
+
+          if (!hasNext) {
+            hasMore = false;
+          } else {
+            page += 1;
+          }
+        } else {
+          // Fallback: if API returns a plain array without pagination
+          const fallbackData: any = res?.data;
+          if (Array.isArray(fallbackData)) {
+            allTeachers = fallbackData;
+          }
+          hasMore = false;
         }
+      }
+
+      if (allTeachers.length > 0) {
+        const teachersWithComputed = allTeachers.map((teacher: any) => ({
+          ...teacher,
+          is_class_teacher: teacher.is_class_teacher || teacher.isClassTeacher,
+          department_id: teacher.department_id || teacher.departmentId,
+          firstName: teacher.firstName || teacher.first_name,
+          lastName: teacher.lastName || teacher.last_name,
+          employeeId: teacher.employeeId || teacher.employee_id,
+        }));
+        setTeachers(teachersWithComputed);
+        return true;
       }
       return false;
     } catch (error) {
-      console.warn('Error loading teachers from API:', error);
       return false;
+    } finally {
+      setIsLoadingTeachers(false);
     }
   };
 
@@ -1271,7 +1390,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       if (response && response.success) {
         const parentsData = (response.data as any)?.items || response.data || [];
         if (Array.isArray(parentsData)) {
-          console.log('Loaded all parents from API:', parentsData.length, 'parents');
           const parentsWithComputed = parentsData.map((parent: any) => ({
             ...parent,
             firstName: parent.first_name,
@@ -1285,7 +1403,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.warn('Error loading parents from API:', error);
       return false;
     }
   };
@@ -1301,24 +1418,20 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const linksData = (response.data as any)?.items || response.data || [];
         if (Array.isArray(linksData)) {
           setParentStudentLinksData(linksData);
-          console.log(`Loaded ${linksData.length} parent-student links from API`);
           return true;
         }
       }
       return false;
     } catch (error) {
-      console.error('Error loading parent student links from API:', error);
       return false;
     }
   };
 
   const loadAccountantsFromAPI = async (): Promise<boolean> => {
     try {
-      // Ensure token is available
-      await tokenManager.ensureToken(currentUser);
-      
-      const result = await sqlDatabase.executeQuery('SELECT * FROM accountants ORDER BY created_at DESC');
-      if (result && result.data) {
+      const result = await sqlDatabase.executeQuery('SELECT * FROM accountants ORDER BY first_name');
+
+      if (result && result.data && Array.isArray(result.data)) {
         // Transform snake_case to camelCase for frontend compatibility
         const transformedData = result.data.map((accountant: any) => ({
           id: accountant.id,
@@ -1334,10 +1447,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         }));
         setAccountants(transformedData);
         return true;
+      } else {
+        setAccountants([]);
+        return false;
       }
       return false;
     } catch (error) {
-      console.error('Error loading accountants:', error);
       return false;
     }
   };
@@ -1348,7 +1463,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       if (response && response.success) {
         const studentsData = (response.data as any)?.items || response.data || [];
         if (Array.isArray(studentsData)) {
-          console.log('Loaded all students from API:', studentsData.length, 'students');
           
           // Transform snake_case to camelCase and handle both field name formats
           const studentsWithComputed = studentsData.map((student: any) => ({
@@ -1385,7 +1499,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.warn('Error loading students from API:', error);
       return false;
     }
   };
@@ -1394,12 +1507,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     // Prevent excessive calls with simple rate limiting - but always load if empty
     const now = Date.now();
     if (!force && classes.length > 0 && (now - lastLoadTime) < 2000) {
-      console.log('Using cached classes data');
       return true; // Use cached data if recent
     }
     
     try {
-      console.log('Loading classes from API...', force ? '(Forced)' : '');
+      // Loading classes from API
       
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
@@ -1408,46 +1520,44 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       if (response && response.success) {
         // Handle paginated response structure
         const classesData = (response.data as any)?.items || response.data || [];
-        console.log('Loaded classes from API:', classesData.length, 'classes');
+        const safeClassesArray = Array.isArray(classesData) ? classesData : [];
         
         // Transform snake_case to camelCase and ensure classTeacherId is properly mapped
-        const classesWithComputed = classesData.map((classItem: any) => ({
+        const classesWithComputed = safeClassesArray.map((classItem: any) => ({
           ...classItem,
           id: Number(classItem.id),
-          // Map database fields to frontend interface
-          classTeacherId: classItem.class_teacher_id ? Number(classItem.class_teacher_id) : null,
-          classTeacher: classItem.class_teacher,
-          currentStudents: classItem.current_students || classItem.currentStudents,
+          // Map database fields to frontend interface (support both snake_case and camelCase)
+          classTeacherId:
+            classItem.class_teacher_id != null && classItem.class_teacher_id !== undefined
+              ? Number(classItem.class_teacher_id)
+              : (classItem.classTeacherId != null && classItem.classTeacherId !== undefined
+                  ? Number(classItem.classTeacherId)
+                  : null),
+          classTeacher: classItem.class_teacher || classItem.classTeacher || null,
+          currentStudents: classItem.current_students ?? classItem.currentStudents ?? 0,
           academicYear: classItem.academic_year || classItem.academicYear,
           createdAt: classItem.created_at || classItem.createdAt,
           updatedAt: classItem.updated_at || classItem.updatedAt,
         }));
-        
-        console.log('Classes with mapped fields:', classesWithComputed.map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          classTeacherId: c.classTeacherId,
-          class_teacher_id: c.class_teacher_id
-        })));
         
         setClasses(classesWithComputed);
         return true;
       }
       return false;
     } catch (error) {
-      console.warn('Error loading classes from database:', error);
       return false;
     }
   };
 
   const loadSubjectsFromAPI = async (force: boolean = false): Promise<boolean> => {
     try {
-      console.log('Loading subjects from API...', force ? '(Forced)' : '');
+      // Loading subjects from API
       
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
       
-      const response = await api.get(API_CONFIG.ENDPOINTS.SUBJECTS.LIST);
+      // Request a high limit so we fetch all subjects (needed for assignment matrix)
+      const response = await api.get(`${API_CONFIG.ENDPOINTS.SUBJECTS.LIST}?limit=100`);
       
       if (response && response.success) {
         // Handle paginated response structure
@@ -1468,36 +1578,40 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.warn('Error loading subjects from API:', error);
       return false;
     }
   };
 
   const loadSubjectRegistrationsFromAPI = async (): Promise<boolean> => {
     try {
-      console.log('Loading subject registrations from sqlDatabase...');
       const result = await sqlDatabase.executeQuery('SELECT * FROM subject_registrations WHERE status = "Active" ORDER BY created_at DESC');
       if (result && result.data) {
         const registrationsData = result.data;
-        console.log('Loaded subject registrations from database:', registrationsData.length, 'registrations');
         
         // Don't filter here - let components handle term/year filtering as needed
         // This ensures all registrations are available for display
-        console.log('Setting all subject registrations (no term/year filtering at context level)');
         setSubjectRegistrations(registrationsData);
         return true;
       }
       return false;
     } catch (error) {
-      console.warn('Error loading subject registrations from database:', error);
       return false;
     }
   };
 
-  const loadSubjectAssignmentsFromAPI = async (): Promise<boolean> => {
-    // Prevent excessive calls with simple rate limiting
+  // Force reload assignments, bypassing cache if forceReload is true
+  const loadSubjectAssignmentsFromAPI = async (forceReload = false, termParam?: string | null, yearParam?: string | null): Promise<boolean> => {
+    // Use passed parameters or fall back to state
+    const term = termParam ?? currentTerm;
+    const year = yearParam ?? currentAcademicYear;
+    
+    // Skip loading if term or academic year not set by admin
+    if (!term || !year) {
+      return false;
+    }
+
     const now = Date.now();
-    if (subjectAssignments.length > 0 && (now - lastLoadTime) < 2000) {
+    if (!forceReload && subjectAssignments.length > 0 && (now - lastLoadTime) < 2000) {
       return true; // Use cached data if recent
     }
     
@@ -1505,45 +1619,43 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const response = await api.get('/subjects/assignments');
+      // Request only assignments for current term/year
+      const response = await api.get(`/subjects/assignments?term=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}`);
       if (response && response.success) {
         const assignmentsData = (response.data as any)?.items || response.data || [];
         if (Array.isArray(assignmentsData)) {
-          console.log('Loaded subject assignments from API:', assignmentsData.length, 'assignments');
-          
-          // Filter assignments - show active assignments, filter by term/year only if they are set
-          const filteredAssignments = assignmentsData.filter(assignment => 
-            assignment.status === 'Active' &&
-            (!currentTerm || assignment.term === currentTerm) &&
-            (!currentAcademicYear || assignment.academic_year === currentAcademicYear)
-          );
-          
-          console.log(`Filtered to current term (${currentTerm}) and academic year (${currentAcademicYear}):`, filteredAssignments.length, 'assignments');
-          setSubjectAssignments(filteredAssignments);
+          setSubjectAssignments(assignmentsData);
           return true;
         }
       }
       return false;
     } catch (error) {
-      console.warn('Error loading subject assignments from API:', error);
       return false;
     }
   };
 
-  const loadClassTeacherAssignmentsFromAPI = async (): Promise<boolean> => {
+  // Force reload class teacher assignments, bypassing cache if forceReload is true
+  const loadClassTeacherAssignmentsFromAPI = async (forceReload = false, termParam?: string | null, yearParam?: string | null): Promise<boolean> => {
     try {
-      // Ensure token is available
-      const hasToken = await tokenManager.ensureToken(currentUser);
-      if (!hasToken) {
-        console.error('Authentication required: No token found');
+      // Use passed parameters or fall back to state
+      const term = termParam ?? currentTerm;
+      const year = yearParam ?? currentAcademicYear;
+      
+      // Skip loading if term or academic year not set by admin
+      if (!term || !year) {
         return false;
       }
 
-      const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear, currentTerm));
+      // Ensure token is available
+      const hasToken = await tokenManager.ensureToken(currentUser);
+      if (!hasToken) {
+        return false;
+      }
+
+      const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(year, term));
       
       if (response && response.success) {
         const assignmentsData = (response.data as any[]) || [];
-        console.log('Loaded class teacher assignments from API:', assignmentsData.length, 'assignments');
         
         // Set class teacher assignments state
         setClassTeacherAssignments(assignmentsData);
@@ -1563,7 +1675,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.warn('Error loading class teacher assignments from API:', error);
       return false;
     }
   };
@@ -1581,7 +1692,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return null;
     } catch (error) {
-      console.error('Error creating student:', error);
       return null;
     }
   };
@@ -1598,7 +1708,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error updating student:', error);
       return false;
     }
   };
@@ -1615,7 +1724,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error deleting student:', error);
       return false;
     }
   };
@@ -1633,7 +1741,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return null;
     } catch (error) {
-      console.error('Error creating teacher:', error);
       return null;
     }
   };
@@ -1650,7 +1757,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error updating teacher:', error);
       return false;
     }
   };
@@ -1667,7 +1773,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error deleting teacher:', error);
       return false;
     }
   };
@@ -1685,7 +1790,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return null;
     } catch (error) {
-      console.error('Error creating parent:', error);
       return null;
     }
   };
@@ -1702,7 +1806,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error updating parent:', error);
       return false;
     }
   };
@@ -1719,7 +1822,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error deleting parent:', error);
       return false;
     }
   };
@@ -1737,7 +1839,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return null;
     } catch (error) {
-      console.error('Error creating accountant:', error);
       return null;
     }
   };
@@ -1754,7 +1855,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error updating accountant:', error);
       return false;
     }
   };
@@ -1771,7 +1871,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error deleting accountant:', error);
       return false;
     }
   };
@@ -1789,13 +1888,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         class_teacher_id: classData.classTeacherId,
       };
 
-      console.log('=== CREATE CLASS DEBUG ===');
-      console.log('Class data being sent:', apiPayload);
-      console.log('API endpoint:', API_CONFIG.ENDPOINTS.CLASSES.CREATE);
-
-      const response = await api.post(API_CONFIG.ENDPOINTS.CLASSES.CREATE, apiPayload);
-      console.log('Create class response:', response);
       
+      const response = await api.post(API_CONFIG.ENDPOINTS.CLASSES.CREATE, apiPayload);
+            
       if (response && response.success) {
         await loadClassesFromAPI(true);
         const responseData = response.data as any;
@@ -1803,7 +1898,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return 0;
     } catch (error) {
-      console.error('Error creating class:', error);
       return 0;
     }
   };
@@ -1813,10 +1907,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      console.log('=== UPDATE CLASS DEBUG ===');
-      console.log('Updating class ID:', id);
-      console.log('Class data being sent:', classData);
-
+      
       // Map to snake_case for API
       const apiPayload = {
         ...classData,
@@ -1825,15 +1916,13 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       };
 
       const response = await api.put(API_CONFIG.ENDPOINTS.CLASSES.UPDATE(id), apiPayload);
-      console.log('Update response:', response);
-      
+            
       if (response && response.success) {
         await loadClassesFromAPI(true);
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error updating class:', error);
       return false;
     }
   };
@@ -1850,7 +1939,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error deleting class:', error);
       return false;
     }
   };
@@ -1861,29 +1949,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      console.log('=== CREATE SUBJECT DEBUG ===');
-      console.log('Subject data being sent:', subjectData);
-      console.log('API endpoint:', API_CONFIG.ENDPOINTS.SUBJECTS.CREATE);
-      console.log('Current user:', currentUser);
-
       const response = await api.post(API_CONFIG.ENDPOINTS.SUBJECTS.CREATE, subjectData);
-      console.log('Create subject response:', response);
-      console.log('Response success:', response?.success);
-      console.log('Response data:', response?.data);
       
       if (response && response.success) {
-        console.log('Subject created successfully, reloading subjects...');
-        await loadSubjectsFromAPI(true);
-        console.log('Subjects reloaded');
-        // Return the new subject ID from the response data
-        const newId = (response.data as any)?.id || -1;
-        console.log('New subject ID:', newId);
+        const data = response.data as any;
+        // Backend returns { id: lastInsertId } where id is often a numeric string.
+        // Coerce to a number so we correctly detect success and trigger reloads.
+        const rawId = data && (data.id !== undefined ? data.id : null);
+        const newId = rawId !== null && rawId !== undefined ? Number(rawId) : 0;
+
+        // Do not reload subjects here; addSubject will handle it.
+
         return newId;
       }
-      console.log('Subject creation failed - response not successful');
-      return -1;
-    } catch (error) {
-      console.error('Error creating subject:', error);
+      return 0;
+    } catch (error: any) {
+      return 0;
       
       // Handle specific error types
       if (error instanceof Error) {
@@ -1916,7 +1997,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error updating subject:', error);
       return false;
     }
   };
@@ -1926,15 +2006,24 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const response = await api.delete(API_CONFIG.ENDPOINTS.SUBJECTS.DELETE(id));
+      const response: any = await api.delete(API_CONFIG.ENDPOINTS.SUBJECTS.DELETE(id));
+
+      // On HTTP 2xx, ApiService returns parsed JSON. Check the success flag first.
       if (response && response.success) {
-        await loadSubjectsFromAPI();
         return true;
       }
+
+      // If backend responded with success = false but no HTTP error,
+      // surface the backend message so callers can present it.
+      const backendMessage = response?.message;
+      if (backendMessage) {
+        throw new Error(backendMessage);
+      }
+
       return false;
     } catch (error) {
-      console.error('Error deleting subject:', error);
-      return false;
+      // Re-throw so higher-level handlers (e.g. UI) can show detailed feedback
+      throw error;
     }
   };
 
@@ -1948,7 +2037,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error registering subject for class:', error);
       return false;
     }
   };
@@ -1962,7 +2050,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error removing subject registration:', error);
       return false;
     }
   };
@@ -1997,60 +2084,106 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const result = await sqlDatabase.executeQuery(query, params);
       return result?.data || [];
     } catch (error) {
-      console.error('Error getting subject registrations:', error);
       return [];
     }
   };
 
   // Rate limiting and loading state management
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(0);
   const LOAD_COOLDOWN = 5000; // 5 seconds between loads
 
-  // Load data from API when user is logged in
-  useEffect(() => {
-    if (!currentUser) {
-      return;
-    }
+  // Load data from API when user is logged in - REMOVED (handled by initial load useEffect)
+  // useEffect(() => {
+  //   if (!currentUser) {
+  //     return;
+  //   }
 
-    const now = Date.now();
+  //   const now = Date.now();
     
-    // Prevent excessive API calls with cooldown
-    if (isLoadingData || (now - lastLoadTime) < LOAD_COOLDOWN) {
-      return;
-    }
+  //   // Prevent excessive API calls with cooldown and loading states
+  //   if (isLoadingData || isDataLoading || (now - lastLoadTime) < LOAD_COOLDOWN) {
+  //     return;
+  //   }
 
-    // Check if token is actually available before loading data
-    const currentToken = getAuthToken();
-    if (!currentToken) {
-      console.log('No token available, skipping data load');
-      return;
-    }
-
-    // Heavy data loading is now handled in the login() function based on user role
-    const loadData = async () => {
-      setIsLoadingData(true);
-      setLastLoadTime(now);
+  //   // Check if token is actually available before loading data
+  //   const currentToken = getAuthToken();
+  //   const loadData = async () => {
+  //     setIsLoadingData(true);
+  //     setIsDataLoading(true);
+  //     setLastLoadTime(now);
       
-      try {
-        console.log('=== BATCH DATA LOAD SKIPPED - handled by login role-based loader ===');
-      } catch (error) {
-        console.warn('Some API calls failed during batch load:', error);
-      } finally {
-        setIsLoadingData(false);
+  //     try {
+  //       await loadDataForUser(currentUser);
+  //     } catch (error) {
+  //       
+  //     } finally {
+  //       setIsLoadingData(false);
+  //       setIsDataLoading(false);
+  //     }
+  //   };
+
+  //   loadData();
+  // }, [currentUser]); // Remove isDataLoading from dependencies to prevent circular dependency
+
+  // Load initial data on app start (for login page and general use) - CONSOLIDATED
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason: any = event.reason;
+      const code = reason?.code;
+      const status = reason?.status;
+      const message = reason?.message;
+
+      // Handle auth/permission rejections that might not be caught by UI flows
+      if (code === 403 || status === 403 || (typeof message === 'string' && message.includes('403'))) {
+        // Log permission errors for debugging but prevent unhandled rejection
+        console.warn('Permission denied (403) - handled gracefully:', { code, status, message });
+        event.preventDefault();
+      } else if (code === 401 || status === 401 || (typeof message === 'string' && message.includes('401'))) {
+        // Handle authentication errors
+        console.warn('Authentication error (401) - handled gracefully:', { code, status, message });
+        event.preventDefault();
+      } else {
+        // Catch ALL other unhandled rejections to prevent console errors
+        console.warn('Unhandled promise rejection (caught):', reason);
+        event.preventDefault();
       }
     };
 
-    loadData();
-  }, [currentUser]); // Remove isLoadingData and lastLoadTime to prevent infinite loop
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
-  // Load initial data on app start (for login page and general use) - OPTIMIZED
-  useEffect(() => {
-    // Prevent multiple initial loads
-    if (isLoadingData) return;
+    // Prevent multiple initial loads using module-level variable (persists across StrictMode)
+    if (globalInitialLoadStarted || globalInitialLoadCompleted) {
+      return;
+    }
+    
+    // Also check ref for additional safety
+    if (initialLoadDone.current) {
+      return;
+    }
+    
+    // Prevent multiple initial loads using state
+    if (isLoadingData || isDataLoading) {
+      return;
+    }
+    
+    // Mark as started immediately to prevent race conditions
+    globalInitialLoadStarted = true;
     
     const loadInitialData = async () => {
       setIsLoadingData(true);
+      setIsDataLoading(true);
+      
+      // Safety timeout to prevent loading from getting stuck
+      const safetyTimeout = setTimeout(() => {
+        setIsLoadingData(false);
+        setIsDataLoading(false);
+        setIsLoading(false);
+        initialLoadDone.current = true;
+        globalInitialLoadCompleted = true;
+        globalInitialLoadStarted = false;
+      }, 30000); // 30 second timeout
       
       try {
         // Only restore authentication if NOT on landing page
@@ -2064,34 +2197,38 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           const savedUser = getApiCurrentUser();
           
           if (token && savedUser) {
-            console.log('🔄 Restoring authentication from storage');
             setAuthToken(token);
+            setApiCurrentUser(savedUser);
             setCurrentUser(savedUser);
-            setIsLoading(false);
             
-            // Load data for restored user
             await loadDataForUser(savedUser);
+            setIsLoading(false);
           } else {
-            console.log('No existing authentication found');
             setIsLoading(false);
           }
         } else {
-          console.log('On landing page - skipping authentication restoration');
           setIsLoading(false);
         }
         
-        console.log('Initial load complete');
-        
+        initialLoadDone.current = true;
       } catch (error) {
-        console.warn('Initial data loading failed:', error);
         setIsLoading(false);
       } finally {
+        clearTimeout(safetyTimeout); // Clear safety timeout
         setIsLoadingData(false);
+        setIsDataLoading(false);
+        setIsLoading(false);
+        initialLoadDone.current = true; // Mark ref as done
+        globalInitialLoadCompleted = true; // Mark global as done
+        globalInitialLoadStarted = false; // Reset started flag
       }
     };
     
     loadInitialData();
-  }, []);
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []); // Only run once on mount
 
   // Auto-save disabled - using API only
 
@@ -2099,24 +2236,33 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   // Helper to load data for a user
   const loadDataForUser = async (user: User) => {
-    console.log('Loading data for user:', user.username, user.role);
+    // Prevent multiple simultaneous calls to loadDataForUser
+    if (loadDataForUserInFlight.current) {
+      return false;
+    }
+    loadDataForUserInFlight.current = true;
+    
+    if (process.env.NODE_ENV === 'production') {
+      // Loading data for user
+    }
     
     // Load essential data first with retry logic
     const loadWithRetry = async (loadFn: () => Promise<any>, retries = 3, delay = 1000) => {
       for (let i = 0; i < retries; i++) {
         try {
-          console.log(`Loading data (attempt ${i + 1}/${retries})...`);
+          if (process.env.NODE_ENV === 'production') {
+            // Loading data attempt
+          }
           const result = await loadFn();
-          console.log('Data loaded successfully');
+          if (process.env.NODE_ENV === 'production') {
+            // Data loaded successfully
+          }
           return result;
         } catch (error) {
-          console.warn(`Load attempt ${i + 1} failed:`, error);
           if (i < retries - 1) {
-            console.log(`Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
             delay *= 2; // Exponential backoff
           } else {
-            console.error('All retry attempts failed');
             throw error;
           }
         }
@@ -2124,70 +2270,92 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     };
 
     try {
-      // Ensure term/year are loaded first
-      await loadWithRetry(loadCurrentTermAndYear);
+      // Ensure term/year are loaded first and capture the values
+      const { term: loadedTerm, year: loadedYear } = await loadWithRetry(loadCurrentTermAndYear);
       await loadWithRetry(loadTermDates);
 
       // Load core data in parallel with error isolation
       const coreLoads = [
-        loadWithRetry(() => loadStudentsFromAPI()).catch(e => { console.error('Students load failed:', e); return null; }),
-        loadWithRetry(() => loadClassesFromAPI()).catch(e => { console.error('Classes load failed:', e); return null; }),
-        loadWithRetry(() => loadSubjectsFromAPI()).catch(e => { console.error('Subjects load failed:', e); return null; }),
+        loadWithRetry(() => loadStudentsFromAPI()).catch(e => { return null; }),
+        loadWithRetry(() => loadClassesFromAPI()).catch(e => { return null; }),
+        loadWithRetry(() => loadSubjectsFromAPI()).catch(e => { return null; }),
       ];
 
       // Wait for core data to complete
       await Promise.allSettled(coreLoads);
 
-      // Load role-specific data
+      // Load role-specific data - pass loaded term/year directly to avoid state timing issues
       let roleSpecificLoads: Promise<any>[] = [];
 
       if (user.role === 'admin') {
         roleSpecificLoads = [
-          loadWithRetry(() => loadTeachersFromAPI()).catch(e => { console.error('Teachers load failed:', e); return null; }),
-          loadWithRetry(() => loadSubjectAssignmentsFromAPI()).catch(e => { console.error('Subject assignments load failed:', e); return null; }),
-          loadWithRetry(() => loadScoresFromAPI()).catch(e => { console.error('Scores load failed:', e); return null; }),
-          loadWithRetry(() => loadAffectiveDomainsFromAPI()).catch(e => { console.error('Affective domains load failed:', e); return null; }),
-          loadWithRetry(() => loadPsychomotorDomainsFromAPI()).catch(e => { console.error('Psychomotor domains load failed:', e); return null; }),
-          loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { console.error('Parent links load failed:', e); return null; }),
+          loadWithRetry(() => loadTeachersFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadSubjectAssignmentsFromAPI(false, loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadClassTeacherAssignmentsFromAPI(false, loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadScoresFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadAffectiveDomainsFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadPsychomotorDomainsFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { return null; }),
         ];
       } else if (user.role === 'teacher') {
         roleSpecificLoads = [
-          loadWithRetry(() => loadTeachersFromAPI()).catch(e => { console.error('Teachers load failed:', e); return null; }),
-          loadWithRetry(() => loadSubjectAssignmentsFromAPI()).catch(e => { console.error('Subject assignments load failed:', e); return null; }),
-          loadWithRetry(() => loadClassTeacherAssignmentsFromAPI()).catch(e => { console.error('Class teacher assignments load failed:', e); return null; }),
-          loadWithRetry(() => loadScoresFromAPI()).catch(e => { console.error('Scores load failed:', e); return null; }),
-          loadWithRetry(() => loadAffectiveDomainsFromAPI()).catch(e => { console.error('Affective domains load failed:', e); return null; }),
-          loadWithRetry(() => loadPsychomotorDomainsFromAPI()).catch(e => { console.error('Psychomotor domains load failed:', e); return null; }),
+          loadWithRetry(() => loadTeachersFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadSubjectAssignmentsFromAPI(false, loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadClassTeacherAssignmentsFromAPI(false, loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadScoresFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadAffectiveDomainsFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadPsychomotorDomainsFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
         ];
       } else if (user.role === 'accountant') {
         roleSpecificLoads = [
-          loadWithRetry(() => loadPaymentsFromAPI()).catch(e => { console.error('Payments load failed:', e); return null; }),
-          loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { console.error('Fee structures load failed:', e); return null; }),
-          loadWithRetry(() => loadStudentFeeBalancesFromAPI()).catch(e => { console.error('Fee balances load failed:', e); return null; }),
+          loadWithRetry(() => loadPaymentsFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadStudentFeeBalancesFromAPI()).catch(e => { return null; }),
         ];
       } else if (user.role === 'parent') {
         roleSpecificLoads = [
-          loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { console.error('Parent links load failed:', e); return null; }),
-          loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { console.error('Fee structures load failed:', e); return null; }),
+          loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { return null; }),
         ];
       }
 
       await Promise.allSettled(roleSpecificLoads);
       return true;
     } catch (error) {
-      console.error('Error loading data for user:', error);
       return false;
+    } finally {
+      loadDataForUserInFlight.current = false;
     }
   };
 
   const login = async (username: string, password: string, role: string): Promise<User | null> => {
     try {
-      console.log('Login attempt:', { username, role });
+      // Login attempt
       
       // Clear any existing tokens first to prevent conflicts
       removeAuthToken();
       
-      const user = await sqlDatabase.authenticateUser(username, password, role);
+      // Use API login instead of local SQL database
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.LOGIN}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          username,
+          password,
+          role
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Login failed with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const user = data.data;
       
       if (user) {
         setCurrentUser(user);
@@ -2205,15 +2373,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         await new Promise(resolve => setTimeout(resolve, 100));
         
         // Reload all data after successful login using the helper function
-        console.log('Login successful, loading data for user...');
         
         const dataLoaded = await loadDataForUser(user);
         
         if (!dataLoaded) {
-          console.warn('Some data failed to load, but login will proceed');
+          // Some data failed to load, but login will proceed
         }
         setIsLoading(false);
-        // Reduced toast - only show for first login of the session
+        // Reduced toast - only show for first login of session
         if (!sessionStorage.getItem('loginToastShown')) {
           toast.success(`Welcome back, ${user.first_name || user.username}!`);
           sessionStorage.setItem('loginToastShown', 'true');
@@ -2223,7 +2390,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       return null;
     } catch (error: any) {
-      console.error('Login error:', error);
       toast.error(error.message || 'Login failed');
       setIsLoading(false);
       return null;
@@ -2403,7 +2569,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const getTeacherAssignments = useCallback((teacherId: number): SubjectAssignment[] => {
     // If term/year are not set yet, return all assignments for this teacher
     if (!currentTerm || !currentAcademicYear) {
-      console.warn('Current term or academic year not set, returning all assignments for teacher', teacherId);
+      
       return (subjectAssignments || []).filter(a => Number(a.teacher_id) === teacherId);
     }
     
@@ -2415,7 +2581,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   }, [subjectAssignments, currentTerm, currentAcademicYear]);
 
   // Get teacher's classes with subjects and student counts
-  const getTeacherClasses = useCallback((teacherId: number): any[] => {
+  const getTeacherClasses = useCallback(async (teacherId: number): Promise<any[]> => {
+    // Lazy load assignments if empty
+    if (subjectAssignments.length === 0) {
+      await loadSubjectAssignmentsFromAPI();
+    }
+    if (classTeacherAssignments.length === 0) {
+      await loadClassTeacherAssignmentsFromAPI();
+    }
+
     // Get teacher's subject assignments directly
     const assignments = !currentTerm || !currentAcademicYear 
       ? (subjectAssignments || []).filter(a => Number(a.teacher_id) === teacherId)
@@ -2476,7 +2650,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       ...classGroup,
       studentCount: students.filter(s => s.class_id === classGroup.classId).length
     }));
-  }, [classes, classTeacherAssignments, currentAcademicYear, currentTerm, subjectAssignments, subjects, students]);
+  }, [classes, classTeacherAssignments, currentAcademicYear, currentTerm, subjectAssignments, subjects, students, loadSubjectAssignmentsFromAPI, loadClassTeacherAssignmentsFromAPI]);
 
 // Get teacher's students for a specific class - UPDATED VERSION
   const getTeacherResponsibilities_NEW = useCallback((teacherId: number): any => {
@@ -2485,14 +2659,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     lastTeacherIdRef.current = teacherId;
     
     if (shouldLog) {
-      console.log(`🚀 GET TEACHER RESPONSIBILITIES: teacherId=${teacherId}`);
+      
     }
     
     try {
       // Ensure classes are loaded before proceeding
       if (!classes || classes.length === 0) {
         if (shouldLog) {
-          console.log('🔄 Classes not loaded yet, using class_teacher_assignments as fallback');
+          
         }
         
         // Fallback: Use class_teacher_assignments data if classes aren't loaded yet
@@ -2507,7 +2681,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const classTeacherClassesCount = classTeacherClassIds.length;
         
         if (shouldLog) {
-          console.log(`🔄 FALLBACK RESULT: isClassTeacher=${isClassTeacher}, classCount=${classTeacherClassesCount}`);
+          
         }
         
         return {
@@ -2559,28 +2733,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         return isMatch;
       });
       
-      // FORCE FIX: If teacher is TALI (39) and has Class 13 assignment, force recognition
-      let forcedClassTeacherClasses = classTeacherClasses;
-      if (String(teacherId) === '39' && classTeacherAssignments.some((cta: any) => 
-        String(cta.teacher_id) === '39' && String(cta.class_id) === '13' && 
-        cta.academic_year === currentAcademicYear && cta.term === currentTerm
-      )) {
-        if (shouldLog) {
-          console.log('🔧 FORCE FIX: Applied for Teacher TALI (39) - Class 13 assignment found');
-        }
-        forcedClassTeacherClasses = classes.filter((c: any) => String(c.id) === '13');
-        if (forcedClassTeacherClasses.length > 0 && shouldLog) {
-          console.log('✅ FORCE FIX SUCCESS: Teacher 39 now recognized as class teacher for Class 13');
-        }
-      }
-      
-            
       // Get unique classes from subject assignments
       const assignedClassIds = [...new Set(assignments.map(a => a.class_id))];
       const assignedClasses = classes.filter(c => assignedClassIds.includes(c.id));
       
       // Combine all classes (both subject assignments and class teacher assignments)
-      const allTeacherClasses = [...new Set([...assignedClasses, ...forcedClassTeacherClasses])];
+      const allTeacherClasses = [...new Set([...assignedClasses, ...classTeacherClasses])];
       
       // Count total students across all classes
       const totalStudentsCount = allTeacherClasses.reduce((total, cls) => {
@@ -2589,14 +2747,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       // Check if teacher is marked as class teacher in teachers table
       const teacherRecord = teachers.find(t => String(t.id) === String(teacherId));
-      const isClassTeacher = teacherRecord?.is_class_teacher === true || forcedClassTeacherClasses.length > 0;
+      const isClassTeacher = teacherRecord?.is_class_teacher === true || classTeacherClasses.length > 0;
       
       return {
         isClassTeacher,
         assignedClassesCount: allTeacherClasses.length,
         totalStudentsCount,
         subjectsCount: assignments.length,
-        classTeacherClassesCount: forcedClassTeacherClasses.length,
+        classTeacherClassesCount: classTeacherClasses.length,
         canEnterScores: assignments.length > 0,
         canCompileResults: isClassTeacher,
         canViewResults: true,
@@ -2604,7 +2762,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         departments: teacherRecord?.department_id ? [teacherRecord.department_id] : []
       };
     } catch (error) {
-      console.error('Error getting teacher responsibilities:', error);
+      
       return {
         isClassTeacher: false,
         assignedClassesCount: 0,
@@ -2762,14 +2920,34 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteSubject = async (id: number) => {
-    const success = await deleteSubjectAPI(id);
-    if (success) {
+    try {
+      const success = await deleteSubjectAPI(id);
+
+      // If the low-level API returns false without throwing, treat it as a failure
+      if (!success) {
+        throw new Error('Failed to delete subject');
+      }
+
+      // Ensure subjects list and registrations are fully refreshed after deletion
       await loadSubjectsFromAPI(true);
+    } catch (error: any) {
+      const message = error?.message || '';
+
+      // Normalize the common backend conflict into a clearer admin-facing message
+      if (message.includes('Cannot delete subject with active assignments')) {
+        throw new Error('Cannot delete subject with active assignments. Remove all subject-teacher assignments for this subject before deleting it.');
+      }
+
+      if (error instanceof Error) {
+        throw error;
+      }
+
+      throw new Error('Failed to delete subject');
     }
   };
 
   const getPendingApprovals = () => {
-    return compiledResults.filter(result => 
+    return (compiledResults || []).filter(result => 
       result.status === 'Submitted' && 
       result.term === currentTerm && 
       result.academic_year === currentAcademicYear
@@ -2777,57 +2955,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   // System Settings Methods
-  const loadCurrentTermAndYear = async () => {
-    try {
-      const now = Date.now();
-      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-      // Check cache validity
-      if (termAndYearCache.current.timestamp > 0 && (now - termAndYearCache.current.timestamp < CACHE_DURATION)) {
-        console.log('Using cached term and year');
-        if (termAndYearCache.current.term) setCurrentTerm(termAndYearCache.current.term);
-        if (termAndYearCache.current.year) setCurrentAcademicYear(termAndYearCache.current.year);
-        return;
-      }
-
-      // Ensure token is available
-      await tokenManager.ensureToken(currentUser);
-      
-      const termResult = await sqlDatabase.executeQuery(
-        "SELECT setting_value FROM school_settings WHERE setting_key = 'current_term'"
-      );
-      const yearResult = await sqlDatabase.executeQuery(
-        "SELECT setting_value FROM school_settings WHERE setting_key = 'current_academic_year'"
-      );
-      
-      // Extract data from result objects
-      const termData = termResult?.data || termResult;
-      const yearData = yearResult?.data || yearResult;
-      
-      let newTerm = null;
-      let newYear = null;
-
-      if (termData && termData.length > 0) {
-        newTerm = termData[0].setting_value;
-        setCurrentTerm(newTerm);
-      }
-      if (yearData && yearData.length > 0) {
-        newYear = yearData[0].setting_value;
-        setCurrentAcademicYear(newYear);
-      }
-      
-      // Update cache
-      termAndYearCache.current = {
-        term: newTerm,
-        year: newYear,
-        timestamp: now
-      };
-      
-    } catch (error) {
-      console.error('Error loading current term and year:', error);
-    }
-  };
-
   const loadSchoolSettings = async () => {
     try {
       const result = await sqlDatabase.executeQuery(
@@ -2835,20 +2962,21 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       );
       
       const newSettings: Partial<SchoolSettings> = {};
-      // Extract the data array from the result object
-      const settings = result?.data || result;
+      // Extract the data array from the SQL query response
+      // Response format: {data: {data: [...], insertId: null, affectedRows: null}}
+      const settings = result?.data?.data || result?.data || result;
       
       if (Array.isArray(settings)) {
         settings.forEach((setting: any) => {
           newSettings[setting.setting_key as keyof SchoolSettings] = setting.setting_value;
         });
       } else {
-        console.warn('School settings query did not return an array:', typeof settings, settings);
+        
       }
       
       setSchoolSettings(prev => ({ ...prev, ...newSettings }));
     } catch (error) {
-      console.error('Error loading school settings:', error);
+      
     }
   };
 
@@ -2890,7 +3018,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       return years;
     } catch (error) {
-      console.error('Error getting academic years:', error);
+      
       // Return cached data if available, otherwise fallback
       if (academicYearsCache) {
         return academicYearsCache;
@@ -2919,7 +3047,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return [];
     } catch (error) {
-      console.error('Error getting compiled results by year and term:', error);
+      
       return [];
     }
   };
@@ -2940,15 +3068,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         timestamp: 0
       };
       
-      // Force refresh of data that depends on term/year
-      await loadCompiledResultsFromAPI();
-      await loadScoresFromAPI();
-      await loadAttendancesFromAPI();
-      await loadAffectiveDomainsFromAPI();
-      await loadPsychomotorDomainsFromAPI();
+      // Clear local data so it reloads on next access
+      setSubjectAssignments([]);
+      setClassTeacherAssignments([]);
+      setScores([]);
+      setCompiledResults([]);
+      setAttendances([]);
       
     } catch (error) {
-      console.error('Error updating current term in database:', error);
+      
     }
   };
 
@@ -2987,27 +3115,27 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         timestamp: 0
       };
 
-      // Force refresh of dependent data only once
-      await loadCompiledResultsFromAPI();
-      await loadScoresFromAPI();
-      await loadAttendancesFromAPI();
-      await loadAffectiveDomainsFromAPI();
-      await loadPsychomotorDomainsFromAPI();
+      // Clear local data so it reloads on next access
+      setSubjectAssignments([]);
+      setClassTeacherAssignments([]);
+      setScores([]);
+      setCompiledResults([]);
+      setAttendances([]);
 
     } catch (error) {
-      console.error('Error updating academic year and term in database:', error);
+      
     }
   };
 
   const updateAttendanceRequirements = async (requirements: Record<string, number>) => {
-    console.log('Updating attendance requirements:', requirements);
+    
     setAttendanceRequirements(requirements);
     // Save to database
     try {
       // Save each term's requirement
       for (const [term, days] of Object.entries(requirements)) {
         const settingKey = `attendance_${term.toLowerCase().replace(' ', '_')}`;
-        console.log(`Saving ${settingKey}: ${days} days`);
+        
         await sqlDatabase.executeQuery(`
           INSERT INTO school_settings (setting_key, setting_value, updated_date) 
           VALUES (?, ?, NOW())
@@ -3015,7 +3143,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         `, [settingKey, days.toString(), days.toString()]);
       }
       
-      console.log('Attendance requirements saved successfully');
+      
       
       // Force refresh of compiled results to update attendance calculations
       await loadCompiledResultsFromAPI();
@@ -3024,7 +3152,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await loadAttendancesFromAPI();
       
     } catch (error) {
-      console.error('Error updating attendance requirements in database:', error);
+      
     }
   };
 
@@ -3049,8 +3177,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             [settingKey]
           );
           
-          // Handle database response format - check for data array
-          const data = result?.data || result;
+          // Handle database response format - check for nested data array
+          // Response format: {data: {data: [...], insertId: null, affectedRows: null}}
+          const data = result?.data?.data || result?.data || result;
           
           if (data && data.length > 0) {
             const termName = term.split('_').map(word => 
@@ -3059,14 +3188,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             requirements[termName] = parseInt(data[0].setting_value) || 0;
           }
         } catch (queryError) {
-          console.error(`Error querying ${settingKey}:`, queryError);
+          
         }
       }
       
       setAttendanceRequirements(requirements);
       return requirements;
     } catch (error: any) {
-      console.error('Error loading attendance requirements:', error);
+      
       return {};
     }
   };
@@ -3095,7 +3224,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await loadPsychomotorDomainsFromAPI();
       
     } catch (error) {
-      console.error('Error updating academic year in database:', error);
+      
     }
   };
 
@@ -3107,8 +3236,30 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     midTermBreakStart: string;
     midTermBreakEnd: string;
   }) => {
+    // Basic validation
+    const ts = dates.termStartDate ? new Date(dates.termStartDate) : null;
+    const te = dates.termEndDate ? new Date(dates.termEndDate) : null;
+    const nt = dates.nextTermStarts ? new Date(dates.nextTermStarts) : null;
+    const mbs = dates.midTermBreakStart ? new Date(dates.midTermBreakStart) : null;
+    const mbe = dates.midTermBreakEnd ? new Date(dates.midTermBreakEnd) : null;
+
+    if (ts && te && ts.getTime() > te.getTime()) {
+      throw new Error('Term start date must be before or equal to term end date');
+    }
+    if (mbs && ts && mbs.getTime() < ts.getTime()) {
+      throw new Error('Mid-term break start must be within the term dates');
+    }
+    if (mbe && te && mbe.getTime() > te.getTime()) {
+      throw new Error('Mid-term break end must be within the term dates');
+    }
+    if (mbs && mbe && mbe.getTime() < mbs.getTime()) {
+      throw new Error('Mid-term break end must be after or equal to its start');
+    }
+    if (nt && te && nt.getTime() < te.getTime()) {
+      throw new Error('Next term start must be on or after term end date');
+    }
+
     setTermDates(dates);
-    // Save to database
     try {
       const dateSettings = [
         { key: 'term_start_date', value: dates.termStartDate },
@@ -3120,16 +3271,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       ];
 
       for (const setting of dateSettings) {
-        await sqlDatabase.executeQuery(`
-          INSERT INTO school_settings (setting_key, setting_value, updated_date) 
-          VALUES (?, ?, NOW())
-          ON DUPLICATE KEY UPDATE setting_value = ?, updated_date = NOW()
-        `, [setting.key, setting.value, setting.value]);
+        const updateResult = await sqlDatabase.executeQuery(
+          `UPDATE school_settings SET setting_value = ? WHERE setting_key = ?`,
+          [setting.value, setting.key]
+        );
+        const affected = (updateResult && (updateResult.affectedRows ?? updateResult.data?.affectedRows)) || 0;
+        if (!affected) {
+          await sqlDatabase.executeQuery(
+            `INSERT INTO school_settings (setting_key, setting_value) VALUES (?, ?)`,
+            [setting.key, setting.value]
+          );
+        }
       }
       
-      console.log('Term dates saved successfully');
+      
     } catch (error) {
-      console.error('Error updating term dates in database:', error);
+      
     }
   };
 
@@ -3156,7 +3313,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           [key]
         );
         
-        const data = result?.data || result;
+        const data = result?.data?.data || result?.data || result;
         
         if (data && data.length > 0) {
           const camelCaseKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
@@ -3174,9 +3331,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         midTermBreakEnd: loadedDates.midTermBreakEnd || prev.midTermBreakEnd
       }));
 
-      console.log('Term dates loaded successfully');
+      
     } catch (error) {
-      console.error('Error loading term dates:', error);
+      
     }
   };
 
@@ -3227,7 +3384,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (error) {
-      console.error('Error updating school settings in database:', error);
+      
     }
   };
 
@@ -3286,7 +3443,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return 0;
     } catch (error) {
-      console.error('Error adding activity log:', error);
+      
       // Fallback to memory-only storage
       const newId = activityLogs.length > 0 ? Math.max(...activityLogs.map((l: ActivityLog) => l.id)) + 1 : 1;
       const newLog: ActivityLog = {
@@ -3345,7 +3502,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const createUserAPI = async (userData: any): Promise<User | null> => {
     try {
-      console.log('SchoolContext: Creating user with data:', userData);
+      
       
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
@@ -3359,22 +3516,51 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         },
         body: JSON.stringify(userData)
       });
+
+      const rawText = await response.text();
+      let result: any;
+      try {
+        result = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        result = null;
+      }
+
+      if (!response.ok) {
+        const msg = result?.error || result?.message || rawText || `HTTP ${response.status}`;
+        throw new Error(msg);
+      }
+
+      if (!result) {
+        throw new Error('Invalid server response');
+      }
       
-      const result = await response.json();
-      console.log('SchoolContext: PHP API response:', result);
       
-      if (result.success && result.data) {
-        console.log('SchoolContext: User created successfully, loading users from API');
+      // Handle both response formats - direct success or wrapped in data
+      const isSuccess = result.success || (result.data && result.data.success);
+      const createdUserData = result.data || result;
+      
+      if (isSuccess && createdUserData) {
+        
+        
+        // Add small delay to ensure database commit completes
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Reload users from API
         await loadUsersFromAPI();
-        console.log('SchoolContext: Users loaded, returning user:', result.data);
-        return result.data;
+        
+        // Force UI update with timeout to ensure React re-renders
+        setTimeout(() => {
+          
+        }, 100);
+        
+        return createdUserData;
       } else {
-        console.error('SchoolContext: User creation failed:', result.error);
-        return null;
+        const msg = result?.error || result?.message || createdUserData?.error || 'User creation failed';
+        throw new Error(msg);
       }
     } catch (error) {
-      console.error('SchoolContext: Error creating user:', error);
-      return null;
+      
+      throw error;
     }
   };
 
@@ -3383,27 +3569,32 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/user/update.php?id=${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tokenManager.getToken()}`
-        },
-        body: JSON.stringify(userData)
-      });
+      const params = { id, ...userData };
+      const result = await api.put<any>(`/user/update.php?id=${encodeURIComponent(String(id))}`, params);
       
-      const result = await response.json();
       
-      if (result.success) {
+      if (result && result.success) {
+        
+        
+        // Add small delay to ensure database commit completes
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Reload users from API
         await loadUsersFromAPI();
+        
+        // Force UI update with timeout to ensure React re-renders
+        setTimeout(() => {
+          
+        }, 100);
+        
         return true;
       } else {
-        console.error('Update user failed:', result.error);
-        return false;
+        const msg = result?.error || result?.message || 'User update failed';
+        throw new Error(msg);
       }
     } catch (error) {
-      console.error('Error updating user:', error);
-      return false;
+      
+      throw error;
     }
   };
 
@@ -3412,26 +3603,27 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/user/delete.php?id=${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tokenManager.getToken()}`
-        }
-      });
+      const result = await api.delete<any>(`/user/delete.php?id=${encodeURIComponent(String(id))}`);
       
-      const result = await response.json();
       
-      if (result.success) {
+      if (result && result.success) {
+        
         await loadUsersFromAPI();
         return true;
       } else {
-        console.error('Delete user failed:', result.error);
-        return false;
+        
+        // Don't treat "User not found" as a critical error since user might already be deleted
+        const errMsg = (result?.error || result?.message || '').toString();
+        if (errMsg.includes('User not found')) {
+          
+          await loadUsersFromAPI(); // Still refresh the list
+          return true; // Don't show error to user for already-deleted items
+        }
+        throw new Error(result?.error || result?.message || 'User delete failed');
       }
     } catch (error) {
-      console.error('Error deleting user:', error);
-      return false;
+      
+      throw error;
     }
   };
 
@@ -3440,26 +3632,29 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/user/update.php?id=${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tokenManager.getToken()}`
-        },
-        body: JSON.stringify({ status })
-      });
+      const result = await api.put<any>(`/user/update.php?id=${encodeURIComponent(String(id))}`, { id, status });
       
-      const result = await response.json();
-      
-      if (result.success) {
+      if (result && result.success) {
+        
+        
+        // Add small delay to ensure database commit completes
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Reload users from API
         await loadUsersFromAPI();
+        
+        // Force UI update with timeout to ensure React re-renders
+        setTimeout(() => {
+          
+        }, 100);
+        
         return true;
       } else {
-        console.error('Update user status failed:', result.error);
+        
         return false;
       }
     } catch (error) {
-      console.error('Error updating user status:', error);
+      
       return false;
     }
   };
@@ -3475,7 +3670,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       throw new Error('Failed to reset password');
     } catch (error) {
-      console.error('Error resetting user password:', error);
+      
       throw new Error('Failed to reset password');
     }
   };
@@ -3506,7 +3701,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         throw new Error(result.error || 'Failed to reset password');
       }
     } catch (error) {
-      console.error('Error resetting user password:', error);
+      
       throw error;
     }
   };
@@ -3530,7 +3725,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
              user.role === 'accountant' ? ['read_students', 'manage_fees', 'view_reports'] :
              ['read_students'];
     } catch (error) {
-      console.error('Error getting user permissions:', error);
+      
       return [];
     }
   };
@@ -3554,7 +3749,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
              role === 'accountant' ? ['read_students', 'manage_fees', 'view_reports'].includes(permission) :
              ['read_students'].includes(permission);
     } catch (error) {
-      console.error('Error checking user permission:', error);
+      
       return false;
     }
   };
@@ -3653,7 +3848,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
          return 0;
       }
     } catch (error) {
-      console.error('Error compiling result:', error);
+      
       throw error;
     }
   };
@@ -3666,7 +3861,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Update local state
       setCompiledResults(compiledResults.map((r: any) => (r.id === id ? { ...r, ...resultData } : r)));
     } catch (error) {
-      console.error('Error updating compiled result:', error);
+      
       throw error;
     }
   };
@@ -3697,7 +3892,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         await loadScoresFromAPI();
       }
     } catch (error) {
-      console.error('Error submitting result to database:', error);
+      
       throw error;
     }
   };
@@ -3710,7 +3905,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Update local state
       setCompiledResults(compiledResults.map((r: any) => (r.id === id ? { ...r, status: 'Approved' } : r)));
     } catch (error) {
-      console.error('Error approving result in database:', error);
+      
       throw error;
     }
   };
@@ -3776,7 +3971,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
 
     } catch (error) {
-      console.error('Error rejecting result in database:', error);
+      
       throw error;
     }
   };
@@ -3814,7 +4009,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         throw new Error(response.message || 'Failed to record payment');
       }
     } catch (error: any) {
-      console.error('Error adding payment:', error);
+      
       toast.error(error.message || 'Failed to record payment');
       throw error;
     }
@@ -3853,7 +4048,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         throw new Error(response.message || 'Failed to verify payment');
       }
     } catch (error: any) {
-      console.error('Error verifying payment:', error);
+      
       toast.error(error.message || 'Failed to verify payment');
       throw error;
     }
@@ -3872,7 +4067,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         throw new Error(response.message || 'Failed to reject payment');
       }
     } catch (error: any) {
-      console.error('Error rejecting payment:', error);
+      
       toast.error(error.message || 'Failed to reject payment');
       throw error;
     }
@@ -3911,38 +4106,170 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     ));
   };
 
-  // Parent-Student Link
-  const linkParentToStudent = async (parentId: number, studentId: number): Promise<void> => {
+  // Notification Methods
+  // Ensure notifications table has required JSON columns for per-user targeting and deletion
+  const ensureNotificationSchema = async (): Promise<void> => {
     try {
-      // Insert into parent_student_links table
-      await sqlDatabase.createParentStudentLink(parentId, studentId, 'Parent', true);
+      const res = await sqlDatabase.executeQuery("SHOW COLUMNS FROM notifications");
+      const fields: string[] = Array.isArray(res?.data)
+        ? res.data.map((row: any) => String(row.Field))
+        : [];
+
+      const needsTargetUsers = !fields.includes('target_users');
+      const needsDeletedBy = !fields.includes('deleted_by');
+
+      if (needsTargetUsers) {
+        await sqlDatabase.executeQuery("ALTER TABLE notifications ADD COLUMN target_users TEXT NULL");
+      }
+      if (needsDeletedBy) {
+        await sqlDatabase.executeQuery("ALTER TABLE notifications ADD COLUMN deleted_by TEXT NULL");
+      }
+    } catch (e) {
       
-      // Also update the student's parent_id field
-      await sqlDatabase.updateRecord('students', studentId, { parent_id: parentId });
-      
-      // Reload data to reflect changes
-      await loadStudentsFromAPI();
-      await loadParentsFromAPI();
-      await loadParentStudentLinksFromAPI();
-      
-      console.log(`Successfully linked parent ${parentId} to student ${studentId}`);
-    } catch (error) {
-      console.error('Error linking parent to student:', error);
-      throw error;
     }
+  };
+
+  const addNotification = async (notification: Omit<Notification, 'id'>): Promise<number> => {
+    try {
+      // Make sure schema supports new columns before insert
+      await ensureNotificationSchema();
+      const notificationData = {
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        target_audience: notification.targetAudience,
+        sent_by: notification.sentBy,
+        sent_date: notification.sentDate,
+        is_read: notification.isRead ? 1 : 0,
+        read_by: JSON.stringify(notification.readBy || []),
+        target_users: JSON.stringify(notification.targetUsers || []),
+        deleted_by: JSON.stringify(notification.deletedBy || [])
+      };
+
+      const insertId = await sqlDatabase.insertRecord('notifications', notificationData);
+
+      const newNotification: Notification = {
+        ...notification,
+        id: Number(insertId),
+        readBy: notification.readBy || [],
+        targetUsers: notification.targetUsers || [],
+        deletedBy: notification.deletedBy || []
+      };
+
+      setNotifications(prev => [...prev, newNotification]);
+      return Number(insertId);
+    } catch (error) {
+      
+      // Fallback: add to local state only
+      const newId = notifications.length > 0 
+        ? Math.max(...notifications.map((n: Notification) => n.id)) + 1 
+        : 1;
+
+      const fallbackNotification: Notification = {
+        ...notification,
+        id: newId,
+        readBy: notification.readBy || [],
+        targetUsers: notification.targetUsers || [],
+        deletedBy: notification.deletedBy || []
+      };
+
+      setNotifications(prev => [...prev, fallbackNotification]);
+      return newId;
+    }
+  };
+
+  const markNotificationAsRead = async (id: number): Promise<void> => {
+    const userId = currentUser?.id;
+
+    // Snapshot existing readBy from current state for DB update
+    const existing = notifications.find((n: Notification) => n.id === id);
+    const existingReadBy = existing && Array.isArray(existing.readBy) ? existing.readBy : [];
+    const nextReadBy = userId
+      ? Array.from(new Set<number>([...existingReadBy, userId]))
+      : existingReadBy;
+
+    // Optimistic local update
+    setNotifications(prev =>
+      prev.map((n: Notification) =>
+        n.id === id
+          ? { ...n, isRead: true, readBy: nextReadBy }
+          : n
+      )
+    );
+
+    // Persist to database (per-user read using read_by array)
+    try {
+      if (userId) {
+        await sqlDatabase.updateRecord('notifications', id, {
+          is_read: 1,
+          read_by: JSON.stringify(nextReadBy)
+        });
+      } else {
+        await sqlDatabase.updateRecord('notifications', id, {
+          is_read: 1
+        });
+      }
+    } catch (error) {
+      
+    }
+  };
+
+  const getAllNotifications = (): Notification[] => {
+    const userRole = currentUser?.role;
+    const userId = currentUser?.id;
+
+    if (!userRole) {
+      return [];
+    }
+
+    return notifications.filter((n: Notification) => {
+      const audience = n.targetAudience;
+      const hasTargetUsers = Array.isArray(n.targetUsers) && n.targetUsers.length > 0;
+      const isTargetedToUser = hasTargetUsers && userId != null ? n.targetUsers!.includes(userId) : true;
+      const isDeletedForUser = Array.isArray(n.deletedBy) && userId != null ? n.deletedBy!.includes(userId) : false;
+
+      if (isDeletedForUser) return false;
+
+      if (userRole === 'admin') {
+        return isTargetedToUser && (audience === 'all' || audience === 'accountants' || audience === 'teachers' || audience === 'parents' || audience === 'students');
+      }
+
+      if (audience === 'all') {
+        return isTargetedToUser;
+      }
+
+      if (userRole === 'teacher' && audience === 'teachers') return isTargetedToUser;
+      if (userRole === 'parent' && audience === 'parents') return isTargetedToUser;
+      if (userRole === 'accountant' && audience === 'accountants') return isTargetedToUser;
+
+      return false;
+    });
+  };
+
+  const getUnreadNotifications = (): Notification[] => {
+    const userId = currentUser?.id;
+
+    return getAllNotifications().filter((n: Notification) => {
+      const hasUserRead =
+        userId != null && Array.isArray(n.readBy)
+          ? n.readBy.includes(userId)
+          : n.isRead;
+
+      return !hasUserRead;
+    });
   };
 
   // Subject Registration
   const registerSubjectForClass = async (classId: number, subjectId: number, academicYear: string, term: string, isCompulsory?: boolean): Promise<boolean> => {
     try {
-      console.log(`Registering subject ${subjectId} for class ${classId}`);
+      
       const success = await registerSubjectForClassAPI(classId, subjectId, academicYear, term, isCompulsory);
       if (success) {
         await loadSubjectRegistrationsFromAPI();
       }
       return success;
     } catch (error) {
-      console.error('Error registering subject for class:', error);
+      
       return false;
     }
   };
@@ -3954,7 +4281,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await sqlDatabase.updateRecord('classes', classId, { current_students: studentCount });
       await loadClassesFromAPI();
     } catch (error) {
-      console.error('Error updating class student count:', error);
+      
     }
   };
 
@@ -4020,7 +4347,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       throw new Error('Failed to create attendance record');
     } catch (error) {
-      console.error('Error adding attendance:', error);
+      
       throw error;
     }
   };
@@ -4032,7 +4359,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Update local state
       setAttendances(attendances.map((a: Attendance) => (a.id === id ? { ...a, ...attendance } : a)));
     } catch (error) {
-      console.error('Error updating attendance:', error);
+      
       throw error;
     }
   };
@@ -4044,7 +4371,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Update local state
       setAttendances(attendances.filter((a: Attendance) => a.id !== id));
     } catch (error) {
-      console.error('Error deleting attendance:', error);
+      
       throw error;
     }
   };
@@ -4066,87 +4393,65 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       // This would typically call an API to update the password
       // For now, just return true for demo purposes
-      console.log(`Changing password from ${oldPassword} to ${newPassword}`);
+      
       return true;
     } catch (error) {
-      console.error('Error changing password:', error);
-      return false;
-    }
-  };
-
-  const addNotification = async (notification: Omit<Notification, 'id'>): Promise<number> => {
-    try {
-      // Convert to snake_case for database
-      const notificationData = {
-        title: notification.title,
-        message: notification.message,
-        type: notification.type,
-        target_audience: notification.targetAudience,
-        sent_by: notification.sentBy,
-        sent_date: notification.sentDate,
-        is_read: notification.isRead ? 1 : 0,
-        read_by: JSON.stringify(notification.readBy || [])
-      };
-
-      // Insert into database
-      const insertId = await sqlDatabase.insertRecord('notifications', notificationData);
-      
-      // Create notification object for local state
-      const newNotification = { 
-        ...notification, 
-        id: insertId 
-      };
-      
-      // Update local state
-      setNotifications(prev => [...prev, newNotification]);
-      
-      return insertId;
-    } catch (error) {
-      console.error('Error adding notification to database:', error);
-      // Fallback to local state only
-      const newId = notifications.length > 0 ? Math.max(...notifications.map((n: Notification) => n.id)) + 1 : 1;
-      const newNotification = { ...notification, id: newId };
-      setNotifications([...notifications, newNotification]);
-      return newId;
-    }
-  };
-
-  const markNotificationAsRead = async (id: number): Promise<void> => {
-    setNotifications(notifications.map((n: Notification) => 
-      (n.id === id ? { ...n, isRead: true } : n)
-    ));
-  };
-
-  const getUnreadNotifications = (): Notification[] => {
-    const userRole = currentUser?.role;
-    const userId = currentUser?.id;
-    
-    return notifications.filter((n: Notification) => {
-      // First check if unread
-      if (n.isRead) return false;
-      
-      // Check if notification is relevant to this user
-      if (n.targetAudience === 'all') return true;
-      if (userRole === 'admin') return true; // Admins see all 'all' notifications
-      if (userRole === 'teacher' && n.targetAudience === 'teachers') return true;
-      if (userRole === 'parent' && n.targetAudience === 'parents') return true;
-      if (userRole === 'accountant' && n.targetAudience === 'accountants') return true;
       
       return false;
-    });
-  };
-
-  const getAllNotifications = (): Notification[] => {
-    return notifications;
+    }
   };
 
   const deleteNotification = async (id: number): Promise<void> => {
+    const userId = currentUser?.id;
+
     try {
-      await api.delete(`/notifications/${id}`);
-      setNotifications(notifications.filter((n: any) => n.id !== id));
-      toast.success('Notification deleted');
+      // Optimistically mark as deleted for this user (do not remove globally)
+      setNotifications(prev => prev.map((n: Notification) => {
+        if (n.id !== id) return n;
+        const existingDeletedBy = Array.isArray(n.deletedBy) ? n.deletedBy : [];
+        const nextDeletedBy = userId ? Array.from(new Set<number>([...existingDeletedBy, userId])) : existingDeletedBy;
+        return { ...n, deletedBy: nextDeletedBy };
+      }));
+
+      // Persist this user's deletion in the notifications table (deleted_by JSON)
+      if (userId) {
+        // Load existing deleted_by from current state snapshot
+        const existing = notifications.find((n: Notification) => n.id === id);
+        const existingDeletedBy = existing && Array.isArray(existing.deletedBy) ? existing.deletedBy : [];
+        const nextDeletedBy = Array.from(new Set<number>([...existingDeletedBy, userId]));
+
+        try {
+          await sqlDatabase.updateRecord('notifications', id, {
+            deleted_by: JSON.stringify(nextDeletedBy)
+          });
+        } catch (err: any) {
+          const msg = String(err?.message || err);
+          if (msg.includes('Unknown column') && msg.includes('deleted_by')) {
+            // Attempt to add missing column then retry
+            await ensureNotificationSchema();
+            await sqlDatabase.updateRecord('notifications', id, {
+              deleted_by: JSON.stringify(nextDeletedBy)
+            });
+          } else {
+            // Fallback: mark as read for this user to hide from default views
+            try {
+              const existingReadBy = existing && Array.isArray(existing.readBy) ? existing.readBy : [];
+              const nextReadBy = Array.from(new Set<number>([...existingReadBy, userId]));
+              await sqlDatabase.updateRecord('notifications', id, {
+                is_read: 1,
+                read_by: JSON.stringify(nextReadBy)
+              });
+            } catch (innerErr) {
+              throw err;
+            }
+          }
+        }
+      }
     } catch (error) {
+      
       toast.error('Failed to delete notification');
+      // On failure, reload notifications to resync local state
+      await loadNotificationsFromAPI();
     }
   };
 
@@ -4172,10 +4477,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   const getParentChildren = (parentId: number): any[] => {
-    console.log('=== GET PARENT CHILDREN DEBUG ===');
-    console.log('Parent ID requested:', parentId);
-    console.log('Available parent-student links:', parentStudentLinksData);
-    console.log('Available students:', students);
+    
+    
+    
+    
     
     // Get children from parent_student_links table
     // Handle both string and number parent_id formats
@@ -4184,25 +4489,25 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       return linkParentId === parentId;
     });
     
-    console.log('Filtered links for this parent:', parentStudentLinks);
-    console.log('Number of links found:', parentStudentLinks.length);
+    
+    
     
     return parentStudentLinks.map(link => {
       const student = students.find(s => s.id === link.student_id);
       
       if (!student) {
-        console.log('Student not found for link:', link);
+        
         return null;
       }
       
       // Check status - only Active students should be shown
       const isActive = student.status === 'Active';
       if (!isActive) {
-        console.log('Student not active:', student);
+        
         return null;
       }
       
-      console.log('Valid child found:', student);
+      
       
       // Get total fees from fee structures
       const feeStructure = feeStructures.find(fs => 
@@ -4267,10 +4572,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const linkStudentToParent = async (parentId: number, studentId: number, relationship: "Father" | "Mother" | "Guardian" = "Guardian"): Promise<boolean> => {
     try {
-      console.log(`Linking student ${studentId} to parent ${parentId} with relationship: ${relationship}`);
+      
       
       // First, refresh the parent-student links to ensure we have the latest data
-      console.log('Refreshing parent-student links before checking...');
+      
       await loadParentStudentLinksFromAPI();
       
       // Check if this link already exists with fresh data
@@ -4278,7 +4583,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         (link: any) => link.parent_id === parentId && link.student_id === studentId
       ) : null;
       
-      console.log('Existing link check:', existingLink);
+      
       
       if (existingLink) {
         console.log('Student is already linked to this parent (found in refreshed data)');
@@ -4287,7 +4592,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       
       // Use API to create link in actual database
-      console.log('Making API call to:', `/parents/link/${parentId}`);
+      
       console.log('Request data:', {
         student_id: studentId,
         relationship: relationship,
@@ -4300,7 +4605,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         is_primary: true
       });
       
-      console.log('API response:', response);
+      
       
       if (response && response.success) {
         // Get parent information to update student record
@@ -4320,19 +4625,19 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           loadParentStudentLinksFromAPI()
         ]);
         
-        console.log('Student linked to parent successfully via API');
+        
         return true;
       }
       
-      console.error('API response failed:', response);
+      
       toast.error('Failed to link student - API response error');
       return false;
     } catch (error: any) {
-      console.error('Error linking student to parent via API:', error);
+      
       
       // Handle specific error cases
       if (error.response?.status === 409) {
-        console.log('409 Conflict detected - refreshing data and checking again...');
+        
         // Refresh data and check if link now appears
         await loadParentStudentLinksFromAPI();
         const refreshedLink = Array.isArray(parentStudentLinksData) ? parentStudentLinksData.find(
@@ -4340,10 +4645,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         ) : null;
         
         if (refreshedLink) {
-          console.log('Link found after refresh - student was already linked');
+          
           toast.error('This student is already linked to this parent');
         } else {
-          console.log('Link still not found after refresh - possible database inconsistency');
+          
           toast.error('Link already exists in database but not visible in frontend. Please refresh the page.');
         }
       } else if (error.response?.status === 404) {
@@ -4360,7 +4665,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const unlinkStudentFromParent = async (parentId: number, studentId: number): Promise<boolean> => {
     try {
-      console.log(`Unlinking student ${studentId} from parent ${parentId}`);
+      
       
       // Check if the link exists before attempting to unlink
       const existingLink = Array.isArray(parentStudentLinksData) ? parentStudentLinksData.find(
@@ -4368,7 +4673,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       ) : null;
       
       if (!existingLink) {
-        console.log('No link found between this student and parent');
+        
         toast.error('This student is not linked to this parent');
         return false;
       }
@@ -4389,14 +4694,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           loadParentStudentLinksFromAPI()
         ]);
         
-        console.log('Student unlinked from parent successfully via API');
+        
         return true;
       }
       
-      console.error('API unlink response failed:', response);
+      
       return false;
     } catch (error: any) {
-      console.error('Error unlinking student from parent via API:', error);
+      
       
       // Handle specific error cases
       if (error.response?.status === 404) {
@@ -4411,13 +4716,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getParentPermissions = (parentId: number): { module: string; permissions: string[] }[] => {
+  const getParentPermissions = (parentId: number) => {
     return [
-      { module: 'children', permissions: ['view_children', 'view_results'] },
-      { module: 'payments', permissions: ['view_payments', 'make_payments'] },
-      { module: 'reports', permissions: ['view_reports'] }
+      { module: 'view_students', permissions: ['read', 'view'] },
+      { module: 'view_results', permissions: ['read', 'view'] },
+      { module: 'view_attendance', permissions: ['read', 'view'] },
+      { module: 'view_fees', permissions: ['read', 'view'] },
+      { module: 'message_school', permissions: ['read', 'write'] }
     ];
   };
+
+  const linkParentToStudent = async (parentId: number, studentId: number): Promise<void> => {
+    
+    // Placeholder: actual linking logic should be implemented here
+  };
+
+  // Force TypeScript reparse
 
   // Missing API Functions
   // Get teacher assignments for current term and academic year
@@ -4440,12 +4754,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const getActiveAcademicYearAPI = async (): Promise<string> => {
-    return '2025/2026';
+  const getActiveAcademicYearAPI = async (): Promise<string | null> => {
+    return currentAcademicYear;
   };
 
-  const getActiveTermAPI = async (): Promise<string> => {
-    return 'First Term';
+  const getActiveTermAPI = async (): Promise<string | null> => {
+    return currentTerm;
   };
 
   const getRegisteredSubjectsAPI = async (classId: number): Promise<Subject[]> => {
@@ -4471,7 +4785,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       );
 
       if (existingAssignment) {
-        console.warn('Subject already assigned:', existingAssignment);
+        
         return false; // Already assigned
       }
 
@@ -4509,14 +4823,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         // Then refresh from API to ensure consistency
         await loadSubjectAssignmentsFromAPI();
         
-        console.log('Subject assignment created successfully:', newAssignment);
+        
         return true;
       }
       
-      console.warn('Failed to create assignment:', response);
+      
       return false;
     } catch (error) {
-      console.error('Error assigning subject to teacher:', error);
+      
       return false;
     }
   };
@@ -4525,18 +4839,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       // Validate inputs
       if (!currentUser) {
-        console.error('No current user found for assignment removal');
+        
         return false;
       }
       
       if (!subjectAssignments || subjectAssignments.length === 0) {
-        console.error('No subject assignments loaded');
+        
         return false;
       }
       
-      console.log('=== REMOVE ASSIGNMENT DEBUG ===');
-      console.log('Removing assignment:', { teacherId, subjectId, classId, academicYear, term });
-      console.log('Available assignments:', subjectAssignments.length);
+      
+      
+      
       
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
@@ -4550,10 +4864,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         assignment.term === term
       );
       
-      console.log('Found assignment:', existingAssignment);
+      
       
       if (!existingAssignment) {
-        console.warn('Assignment not found for removal:', { teacherId, subjectId, classId, academicYear, term });
+        
         return false; // Assignment not found
       }
       
@@ -4567,14 +4881,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         // Then refresh from API to ensure consistency
         await loadSubjectAssignmentsFromAPI();
         
-        console.log('Assignment removed successfully:', existingAssignment.id);
+        
         return true;
       }
       
-      console.warn('Failed to remove assignment:', response);
+      
       return false;
     } catch (error) {
-      console.error('Error removing subject assignment:', error);
+      
       return false;
     }
   };
@@ -4591,69 +4905,34 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     return teachers.filter(t => t.status === 'Active');
   };
 
-  const loadScoresFromAPI = async (): Promise<boolean> => {
+  const loadScoresFromAPI = async (termParam?: string | null, academicYearParam?: string | null): Promise<boolean> => {
     try {
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
-      
-      // If user is a teacher, only load scores for their assigned subjects
-      let whereClause = '';
-      if (currentUser && currentUser.role === 'teacher') {
-        const teacherId = currentUser.linked_id;
-        // Get subject assignments for this teacher
-        const assignmentResult = await sqlDatabase.executeQuery(`
-          SELECT id FROM subject_assignments 
-          WHERE teacher_id = ${teacherId}
-        `);
+
+      // Only load scores for CURRENT term and academic year to prevent data leakage
+      const termToUse = termParam ?? currentTerm;
+      const yearToUse = academicYearParam ?? currentAcademicYear;
+      if (!termToUse || !yearToUse) {
         
-        if (assignmentResult && assignmentResult.data && assignmentResult.data.length > 0) {
-          const assignmentIds = assignmentResult.data.map((a: any) => a.id).join(',');
-          whereClause = `WHERE sc.subject_assignment_id IN (${assignmentIds})`;
-        } else {
-          // Teacher has no assignments, return empty scores
-          console.log('Teacher has no subject assignments');
-          setScores([]);
-          return true;
-        }
-      }
-      
-      const query = `
-        SELECT sc.*, sa.subject_id, sa.class_id, sub.name as subject_name 
-        FROM scores sc 
-        LEFT JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id 
-        LEFT JOIN subjects sub ON sa.subject_id = sub.id 
-        ${whereClause}
-        ORDER BY sc.student_id, sc.subject_assignment_id
-      `;
-      
-      const result = await sqlDatabase.executeQuery(query);
-      console.log('SQL Result:', result);
-      if (result && result.data) {
-        console.log('Database scores loaded:', {
-          totalScores: result.data.length,
-          scores: result.data.map((s: any) => ({
-            id: s.id,
-            student_id: s.student_id,
-            subject_assignment_id: s.subject_assignment_id,
-            subject_id: s.subject_id,
-            class_id: s.class_id,
-            subject_name: s.subject_name,
-            term: s.term,
-            academic_year: s.academic_year,
-            status: s.status,
-            ca1: s.ca1,
-            ca2: s.ca2,
-            exam: s.exam,
-            total: s.total
-          }))
-        });
-        setScores(result.data);
+        setScores([]);
         return true;
       }
-      console.log('No result or data from scores query');
-      return false;
+
+      // Use backend endpoint (authoritative role-based filtering) so drafts persist across refresh/logout.
+      const response = await api.get<any>(
+        `/results/scores/by-term?term=${encodeURIComponent(String(termToUse))}&academic_year=${encodeURIComponent(String(yearToUse))}`
+      );
+
+      const rows = (response && response.success && Array.isArray(response.data)) ? response.data : [];
+      setScores(rows as any);
+
+      // Always return true here – the state is now in a safe, array-based shape
+      return true;
     } catch (error) {
-      console.error('Error loading scores:', error);
+      
+      // Ensure downstream code always sees an array
+      setScores([]);
       return false;
     }
   };
@@ -4663,7 +4942,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const result = await sqlDatabase.createPayment(payment);
       return !!result;
     } catch (error) {
-      console.error('Error creating payment:', error);
+      
       return false;
     }
   };
@@ -4672,14 +4951,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       // IMMEDIATE EXIT FOR PARENTS - Don't process anything else
       if (currentUser && currentUser.role === 'parent') {
-        console.log('Parent user detected - skipping all payments loading');
+        
         setPayments([]);
         return true;
       }
       
       // Additional safety check - prevent any non-admin/accountant from accessing payments
       if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'accountant')) {
-        console.warn('Unauthorized role attempting to access payments:', currentUser?.role);
+        
         setPayments([]);
         return false;
       }
@@ -4718,11 +4997,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading payments:', error);
+      
       
       // Additional safety check - prevent any non-admin/accountant from accessing payments
       if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'accountant')) {
-        console.warn('Unauthorized role attempting to access payments:', currentUser?.role);
+        
         setPayments([]);
         return false;
       }
@@ -4764,126 +5043,175 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           return true;
         }
       } catch (sqlError) {
-        console.error('Error loading payments via SQL:', sqlError);
+        
       }
       return false;
     }
   };
 
-  const loadAffectiveDomainsFromAPI = async (): Promise<boolean> => {
+  const loadAffectiveDomainsFromAPI = async (termParam?: string | null, academicYearParam?: string | null): Promise<boolean> => {
     try {
-      const result = await sqlDatabase.executeQuery('SELECT * FROM affective_domains ORDER BY student_id, academic_year, term');
+      // Only load affective domains for CURRENT term and academic year to prevent data leakage
+      const termToUse = termParam ?? currentTerm;
+      const yearToUse = academicYearParam ?? currentAcademicYear;
+      if (!termToUse || !yearToUse) {
+        
+        setAffectiveDomains([]);
+        return true;
+      }
+
+      const result = await sqlDatabase.executeQuery(`
+        SELECT * FROM affective_domains 
+        WHERE term = '${termToUse}' AND academic_year = '${yearToUse}'
+        ORDER BY student_id, academic_year, term
+      `);
       if (result && result.data) {
         setAffectiveDomains(result.data);
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error loading affective domains:', error);
+      
       return false;
     }
   };
 
-  const loadPsychomotorDomainsFromAPI = async (): Promise<boolean> => {
+  const loadPsychomotorDomainsFromAPI = async (termParam?: string | null, academicYearParam?: string | null): Promise<boolean> => {
     try {
-      const result = await sqlDatabase.executeQuery('SELECT * FROM psychomotor_domains ORDER BY student_id, academic_year, term');
+      // Only load psychomotor domains for CURRENT term and academic year to prevent data leakage
+      const termToUse = termParam ?? currentTerm;
+      const yearToUse = academicYearParam ?? currentAcademicYear;
+      if (!termToUse || !yearToUse) {
+        
+        setPsychomotorDomains([]);
+        return true;
+      }
+
+      const result = await sqlDatabase.executeQuery(`
+        SELECT * FROM psychomotor_domains 
+        WHERE term = '${termToUse}' AND academic_year = '${yearToUse}'
+        ORDER BY student_id, academic_year, term
+      `);
       if (result && result.data) {
         setPsychomotorDomains(result.data);
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error loading psychomotor domains:', error);
+      
       return false;
     }
   };
 
+  // Request debouncing for compiled results
+  const compiledResultsRequestQueue = new Map<string, Promise<boolean>>();
+  const compiledResultsRetryAttempts = new Map<string, number>();
+  const COMPILED_RESULTS_MAX_RETRIES = 3;
+  const COMPILED_RESULTS_RETRY_DELAY = 2000; // 2 seconds for compiled results
+
   const loadCompiledResultsFromAPI = async (): Promise<boolean> => {
     try {
-      if (!sqlDatabase) {
-        console.error('SQL Database service is not available');
+      // Skip loading if term or academic year not set by admin
+      if (!currentTerm || !currentAcademicYear) {
+        
         return false;
       }
+
+      // Create unique key for this request
+      const requestKey = `${currentTerm}_${currentAcademicYear}_Approved`;
       
-      // Check cache first - but skip cache for parents to get fresh data
-      const cacheKey = 'compiled_results';
-      if (currentUser?.role !== 'parent') {
-        const cached = localStorage.getItem(cacheKey);
-        const cacheTime = localStorage.getItem(`${cacheKey}_time`);
-        const now = Date.now();
-        const CACHE_DURATION = 5000; // 5 seconds cache for real-time data
-        
-        // Use cached data if fresh enough (only for non-parents)
-        if (cached && cacheTime && (now - parseInt(cacheTime)) < CACHE_DURATION) {
-          setCompiledResults(JSON.parse(cached));
-          return true;
-        }
+      // Check if request is already in progress
+      if (compiledResultsRequestQueue.has(requestKey)) {
+        return compiledResultsRequestQueue.get(requestKey) as Promise<boolean>;
       }
-      
-      let result;
-      if (currentUser?.role === 'parent') {
-        // For parents, only load results for their linked students
-        console.log('Loading compiled results for parent, linked_id:', currentUser.linked_id);
-        const parentLinks = await sqlDatabase.executeQuery(
-          "SELECT student_id FROM parent_student_links WHERE parent_id = ?",
-          [currentUser.linked_id]
-        );
-        
-        console.log('Parent links found:', parentLinks);
-        console.log('Parent links type:', typeof parentLinks);
-        console.log('Parent links isArray:', Array.isArray(parentLinks));
-        
-        // Handle different response formats
-        const linksArray = Array.isArray(parentLinks) ? parentLinks : (parentLinks?.data || []);
-        console.log('Processed links array:', linksArray);
-        
-        if (linksArray && linksArray.length > 0) {
-          const studentIds = linksArray.map((link: any) => link.student_id);
-          
-          console.log('Student IDs for parent:', studentIds);
-          
-          // Only load approved results for parent's children
-          const placeholders = studentIds.map(() => '?').join(',');
-          const query = `
-            SELECT * FROM compiled_results 
-            WHERE student_id IN (${placeholders}) 
-            AND status = 'Approved'
-            ORDER BY student_id, class_id
-          `;
-          console.log('Executing query:', query);
-          console.log('With params:', studentIds);
-          
-          result = await sqlDatabase.executeQuery(query, studentIds);
-          console.log('Compiled results query result:', result);
-        } else {
-          console.log('No parent-student links found for parent ID:', currentUser.linked_id);
-        }
-      } else {
-        // For other roles (admin, teacher), load all results
-        result = await sqlDatabase.executeQuery('SELECT * FROM compiled_results ORDER BY student_id, class_id');
-      }
-      
-      if (result && result.data) {
-        // Cache the results
-        const currentTime = Date.now();
-        localStorage.setItem(cacheKey, JSON.stringify(result.data));
-        localStorage.setItem(`${cacheKey}_time`, currentTime.toString());
-        setCompiledResults(result.data);
-        return true;
-      } else if (result && Array.isArray(result)) {
-        // Handle direct array response
-        const currentTime = Date.now();
-        localStorage.setItem(cacheKey, JSON.stringify(result));
-        localStorage.setItem(`${cacheKey}_time`, currentTime.toString());
-        setCompiledResults(result);
-        return true;
-      } else {
-        console.log('No compiled results found or unexpected format:', result);
-        setCompiledResults([]);
-        return true;
-      }
+
+      // Create new request with retry logic
+      const promise = executeCompiledResultsRequestWithRetry(requestKey);
+      compiledResultsRequestQueue.set(requestKey, promise);
+
+      // Clean up after request completes
+      promise.finally(() => {
+        compiledResultsRequestQueue.delete(requestKey);
+        compiledResultsRetryAttempts.delete(requestKey);
+      });
+
+      return promise;
     } catch (error) {
-      console.error('Error loading compiled results:', error);
+      
+      return false;
+    }
+  };
+
+  const executeCompiledResultsRequestWithRetry = async (requestKey: string): Promise<boolean> => {
+    const attempt = compiledResultsRetryAttempts.get(requestKey) || 0;
+    
+    try {
+      // Include query parameters for filtering
+      const queryParams = new URLSearchParams({
+        term: currentTerm!,
+        academic_year: currentAcademicYear!,
+        status: 'Approved' // Only get approved results for Class List
+      });
+
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.RESULTS.COMPILED}?${queryParams.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getAuthToken()}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const json = await response.json();
+
+        // Backend uses Response::success($payload), where $payload is often
+        // either the array itself or an object like { data: [...] }.
+        // For compiled results, ResultsController currently does:
+        //   Response::success(['data' => $results], ...)
+        // so the JSON looks like: { data: { data: [...] } }.
+        let raw = json?.data as any;
+
+        // Unwrap nested data if present (data: { data: [...] })
+        if (raw && typeof raw === 'object' && !Array.isArray(raw) && 'data' in raw) {
+          raw = (raw as any).data;
+        }
+
+        const compiled = Array.isArray(raw) ? raw : [];
+
+        if (!Array.isArray(raw)) {
+          
+        }
+
+        // Cache the results
+        const cacheKey = 'compiled_results';
+        const currentTime = Date.now();
+        localStorage.setItem(cacheKey, JSON.stringify(compiled));
+        localStorage.setItem(`${cacheKey}_time`, currentTime.toString());
+
+        setCompiledResults(compiled as any);
+        return true;
+      } else {
+        throw new Error(`Failed to load compiled results: ${response.status} ${response.statusText}`);
+      }
+    } catch (error: any) {
+      // Retry on network/server errors with exponential backoff
+      if (attempt < COMPILED_RESULTS_MAX_RETRIES && 
+          (error.message?.includes('ERR_INSUFFICIENT_RESOURCES') ||
+           error.message?.includes('Failed to fetch') ||
+           error.message?.includes('Network'))) {
+        
+        compiledResultsRetryAttempts.set(requestKey, attempt + 1);
+        const delay = COMPILED_RESULTS_RETRY_DELAY * Math.pow(2, attempt); // Exponential backoff
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return executeCompiledResultsRequestWithRetry(requestKey);
+      }
+
+      
+      setCompiledResults([]);
       return false;
     }
   };
@@ -4894,7 +5222,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await loadFeeStructuresFromAPI();
       return true;
     } catch (error) {
-      console.error('Error creating fee structure:', error);
+      
       return false;
     }
   };
@@ -4904,7 +5232,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const result = await sqlDatabase.executeQuery('SELECT * FROM fee_structures ORDER BY class_id, academic_year, term');
       return result?.data || [];
     } catch (error) {
-      console.error('Error getting fee structures:', error);
+      
       return [];
     }
   };
@@ -4914,7 +5242,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const result = await sqlDatabase.executeQuery('SELECT * FROM payments ORDER BY payment_date DESC');
       return result?.data || [];
     } catch (error) {
-      console.error('Error getting payments:', error);
+      
       return [];
     }
   };
@@ -4925,7 +5253,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await loadPaymentsFromAPI();
       return { success: true };
     } catch (error) {
-      console.error('Error updating payment status:', error);
+      
       return { success: false, error };
     }
   };
@@ -4935,7 +5263,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const result = await sqlDatabase.executeQuery('SELECT * FROM student_fee_balances ORDER BY student_id');
       return result?.data || [];
     } catch (error) {
-      console.error('Error getting fee balances:', error);
+      
       return [];
     }
   };
@@ -4948,7 +5276,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await loadPaymentsFromAPI();
       return { success: true, count: payments.length };
     } catch (error) {
-      console.error('Error creating batch payments:', error);
+      
       return { success: false, error };
     }
   };
@@ -4962,7 +5290,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading fee structures:', error);
+      
       return false;
     }
   };
@@ -4976,21 +5304,76 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading student fee balances:', error);
+      
       return false;
     }
   };
 
   const loadNotificationsFromAPI = async (): Promise<boolean> => {
     try {
+      // Ensure schema before loading
+      await ensureNotificationSchema();
       const result = await sqlDatabase.executeQuery('SELECT * FROM notifications ORDER BY sent_date DESC');
       if (result && result.data) {
-        setNotifications(result.data);
+        const rows: any[] = result.data;
+        
+        const mapped: Notification[] = rows.map((row: any) => {
+          let readBy: number[] = [];
+          let targetUsers: number[] = [];
+          let deletedBy: number[] = [];
+          try {
+            if (row.read_by) {
+              const parsed = typeof row.read_by === 'string' ? JSON.parse(row.read_by) : row.read_by;
+              if (Array.isArray(parsed)) {
+                readBy = parsed
+                  .map((v: any) => Number(v))
+                  .filter((v: any) => Number.isFinite(v));
+              }
+            }
+            if (row.target_users) {
+              const parsedTU = typeof row.target_users === 'string' ? JSON.parse(row.target_users) : row.target_users;
+              if (Array.isArray(parsedTU)) {
+                targetUsers = parsedTU
+                  .map((v: any) => Number(v))
+                  .filter((v: any) => Number.isFinite(v));
+              }
+            }
+            if (row.deleted_by) {
+              const parsedDB = typeof row.deleted_by === 'string' ? JSON.parse(row.deleted_by) : row.deleted_by;
+              if (Array.isArray(parsedDB)) {
+                deletedBy = parsedDB
+                  .map((v: any) => Number(v))
+                  .filter((v: any) => Number.isFinite(v));
+              }
+            }
+          } catch (e) {
+            
+          }
+          
+          const type = (row.type || 'info') as Notification['type'];
+          const targetAudience = (row.target_audience || 'all') as Notification['targetAudience'];
+          
+          return {
+            id: Number(row.id),
+            title: row.title || '',
+            message: row.message || '',
+            type,
+            targetAudience,
+            sentBy: Number(row.sent_by) || 0,
+            sentDate: row.sent_date || new Date().toISOString(),
+            isRead: !!row.is_read,
+            readBy,
+            targetUsers,
+            deletedBy,
+          };
+        });
+        
+        setNotifications(mapped);
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error loading notifications:', error);
+      
       return false;
     }
   };
@@ -5004,7 +5387,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading attendances:', error);
+      
       return false;
     }
   };
@@ -5015,7 +5398,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       setExamTimetables(result);
       return true;
     } catch (error) {
-      console.error('Error loading exam timetables:', error);
+      
       return false;
     }
   };
@@ -5029,7 +5412,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading class timetables:', error);
+      
       return false;
     }
   };
@@ -5043,7 +5426,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading departments:', error);
+      
       return false;
     }
   };
@@ -5057,7 +5440,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading scholarships:', error);
+      
       return false;
     }
   };
@@ -5071,7 +5454,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading assignments:', error);
+      
       return false;
     }
   };
@@ -5086,7 +5469,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const result = await sqlDatabase.updateTeacher(id, { status });
       return !!result;
     } catch (error) {
-      console.error('Error updating teacher status:', error);
+      
       return false;
     }
   };
@@ -5096,7 +5479,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const result = await sqlDatabase.updateParent(id, { status });
       return !!result;
     } catch (error) {
-      console.error('Error updating parent status:', error);
+      
       return false;
     }
   };
@@ -5106,7 +5489,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const result = await sqlDatabase.updateAccountant(id, { status });
       return !!result;
     } catch (error) {
-      console.error('Error updating accountant status:', error);
+      
       return false;
     }
   };
@@ -5124,7 +5507,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await loadExamTimetablesFromAPI();
       return result.id;
     } catch (error) {
-      console.error('Error adding exam timetable:', error);
+      
       throw error;
     }
   };
@@ -5134,7 +5517,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await sqlDatabase.updateExamTimetable(id, timetable);
       await loadExamTimetablesFromAPI();
     } catch (error) {
-      console.error('Error updating exam timetable:', error);
+      
       throw error;
     }
   };
@@ -5144,7 +5527,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       await sqlDatabase.deleteExamTimetable(id);
       await loadExamTimetablesFromAPI();
     } catch (error) {
-      console.error('Error deleting exam timetable:', error);
+      
       throw error;
     }
   };
@@ -5299,12 +5682,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
 
     } catch (error) {
-      console.error('Error checking class completion status:', error);
+      
     }
   };
 
   const updateCompiledResultWithNewScore = async (studentId: number, newScore: Score): Promise<void> => {
     try {
+      // Skip if term or academic year not set by admin
+      if (!currentTerm || !currentAcademicYear) {
+        
+        return;
+      }
+
       // Find the student's class and current term/academic year
       const student = students.find(s => s.id === studentId);
       if (!student) return;
@@ -5438,7 +5827,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       toast.success(`Score for ${subject?.name || 'Subject'} updated in compiled results for ${student.firstName} ${student.lastName}`);
 
     } catch (error) {
-      console.error('Error updating compiled result with new score:', error);
+      
       toast.error('Failed to update compiled results');
     }
   };
@@ -5469,27 +5858,30 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
     // Save to database using API endpoint
     try {
+      const scoreRow: any = {
+        student_id: score.student_id,
+        subject_name: score.subject_name,
+        status: score.status ?? 'Draft'
+      };
+
+      if (score.ca1 !== undefined) scoreRow.ca1 = score.ca1;
+      if (score.ca2 !== undefined) scoreRow.ca2 = score.ca2;
+      if (score.exam !== undefined) scoreRow.exam = score.exam;
+
       const response = await api.post('/results/scores', {
         assignment_id: score.subject_assignment_id,
-        scores: [{
-          student_id: score.student_id,
-          ca1: score.ca1 || 0,
-          ca2: score.ca2 || 0,
-          exam: score.exam || 0,
-          subject_name: score.subject_name,
-          status: score.status || 'Submitted'
-        }]
+        scores: [scoreRow]
       });
 
       if (response && response.success) {
         // Reload scores from database to get the new data
-        await loadScoresFromAPI();
+        await loadScoresFromAPI(score.term ?? null, score.academic_year ?? null);
         
         // Find the new score ID (this is a workaround since API doesn't return ID)
         const newScore = scores.find(s => 
           s.student_id === score.student_id && 
           s.subject_assignment_id === score.subject_assignment_id &&
-          s.status === (score.status || 'Draft')
+          s.status === (score.status ?? 'Draft')
         );
         
         if (newScore) {
@@ -5498,13 +5890,13 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           return newScore.id;
         }
         
-        console.log('Score saved successfully, continuing without ID lookup');
+        
         return 0; // Return placeholder ID since score was saved
       } else {
         throw new Error(response?.error || 'Failed to save score');
       }
     } catch (error) {
-      console.error('Error adding score:', error);
+      
       throw error;
     }
   };
@@ -5526,21 +5918,24 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
     // Update in database using API endpoint
     try {
+      const scoreRow: any = {
+        student_id: existingScore.student_id
+      };
+
+      if (score.ca1 !== undefined) scoreRow.ca1 = score.ca1;
+      if (score.ca2 !== undefined) scoreRow.ca2 = score.ca2;
+      if (score.exam !== undefined) scoreRow.exam = score.exam;
+      if (score.subject_name !== undefined) scoreRow.subject_name = score.subject_name;
+      if (score.status !== undefined) scoreRow.status = score.status;
+
       const response = await api.post('/results/scores', {
         assignment_id: existingScore.subject_assignment_id,
-        scores: [{
-          student_id: existingScore.student_id,
-          ca1: score.ca1 !== undefined ? score.ca1 : existingScore.ca1,
-          ca2: score.ca2 !== undefined ? score.ca2 : existingScore.ca2,
-          exam: score.exam !== undefined ? score.exam : existingScore.exam,
-          subject_name: score.subject_name !== undefined ? score.subject_name : existingScore.subject_name,
-          status: score.status !== undefined ? score.status : existingScore.status
-        }]
+        scores: [scoreRow]
       });
 
       if (response && response.success) {
         // Reload scores from database to get the updated data
-        await loadScoresFromAPI();
+        await loadScoresFromAPI(score.term ?? null, score.academic_year ?? null);
         
         // Update compiled result for this student
         await updateCompiledResultWithNewScore(existingScore.student_id, { ...existingScore, ...score });
@@ -5548,7 +5943,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         throw new Error(response?.error || 'Failed to update score');
       }
     } catch (error) {
-      console.error('Error updating score:', error);
+      
       throw error;
     }
   };
@@ -5578,7 +5973,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       toast.success(`${batchScores.length} scores submitted and updated in compiled results`);
       return true;
     } catch (error) {
-      console.error('Error creating batch scores:', error);
+      
       toast.error('Failed to submit batch scores');
       return false;
     }
@@ -5602,24 +5997,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // Score rejection function for class teachers
   const rejectScore = async (scoreId: number, rejectionReason: string, rejectedBy: number): Promise<void> => {
     try {
-      // Update database with rejection info (after migration)
-      await sqlDatabase.updateRecord('scores', scoreId, {
-        status: 'Rejected',
+      await api.post(`/results/scores/reject/${scoreId}`, {
         rejection_reason: rejectionReason,
-        rejected_by: rejectedBy,
-        rejected_date: new Date().toISOString()
+        rejected_by: rejectedBy
       });
 
-      // Update local state
-      setScores((scores: any[]) => scores.map((s: any) => 
-        s.id === scoreId 
-          ? { ...s, status: 'Rejected', rejectionReason, rejectedBy, rejectedDate: new Date().toISOString() }
-          : s
-      ));
-
-      toast.success('Score rejected and notification sent to subject teacher');
+      // Reload scores from database
+      await loadScoresFromAPI();
     } catch (error) {
-      console.error('Error rejecting score:', error);
+      
       toast.error('Failed to reject score');
       throw error;
     }
@@ -5628,15 +6014,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // Score approval function for class teachers
   const approveScore = async (scoreId: number, approvedBy: number): Promise<void> => {
     try {
-      await api.post(`/results/approve/${scoreId}`, {
-        status: 'Approved',
+      await api.post(`/results/scores/approve/${scoreId}`, {
         approved_by: approvedBy
       });
       
       // Reload scores from database
       await loadScoresFromAPI();
     } catch (error) {
-      console.error('Error approving score:', error);
+      
       throw error;
     }
   };
@@ -5654,7 +6039,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Error submitting scores:', error);
+      
       
       // Enhance error message for common issues
       if (error instanceof Error) {
@@ -5707,7 +6092,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const updateClassTeacher = async (classId: number, teacherId: number): Promise<void> => {
     try {
-      console.log(`Updating class ${classId} teacher to ${teacherId}`);
+      
       
       // Ensure token is available
       await tokenManager.ensureToken(currentUser);
@@ -5718,14 +6103,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       });
       
       if (result) {
-        console.log('Class teacher updated successfully');
+        
         // Reload classes to get updated data
         await loadClassesFromAPI();
       } else {
         throw new Error('Failed to update class teacher');
       }
     } catch (error) {
-      console.error('Error updating class teacher:', error);
+      
       throw error;
     }
   };
@@ -5838,7 +6223,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return true;
     } catch (error) {
-      console.error('Error creating batch attendance:', error);
+      
       return false;
     }
   };
@@ -5851,7 +6236,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       await sqlDatabase.deleteRecord('fee_structures', id);
     } catch (error) {
-      console.error('Error deleting fee structure:', error);
+      
       throw error;
     }
   };
@@ -5916,7 +6301,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
       toast.success(`Result approved for ${student?.firstName} ${student?.lastName}`);
     } catch (error) {
-      console.error('Error approving result:', error);
+      
       toast.error('Failed to approve result');
       throw error;
     }
@@ -6081,7 +6466,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     deleteCompiledResult,
     addCompiledResult: async (data: any) => {
       try {
-        console.log('Adding/Updating compiled result:', data);
+        
         
         // Check if record exists to avoid duplicate entry errors
         const checkQuery = `SELECT id FROM compiled_results WHERE student_id = ? AND class_id = ? AND term = ? AND academic_year = ?`;
@@ -6096,7 +6481,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         if (existingRows && existingRows.length > 0) {
           // Update existing record
           const existingId = existingRows[0].id;
-          console.log(`Updating existing compiled result ID: ${existingId}`);
+          
           
           const updateQuery = `
             UPDATE compiled_results SET
@@ -6108,7 +6493,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
               times_present = ?,
               times_absent = ?,
               total_attendance_days = ?,
+              term_begin = ?,
+              term_end = ?,
+              next_term_begin = ?,
+              class_teacher_name = ?,
               class_teacher_comment = ?,
+              principal_name = ?,
+              principal_comment = ?,
+              principal_signature = ?,
+              approved_by = ?,
+              approved_date = ?,
+              print_approved = ?,
+              rejection_reason = ?,
               compiled_date = NOW(),
               status = ?
             WHERE id = ?
@@ -6117,7 +6513,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           const updateParams = [
             data.total_score, data.average_score, data.class_average, data.position,
             data.total_students, data.times_present, data.times_absent, data.total_attendance_days,
-            data.class_teacher_comment, data.status,
+            data.term_begin, data.term_end, data.next_term_begin,
+            data.class_teacher_name, data.class_teacher_comment,
+            data.principal_name, data.principal_comment, data.principal_signature,
+            data.approved_by, data.approved_date, data.print_approved || 0, data.rejection_reason,
+            data.status,
             existingId
           ];
           
@@ -6126,7 +6526,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           return existingId;
         } else {
           // Insert new record
-          console.log('Inserting new compiled result');
+          
           const insertQuery = `
             INSERT INTO compiled_results (
               student_id, class_id, term, academic_year, 
@@ -6170,7 +6570,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         
         return 0;
       } catch (error) {
-        console.error('Error adding/updating compiled result:', error);
+        
         throw error;
       }
     },
@@ -6184,32 +6584,32 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     deleteAssignment,
     createAffectiveDomain: async (affectiveData: any) => {
       // Placeholder implementation
-      console.log('createAffectiveDomain called with:', affectiveData);
+      
       return Promise.resolve();
     },
     deleteAffectiveDomain: async (id: number) => {
       // Placeholder implementation
-      console.log('deleteAffectiveDomain called with:', id);
+      
       return Promise.resolve();
     },
     addPsychomotorDomain: async (psychomotorData: any) => {
       // Placeholder implementation
-      console.log('addPsychomotorDomain called with:', psychomotorData);
+      
       return Promise.resolve();
     },
     createPsychomotorDomain: async (psychomotorData: any) => {
       // Placeholder implementation
-      console.log('createPsychomotorDomain called with:', psychomotorData);
+      
       return Promise.resolve();
     },
     deletePsychomotorDomain: async (id: number) => {
       // Placeholder implementation
-      console.log('deletePsychomotorDomain called with:', id);
+      
       return Promise.resolve();
     },
     updatePsychomotorDomain: async (id: number, data: any) => {
       // Placeholder implementation
-      console.log('updatePsychomotorDomain called with:', id, data);
+      
       return Promise.resolve();
     },
 
@@ -6220,7 +6620,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     setCurrentUser,
     login,
     logout: () => {
-      console.log('🔒 Logging out user');
+      
       
       // Clear authentication data
       removeAuthToken();
@@ -6354,36 +6754,16 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     loadDepartmentsFromAPI,
     loadScholarshipsFromAPI,
     loadAssignmentsFromAPI,
-    // Real-time Sync Methods
-    refreshAllData: async () => {
-      const baseLoads = [
-        loadUsersFromAPI(),
-        loadTeachersFromAPI(),
-        loadParentsFromAPI(),
-        loadParentStudentLinksFromAPI(),
-        loadAccountantsFromAPI(),
-        loadStudentsFromAPI(),
-        loadClassesFromAPI(),
-        loadSubjectsFromAPI(),
-        loadSubjectRegistrationsFromAPI(),
+    // Real-time Sync Methods (MINIMAL - only term-specific data)
+    refreshTermData: async () => {
+      // Only load data that's term-specific
+      await Promise.all([
         loadSubjectAssignmentsFromAPI(),
-        loadFeeStructuresFromAPI(),
-        loadStudentFeeBalancesFromAPI(),
-        loadNotificationsFromAPI(),
+        loadClassTeacherAssignmentsFromAPI(),
+        loadScoresFromAPI(),
+        loadCompiledResultsFromAPI(),
         loadAttendancesFromAPI(),
-        loadExamTimetablesFromAPI(),
-        loadClassTimetablesFromAPI(),
-        loadDepartmentsFromAPI(),
-        loadScholarshipsFromAPI(),
-        loadAssignmentsFromAPI(),
-      ];
-
-      // Add payments loading only for admin/accountant roles
-      if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'accountant')) {
-        baseLoads.push(loadPaymentsFromAPI());
-      }
-
-      await Promise.all(baseLoads);
+      ]);
     },
     
     // Teacher-specific refresh methods
@@ -6392,7 +6772,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         loadStudentsFromAPI(),
         loadClassesFromAPI(),
         loadSubjectsFromAPI(),
-        loadSubjectAssignmentsFromAPI(),
+        loadSubjectAssignmentsFromAPI(true), // Force reload
+        loadClassTeacherAssignmentsFromAPI(true), // Force reload
         loadScoresFromAPI(),
         loadAffectiveDomainsFromAPI(),
         loadPsychomotorDomainsFromAPI(),
@@ -6415,31 +6796,59 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     hasPermission: async (permission: string): Promise<boolean> => {
       if (!currentUser) return false;
       try {
-        return await sqlDatabase.checkUserPermission(currentUser.role, permission);
+        // Delegate to the in-memory permission checker for now
+        return checkUserPermissionAPI(currentUser.role, permission);
       } catch (error) {
-        console.error('Error checking permission:', error);
+        
         return false;
       }
     },
     
     canViewStudents: async (): Promise<boolean> => {
-      return await sqlDatabase.checkUserPermission('teacher', 'read_students');
+      return checkUserPermissionAPI('teacher', 'read_students');
     },
     
     canManageScores: async (): Promise<boolean> => {
-      return await sqlDatabase.checkUserPermission('teacher', 'manage_assignments');
+      // Check if teacher has class teacher assignments or subject assignments for current term/year
+      if (currentUser?.role === 'teacher' && currentUser?.linked_id) {
+        const teacherId = currentUser.linked_id;
+        
+        // Check class teacher assignments
+        const classTeacherAssignmentsForTeacher = classTeacherAssignments.filter(
+          (cta: any) => String(cta.teacher_id) === String(teacherId) && 
+          cta.academic_year === currentAcademicYear && 
+          cta.term === currentTerm &&
+          cta.status === 'Active'
+        );
+        
+        // Check subject assignments
+        const subjectAssignmentsForTeacher = subjectAssignments.filter(
+          (sa: any) => String(sa.teacher_id) === String(teacherId) && 
+          sa.academic_year === currentAcademicYear && 
+          sa.term === currentTerm &&
+          sa.status === 'Active'
+        );
+        
+        const hasAssignments = classTeacherAssignmentsForTeacher.length > 0 || subjectAssignmentsForTeacher.length > 0;
+        
+        console.log(`canManageScores: Teacher ${teacherId} has ${classTeacherAssignmentsForTeacher.length} class assignments and ${subjectAssignmentsForTeacher.length} subject assignments = ${hasAssignments}`);
+        
+        return hasAssignments;
+      }
+      
+      return false;
     },
     
     canViewResults: async (): Promise<boolean> => {
-      return await sqlDatabase.checkUserPermission('teacher', 'view_student_reports');
+      return checkUserPermissionAPI('teacher', 'view_student_reports');
     },
     
     canManageClasses: async (): Promise<boolean> => {
-      return await sqlDatabase.checkUserPermission('teacher', 'manage_classes');
+      return checkUserPermissionAPI('teacher', 'manage_classes');
     },
     
     canManageSubjects: async (): Promise<boolean> => {
-      return await sqlDatabase.checkUserPermission('teacher', 'manage_subjects');
+      return checkUserPermissionAPI('teacher', 'manage_subjects');
     },
     
     // Real-time event listeners
@@ -6449,7 +6858,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           await loadScoresFromAPI();
           callback();
         } catch (error) {
-          console.error('Error in real-time sync:', error);
+          
         }
       }, 30000);
       
@@ -6547,7 +6956,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         toast.success('Affective domain assessment saved');
         return result;
       } catch (error: any) {
-        console.error('Error saving affective domain:', error);
+        
         toast.error('Failed to save affective domain assessment');
         throw error;
       }
@@ -6559,7 +6968,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     toast.success('Affective domain assessment updated');
     return result;
   } catch (error) {
-    console.error('Error updating affective domain:', error);
+    
     toast.error('Failed to update affective domain assessment');
     throw error;
   }
@@ -6571,26 +6980,31 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     loadCompiledResultsFromAPI
   };
 
-  // Term change detection and auto-refresh
+  // Load term and year settings on mount
+  useEffect(() => {
+    loadCurrentTermAndYear();
+  }, []); // Empty dependency array to run only once on mount
+
+  // Term change detection and auto-refresh (DISABLED - data loads lazily per term/session)
   const handleTermChange = (newTerm: string, newYear: string) => {
-    console.log('🔄 Term change detected, updating context:', { newTerm, newYear });
-    // Additional term change handling can be added here
+    
+    // Data will reload on next access due to cleared state in update functions
   };
 
-  // Use term change detector to automatically refresh data when term changes
-  const { isRefreshing } = useTermChangeDetector({
-    currentTerm,
-    currentAcademicYear,
-    onTermChange: handleTermChange,
-    refreshAllData: value.refreshAllData
-  });
+  // DISABLED: No automatic term change detection or refresh
+  // const { isRefreshing } = useTermChangeDetector({
+  //   currentTerm,
+  //   currentAcademicYear,
+  //   onTermChange: handleTermChange,
+  //   refreshAllData: value.refreshAllData
+  // });
 
-  // Periodic sync to check for server-side term changes
-  useTermSync({
-    currentTerm,
-    currentAcademicYear,
-    refreshAllData: value.refreshAllData
-  });
+  // DISABLED: No periodic server sync
+  // useTermSync({
+  //   currentTerm,
+  //   currentAcademicYear,
+  //   refreshAllData: value.refreshAllData
+  // });
 
   return (
     <SchoolContext.Provider value={value}>

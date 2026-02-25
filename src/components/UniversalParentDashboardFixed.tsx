@@ -1,4 +1,4 @@
-﻿// Parent Dashboard Component - Main interface for parent users
+// Parent Dashboard Component - Main interface for parent users
 import { useState, useEffect, useRef } from "react";
 import { LayoutDashboard, Users, Calendar, Bell, Settings, User, CheckCircle, BookOpen, Award, TrendingUp, Download, Eye, Search, Filter, Mail, Phone, Lock, CreditCard, FileText, Clock, AlertCircle, Check, X, Edit2, Save, RefreshCw, Banknote, Upload, Printer } from 'lucide-react';
 import { DashboardSidebar } from "./DashboardSidebar";
@@ -76,7 +76,8 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     schoolSettings,
     feeStructures,
     loadFeeStructuresFromAPI,
-    loadStudentFeeBalancesFromAPI
+    loadStudentFeeBalancesFromAPI,
+    users
   } = useSchool();
   
   const [activeItem, setActiveItem] = useState("dashboard");
@@ -95,6 +96,10 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             toast.success('Connection restored');
           } else if (isMounted) {
             toast.error('Connection failed. Please refresh the page.');
+          }
+        }).catch(error => {
+          if (isMounted) {
+            console.error('Connection reconnection failed:', error);
           }
         });
       }
@@ -220,6 +225,11 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     }
     
     try {
+      // Determine recipients based on selection
+      const recipientRole = messageData.recipient === 'admin' ? 'admin' : 'teacher';
+      const recipientUsers = users.filter((u: any) => u.role === recipientRole);
+      const targetUserIds = recipientUsers.map((u: any) => Number(u.id)).filter((id: number) => Number.isFinite(id));
+
       await addNotification({
         title: messageData.subject,
         message: `Message from ${parentName}: ${messageData.message}`,
@@ -228,7 +238,9 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
         sentBy: currentUser?.id || 0,
         sentDate: new Date().toISOString(),
         isRead: false,
-        readBy: []
+        readBy: [],
+        targetUsers: targetUserIds,
+        deletedBy: []
       });
       
       toast.success("Message sent successfully!");
@@ -327,8 +339,8 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             student_id: selectedChild.id,
             amount: paymentAmount,
             payment_type: 'School Fees',
-            term: currentTerm || 'First Term',
-            academic_year: currentAcademicYear || '2024/2025',
+            term: currentTerm,
+            academic_year: currentAcademicYear,
             proof_url: receiptUrl,
             notes: `Bank transfer by parent for ${selectedChild.fullName}`
           })
@@ -369,8 +381,8 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             student_id: selectedChild.id,
             amount: paymentAmount,
             payment_type: 'School Fees',
-            term: currentTerm || 'First Term',
-            academic_year: currentAcademicYear || '2024/2025',
+            term: currentTerm,
+            academic_year: currentAcademicYear,
             notes: `Online payment by parent for ${selectedChild.fullName}`
           })
         });
@@ -771,22 +783,22 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
 
           const parentId = currentUser?.linked_id;
           
-          console.log('=== UNIVERSAL DASHBOARD PARENT ID DEBUG ===');
-          console.log('Current user:', currentUser);
-          console.log('Parent ID from linked_id:', parentId);
-          console.log('Parent ID type:', typeof parentId);
-          console.log('Parent ID exists:', !!parentId);
+          //console.log('=== UNIVERSAL DASHBOARD PARENT ID DEBUG ===');
+          //console.log('Current user:', currentUser);
+          //console.log('Parent ID from linked_id:', parentId);
+          //console.log('Parent ID type:', typeof parentId);
+          //console.log('Parent ID exists:', !!parentId);
           
           if (parentId) {
-            console.log('Universal Dashboard - Fetching children for parent ID:', parentId);
-            console.log('Universal Dashboard - Available parent-student links:', parentStudentLinks);
-            console.log('Universal Dashboard - Available students:', students);
-            console.log('Universal Dashboard - Data loaded check - links length:', parentStudentLinks.length, 'students length:', students.length);
+            //console.log('Universal Dashboard - Fetching children for parent ID:', parentId);
+            //console.log('Universal Dashboard - Available parent-student links:', parentStudentLinks);
+            //console.log('Universal Dashboard - Available students:', students);
+            //console.log('Universal Dashboard - Data loaded check - links length:', parentStudentLinks.length, 'students length:', students.length);
             
             // Only proceed if data is actually loaded
             if (parentStudentLinks.length > 0 && students.length > 0) {
               const childrenData = getParentChildren(parentId);
-              console.log('Universal Dashboard - Children data fetched:', childrenData);
+              //console.log('Universal Dashboard - Children data fetched:', childrenData);
               
               if (childrenData && childrenData.length > 0) {
                 const transformedChildren = childrenData.map((child: any) => ({
@@ -802,10 +814,10 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                 setChildren(transformedChildren);
                 setDataLoadedSuccessfully(true); // Mark data as successfully loaded
                 dataLoadedRef.current = true; // Set ref to true immediately
-                console.log('Universal Dashboard - Children set successfully:', transformedChildren.length);
+                //console.log('Universal Dashboard - Children set successfully:', transformedChildren.length);
               } else {
-                console.log('Universal Dashboard - No children found for parent after data loaded');
-                console.log('Universal Dashboard - About to set children to empty array');
+                //console.log('Universal Dashboard - No children found for parent after data loaded');
+                //console.log('Universal Dashboard - About to set children to empty array');
                 setChildren([]);
                 // Check if parent exists in the system but has no linked students
                 const parentExists = parents.some(p => p.id == parentId); // Use == for type coercion
@@ -816,9 +828,9 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                 }
               }
             } else {
-              console.log('Universal Dashboard - Data not loaded yet - links:', parentStudentLinks.length, 'students:', students.length);
-              console.log('Universal Dashboard - dataLoadedRef.current:', dataLoadedRef.current);
-              console.log('Universal Dashboard - Retrying in 1 second...');
+              //console.log('Universal Dashboard - Data not loaded yet - links:', parentStudentLinks.length, 'students:', students.length);
+              //console.log('Universal Dashboard - dataLoadedRef.current:', dataLoadedRef.current);
+              //console.log('Universal Dashboard - Retrying in 1 second...');
               
               // Only schedule retry if not already scheduled AND data hasn't been loaded successfully
               if (!retryScheduled && !dataLoadedRef.current) {
@@ -826,20 +838,20 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                 
                 // Retry once more after 1 second
                 setTimeout(async () => {
-                  console.log('Universal Dashboard - Retry - Available parent-student links:', parentStudentLinks.length);
-                  console.log('Universal Dashboard - Retry - Available students:', students.length);
-                  console.log('Universal Dashboard - Retry - dataLoadedRef.current:', dataLoadedRef.current);
+                  //console.log('Universal Dashboard - Retry - Available parent-student links:', parentStudentLinks.length);
+                  //console.log('Universal Dashboard - Retry - Available students:', students.length);
+                  //console.log('Universal Dashboard - Retry - dataLoadedRef.current:', dataLoadedRef.current);
                   
                   // Don't retry if data was already successfully loaded
                   if (dataLoadedRef.current) {
-                    console.log('Universal Dashboard - Skipping retry - data already loaded successfully');
+                    //console.log('Universal Dashboard - Skipping retry - data already loaded successfully');
                     setRetryScheduled(false);
                     return;
                   }
                   
                   if (parentStudentLinks.length > 0 && students.length > 0) {
                     const childrenData = getParentChildren(parentId);
-                    console.log('Universal Dashboard - Retry - Children data fetched:', childrenData);
+                    //console.log('Universal Dashboard - Retry - Children data fetched:', childrenData);
                     
                     if (childrenData && childrenData.length > 0) {
                       const transformedChildren = childrenData.map((child: any) => ({
@@ -865,7 +877,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                       }
                     }
                   } else {
-                    console.log('Universal Dashboard - Retry failed - Data still not loaded');
+                    //console.log('Universal Dashboard - Retry failed - Data still not loaded');
                     // Don't set children to empty array if data was already loaded successfully
                     // Use ref to check if data was ever loaded successfully (more reliable than state)
                     if (children.length === 0 && !dataLoadedRef.current) {
@@ -883,15 +895,15 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
               }
             }
           } else {
-            console.log('=== NO PARENT ID FOUND ===');
-            console.log('Current user:', currentUser);
-            console.log('User linked_id:', currentUser?.linked_id);
-            console.log('Universal Dashboard - About to set children to empty array - NO PARENT ID');
+            //console.log('=== NO PARENT ID FOUND ===');
+            //console.log('Current user:', currentUser);
+            //console.log('User linked_id:', currentUser?.linked_id);
+            //console.log('Universal Dashboard - About to set children to empty array - NO PARENT ID');
             setChildren([]);
             toast.error("Parent account not properly linked. Please contact administration.");
           }
         } catch (error) {
-          console.error("Error loading parent data:", error);
+          //console.error("Error loading parent data:", error);
           toast.error("Failed to load parent data");
           setChildren([]);
         } finally {
@@ -940,10 +952,10 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             </p>
             <div className="flex flex-wrap gap-2">
               <div className="bg-blue-700 rounded-lg px-3 py-1.5">
-                <span className="text-xs font-medium text-white">{currentAcademicYear || "2025/2026"}</span>
+                <span className="text-xs font-medium text-white">{currentAcademicYear || "Not Set"}</span>
               </div>
               <div className="bg-blue-700 rounded-lg px-3 py-1.5">
-                <span className="text-xs font-medium text-white">{currentTerm || "First"}</span>
+                <span className="text-xs font-medium text-white">{currentTerm || "Not Set"}</span>
               </div>
             </div>
           </div>
@@ -996,10 +1008,10 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-xl md:text-2xl font-bold text-green-900">{currentTerm || "First"}</div>
+            <div className="text-xl md:text-2xl font-bold text-green-900">{currentTerm || "Not Set"}</div>
             <div className="mt-1 flex items-center text-xs text-green-600">
               <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 animate-pulse"></div>
-              {currentAcademicYear || "2025/2026"}
+              {currentAcademicYear || "Not Set"}
             </div>
           </CardContent>
         </Card>
@@ -1722,7 +1734,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
         </div>
       );
     } catch (error) {
-      console.error("Error rendering fees page:", error);
+      //console.error("Error rendering fees page:", error);
       return (
         <div className="space-y-6">
           <div className="mb-6">

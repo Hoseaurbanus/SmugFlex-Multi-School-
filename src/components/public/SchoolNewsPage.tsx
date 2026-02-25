@@ -14,7 +14,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
       date: "November 20, 2025",
       author: "Admin",
       category: "Achievement",
-      image: "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=800",
+      image: "/school-news-1.jpg",
       excerpt: "Our brilliant students brought home the first-place trophy at the Gombe State Inter-School Science Competition, competing against 25 schools.",
       content: "We are thrilled to announce that our team of talented students has won the first-place trophy at the annual Gombe State Inter-School Science Competition..."
     },
@@ -24,7 +24,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
       date: "November 18, 2025",
       author: "Principal",
       category: "Announcement",
-      image: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=800",
+      image: "/school-news-2.jpg",
       excerpt: "Important information about the resumption date for Second Term and what students need to prepare.",
       content: "The Second Term of the 2024/2025 academic session will commence on Monday, September 15, 2025. All students are expected to resume on this date..."
     },
@@ -34,7 +34,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
       date: "November 15, 2025",
       author: "Admin",
       category: "Facility",
-      image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800",
+      image: "/school-news-3.jpg",
       excerpt: "State-of-the-art computer laboratory with 50 workstations now available for student learning.",
       content: "We are proud to announce the inauguration of our new ICT laboratory, equipped with the latest technology to enhance digital learning..."
     },
@@ -44,7 +44,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
       date: "November 10, 2025",
       author: "Vice Principal",
       category: "Event",
-      image: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800",
+      image: "/school-news-4.jpg",
       excerpt: "Annual parent-teacher meeting to discuss student progress and development.",
       content: "The annual Parent-Teacher Conference is scheduled for December 5-6, 2025. This is an opportunity for parents to meet with teachers..."
     },
@@ -54,7 +54,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
       date: "November 5, 2025",
       author: "Sports Coordinator",
       category: "Sports",
-      image: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800",
+      image: "/school-news-5.jpg",
       excerpt: "Recap of the exciting events and record-breaking performances at this year's Sports Day.",
       content: "Our annual Sports Day was a tremendous success with students showcasing their athletic abilities across various track and field events..."
     },
@@ -64,7 +64,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
       date: "November 1, 2025",
       author: "Principal",
       category: "Achievement",
-      image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800",
+      image: "/school-news-6.jpg",
       excerpt: "Recognizing academic excellence and character development in our students.",
       content: "At our recent Excellence Awards ceremony, we celebrated students who demonstrated exceptional performance in academics, leadership..."
     }

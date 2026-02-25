@@ -133,7 +133,7 @@ export function MarkAttendancePage() {
             existingAttendanceData[student.id] = compiledResult.times_present;
             
             // Create remarks from compiled result data
-            const totalDays = compiledResult.total_attendance_days || getAttendanceRequirements()[currentTerm] || 0;
+            const totalDays = compiledResult.total_attendance_days || getAttendanceRequirements()[currentTerm || 'First Term'] || 0;
             existingRemarks[student.id] = `${compiledResult.times_present} out of ${totalDays} days`;
           } else {
             // Fallback to attendance table
@@ -178,7 +178,7 @@ export function MarkAttendancePage() {
   const handleAttendanceDaysChange = async (studentId: number, days: string) => {
     const daysNum = parseInt(days) || 0;
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
     // Check if attendance requirements are set
     if (requiredDays === 0) {
@@ -215,8 +215,8 @@ export function MarkAttendancePage() {
       const attendancePayload = {
         student_id: studentId,
         class_id: Number(selectedClassId),
-        term: currentTerm,
-        academic_year: currentAcademicYear,
+        term: currentTerm || 'First Term',
+        academic_year: currentAcademicYear || '2025/2026',
         attended_days: daysNum,
         required_days: requiredDays,
         times_absent: requiredDays - daysNum,
@@ -285,7 +285,7 @@ export function MarkAttendancePage() {
   // Quick actions with real-time save
   const handleMarkAllPresent = async () => {
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
     const allPresent: { [studentId: number]: number } = {};
     classStudents.forEach(student => {
@@ -324,7 +324,7 @@ export function MarkAttendancePage() {
   const handleSubmit = async () => {
     // Since we're saving in real-time, this just shows a summary
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
     const totalStudents = classStudents.length;
     const studentsWithAttendance = Object.keys(studentAttendanceInput).length;
@@ -342,7 +342,7 @@ export function MarkAttendancePage() {
   // Calculate attendance percentage for a student based on input
   const calculateAttendancePercentage = (studentId: number): number => {
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
     if (requiredDays === 0) return 0;
 
@@ -353,7 +353,7 @@ export function MarkAttendancePage() {
   // Get total school days for the term from school settings
   const getTotalSchoolDays = (): number => {
     const attendanceRequirements = getAttendanceRequirements();
-    return attendanceRequirements[currentTerm] || 0;
+    return attendanceRequirements[currentTerm || 'First Term'] || 0;
   };
 
   // Get present days count for a student from input
@@ -364,7 +364,7 @@ export function MarkAttendancePage() {
   // Send notifications to parents for students with low attendance
   const sendAttendanceNotifications = async () => {
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
     const lowAttendanceStudents = classStudents.filter(student => {
       const daysPresent = studentAttendanceInput[student.id] || 0;
@@ -427,7 +427,7 @@ export function MarkAttendancePage() {
 
   // Get attendance requirements from school settings
   const attendanceRequirements = getAttendanceRequirements();
-  const requiredDays = attendanceRequirements[currentTerm] || 0;
+  const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
 
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4 space-y-4">

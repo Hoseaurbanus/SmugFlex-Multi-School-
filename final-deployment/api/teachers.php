@@ -19,16 +19,23 @@ try {
     $result = $conn->query($sql);
     
     $teachers = [];
-    if ($result && $result->rowCount() > 0) {
+    $rawCount = 0;
+    if ($result) {
+        $rawCount = $result->rowCount();
         while($row = $result->fetch(PDO::FETCH_ASSOC)) {
             $teachers[] = $row;
         }
     }
     
+    // Debug: Log actual counts
+    error_log("Teachers API: Raw DB count = $rawCount, Returned count = " . count($teachers));
+    
     echo json_encode([
         'success' => true,
         'message' => 'Teachers loaded successfully',
         'data' => $teachers,
+        'count' => count($teachers),
+        'raw_count' => $rawCount,
         'timestamp' => date('Y-m-d H:i:s')
     ]);
     

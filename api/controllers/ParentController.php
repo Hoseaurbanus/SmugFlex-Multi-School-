@@ -20,6 +20,7 @@ class ParentController {
      * Get All Parents
      */
     public function getAllParents() {
+        Middleware::requireAuth();
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         
@@ -366,6 +367,29 @@ class ParentController {
      * Get Parent's Children
      */
     public function getParentChildren($id) {
+        // Enforce that a parent can only access their own children
+        $token_data = Middleware::requireAuth();
+        $parent_id = Middleware::validateInteger($id, 'parent_id');
+
+        // If the caller is a parent, make sure the requested ID matches their linked parent record
+        if ($token_data['role'] === 'parent') {
+            $token_parent_id = $token_data['linked_id'] ?? null;
+
+            // Fallback: if linked_id is missing in the token, resolve it from the users table
+            if (empty($token_parent_id)) {
+                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                $user_stmt = $this->conn->prepare($user_query);
+                $user_stmt->bindParam(':username', $token_data['username']);
+                $user_stmt->execute();
+                $user_data = $user_stmt->fetch();
+                $token_parent_id = $user_data['linked_id'] ?? null;
+            }
+
+            if ($token_parent_id != $parent_id) {
+                Response::forbidden('Access denied');
+            }
+        }
+
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         
@@ -385,7 +409,7 @@ class ParentController {
                       ORDER BY c.level, c.name, s.last_name, s.first_name";
             
             $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':id', $parent_id);
             $stmt->execute();
             
             $children = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -426,6 +450,7 @@ class ParentController {
      * Get All Parent-Student Links
      */
     public function getAllParentStudentLinks() {
+        Middleware::requireAuth();
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         

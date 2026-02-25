@@ -1,8 +1,8 @@
 🚀 DEPLOYMENT INFORMATION
 ==========================
 
-Build Date: 2026-01-09 05:30:00
-Version: 0.1.2
+Build Date: 2026-01-13 06:16:00
+Version: 0.2.0
 Environment: Production
 
 🔧 Key Updates Applied:
@@ -14,14 +14,29 @@ Environment: Production
 ✅ Enhanced backend API authentication and permissions
 ✅ Updated attendance controller to use class_teacher_assignments
 ✅ Fixed Response::success() parameter structure in approveResult()
+✅ Fixed infinite loop in teacher dashboard score lock status checking
+✅ Resolved Content Security Policy (CSP) violations for Google Fonts
+✅ Reduced console log noise in production environment
+✅ Fixed Class List page not showing student scores after admin approval
+✅ Fixed TypeScript error for missing COMPILED API endpoint
+✅ Added missing /api/results/compiled endpoint to backend
+✅ Fixed Class List page not fetching compiled results data
+✅ Fixed 500 Internal Server Error in getAllCompiledResults method
+✅ Fixed TypeScript error for missing COMPILED API endpoint
+✅ Added missing /api/results/compiled endpoint to backend
+✅ Fixed Class List page not fetching compiled results data
+✅ **NEW**: Fixed frontend subject list limit (was showing only 20 subjects)
+✅ **NEW**: Made subject assignment form strictly class-based (Teacher → Class → Subjects for that class)
+✅ **NEW**: Added class selection to subject creation form with auto-registration
+✅ **NEW**: Fixed class management page to refresh class teacher names when term/session changes
 
 📦 Build Statistics:
 --------------------
-- Build Time: 2m 24s
+- Build Time: 1m 30s
 - Total Assets: 24 files
-- Main Bundle: 225.98 kB (gzipped: 60.54 kB)
-- Largest Asset: jspdf.es.min-BhQjSNxf.js (387.86 kB)
-- CSS Bundle: index-pT21SmPm.css (100.34 kB)
+- Main Bundle: 185.32 kB (gzipped: 52.05 kB)
+- Largest Asset: jspdf.es.min-BiQpkABv.js (387.86 kB)
+- CSS Bundle: index-BqU9sWIA.css (100.39 kB)
 
 🎯 Expected Results:
 ------------------
@@ -30,6 +45,17 @@ Environment: Production
 ✅ Attendance data should load without 500 errors
 ✅ Teachers can access their assigned class data properly
 ✅ All API authentication and permissions working correctly
+✅ Teacher dashboard should no longer have infinite console loops
+✅ No more CSP violations blocking Google Fonts
+✅ Cleaner console output in production environment
+✅ Class List page now displays student scores and positions after admin approval
+✅ No more TypeScript compilation errors
+✅ No more 404 errors for /api/results/compiled endpoint
+✅ Class List page now properly fetches compiled results data
+✅ **NEW**: All subjects (not just 20) now load and display in subject management and assignment pages
+✅ **NEW**: Subject assignment form is now class-based (Teacher → Class → only subjects registered for that class)
+✅ **NEW**: Subject creation allows selecting classes and auto-registers the subject for those classes
+✅ **NEW**: Class management page now updates class teacher names when term/session changes
 
 🔄 Backend Changes Made:
 -----------------------
@@ -37,11 +63,56 @@ Environment: Production
    - Enhanced getScoresByAssignment() with better error handling
    - Fixed teacher assignment validation logic
    - Corrected Response::success() parameter structure in approveResult()
+   - **NEW**: Added getAllCompiledResults() method for /api/results/compiled endpoint
+   - **NEW**: Role-based filtering for teachers (class teacher assignments only)
+   - **NEW**: Optional filtering by term, academic year, class_id, and status
 
 2. AttendanceController.php:
    - Updated getAttendance() to use class_teacher_assignments instead of subject_assignments
    - Updated getAttendanceByDate() to use class_teacher_assignments for teacher access
    - Added status = 'Active' filter for class teacher assignments
+
+3. API Routing (index.php):
+   - **NEW**: Added GET /results/compiled route
+   - **NEW**: Updated API documentation to include compiled results endpoint
+
+4. SchoolContext.tsx:
+   - Added production environment checks for data loading logs
+   - Reduced console noise in production environment
+   - Improved error handling for uncaught promises
+   - **FIXED**: loadCompiledResultsFromAPI() now uses HTTP API instead of local SQL database
+   - **FIXED**: loadCompiledResultsFromAPI() now includes query parameters (term, academic_year, status)
+   - **FIXED**: API call now properly filters for approved results only
+
+5. index.css:
+   - Removed Google Fonts import to resolve CSP violations
+   - Switched to system fonts for better compatibility
+   - Maintained visual consistency with fallback fonts
+
+6. ClassListPage.tsx:
+   - **FIXED**: Now properly filters compiled results by term, academic year, and approved status
+   - **FIXED**: Displays attendance data from compiled results instead of placeholder
+   - **FIXED**: Shows correct student positions based on average scores
+   - Added proper dependencies to useMemo for data updates
+
+7. api.ts (API Configuration):
+   - **FIXED**: Added missing COMPILED endpoint to RESULTS configuration
+   - **FIXED**: Resolved TypeScript compilation error for API_CONFIG.ENDPOINTS.RESULTS.COMPILED
+
+8. SchoolContext.tsx:
+   - **FIXED**: loadSubjectsFromAPI() now uses limit=100 to load all subjects instead of default 20
+   - **FIXED**: updateCurrentTermAndYear() now forces reload of subject assignments and class teacher assignments
+   - **NEW**: Ensures class teacher names update correctly when term/session changes
+
+9. SubjectRegistrationPage.tsx:
+   - **NEW**: Subject assignment dialog now follows Teacher → Class → Subjects for that class flow
+   - **NEW**: Subject dropdown filters to only show subjects registered for the selected class
+   - **NEW**: Subject dropdown is disabled until a class is selected
+
+10. SubjectCreationForm.tsx:
+    - **NEW**: Added class selection checkboxes during subject creation
+    - **NEW**: Automatically registers new subject for selected classes after creation
+    - **NEW**: Uses global subject registrations per class+subject
 
 🔍 Technical Details:
 --------------------
@@ -49,14 +120,42 @@ Environment: Production
 - Assignment existence validation improved with separate error messages
 - All API endpoints now properly validate teacher permissions
 - Fixed SQL query structure for attendance access control
+- Debug logs now disabled in production to prevent console spam
+- Score lock status analysis now only runs in development mode
+- System fonts eliminate CSP violations while maintaining readability
+- Production environment detection reduces unnecessary console output
+- **CRITICAL FIX**: loadCompiledResultsFromAPI() now fetches from live API endpoint
+- **CRITICAL FIX**: ClassListPage properly filters compiled results by term/year/approved status
+- Attendance data now correctly displayed from compiled results
+- **CRITICAL FIX**: Added missing COMPILED endpoint to API configuration
+- **CRITICAL FIX**: Added getAllCompiledResults() method to ResultsController
+- **CRITICAL FIX**: Added /api/results/compiled route to API routing
+- **CRITICAL FIX**: loadCompiledResultsFromAPI() now includes query parameters for proper filtering
+- TypeScript compilation now passes without errors
+- 404 errors for compiled results endpoint now resolved
+- Class List page data fetching issue now resolved
+- **NEW**: Frontend subject fetch limit increased from 20 to 100 to load all subjects
+- **NEW**: Subject assignment form now filters subjects by class registrations
+- **NEW**: Subject creation form includes class selection with auto-registration
+- **NEW**: Class teacher names now refresh when term/session changes via forced reload
 
 🔄 Deployment Steps:
 ------------------
 1. Upload final-deployment folder contents to gracelandroyalacademy.com.ng
-2. Upload updated PHP backend files to the server
+2. **IMPORTANT**: Upload updated PHP backend files (ResultsController.php and index.php) to the server
 3. Clear browser cache on live site
 4. Test with teacher login credentials
 5. Verify scores, compiled results, and attendance data loading
+6. Check that console logs are clean without infinite loops
+7. Confirm no CSP violations in browser console
+8. **IMPORTANT**: Test Class List page to verify student scores and positions appear after admin approval
+9. **IMPORTANT**: Verify no TypeScript compilation errors in production
+10. **IMPORTANT**: Verify no more 404 errors for /api/results/compiled
+11. **IMPORTANT**: Verify Class List page is now fetching and displaying compiled results data
+12. **NEW**: Test Manage Subjects page to confirm all subjects load (not just 20)
+13. **NEW**: Test Subject Registration → Teacher Assignment dialog to confirm class-based subject filtering
+14. **NEW**: Test Subject Creation form to confirm class selection and auto-registration work
+15. **NEW**: Test Class Management page to confirm class teacher names update when term/session changes
 
 📝 Notes:
 --------
@@ -64,6 +163,21 @@ Environment: Production
 - Teacher assignment mapping now uses correct database tables
 - All changes maintain backward compatibility
 - Error logging enhanced for better debugging
+- Frontend debug logs are now properly controlled by environment
+- System fonts provide better security and performance
+- Production console output is now minimal and professional
+- **CRITICAL**: Class List page was using local SQL database instead of API for compiled results
+- **CRITICAL**: Compiled results now properly filtered by term, year, and approval status
+- Student positions and scores should now display correctly after admin approval
+- **CRITICAL**: TypeScript compilation error has been resolved by adding missing API endpoint
+- **CRITICAL**: 404 error for /api/results/compiled has been resolved by adding the missing endpoint
+- **CRITICAL**: Backend PHP files MUST be uploaded for new endpoint to work
+- **CRITICAL**: loadCompiledResultsFromAPI() now includes query parameters for proper filtering
+- **CRITICAL**: Class List page data fetching issue has been resolved
+- **NEW**: Frontend subject limit issue resolved by increasing API fetch limit to 100
+- **NEW**: Subject assignment workflow now properly filters subjects by class registrations
+- **NEW**: Subject creation now supports immediate class registration for selected classes
+- **NEW**: Class teacher names now correctly update when academic context changes
 
 🌐 Live Domain: https://gracelandroyalacademy.com.ng
 📧 Support: System Administrator
@@ -73,3 +187,13 @@ Environment: Production
 - Backend PHP files MUST be uploaded to the server for fixes to take effect
 - Frontend build alone will not resolve the API errors
 - Both frontend and backend updates are required
+- This build specifically addresses Class List page not showing scores after approval
+- The loadCompiledResultsFromAPI() function was the root cause of the missing scores issue
+- TypeScript compilation error has been fixed - application should build without errors
+- **CRITICAL**: 404 error for /api/results/compiled has been fixed by adding the missing endpoint
+- **CRITICAL**: Backend files (ResultsController.php and index.php) MUST be uploaded for the fix to work
+- **CRITICAL**: Class List page data fetching issue has been resolved by adding query parameters to API call
+- **NEW**: Subject list limit issue fixed - all subjects now load in management and assignment pages
+- **NEW**: Subject assignment form now properly filters subjects by selected class registrations
+- **NEW**: Subject creation now includes class selection with automatic registration
+- **NEW**: Class teacher names now update correctly when term/session changes in Class Management

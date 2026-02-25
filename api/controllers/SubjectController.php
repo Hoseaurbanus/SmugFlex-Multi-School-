@@ -450,6 +450,24 @@ class SubjectController {
             $stmt->execute();
             $assignment_id = $this->conn->lastInsertId();
             
+            // Update teacher assignment count in real-time
+            $update_count_query = "UPDATE teachers SET assignment_count = (
+                SELECT COUNT(*) FROM subject_assignments 
+                WHERE teacher_id = :teacher_id AND status = 'Active'
+            ) WHERE id = :teacher_id";
+            $update_stmt = $this->conn->prepare($update_count_query);
+            $update_stmt->bindParam(':teacher_id', $teacher_id);
+            $update_stmt->execute();
+            
+            // Update class assignment count in real-time
+            $update_class_count_query = "UPDATE classes SET current_assignments = (
+                SELECT COUNT(*) FROM subject_assignments 
+                WHERE class_id = :class_id AND status = 'Active'
+            ) WHERE id = :class_id";
+            $update_class_stmt = $this->conn->prepare($update_class_count_query);
+            $update_class_stmt->bindParam(':class_id', $class_id);
+            $update_class_stmt->execute();
+            
             // Log activity
             Middleware::logActivity(
                 'Admin',
@@ -461,11 +479,44 @@ class SubjectController {
                 $_SESSION['user_id'] ?? null
             );
             
-            Response::created(['id' => $assignment_id], 'Subject assigned successfully');
+            Response::created([
+                'id' => $assignment_id,
+                'message' => 'Subject assigned successfully',
+                'updated_counts' => [
+                    'teacher_assignment_count' => $this->getTeacherAssignmentCount($teacher_id),
+                    'class_assignment_count' => $this->getClassAssignmentCount($class_id)
+                ]
+            ], 'Subject assigned successfully');
             
         } catch (PDOException $e) {
             Response::serverError('Database error assigning subject');
         }
+    }
+    
+    /**
+     * Get teacher assignment count
+     */
+    private function getTeacherAssignmentCount($teacher_id) {
+        $query = "SELECT COUNT(*) as count FROM subject_assignments 
+                 WHERE teacher_id = :teacher_id AND status = 'Active'";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':teacher_id', $teacher_id);
+        $stmt->execute();
+        $result = $stmt->fetch();
+        return $result['count'] ?? 0;
+    }
+    
+    /**
+     * Get class assignment count
+     */
+    private function getClassAssignmentCount($class_id) {
+        $query = "SELECT COUNT(*) as count FROM subject_assignments 
+                 WHERE class_id = :class_id AND status = 'Active'";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':class_id', $class_id);
+        $stmt->execute();
+        $result = $stmt->fetch();
+        return $result['count'] ?? 0;
     }
     
     /**
@@ -617,9 +668,32 @@ class SubjectController {
                       JOIN subjects sub ON sa.subject_id = sub.id
                       JOIN classes c ON sa.class_id = c.id
                       JOIN teachers t ON sa.teacher_id = t.id
-                      ORDER BY sa.id";
+                      WHERE sa.status = 'Active'";
+            
+            $conditions = [];
+            $params = [];
+            
+            // Add optional term/year filters
+            if (!empty($_GET['term'])) {
+                $conditions[] = "sa.term = :term";
+                $params[':term'] = $_GET['term'];
+            }
+            
+            if (!empty($_GET['academic_year'])) {
+                $conditions[] = "sa.academic_year = :academic_year";
+                $params[':academic_year'] = $_GET['academic_year'];
+            }
+            
+            if (!empty($conditions)) {
+                $query .= " AND " . implode(' AND ', $conditions);
+            }
+            
+            $query .= " ORDER BY sa.id";
             
             $stmt = $this->conn->prepare($query);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value);
+            }
             $stmt->execute();
             $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
             

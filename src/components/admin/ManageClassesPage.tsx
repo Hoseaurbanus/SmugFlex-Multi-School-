@@ -32,7 +32,8 @@ function ManageClassesPageDesktop() {
     updateClass, 
     deleteClass,
     registerSubjectForClass,
-    removeSubjectRegistration
+    removeSubjectRegistration,
+    loadClassesFromAPI
   } = useSchool();
   
   // Debug: Monitor classes data changes
@@ -59,15 +60,19 @@ function ManageClassesPageDesktop() {
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Get students for selected class
-  const classStudents = selectedClass ? students.filter((s: Student) => s.class_id === selectedClass.id) : [];
+  // Get students for selected class (coerce IDs to numbers to avoid string/number mismatches)
+  const classStudents = selectedClass
+    ? students.filter((s: Student) => Number(s.class_id) === Number(selectedClass.id))
+    : [];
   
   // Get registered subjects for selected class
-  const classRegisteredSubjects = selectedClass ? subjectRegistrations.filter(
-    (sr: SubjectRegistration) => sr.class_id === selectedClass.id && 
-           sr.term === currentTerm && 
-           sr.academic_year === currentAcademicYear
-  ) : [];
+  // IMPORTANT: Subject registrations are global for a class across all terms/sessions.
+  // Only teacher assignments are term/session based.
+  const classRegisteredSubjects = selectedClass
+    ? subjectRegistrations.filter((sr: SubjectRegistration) =>
+        Number(sr.class_id) === Number(selectedClass.id)
+      )
+    : [];
   
   // Debug: Log subject registration filtering
   useEffect(() => {
@@ -84,9 +89,9 @@ function ManageClassesPageDesktop() {
   }, [selectedClass, subjectRegistrations, currentTerm, currentAcademicYear]);
   
   // Get available subjects (all subjects not yet registered for this class)
-  const availableSubjects = selectedClass ? subjects.filter(
-    (subject: Subject) => !classRegisteredSubjects.some((rs: SubjectRegistration) => rs.subject_id === subject.id)
-  ) : [];
+  const availableSubjects = selectedClass
+    ? subjects.filter((subject: Subject) => !classRegisteredSubjects.some((rs: SubjectRegistration) => Number(rs.subject_id) === Number(subject.id)))
+    : [];
   
   // Handle subject selection with preview
   const handleSubjectSelection = (subjectId: number, checked: boolean) => {
@@ -110,13 +115,11 @@ function ManageClassesPageDesktop() {
     
     setActionLoading("register-subjects");
     
-    // Check which subjects are already registered
+    // Check which subjects are already registered (global per class+subject)
     const alreadyRegistered = selectedSubjects.filter(subjectId => 
       classRegisteredSubjects.some((reg: SubjectRegistration) => 
-        reg.subject_id === subjectId && 
-        reg.class_id === selectedClass.id &&
-        reg.academic_year === currentAcademicYear &&
-        reg.term === currentTerm
+        Number(reg.subject_id) === Number(subjectId) && 
+        Number(reg.class_id) === Number(selectedClass.id)
       )
     );
     
@@ -167,7 +170,7 @@ function ManageClassesPageDesktop() {
       if (successCount > 0) {
         const message = failedSubjects.length > 0 
           ? `${successCount} subjects registered successfully. ${failedSubjects.length} failed.`
-          : `${successCount} subjects registered successfully for ${currentTerm} ${currentAcademicYear}`;
+          : `${successCount} subjects registered successfully for this class.`;
         
         toast.success(message);
       }
@@ -296,11 +299,14 @@ function ManageClassesPageDesktop() {
         
         if (success) {
           toast.success(`Class "${selectedClass.name}" deleted successfully!`);
-          setDeleteDialogOpen(false);
-          setSelectedClass(null);
         } else {
-          toast.error('Failed to delete class - API returned false');
+          // Remove the class from the UI anyway and show a clear message
+          toast.info(`Class "${selectedClass.name}" was already deleted or not found. Removed from list.`);
         }
+        setDeleteDialogOpen(false);
+        setSelectedClass(null);
+        // Always refresh classes to ensure UI matches backend
+        await loadClassesFromAPI(true);
       } catch (error) {
         console.error('Delete class error:', error);
         toast.error('Failed to delete class');

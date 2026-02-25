@@ -4,8 +4,8 @@
  * Graceland Royal Academy School Management System
  */
 
-require_once 'JWT.php';
-require_once 'Response.php';
+require_once __DIR__ . '/JWT.php';
+require_once __DIR__ . '/Response.php';
 
 class Middleware {
     /**

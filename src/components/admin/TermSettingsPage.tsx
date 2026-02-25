@@ -24,21 +24,28 @@ export function TermSettingsPage() {
     currentUser
   } = useSchool();
   const [settings, setSettings] = useState({
-    academicYear: currentAcademicYear || "2025/2026",
-    currentTerm: currentTerm || "First Term",
-    termStartDate: "2025-09-01",
-    termEndDate: "2025-12-15",
-    nextTermStarts: "2026-01-10",
-    schoolResumptionDate: "2025-09-01",
-    midTermBreakStart: "2025-10-25",
-    midTermBreakEnd: "2025-11-01",
+    academicYear: currentAcademicYear || "",
+    currentTerm: currentTerm || "",
+    termStartDate: "",
+    termEndDate: "",
+    nextTermStarts: "",
+    schoolResumptionDate: "",
+    midTermBreakStart: "",
+    midTermBreakEnd: "",
     // Attendance settings
     attendanceRequirements: getAttendanceRequirements()
   });
 
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load attendance requirements and term dates from database when component loads and user is authenticated
+  // Sync with context values when they change (real-time updates)
+  useEffect(() => {
+    setSettings(prev => ({
+      ...prev,
+      academicYear: currentAcademicYear || "",
+      currentTerm: currentTerm || ""
+    }));
+  }, [currentAcademicYear, currentTerm]);
   useEffect(() => {
     if (currentUser) {
       loadAttendanceRequirements();

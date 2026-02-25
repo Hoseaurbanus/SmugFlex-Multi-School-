@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
-import { ArrowLeft, Download, Printer } from "lucide-react";
-import { useSchool } from "../../contexts/SchoolContext";
+import { Badge } from "../ui/badge";
 import { StudentResultCard } from "./StudentResultCard";
+import { useSchool } from "../../contexts/SchoolContext";
+import { StudentData, ClassData, CompiledResultData } from "./types/resultCard";
+import { ArrowLeft, Printer, Download } from 'lucide-react';
 
 interface FullPageResultViewProps {
   studentId: number;
@@ -17,20 +20,15 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
   const [studentClass, setStudentClass] = useState<any>(null);
 
   useEffect(() => {
+    // Ensure arrays before using .find()
+    const safeStudents = Array.isArray(students) ? students : [];
+    const safeCompiledResults = Array.isArray(compiledResults) ? compiledResults : [];
+    const safeClasses = Array.isArray(classes) ? classes : [];
+    
     // Find student, result, and class data
-    const foundStudent = students.find(s => s.id === studentId);
-    const foundResult = compiledResults.find(cr => cr.id === resultId);
-    const foundClass = classes.find(c => c.id === foundResult?.class_id);
-
-    console.log('=== FULL PAGE RESULT VIEW DEBUG ===');
-    console.log('Student ID:', studentId);
-    console.log('Result ID:', resultId);
-    console.log('Found Student:', foundStudent);
-    console.log('Found Result:', foundResult);
-    console.log('Found Result class_id:', foundResult?.class_id);
-    console.log('Available Classes:', classes);
-    console.log('Found Class:', foundClass);
-    console.log('Class Name:', foundClass?.name || 'NOT FOUND');
+    const foundStudent = safeStudents.find(s => s.id === studentId);
+    const foundResult = safeCompiledResults.find(cr => cr.id === resultId);
+    const foundClass = safeClasses.find(c => c.id === foundResult?.class_id);
 
     setStudent(foundStudent);
     setResult(foundResult);

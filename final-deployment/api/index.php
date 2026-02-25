@@ -4,11 +4,11 @@
  * Graceland Royal Academy School Management System
  */
 
-// Set CORS headers for all requests (explicit and early)
+// Set enhanced CORS headers for all requests (explicit and early)
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
+header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Max-Age: 86400');
 
@@ -39,6 +39,7 @@ require_once 'controllers/NotificationController.php';
 require_once 'controllers/AssignmentController.php';
 require_once 'controllers/FileController.php';
 require_once 'controllers/UserController.php';
+require_once 'controllers/ProgressionController.php';
 
 // Get request method and path
 $method = $_SERVER['REQUEST_METHOD'];
@@ -53,6 +54,11 @@ $path_parts = explode('/', trim($path, '/'));
 // Simple routing
 try {
     switch ($path_parts[0]) {
+        // TEMPORARY: Debug endpoint — DELETE AFTER DIAGNOSIS
+        case 'debug-auth':
+            require_once __DIR__ . '/debug-auth.php';
+            break;
+
         // Database query routes
         case 'database':
             if ($method === 'POST' && $path_parts[1] === 'query') {
@@ -61,14 +67,13 @@ try {
                 Response::notFound('Database endpoint not found');
             }
             break;
-            
+
         // Authentication routes
         case 'auth':
             $authController = new AuthController();
-            
+
             if ($method === 'POST' && $path_parts[1] === 'login') {
-                // Use simple login for reliability
-                require_once __DIR__ . '/auth/simple_login.php';
+                $authController->login();
             } elseif ($method === 'POST' && $path_parts[1] === 'logout') {
                 $authController->logout();
             } elseif ($method === 'GET' && $path_parts[1] === 'profile') {
@@ -81,11 +86,11 @@ try {
                 Response::notFound('Authentication endpoint not found');
             }
             break;
-            
+
         // Users routes
         case 'users':
             $userController = new UserController();
-            
+
             if ($method === 'GET') {
                 $userController->getAllUsers();
             } elseif ($method === 'POST') {
@@ -100,16 +105,41 @@ try {
                 Response::notFound('Users endpoint not found');
             }
             break;
-            
+
         // Class Teacher Assignments routes
         case 'class_teacher_assignments':
             require_once __DIR__ . '/class_teacher_assignments.php';
             break;
+
+        // Progression routes
+        case 'progression':
+            $progressionController = new ProgressionController($database);
             
+            if ($method === 'GET') {
+                if ($path_parts[1] === 'rules') {
+                    $progressionController->getProgressionRules();
+                } else {
+                    Response::notFound('Progression endpoint not found');
+                }
+            } elseif ($method === 'POST') {
+                if ($path_parts[1] === 'rules') {
+                    $progressionController->createProgressionRule();
+                } else {
+                    Response::notFound('Progression endpoint not found');
+                }
+            } elseif ($method === 'PUT' && isset($path_parts[1]) && $path_parts[1] === 'rules' && isset($path_parts[2])) {
+                $progressionController->updateProgressionRule($path_parts[2]);
+            } elseif ($method === 'DELETE' && isset($path_parts[1]) && $path_parts[1] === 'rules' && isset($path_parts[2])) {
+                $progressionController->deleteProgressionRule($path_parts[2]);
+            } else {
+                Response::notFound('Progression endpoint not found');
+            }
+            break;
+
         // Student routes
         case 'students':
             $studentController = new StudentController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'by-class' && isset($path_parts[2])) {
@@ -125,8 +155,10 @@ try {
                     $studentController->getAllStudents();
                 }
             } elseif ($method === 'POST') {
-                if ($path_parts[1] === 'promote') {
+                if ($path_parts[1] === 'promote-students') {
                     $studentController->promoteStudents();
+                } elseif ($path_parts[1] === 'manual-class-change') {
+                    $studentController->manualClassChange();
                 } elseif ($path_parts[1] === 'affective-domains') {
                     $studentController->saveAffectiveDomains();
                 } elseif ($path_parts[1] === 'psychomotor-domains') {
@@ -142,11 +174,50 @@ try {
                 Response::notFound('Student endpoint not found');
             }
             break;
-            
+
+        // Backwards-compatible alias (some clients call /api/student/* instead of /api/students/*)
+        case 'student':
+            $studentController = new StudentController();
+
+            if ($method === 'GET') {
+                if (isset($path_parts[1])) {
+                    if ($path_parts[1] === 'by-class' && isset($path_parts[2])) {
+                        $studentController->getStudentsByClass($path_parts[2]);
+                    } elseif ($path_parts[1] === 'statistics') {
+                        $studentController->getStudentStatistics();
+                    } elseif ($path_parts[1] === 'promotion-history') {
+                        $studentController->getPromotionHistory();
+                    } else {
+                        $studentController->getStudentById($path_parts[1]);
+                    }
+                } else {
+                    $studentController->getAllStudents();
+                }
+            } elseif ($method === 'POST') {
+                if ($path_parts[1] === 'promote-students') {
+                    $studentController->promoteStudents();
+                } elseif ($path_parts[1] === 'manual-class-change') {
+                    $studentController->manualClassChange();
+                } elseif ($path_parts[1] === 'affective-domains') {
+                    $studentController->saveAffectiveDomains();
+                } elseif ($path_parts[1] === 'psychomotor-domains') {
+                    $studentController->savePsychomotorDomains();
+                } else {
+                    $studentController->createStudent();
+                }
+            } elseif ($method === 'PUT' && isset($path_parts[1])) {
+                $studentController->updateStudent($path_parts[1]);
+            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
+                $studentController->deleteStudent($path_parts[1]);
+            } else {
+                Response::notFound('Student endpoint not found');
+            }
+            break;
+
         // Teacher routes
         case 'teachers':
             $teacherController = new TeacherController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'assignments' && isset($path_parts[2])) {
@@ -169,11 +240,11 @@ try {
                 Response::notFound('Teacher endpoint not found');
             }
             break;
-            
+
         // Class routes
         case 'classes':
             $classController = new ClassController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'students' && isset($path_parts[2])) {
@@ -200,17 +271,22 @@ try {
                 Response::notFound('Class endpoint not found');
             }
             break;
-            
+
         // Results routes
         case 'results':
             $resultsController = new ResultsController();
-            
+            error_log("Results route: " . json_encode($path_parts));
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'scores' && isset($path_parts[2])) {
+                    if ($path_parts[1] === 'scores' && isset($path_parts[2]) && $path_parts[2] === 'by-term') {
+                        $resultsController->getScoresByTerm();
+                    } elseif ($path_parts[1] === 'scores' && isset($path_parts[2]) && is_numeric($path_parts[2])) {
                         $resultsController->getScoresByAssignment($path_parts[2]);
                     } elseif ($path_parts[1] === 'student' && isset($path_parts[2])) {
                         $resultsController->getStudentResults($path_parts[2]);
+                    } elseif ($path_parts[1] === 'compiled') {
+                        $resultsController->getAllCompiledResults();
                     } elseif ($path_parts[1] === 'pending-approvals') {
                         $resultsController->getPendingApprovals();
                     } else {
@@ -220,7 +296,11 @@ try {
                     Response::notFound('Results endpoint not found');
                 }
             } elseif ($method === 'POST') {
-                if ($path_parts[1] === 'scores') {
+                if ($path_parts[1] === 'scores' && isset($path_parts[2]) && $path_parts[2] === 'approve' && isset($path_parts[3])) {
+                    $resultsController->approveScore($path_parts[3]);
+                } elseif ($path_parts[1] === 'scores' && isset($path_parts[2]) && $path_parts[2] === 'reject' && isset($path_parts[3])) {
+                    $resultsController->rejectScore($path_parts[3]);
+                } elseif ($path_parts[1] === 'scores') {
                     $resultsController->upsertScores();
                 } elseif ($path_parts[1] === 'compile') {
                     $resultsController->compileResults();
@@ -237,11 +317,11 @@ try {
                 Response::notFound('Results endpoint not found');
             }
             break;
-            
+
         // Payment routes
         case 'payments':
             $paymentController = new PaymentController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'reports') {
@@ -280,24 +360,24 @@ try {
                 Response::notFound('Payment endpoint not found');
             }
             break;
-            
+
         // Parent-Student Links routes
         case 'parent-student-links':
             require_once 'controllers/ParentController.php';
             $parentController = new ParentController();
-            
+
             if ($method === 'GET') {
                 $parentController->getAllParentStudentLinks();
             } else {
                 Response::notFound('Parent-student-links endpoint not found');
             }
             break;
-            
+
         // Parents routes
         case 'parents':
             require_once 'controllers/ParentController.php';
             $parentController = new ParentController();
-            
+
             // Check for special paths first (link/unlink/children)
             if (isset($path_parts[1])) {
                 if ($path_parts[1] === 'children' && isset($path_parts[2])) {
@@ -323,12 +403,12 @@ try {
                 Response::notFound('Parent endpoint not found');
             }
             break;
-            
+
         // Subjects routes
         case 'subjects':
             require_once 'controllers/SubjectController.php';
             $subjectController = new SubjectController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'category' && isset($path_parts[2])) {
@@ -369,12 +449,21 @@ try {
                 Response::notFound('Subject endpoint not found');
             }
             break;
-            
+
+        // Subject registrations routes
+        case 'subject_registrations':
+            if ($method === 'GET') {
+                require_once 'subject_registrations.php';
+            } else {
+                Response::notFound('Subject registrations endpoint not found');
+            }
+            break;
+
         // Attendance routes
         case 'attendance':
             require_once 'controllers/AttendanceController.php';
             $attendanceController = new AttendanceController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'student' && isset($path_parts[2])) {
@@ -395,12 +484,12 @@ try {
                 Response::notFound('Attendance endpoint not found');
             }
             break;
-            
+
         // Notifications routes
         case 'notifications':
             require_once 'controllers/NotificationController.php';
             $notificationController = new NotificationController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'unread-count') {
@@ -435,12 +524,12 @@ try {
                 Response::notFound('Notification endpoint not found');
             }
             break;
-            
+
         // Assignments routes
         case 'assignments':
             require_once 'controllers/AssignmentController.php';
             $assignmentController = new AssignmentController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'submissions' && isset($path_parts[2])) {
@@ -469,12 +558,40 @@ try {
                 Response::notFound('Assignment endpoint not found');
             }
             break;
-            
+
+        // Results routes
+        case 'results':
+            require_once 'controllers/ResultsController.php';
+            $resultsController = new ResultsController();
+
+            if ($method === 'GET') {
+                if (isset($path_parts[1]) && $path_parts[1] === 'compiled') {
+                    $resultsController->getAllCompiledResults();
+                } elseif (isset($path_parts[1]) && $path_parts[1] === 'pending-approvals') {
+                    $resultsController->getPendingApprovals();
+                } elseif (isset($path_parts[1]) && $path_parts[1] === 'assignment' && isset($path_parts[2])) {
+                    $resultsController->getScoresByAssignment($path_parts[2]);
+                } else {
+                    $resultsController->getScoresByTerm();
+                }
+            } elseif ($method === 'POST') {
+                if (isset($path_parts[1]) && $path_parts[1] === 'compile') {
+                    $resultsController->compileResults();
+                } elseif (isset($path_parts[1]) && $path_parts[1] === 'approve' && isset($path_parts[2])) {
+                    $resultsController->approveResult($path_parts[2]);
+                } else {
+                    Response::notFound('Results endpoint not found');
+                }
+            } else {
+                Response::notFound('Results endpoint not found');
+            }
+            break;
+
         // Reports routes
         case 'reports':
             require_once 'controllers/ReportController.php';
             $reportController = new ReportController();
-            
+
             if ($method === 'GET') {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'student' && $method === 'POST') {
@@ -503,11 +620,11 @@ try {
                 Response::notFound('Report endpoint not found');
             }
             break;
-            
+
         // File upload routes
         case 'files':
             $fileController = new FileController();
-            
+
             if ($method === 'POST' && $path_parts[1] === 'upload') {
                 $fileController->uploadLogo();
             } elseif ($method === 'DELETE' && isset($path_parts[1])) {
@@ -516,17 +633,20 @@ try {
                 Response::notFound('File endpoint not found');
             }
             break;
-            
+
         // Database query routes for CSV operations
-        case 'database':
-            require_once 'database/query.php';
-            break;
-            
+
+
         // School Settings routes
         case 'school_settings':
             require_once 'school_settings.php';
             break;
-            
+
+        // Academic Years routes
+        case 'academic_years':
+            require_once 'academic_years.php';
+            break;
+
         // Default route
         default:
             // API info endpoint
@@ -577,6 +697,7 @@ try {
                             'POST /results/scores' => 'Create/update scores',
                             'POST /results/submit/{assignment_id}' => 'Submit scores for approval',
                             'GET /results/student/{student_id}' => 'Get student results',
+                            'GET /results/compiled' => 'Get all compiled results',
                             'POST /results/compile' => 'Compile student results',
                             'GET /results/pending-approvals' => 'Get pending approvals',
                             'POST /results/approve/{result_id}' => 'Approve/reject result'

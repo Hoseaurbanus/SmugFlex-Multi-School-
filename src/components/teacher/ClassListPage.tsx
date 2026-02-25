@@ -145,9 +145,15 @@ export function ClassListPage() {
       .filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
       .map((student, index) => {
         const parent = parents.find(p => p.id === student.parent_id);
-        const studentResults = compiledResults.filter(r => r.student_id === student.id && r.status === 'Approved');
+        // Filter compiled results for current student, term, academic year, and approved status
+        const studentResults = compiledResults.filter(r => 
+          r.student_id === student.id && 
+          r.status === 'Approved' &&
+          r.term === currentTerm &&
+          r.academic_year === currentAcademicYear
+        );
         const averageScore = studentResults.length > 0 
-          ? studentResults.reduce((sum, r) => sum + r.average_score, 0) / studentResults.length 
+          ? studentResults.reduce((sum, r) => sum + (r.average_score || 0), 0) / studentResults.length 
           : 0;
         
         return {
@@ -155,14 +161,14 @@ export function ClassListPage() {
           parentName: parent ? `${parent.firstName} ${parent.lastName}` : 'N/A',
           parentPhone: parent?.phone || 'N/A',
           parentEmail: parent?.email || 'N/A',
-          attendance: 0, // TODO: Replace with real attendance data from API
+          attendance: studentResults.length > 0 ? (studentResults[0].attendance_rate || 0) : 0, // Use attendance from compiled results
           averageScore: averageScore || 0,
           position: index + 1, // Will be recalculated based on scores
         };
       })
       .sort((a, b) => b.averageScore - a.averageScore)
       .map((student, index) => ({ ...student, position: index + 1 }));
-  }, [allStudents, selectedClassId, parents, compiledResults, selectedClass]);
+  }, [allStudents, selectedClassId, parents, compiledResults, selectedClass, currentTerm, currentAcademicYear]);
 
   const handleViewDetails = (student: any) => {
     setSelectedStudent(student);

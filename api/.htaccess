@@ -4,19 +4,23 @@ RewriteEngine On
 # Set the base directory
 RewriteBase /api/
 
-# Handle preflight OPTIONS requests first
-RewriteCond %{REQUEST_METHOD} OPTIONS
-RewriteRule ^(.*)$ index.php [L]
-
-# Ensure Authorization header is passed to PHP
+# CRITICAL: Pass the Authorization header through to PHP BEFORE any rewrites.
+# Without this, Apache/CGI/FastCGI strips the Authorization header
+# causing all JWT-authenticated requests to fail with 401.
 RewriteCond %{HTTP:Authorization} .
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-# Redirect requests to index.php (except for specific directories)
+# Also expose it via SetEnvIf as a fallback for CGI/FastCGI environments
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+
+# Handle preflight OPTIONS requests
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ index.php [L]
+
+# Route all non-file, non-directory requests to index.php (the front controller)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_URI} !^/(users|auth|user|subjects|teachers|classes)/
-RewriteRule . index.php [L]
+RewriteRule . index.php [L,QSA]
 
 # Set default character encoding
 AddDefaultCharset UTF-8
@@ -25,21 +29,21 @@ AddDefaultCharset UTF-8
 <IfModule mod_headers.c>
     # Allow from any origin
     Header always set Access-Control-Allow-Origin "*"
-    
+
     # Allow specific methods
     Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    
+
     # Allow specific headers
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-    
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept"
+
     # Allow credentials
     Header always set Access-Control-Allow-Credentials "true"
-    
+
     # Cache preflight requests
     Header always set Access-Control-Max-Age "86400"
 </IfModule>
 
-# PHP settings (if needed)
+# PHP settings
 <IfModule mod_php7.c>
     php_flag display_errors Off
     php_value error_reporting E_ALL & ~E_DEPRECATED & ~E_STRICT

@@ -76,6 +76,14 @@ try {
     // Delete user record
     $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
     $stmt->execute([$userId]);
+    $userDeleted = $stmt->rowCount();
+
+    if ($userDeleted < 1) {
+        $conn->rollBack();
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to delete user record']);
+        exit();
+    }
     
     // Commit transaction
     $conn->commit();

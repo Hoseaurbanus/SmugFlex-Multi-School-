@@ -620,12 +620,30 @@ export function SubjectRegistrationPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
+              <Label>Teacher</Label>
+              <Select
+                value={assignmentForm.teacher_id.toString()}
+                onValueChange={(value) => setAssignmentForm(prev => ({ ...prev, teacher_id: parseInt(value) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select teacher" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teachers.map(teacher => (
+                    <SelectItem key={teacher.id} value={teacher.id.toString()}>
+                      {teacher.firstName} {teacher.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Class</Label>
               <Select
                 value={assignmentForm.class_id.toString()}
                 onValueChange={(value) => {
                   const classId = parseInt(value);
-                  setAssignmentForm(prev => ({ ...prev, class_id: classId }));
+                  setAssignmentForm(prev => ({ ...prev, class_id: classId, subject_id: 0 }));
                 }}
               >
                 <SelectTrigger>
@@ -645,40 +663,31 @@ export function SubjectRegistrationPage() {
               <Select
                 value={assignmentForm.subject_id.toString()}
                 onValueChange={(value) => {
-                  setAssignmentForm(prev => ({ ...prev, subject_id: parseInt(value) }));
-                  // Load available teachers when subject changes
-                  if (value && assignmentForm.class_id) {
-                    loadAvailableTeachers(parseInt(value), assignmentForm.class_id);
+                  const subjectId = parseInt(value);
+                  setAssignmentForm(prev => ({ ...prev, subject_id: subjectId }));
+                  if (subjectId && assignmentForm.class_id) {
+                    loadAvailableTeachers(subjectId, assignmentForm.class_id);
                   }
                 }}
+                disabled={!assignmentForm.class_id}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select subject" />
+                  <SelectValue placeholder={assignmentForm.class_id ? "Select subject" : "Select class first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.map(subject => (
-                    <SelectItem key={subject.id} value={subject.id.toString()}>
-                      {subject.name} ({subject.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Teacher</Label>
-              <Select
-                value={assignmentForm.teacher_id.toString()}
-                onValueChange={(value) => setAssignmentForm(prev => ({ ...prev, teacher_id: parseInt(value) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select teacher" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableTeachers.map(teacher => (
-                    <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                      {teacher.firstName} {teacher.lastName}
-                    </SelectItem>
-                  ))}
+                  {subjects
+                    .filter(subject => 
+                      assignmentForm.class_id &&
+                      subjectRegistrations.some(reg => 
+                        Number(reg.class_id) === Number(assignmentForm.class_id) &&
+                        Number(reg.subject_id) === Number(subject.id)
+                      )
+                    )
+                    .map(subject => (
+                      <SelectItem key={subject.id} value={subject.id.toString()}>
+                        {subject.name} ({subject.code})
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

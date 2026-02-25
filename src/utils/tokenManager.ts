@@ -3,7 +3,7 @@
  * Provides centralized authentication token management for all API calls
  */
 
-import { getAuthToken, setAuthToken, removeAuthToken } from '../config/api';
+import { getAuthToken, setAuthToken, removeAuthToken, API_CONFIG } from '../config/api';
 
 export interface TokenManager {
   ensureToken: (currentUser?: any) => Promise<boolean>;
@@ -23,14 +23,14 @@ class TokenManagerImpl implements TokenManager {
     try {
       // Check if token exists in storage
       let token = getAuthToken();
-      
+
       // If no token in storage and currentUser has token, set it
       if (!token && currentUser?.token) {
-        console.log('TokenManager: Setting token from currentUser');
+
         setAuthToken(currentUser.token);
         token = currentUser.token;
       }
-      
+
       // If still no token, try to get it from localStorage directly
       if (!token) {
         try {
@@ -38,28 +38,28 @@ class TokenManagerImpl implements TokenManager {
           if (storedUser) {
             const user = JSON.parse(storedUser);
             if (user.token) {
-              console.log('TokenManager: Setting token from localStorage');
+
               setAuthToken(user.token);
               token = user.token;
             }
           }
         } catch (error) {
-          console.error('TokenManager: Error parsing stored user:', error);
+
           // Clear corrupted data
           localStorage.removeItem('currentUser');
         }
       }
-      
+
       const isValid = this.isTokenValid();
-      console.log('TokenManager: Token availability:', !!token, 'Valid:', isValid);
-      
+
+
       return isValid;
     } catch (error) {
-      console.error('TokenManager: Error ensuring token:', error);
+
       return false;
     }
   }
-  
+
   /**
    * Get current authentication token
    * @returns string | null - Current token or null if not available
@@ -67,7 +67,7 @@ class TokenManagerImpl implements TokenManager {
   getToken(): string | null {
     return getAuthToken();
   }
-  
+
   /**
    * Set authentication token
    * @param token - Authentication token to set
@@ -75,19 +75,19 @@ class TokenManagerImpl implements TokenManager {
   setToken(token: string): void {
     setAuthToken(token);
   }
-  
+
   /**
    * Clear authentication token
    */
   clearToken(): void {
     try {
       removeAuthToken();
-      console.log('TokenManager: Token cleared');
+
     } catch (error) {
-      console.error('TokenManager: Error clearing token:', error);
+
     }
   }
-  
+
   /**
    * Check if current token is valid (basic validation)
    * @returns boolean - true if token appears valid
@@ -95,7 +95,7 @@ class TokenManagerImpl implements TokenManager {
   isTokenValid(): boolean {
     const token = this.getToken();
     if (!token) return false;
-    
+
     // Basic validation - check if it's a JWT token or reasonable length
     if (token.startsWith('ey') && token.includes('.')) {
       try {
@@ -104,24 +104,56 @@ class TokenManagerImpl implements TokenManager {
         if (parts.length === 3) {
           const payload = JSON.parse(atob(parts[1]));
           const currentTime = Math.floor(Date.now() / 1000);
-          
-          // Check if token is expired (with 1 minute buffer instead of 5 minutes)
+
+          // Check if token is expired (with 1 minute buffer)
           if (payload.exp && payload.exp < (currentTime - 60)) {
-            console.log('TokenManager: Token expired');
-            this.clearToken();
+            console.warn('Token expired at:', new Date(payload.exp * 1000).toISOString());
             return false;
           }
         }
         return true;
       } catch (error) {
-        console.error('TokenManager: Error parsing JWT, treating as valid:', error);
-        // Don't clear token on parse error, just treat as valid
-        return true;
+        console.error('Error parsing token:', error);
+        return false;
       }
     }
-    
+
     // For other token formats, check reasonable length
     return token.length >= 10;
+  }
+
+  /**
+   * Refresh the authentication token
+   * @returns Promise<boolean> - true if refresh succeeded
+   */
+  async refreshAuthToken(): Promise<boolean> {
+    try {
+      const token = this.getToken();
+      if (!token) return false;
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/refresh-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data?.token) {
+          this.setToken(result.data.token);
+          console.log('Token refreshed successfully');
+          return true;
+        }
+      }
+
+      console.error('Token refresh failed:', response.statusText);
+      return false;
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      return false;
+    }
   }
 }
 
@@ -134,3 +166,4 @@ export const getAuthTokenSafe = () => tokenManager.getToken();
 export const setAuthTokenSafe = (token: string) => tokenManager.setToken(token);
 export const clearAuthToken = () => tokenManager.clearToken();
 export const isAuthTokenValid = () => tokenManager.isTokenValid();
+export const refreshAuthToken = () => tokenManager.refreshAuthToken();

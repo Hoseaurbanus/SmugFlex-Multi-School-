@@ -80,7 +80,6 @@ const DashboardSidebar = memo(function DashboardSidebar({
 
   // Optimized click handler for immediate response
   const handleItemClick = (itemId: string) => {
-    console.log('Sidebar item clicked:', itemId); // Debug log
     onItemClick(itemId);
     setIsOpen(false);
   };

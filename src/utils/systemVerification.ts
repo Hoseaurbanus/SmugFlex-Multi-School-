@@ -35,7 +35,7 @@ export interface VerificationResult {
 }
 
 export const runSystemVerification = async (): Promise<VerificationResult> => {
-  console.log('Starting system verification...');
+  //console.log('Starting system verification...');
   
   const result: VerificationResult = {
     teacherAssignments: {
@@ -75,10 +75,10 @@ export const runSystemVerification = async (): Promise<VerificationResult> => {
     // Test Data Integrity
     await verifyDataIntegrity(result);
     
-    console.log('System verification completed:', result);
+    //console.log('System verification completed:', result);
     return result;
   } catch (error) {
-    console.error('System verification failed:', error);
+    //console.error('System verification failed:', error);
     result.teacherAssignments.status = 'fail';
     result.parentChildLinks.status = 'fail';
     result.dataIntegrity.status = 'fail';
@@ -91,7 +91,7 @@ const verifyTeacherAssignments = async (result: VerificationResult) => {
     // This would use the actual context functions in a real implementation
     // For now, we'll simulate the verification process
     
-    console.log('Verifying teacher assignments...');
+    //console.log('Verifying teacher assignments...');
     
     // Simulate fetching assignments
     const assignments = await fetchSubjectAssignments();
@@ -138,9 +138,9 @@ const verifyTeacherAssignments = async (result: VerificationResult) => {
       result.teacherAssignments.issues.push(`${orphanedAssignments.length} orphaned assignments found`);
     }
     
-    console.log('Teacher assignments verification completed');
+    //console.log('Teacher assignments verification completed');
   } catch (error) {
-    console.error('Error verifying teacher assignments:', error);
+    //console.error('Error verifying teacher assignments:', error);
     result.teacherAssignments.status = 'fail';
     result.teacherAssignments.issues.push('Verification failed due to error');
   }
@@ -148,7 +148,7 @@ const verifyTeacherAssignments = async (result: VerificationResult) => {
 
 const verifyParentChildLinks = async (result: VerificationResult) => {
   try {
-    console.log('Verifying parent-child links...');
+    //console.log('Verifying parent-child links...');
     
     // Simulate fetching links
     const links = await fetchParentStudentLinks();
@@ -197,9 +197,9 @@ const verifyParentChildLinks = async (result: VerificationResult) => {
       result.parentChildLinks.issues.push(`${studentsWithoutParents.length} students have no parent links`);
     }
     
-    console.log('Parent-child links verification completed');
+    //console.log('Parent-child links verification completed');
   } catch (error) {
-    console.error('Error verifying parent-child links:', error);
+    //console.error('Error verifying parent-child links:', error);
     result.parentChildLinks.status = 'fail';
     result.parentChildLinks.issues.push('Verification failed due to error');
   }
@@ -207,7 +207,7 @@ const verifyParentChildLinks = async (result: VerificationResult) => {
 
 const verifyDataIntegrity = async (result: VerificationResult) => {
   try {
-    console.log('Verifying data integrity...');
+    //console.log('Verifying data integrity...');
     
     // Check for missing information
     const teachers = await fetchTeachers();
@@ -254,9 +254,9 @@ const verifyDataIntegrity = async (result: VerificationResult) => {
       result.dataIntegrity.issues.push('Data integrity issues found');
     }
     
-    console.log('Data integrity verification completed');
+    //console.log('Data integrity verification completed');
   } catch (error) {
-    console.error('Error verifying data integrity:', error);
+    //console.error('Error verifying data integrity:', error);
     result.dataIntegrity.status = 'fail';
     result.dataIntegrity.issues.push('Verification failed due to error');
   }

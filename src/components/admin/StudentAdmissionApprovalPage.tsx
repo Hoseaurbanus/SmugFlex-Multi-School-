@@ -17,6 +17,18 @@ export function StudentAdmissionApprovalPage() {
 
   // Filter pending admissions (using Inactive status as pending)
   const pendingAdmissions = students.filter(s => s.status === 'Inactive');
+  
+  // Calculate approved today (students activated today)
+  const today = new Date().toDateString();
+  const approvedToday = students.filter(s => {
+    if (s.status !== 'Active') return false;
+    // Check if updated_at exists and is today
+    if (s.updated_at) {
+      const updatedDate = new Date(s.updated_at).toDateString();
+      return updatedDate === today;
+    }
+    return false;
+  }).length;
 
   const handleApprove = (studentId: number) => {
     const student = students.find(s => s.id === studentId);
@@ -64,7 +76,7 @@ export function StudentAdmissionApprovalPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-[#6B7280]">Approved Today</p>
-                <p className="text-2xl font-semibold text-[#1F2937] mt-1">0</p>
+                <p className="text-2xl font-semibold text-[#1F2937] mt-1">{approvedToday}</p>
               </div>
               <span className="w-8 h-8 text-[#10B981]" />
             </div>

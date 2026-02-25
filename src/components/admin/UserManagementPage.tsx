@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSchool } from "../../contexts/SchoolContext";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Plus } from 'lucide-react';
@@ -6,7 +7,14 @@ import { CreateUserPage } from "./CreateUserPage";
 import { ManageUsersPage } from "./ManageUsersPage";
 
 export function UserManagementPage() {
+  const { users } = useSchool();
   const [activeView, setActiveView] = useState<"menu" | "create" | "manage">("menu");
+
+  // Calculate role-based user counts
+  const adminCount = users.filter(u => u.role === 'admin').length;
+  const teacherCount = users.filter(u => u.role === 'teacher').length;
+  const accountantCount = users.filter(u => u.role === 'accountant').length;
+  const parentCount = users.filter(u => u.role === 'parent').length;
 
   if (activeView === "create") {
     return (
@@ -126,31 +134,31 @@ export function UserManagementPage() {
         <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
           <CardContent className="p-4">
             <p className="text-[#C0C8D3] mb-1 text-sm">Total Users</p>
-            <p className="text-white text-2xl">347</p>
+            <p className="text-white text-2xl">{users.length}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
           <CardContent className="p-4">
             <p className="text-[#C0C8D3] mb-1 text-sm">Admins</p>
-            <p className="text-[#DC3545] text-2xl">12</p>
+            <p className="text-[#DC3545] text-2xl">{adminCount}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
           <CardContent className="p-4">
             <p className="text-[#C0C8D3] mb-1 text-sm">Teachers</p>
-            <p className="text-[#1E90FF] text-2xl">87</p>
+            <p className="text-[#1E90FF] text-2xl">{teacherCount}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
           <CardContent className="p-4">
             <p className="text-[#C0C8D3] mb-1 text-sm">Accountants</p>
-            <p className="text-[#FFC107] text-2xl">8</p>
+            <p className="text-[#FFC107] text-2xl">{accountantCount}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
           <CardContent className="p-4">
             <p className="text-[#C0C8D3] mb-1 text-sm">Parents</p>
-            <p className="text-[#28A745] text-2xl">240</p>
+            <p className="text-[#28A745] text-2xl">{parentCount}</p>
           </CardContent>
         </Card>
       </div>

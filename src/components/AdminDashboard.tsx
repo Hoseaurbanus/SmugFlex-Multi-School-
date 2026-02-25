@@ -98,11 +98,11 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   useNotificationListener(currentUser?.role, currentUser?.id);
 
   // Get real statistics
-  const activeStudents = students.filter(s => s && s.status && s.status === 'Active').length;
-  const activeTeachers = teachers.filter(t => t && t.status && t.status === 'Active').length;
+  const activeStudents = (students || []).filter(s => s && s.status && s.status === 'Active').length;
+  const activeTeachers = (teachers || []).filter(t => t && t.status && t.status === 'Active').length;
   const pendingResults = getPendingApprovals().length;
   // Get unread notifications for admin (targets 'all')
-  const unreadNotifications = notifications.filter(n => 
+  const unreadNotifications = (notifications || []).filter(n => 
     !n.isRead && n.targetAudience === 'all'
   );
 

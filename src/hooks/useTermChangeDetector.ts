@@ -30,7 +30,7 @@ export function useTermChangeDetector({
     const yearChanged = previousYearRef.current !== currentAcademicYear;
 
     if ((termChanged || yearChanged) && !isRefreshingRef.current) {
-      console.log('🔄 Term/Year change detected:', {
+      //console.log('🔄 Term/Year change detected:', {
         previous: { term: previousTermRef.current, year: previousYearRef.current },
         current: { term: currentTerm, year: currentAcademicYear },
         changes: { termChanged, yearChanged }
@@ -61,7 +61,7 @@ export function useTermChangeDetector({
           // Notify parent component
           onTermChange(currentTerm, currentAcademicYear);
         } catch (error) {
-          console.error('Error refreshing data after term change:', error);
+          //console.error('Error refreshing data after term change:', error);
           toast.error('Failed to refresh data', {
             description: 'Please refresh the page manually'
           });
@@ -105,7 +105,7 @@ export function useTermSync({
     const checkTermSync = async () => {
       try {
         // DISABLED: School settings API is timing out
-        console.log('Term sync check disabled to prevent API timeout errors');
+        //console.log('Term sync check disabled to prevent API timeout errors');
         return;
         
         // Original code (disabled):
@@ -125,7 +125,7 @@ export function useTermSync({
           const serverYear = data.data.find((s: any) => s.setting_key === 'current_academic_year')?.setting_value;
           
           if (serverTerm && serverYear && (serverTerm !== currentTerm || serverYear !== currentAcademicYear)) {
-            console.log('🔄 Server term/year mismatch detected:', {
+            //console.log('🔄 Server term/year mismatch detected:', {
               local: { term: currentTerm, year: currentAcademicYear },
               server: { term: serverTerm, year: serverYear }
             });
@@ -141,13 +141,11 @@ export function useTermSync({
         */
       } catch (error) {
         // Silently fail - don't show errors for periodic sync
-        console.debug('Term sync check disabled:', error);
-      }
+              }
     };
 
     // DISABLED: Periodic sync to prevent API timeout errors
-    console.log('Term change detector disabled to prevent API timeout errors');
-    // syncIntervalRef.current = setInterval(checkTermSync, 30000); // 30 seconds
+        // syncIntervalRef.current = setInterval(checkTermSync, 30000); // 30 seconds
 
     return () => {
       if (syncIntervalRef.current) {

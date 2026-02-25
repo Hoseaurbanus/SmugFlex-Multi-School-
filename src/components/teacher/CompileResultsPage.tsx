@@ -241,29 +241,6 @@ function generatePrincipalComment(averageScore: number): string {
   }
 }
 
-function calculateGrade(averageScore: number): string {
-  if (averageScore >= 80) return 'A';
-  if (averageScore >= 70) return 'B';
-  if (averageScore >= 60) return 'C';
-  if (averageScore >= 50) return 'D';
-  if (averageScore >= 40) return 'E';
-  return 'F';
-}
-
-function calculatePositions(studentsData: { studentId: number; averageScore: number }[]): Map<number, { position: number; totalStudents: number }> {
-  const sortedStudents = studentsData.sort((a, b) => b.averageScore - a.averageScore);
-  const positions = new Map<number, { position: number; totalStudents: number }>();
-  
-  sortedStudents.forEach((student, index) => {
-    positions.set(student.studentId, {
-      position: index + 1,
-      totalStudents: sortedStudents.length
-    });
-  });
-  
-  return positions;
-}
-
 export function CompileResultsPage() {
   const {
     currentUser,
@@ -444,7 +421,7 @@ export function CompileResultsPage() {
       }
 
       const attendanceRequirements = getAttendanceRequirements();
-      const requiredDays = attendanceRequirements[currentTerm] || 0;
+      const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
       
       if (requiredDays === 0) {
         toast.error('Attendance requirements not set for current term. Please configure attendance settings.', { id: "generate-results" });
@@ -583,7 +560,7 @@ export function CompileResultsPage() {
     }
     
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
     // Check if attendance requirements are set
     if (requiredDays === 0) {
@@ -636,16 +613,16 @@ export function CompileResultsPage() {
     if (!selectedStudent || !selectedClassId) return null;
     
     // Get attendance data from attendances table (not compiled results)
-    const attendance = attendances.find((a: any) => 
+    const attendance = Array.isArray(attendances) ? attendances.find((a: any) => 
       a.student_id === selectedStudent.id && 
       String(a.class_id) === String(selectedClassId) &&
       a.term === currentTerm && 
       a.academic_year === currentAcademicYear
-    );
+    ) : null;
     
     if (attendance) {
       const attendanceRequirements = getAttendanceRequirements();
-      const requiredDays = attendanceRequirements[currentTerm] || 0;
+      const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
       const attendedDays = Number(attendance.attended_days) || 0;
       
       return {
@@ -659,7 +636,7 @@ export function CompileResultsPage() {
     
     // Fallback if no attendance found
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm] || 0;
+    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
     return {
       requiredDays,
@@ -674,12 +651,12 @@ export function CompileResultsPage() {
   useEffect(() => {
     if (selectedStudent && selectedClassId) {
       // Load existing affective data
-      const existingAffective = affectiveDomains.find(
+      const existingAffective = Array.isArray(affectiveDomains) ? affectiveDomains.find(
         ad => ad.student_id === selectedStudent.id && 
              String(ad.class_id) === String(selectedClassId) &&
              ad.term === currentTerm &&
              ad.academic_year === currentAcademicYear
-      );
+      ) : null;
       
       if (existingAffective) {
         setAffectiveData({
@@ -711,12 +688,12 @@ export function CompileResultsPage() {
       }
       
       // Load existing psychomotor data
-      const existingPsychomotor = psychomotorDomains.find(
+      const existingPsychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(
         pd => pd.student_id === selectedStudent.id && 
              String(pd.class_id) === String(selectedClassId) &&
              pd.term === currentTerm &&
              pd.academic_year === currentAcademicYear
-      );
+      ) : null;
       
       if (existingPsychomotor) {
         setPsychomotorData({
@@ -752,12 +729,12 @@ export function CompileResultsPage() {
       }
       
       // Load existing attendance data from compiled result
-      const existingResult = compiledResults.find(cr => 
+      const existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
         cr.student_id === selectedStudent.id &&
         cr.class_id === Number(selectedClassId) &&
         cr.term === currentTerm &&
         cr.academic_year === currentAcademicYear
-      );
+      ) : null;
       
       if (existingResult) {
         // Load existing class teacher comment but always validate it's correct for current average
@@ -807,25 +784,25 @@ export function CompileResultsPage() {
         classSubjects.some((cs: any) => cs && String(cs.id) === String(s.subject_assignment_id))
       );
       
-      const affective = affectiveDomains.find(a => 
+      const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
         a.student_id === student.id &&
         String(a.class_id) === String(selectedClassId) &&
         a.term === currentTerm &&
         a.academic_year === currentAcademicYear
-      );
+      ) : undefined;
 
-      const psychomotor = psychomotorDomains.find(p => 
+      const psychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
         p.student_id === student.id &&
         String(p.class_id) === String(selectedClassId) &&
         p.term === currentTerm &&
         p.academic_year === currentAcademicYear
-      );
+      ) : undefined;
 
-      const existingResult = compiledResults.find(r =>
+      const existingResult = Array.isArray(compiledResults) ? compiledResults.find(r =>
         r.student_id === student.id &&
         r.class_id === Number(selectedClassId) &&
         r.term === currentTerm
-      );
+      ) : undefined;
 
       // Count completed subjects from relevant scores
       const completedSubjects = relevantScores.length;
@@ -922,26 +899,26 @@ export function CompileResultsPage() {
       classSubjects.some((cs: any) => cs && String(cs.id) === String(s.subject_assignment_id))
     );
 
-    const affective = affectiveDomains.find(a => 
+    const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
       a.student_id === selectedStudent.id &&
       String(a.class_id) === String(selectedClassId) &&
       a.term === currentTerm &&
       a.academic_year === currentAcademicYear
-    );
+    ) : undefined;
 
-    const psychomotor = psychomotorDomains.find(p => 
+    const psychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
       p.student_id === selectedStudent.id &&
       String(p.class_id) === String(selectedClassId) &&
       p.term === currentTerm &&
       p.academic_year === currentAcademicYear
-    );
+    ) : undefined;
 
-    const existingResult = compiledResults.find(
+    const existingResult = Array.isArray(compiledResults) ? compiledResults.find(
       cr => cr.student_id === selectedStudent.id &&
            String(cr.class_id) === String(selectedClassId) &&
            cr.term === currentTerm &&
            cr.academic_year === currentAcademicYear
-    );
+    ) : undefined;
 
     const isSubmitted = existingResult?.status === 'Submitted' || existingResult?.status === 'Approved';
     const isRejected = existingResult?.status === 'Rejected';
@@ -1034,13 +1011,13 @@ export function CompileResultsPage() {
       }
 
       // Check if result is already approved
-      const existingApprovedResult = compiledResults.find(cr => 
+      const existingApprovedResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
         cr.student_id === selectedStudent.id &&
         cr.class_id === Number(selectedClassId) &&
         cr.term === currentTerm &&
         cr.academic_year === currentAcademicYear &&
         cr.status === 'Approved'
-      );
+      ) : undefined;
 
       if (existingApprovedResult) {
         toast.error('This result has already been approved and cannot be modified.', { id: "submit-result" });
@@ -1061,26 +1038,26 @@ export function CompileResultsPage() {
       // Check if student has submitted scores for all class subjects
       const requiredSubjects = classSubjects.length;
       const submittedScores = studentScores.filter(s => s.status === 'Submitted').length;
-      
+
       if (submittedScores < requiredSubjects) {
-        toast.error(`Student has ${submittedScores}/${requiredSubjects} subjects submitted. All subjects must be submitted first.`, { id: "submit-result" });
+        toast.error(`Student has submitted scores for ${submittedScores}/${requiredSubjects} subjects. All subjects must be submitted before compiling results. Please ensure all scores are entered and submitted in the Score Entry page.`, { id: "submit-result" });
         return;
       }
 
       // 3. VALIDATE AFFECTIVE AND PSYCHOMOTOR DATA
-      const affective = affectiveDomains.find(a => 
+      const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
         a.student_id === selectedStudent.id &&
         String(a.class_id) === String(selectedClassId) &&
         a.term === currentTerm &&
         a.academic_year === currentAcademicYear
-      );
+      ) : undefined;
 
-      const psychomotor = psychomotorDomains.find(p => 
+      const psychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
         p.student_id === selectedStudent.id &&
         String(p.class_id) === String(selectedClassId) &&
         p.term === currentTerm &&
         p.academic_year === currentAcademicYear
-      );
+      ) : undefined;
 
       if (!affective) {
         toast.error('Affective domain assessment is required', { id: "submit-result" });
@@ -1094,31 +1071,31 @@ export function CompileResultsPage() {
 
       // 4. VALIDATE ATTENDANCE DATA
       const attendanceRequirementsForValidation = getAttendanceRequirements();
-      const requiredDaysForValidation = attendanceRequirementsForValidation[currentTerm] || 0;
+      const requiredDaysForValidation = attendanceRequirementsForValidation[currentTerm || 'First Term'] || 0;
       
       if (requiredDaysForValidation === 0) {
         toast.error('Attendance requirements not set for this term. Please configure attendance settings first.', { id: "submit-result" });
         return;
       }
       
-      const existingResultForValidation = compiledResults.find(cr => 
+      const existingResultForValidation = Array.isArray(compiledResults) ? compiledResults.find(cr => 
         cr.student_id === selectedStudent.id &&
         cr.class_id === Number(selectedClassId) &&
         cr.term === currentTerm &&
         cr.academic_year === currentAcademicYear
-      );
+      ) : undefined;
       
       const attendedDaysForValidation = Number(existingResultForValidation?.times_present) || 0;
       
       if (attendedDaysForValidation === 0) {
-        toast.error('Attendance data is required. Please mark attendance in the Mark Attendance page first.', { id: "submit-result" });
+        toast.error('Attendance data is required. Please mark attendance for this student in the Mark Attendance page before compiling results.', { id: "submit-result" });
         return;
       }
 
       // 5. ENHANCE SCORES WITH SUBJECT NAMES
       const enhancedScores = studentScores.map((score: Score) => {
-        const assignment = subjectAssignments.find((sa: SubjectAssignment) => sa.id === score.subject_assignment_id);
-        const subject = subjects.find((s: Subject) => s.id === assignment?.subject_id);
+        const assignment = Array.isArray(subjectAssignments) ? subjectAssignments.find((sa: SubjectAssignment) => sa.id === score.subject_assignment_id) : undefined;
+        const subject = assignment && Array.isArray(subjects) ? subjects.find((s: Subject) => s.id === assignment.subject_id) : undefined;
         
         return {
           ...score,
@@ -1146,7 +1123,7 @@ export function CompileResultsPage() {
       // 7. ATTENDANCE DATA INTEGRATION
       // Note: attendance data already validated above, just integrate it
       const attendanceRequirements = getAttendanceRequirements();
-      const requiredDays = attendanceRequirements[currentTerm] || 0;
+      const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
       const attendedDays = attendedDaysForValidation;
       const timesAbsent = requiredDays - attendedDays;
       const attendanceRate = requiredDays > 0 ? Math.round((attendedDays / requiredDays) * 100) : 0;
@@ -1155,8 +1132,8 @@ export function CompileResultsPage() {
       const compiledData = {
         student_id: selectedStudent.id,
         class_id: Number(selectedClassId),
-        term: currentTerm,
-        academic_year: currentAcademicYear,
+        term: currentTerm || 'First Term',
+        academic_year: currentAcademicYear || '2025/2026',
         scores: enhancedScores,
         affective: affective || null,
         psychomotor: psychomotor || null,
@@ -1190,9 +1167,13 @@ export function CompileResultsPage() {
       
       // 10. SUCCESS FEEDBACK
       toast.success(
-        `Result submitted for ${selectedStudent.firstName} ${selectedStudent.lastName}\n` +
-        `Position: ${actualPosition}/${totalStudents} | Average: ${averageScore}% | Attendance: ${attendanceRate}%`,
-        { id: "submit-result" }
+        `✅ Result submitted successfully!\n` +
+        `📊 Student: ${selectedStudent.firstName} ${selectedStudent.lastName}\n` +
+        `🏆 Position: ${actualPosition}/${totalStudents} in class\n` +
+        `📈 Average Score: ${averageScore}%\n` +
+        `📅 Attendance Rate: ${attendanceRate}%\n` +
+        `⏳ Status: Submitted for admin approval`,
+        { id: "submit-result", duration: 8000 }
       );
       
       // 11. CLEANUP AND NAVIGATION
@@ -1217,7 +1198,7 @@ export function CompileResultsPage() {
     }
 
     // Check if current teacher is the class teacher for this class
-    const selectedClass = classes.find(c => c.id === Number(selectedClassId));
+    const selectedClass = Array.isArray(classes) ? classes.find(c => c.id === Number(selectedClassId)) : undefined;
     if (!selectedClass || selectedClass.classTeacherId !== currentTeacher.id) {
       toast.error("Only the class teacher can compile results for this class");
       return;
@@ -1241,32 +1222,32 @@ export function CompileResultsPage() {
         if (!student) continue;
 
         // Get existing result for this student
-        const existingResult = compiledResults.find(cr => 
+        const existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
           cr.student_id === student.id &&
           cr.class_id === Number(selectedClassId) &&
           cr.term === currentTerm &&
           cr.academic_year === currentAcademicYear
-        );
+        ) : undefined;
 
         // Save attendance data to attendance table
         const attendancePayload = {
           student_id: student.id,
           class_id: Number(selectedClassId),
-          term: currentTerm,
-          academic_year: currentAcademicYear,
+          term: currentTerm || 'First Term',
+          academic_year: currentAcademicYear || '2025/2026',
           date: new Date().toISOString().split('T')[0], // Current date
           status: 'Present' as const,
           marked_by: currentUser?.id || 1,
           marked_date: new Date().toISOString(),
-          remarks: `Attended ${existingResult?.times_present || 0} out of ${getAttendanceRequirements()[currentTerm] || 0} days`
+          remarks: `Attended ${existingResult?.times_present || 0} out of ${getAttendanceRequirements()[currentTerm || 'First Term'] || 0} days`
         };
         
-        const existingAttendance = attendances.find(a => 
+        const existingAttendance = Array.isArray(attendances) ? attendances.find(a => 
           a.student_id === student.id &&
           a.class_id === Number(selectedClassId) &&
           a.term === currentTerm &&
           a.academic_year === currentAcademicYear
-        );
+        ) : undefined;
         
         if (existingAttendance) {
           await updateAttendance(existingAttendance.id, attendancePayload);
@@ -1278,18 +1259,18 @@ export function CompileResultsPage() {
         const affectivePayload = {
           student_id: student.id,
           class_id: Number(selectedClassId),
-          term: currentTerm,
-          academic_year: currentAcademicYear,
+          term: currentTerm || 'First Term',
+          academic_year: currentAcademicYear || '2025/2026',
           ...affectiveData,
           entered_by: currentUser?.id
         };
         
-        const existingAffective = affectiveDomains.find(a => 
+        const existingAffective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
           a.student_id === student.id &&
           a.class_id === Number(selectedClassId) &&
           a.term === currentTerm &&
           a.academic_year === currentAcademicYear
-        );
+        ) : undefined;
         
         if (existingAffective) {
           await updateAffectiveDomain(existingAffective.id, affectivePayload);
@@ -1301,18 +1282,18 @@ export function CompileResultsPage() {
         const psychomotorPayload = {
           student_id: student.id,
           class_id: Number(selectedClassId),
-          term: currentTerm,
-          academic_year: currentAcademicYear,
+          term: currentTerm || 'First Term',
+          academic_year: currentAcademicYear || '2025/2026',
           ...psychomotorData,
           entered_by: currentUser?.id
         };
         
-        const existingPsychomotor = psychomotorDomains.find(p => 
+        const existingPsychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
           p.student_id === student.id &&
           p.class_id === Number(selectedClassId) &&
           p.term === currentTerm &&
           p.academic_year === currentAcademicYear
-        );
+        ) : undefined;
         
         if (existingPsychomotor) {
           await updatePsychomotorDomain(existingPsychomotor.id, psychomotorPayload);
@@ -1338,12 +1319,12 @@ export function CompileResultsPage() {
         if (!student) continue;
 
         // Get existing result for this student
-        const existingResult = compiledResults.find(cr => 
+        const existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
           cr.student_id === student.id &&
           cr.class_id === Number(selectedClassId) &&
           cr.term === currentTerm &&
           cr.academic_year === currentAcademicYear
-        );
+        ) : undefined;
 
         const studentScores = scores.filter(s => 
           s.student_id === student.id &&
@@ -1351,17 +1332,17 @@ export function CompileResultsPage() {
         );
 
         // Get the freshly saved affective and psychomotor data
-        const affective = affectiveDomains.find(a => 
+        const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
           a.student_id === student.id &&
           a.class_id === Number(selectedClassId) &&
           a.term === currentTerm
-        );
+        ) : undefined;
 
-        const psychomotor = psychomotorDomains.find(p => 
+        const psychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
           p.student_id === student.id &&
           p.class_id === Number(selectedClassId) &&
           p.term === currentTerm
-        );
+        ) : undefined;
 
         const totalScore = studentScores.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
         const averageScore = Math.round((totalScore / (studentScores || []).length) * 100) / 100;
@@ -1394,8 +1375,8 @@ export function CompileResultsPage() {
         const compiledData = {
           student_id: student.id,
           class_id: Number(selectedClassId),
-          term: currentTerm,
-          academic_year: currentAcademicYear,
+          term: currentTerm || 'First Term',
+          academic_year: currentAcademicYear || '2025/2026',
           scores: studentScores,
           affective: affective || null,
           psychomotor: psychomotor || null,
@@ -1406,7 +1387,7 @@ export function CompileResultsPage() {
           total_students: classStudents.length,
           times_present: existingResult?.times_present || 0,
           times_absent: 0, // Will be calculated as required - present
-          total_attendance_days: getAttendanceRequirements()[currentTerm] || 0,
+          total_attendance_days: getAttendanceRequirements()[currentTerm || 'First Term'] || 0,
           term_begin: getTermDates().termStartDate || '',
           term_end: getTermDates().termEndDate || '',
           next_term_begin: getTermDates().nextTermStarts || '',
@@ -1509,14 +1490,29 @@ export function CompileResultsPage() {
             <>
               {!canSubmit && (
                 <div className="text-xs text-red-600 bg-red-50 p-2 rounded mb-2">
-                  <div className="font-medium mb-1">Missing requirements:</div>
+                  <div className="font-medium mb-1">Cannot submit result - Missing requirements:</div>
                   <div className="space-y-1">
-                    {!hasAllScores && <div>• Subject scores</div>}
-                    {!hasAffective && <div>• Affective domains</div>}
-                    {!hasPsychomotor && <div>• Psychomotor domains</div>}
-                    {!hasAttendance && <div>• Attendance data</div>}
-                    {studentResultData?.isSubmitted && <div>• Result already submitted</div>}
-                    {studentResultData?.existingResult?.status === 'Approved' && <div>• Result already approved - cannot be modified</div>}
+                    {!hasAllScores && (
+                      <div>• Subject scores: Student must have scores for all assigned subjects</div>
+                    )}
+                    {!hasAffective && (
+                      <div>• Affective domains: Must be assessed in Student Domains page</div>
+                    )}
+                    {!hasPsychomotor && (
+                      <div>• Psychomotor domains: Must be assessed in Student Domains page</div>
+                    )}
+                    {!hasAttendance && (
+                      <div>• Attendance data: Must be marked in Mark Attendance page</div>
+                    )}
+                    {studentResultData?.isSubmitted && (
+                      <div>• Result already submitted: Wait for admin approval or resubmit if rejected</div>
+                    )}
+                    {studentResultData?.existingResult?.status === 'Approved' && (
+                      <div>• Result already approved: Cannot modify approved results</div>
+                    )}
+                  </div>
+                  <div className="mt-2 text-xs text-gray-600">
+                    Complete all missing items before submitting for approval.
                   </div>
                 </div>
               )}
@@ -1632,7 +1628,7 @@ export function CompileResultsPage() {
             ) : (
               <div className="space-y-2">
                 {classStudents.map((student) => {
-                  const completion = studentsCompletion.find(s => s.studentId === student.id);
+                  const completion = Array.isArray(studentsCompletion) ? studentsCompletion.find(s => s.studentId === student.id) : undefined;
                   // Don't hide students without completion data - show them with default values
 
                   return (
@@ -1875,7 +1871,7 @@ export function CompileResultsPage() {
               ) : (
                 <div className="space-y-2">
                   {classSubjects.map((subject: any) => {
-                    const score = studentResultData.scores.find(s => s.subject_assignment_id === subject.id);
+                    const score = Array.isArray(studentResultData.scores) ? studentResultData.scores.find(s => s.subject_assignment_id === subject.id) : undefined;
                     return (
                       <div key={subject.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 hover:shadow-md transition-all gap-3">
                         <div className="flex items-center gap-3">

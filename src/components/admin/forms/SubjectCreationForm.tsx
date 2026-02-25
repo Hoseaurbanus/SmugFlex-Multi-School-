@@ -15,7 +15,7 @@ interface SubjectCreationFormProps {
 }
 
 export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormProps) {
-  const { addSubject, subjects } = useSchool();
+  const { addSubject, subjects, classes, currentAcademicYear, currentTerm, registerSubjectForClass } = useSchool();
   
   // Form state
   const [formData, setFormData] = useState({
@@ -30,6 +30,7 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedClassIds, setSelectedClassIds] = useState<number[]>([]);
 
   // Available categories
   const categories = ["Creche", "Nursery", "Primary", "JSS", "SSS"];
@@ -88,7 +89,6 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
     setIsSubmitting(true);
 
     try {
-      // Prepare subject data
       const subjectData = {
         name: formData.name.trim(),
         subject_name: formData.name.trim(), // Required field for compatibility
@@ -106,6 +106,16 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
       const newSubjectId = await addSubject(subjectData);
       
       if (newSubjectId > 0) {
+        if (selectedClassIds.length > 0 && currentAcademicYear && currentTerm) {
+          for (const classId of selectedClassIds) {
+            try {
+              await registerSubjectForClass(classId, newSubjectId, currentAcademicYear, currentTerm, true);
+            } catch (e) {
+              console.error('Error registering subject for class during creation:', e);
+            }
+          }
+        }
+
         toast.success(`Subject "${formData.name}" created successfully!`);
         onSuccess();
         onClose();
@@ -235,6 +245,34 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
               rows={3}
               className="border-gray-300"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">
+              Classes for this subject (optional)
+            </Label>
+            <div className="border rounded-md max-h-40 overflow-y-auto p-2 space-y-1">
+              {classes?.map((cls: any) => {
+                const checked = selectedClassIds.includes(cls.id);
+                return (
+                  <div key={cls.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`class-${cls.id}`}
+                      checked={checked}
+                      onCheckedChange={(value) => {
+                        const isChecked = Boolean(value);
+                        setSelectedClassIds((prev) =>
+                          isChecked ? [...prev, cls.id] : prev.filter((id) => id !== cls.id)
+                        );
+                      }}
+                    />
+                    <Label htmlFor={`class-${cls.id}`} className="text-sm text-gray-700">
+                      {cls.name} ({cls.level})
+                    </Label>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Options */}

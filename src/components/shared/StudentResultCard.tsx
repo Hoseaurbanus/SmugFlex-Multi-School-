@@ -95,7 +95,7 @@ export function StudentResultCard({
         psychomotorDomains.length === 0 && loadPsychomotorDomainsFromAPI()
       ]);
     } catch (error) {
-      console.error('Error loading domain data:', error);
+      // Silently handle domain data loading error in production
     }
   };
 
@@ -103,7 +103,8 @@ export function StudentResultCard({
   const getStudentAffectiveData = () => {
     if (!result || !result.student_id) return {} as any;
     
-    const studentAffective = affectiveDomains.find(domain => 
+    const safeAffectiveDomains = Array.isArray(affectiveDomains) ? affectiveDomains : [];
+    const studentAffective = safeAffectiveDomains.find(domain => 
       domain.student_id === result.student_id &&
       domain.academic_year === result.academic_year &&
       domain.term === result.term
@@ -116,7 +117,8 @@ export function StudentResultCard({
   const getStudentPsychomotorData = () => {
     if (!result || !result.student_id) return {} as any;
     
-    const studentPsychomotor = psychomotorDomains.find(domain => 
+    const safePsychomotorDomains = Array.isArray(psychomotorDomains) ? psychomotorDomains : [];
+    const studentPsychomotor = safePsychomotorDomains.find(domain => 
       domain.student_id === result.student_id &&
       domain.academic_year === result.academic_year &&
       domain.term === result.term
@@ -137,7 +139,7 @@ export function StudentResultCard({
       ]);
 
       // Filter scores for this student, class, term, and academic year
-      let studentScores = scores.filter(score => 
+      let studentScores = safeScores.filter(score => 
         score.student_id === result.student_id &&
         score.academic_year === result.academic_year &&
         score.term === result.term
@@ -145,13 +147,13 @@ export function StudentResultCard({
 
       // Enhance scores with subject information and calculate class statistics
       studentScores = studentScores.map(score => {
-        const subjectAssignment = subjectAssignments.find(sa => sa.id === score.subject_assignment_id);
-        const subject = subjectAssignment ? subjects.find(s => s.id === subjectAssignment.subject_id) : null;
-        const teacher = subjectAssignment ? teachers.find(t => t.id === subjectAssignment.teacher_id) : null;
+        const subjectAssignment = safeSubjectAssignments.find(sa => sa.id === score.subject_assignment_id);
+        const subject = subjectAssignment ? safeSubjects.find(s => s.id === subjectAssignment.subject_id) : null;
+        const teacher = subjectAssignment ? safeTeachers.find(t => t.id === subjectAssignment.teacher_id) : null;
 
         // Calculate class statistics for this subject
-        const classScores = scores.filter(s => {
-          const assignment = subjectAssignments.find(sa => sa.id === s.subject_assignment_id);
+        const classScores = safeScores.filter(s => {
+          const assignment = safeSubjectAssignments.find(sa => sa.id === s.subject_assignment_id);
           return assignment && 
                  assignment.subject_id === subjectAssignment?.subject_id &&
                  s.academic_year === result.academic_year &&
@@ -180,13 +182,13 @@ export function StudentResultCard({
       } else if (result.scores && result.scores.length > 0) {
         // Enhance result scores with subject information too
         const enhancedResultScores = result.scores.map((score: any) => {
-          const subjectAssignment = subjectAssignments.find(sa => sa.id === score.subject_assignment_id);
-          const subject = subjectAssignment ? subjects.find(s => s.id === subjectAssignment.subject_id) : null;
-          const teacher = subjectAssignment ? teachers.find(t => t.id === subjectAssignment.teacher_id) : null;
+          const subjectAssignment = safeSubjectAssignments.find(sa => sa.id === score.subject_assignment_id);
+          const subject = subjectAssignment ? safeSubjects.find(s => s.id === subjectAssignment.subject_id) : null;
+          const teacher = subjectAssignment ? safeTeachers.find(t => t.id === subjectAssignment.teacher_id) : null;
 
           // Calculate class statistics for this subject
-          const classScores = scores.filter(s => {
-            const assignment = subjectAssignments.find(sa => sa.id === s.subject_assignment_id);
+          const classScores = safeScores.filter(s => {
+            const assignment = safeSubjectAssignments.find(sa => sa.id === s.subject_assignment_id);
             return assignment && 
                    assignment.subject_id === subjectAssignment?.subject_id &&
                    s.academic_year === result.academic_year &&
@@ -213,14 +215,21 @@ export function StudentResultCard({
         setDetailedScoresData(studentScores);
       }
     } catch (error) {
-      console.error('Error loading detailed scores:', error);
+      // Silently handle detailed scores loading error in production
       setDetailedScoresData([]);
     }
   };
 
   // Use props or find from context if not provided
-  const studentData = propStudent || students.find(s => s.id === result.student_id);
-  const studentClassData = propStudentClass || classes.find(c => c.id === result.class_id);
+  const safeStudents = Array.isArray(students) ? students : [];
+  const safeClasses = Array.isArray(classes) ? classes : [];
+  const safeTeachers = Array.isArray(teachers) ? teachers : [];
+  const safeSubjectAssignments = Array.isArray(subjectAssignments) ? subjectAssignments : [];
+  const safeSubjects = Array.isArray(subjects) ? subjects : [];
+  const safeScores = Array.isArray(scores) ? scores : [];
+  
+  const studentData = propStudent || safeStudents.find(s => s.id === result.student_id);
+  const studentClassData = propStudentClass || safeClasses.find(c => c.id === result.class_id);
 
   // Get class teacher name
   const getClassTeacherName = () => {
@@ -236,7 +245,7 @@ export function StudentResultCard({
     
     // Third priority: If class_teacher_id exists, find the teacher
     if (studentClassData?.classTeacherId) {
-      const classTeacher = teachers.find((t: any) => t.id === studentClassData.classTeacherId);
+      const classTeacher = safeTeachers.find((t: any) => t.id === studentClassData.classTeacherId);
       if (classTeacher) {
         return `${classTeacher.firstName} ${classTeacher.lastName}`;
       }
@@ -465,19 +474,16 @@ export function StudentResultCard({
               WebkitImageRendering: 'auto'
             } as React.CSSProperties} 
             onError={(e) => {
-              console.error('School logo failed to load:', e);
-              // Try alternative logo path
+              // Try alternative logo path on error
               const target = e.target as HTMLImageElement;
-              target.src = './assets/images/graceland-logo.jpg';
-            }}
-            onLoad={(e) => {
-              console.log('School logo loaded successfully');
+              target.src = './assets/images/school-logo.jpg';
             }}
           />
         </div>
         <h1 style={{ fontSize: '14pt', fontWeight: 'bold', margin: '0.5mm 0', textTransform: 'uppercase', color: '#2c3e50', letterSpacing: '1px', textRendering: 'geometricPrecision', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{schoolSettings.school_name || 'SCHOOL NAME'}</h1>
         <p style={{ fontSize: '8pt', margin: '0.3mm 0', fontStyle: 'italic', color: '#555', textRendering: 'geometricPrecision', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{schoolSettings.school_address || 'SCHOOL ADDRESS'}</p>
         <p style={{ fontSize: '8pt', margin: '0.3mm 0', color: '#555', textRendering: 'geometricPrecision', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{schoolSettings.school_email || 'school@email.com'}</p>
+        <p style={{ fontSize: '8pt', margin: '0.3mm 0', color: '#555', textRendering: 'geometricPrecision', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>{schoolSettings.school_phone || '+234-800-000-0000'}</p>
         <div style={{ marginTop: '1mm', borderBottom: '2px solid #2c3e50', width: '80%', margin: '1mm auto 0' }}></div>
       </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -21,9 +21,9 @@ interface ScoreWithDetails {
   class_id: number;
   class_name: string;
   teacher_name: string;
-  ca1: number;
-  ca2: number;
-  exam: number;
+  ca1?: number | null | undefined;
+  ca2?: number | null | undefined;
+  exam?: number | null | undefined;
   total: number;
   grade?: string;
   remark?: string;
@@ -46,7 +46,6 @@ export function ScoreApprovalPage() {
     subjectAssignments,
     students,
     scores,
-    getPendingScores,
     rejectScore,
     approveScore,
     getTeacherClasses,
@@ -69,38 +68,68 @@ export function ScoreApprovalPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
+  const refreshInFlightRef = useRef(false);
+
+  const loadScoresRef = useRef(loadScoresFromAPI);
+  useEffect(() => {
+    loadScoresRef.current = loadScoresFromAPI;
+  }, [loadScoresFromAPI]);
+
   // Get current teacher data
   const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
-  const teacherClasses = currentTeacher ? getTeacherClasses(Number(currentTeacher.id)) : [];
-
-  // Real-time data refresh
+  const [teacherClasses, setTeacherClasses] = useState<Array<{
+    classId: number;
+    className: string;
+    classLevel: string;
+    studentCount: number;
+    subjects: Array<{
+      subjectId: number;
+      subjectName: string;
+      subjectCode: string;
+    }>;
+  }>>([]);
+  
   useEffect(() => {
-    const refreshScores = async () => {
-      if (!currentTeacher) return;
-      
-      setIsLoading(true);
-      try {
-        // Load latest scores from API
-        await loadScoresFromAPI();
-        
-        // Then trigger a refresh of scores data
-        await getPendingScores();
-        setLastRefresh(new Date());
-      } catch (error) {
-        console.error('Failed to refresh scores:', error);
-      } finally {
-        setIsLoading(false);
+    if (!currentTeacher) return;
+    
+    let isMounted = true;
+    getTeacherClasses(Number(currentTeacher.id)).then(classes => {
+      if (isMounted) {
+        setTeacherClasses(classes);
       }
-    };
+    }).catch(error => {
+      if (isMounted) {
+        console.error('Failed to load teacher classes:', error);
+      }
+    });
+    
+    return () => { isMounted = false; };
+  }, [currentTeacher, getTeacherClasses]);
 
-    // Initial load
+  const refreshScores = useCallback(async () => {
+    if (!currentTeacher) return;
+    if (refreshInFlightRef.current) return;
+
+    refreshInFlightRef.current = true;
+    setIsLoading(true);
+    try {
+      await loadScoresRef.current(currentTerm, currentAcademicYear);
+      setLastRefresh(new Date());
+    } catch (error) {
+      console.error('Failed to refresh scores:', error);
+    } finally {
+      setIsLoading(false);
+      refreshInFlightRef.current = false;
+    }
+  }, [currentTeacher, currentTerm, currentAcademicYear]);
+
+  // Real-time data refresh (reduced polling frequency)
+  useEffect(() => {
     refreshScores();
 
-    // Set up real-time polling every 30 seconds
-    const interval = setInterval(refreshScores, 30000);
-
+    const interval = setInterval(refreshScores, 120000);
     return () => clearInterval(interval);
-  }, [currentTeacher, getPendingScores, loadScoresFromAPI]);
+  }, [refreshScores]);
 
   // Listen for real-time notifications
   useEffect(() => {
@@ -109,9 +138,7 @@ export function ScoreApprovalPage() {
       if (notification.type === 'warning' || notification.type === 'success') {
         if (notification.title?.includes('Score') || notification.message?.includes('score')) {
           setTimeout(async () => {
-            await loadScoresFromAPI();
-            await getPendingScores();
-            setLastRefresh(new Date());
+            await refreshScores();
           }, 1000);
         }
       }
@@ -122,25 +149,17 @@ export function ScoreApprovalPage() {
     return () => {
       // Cleanup listeners
     };
-  }, [getPendingScores, loadScoresFromAPI]);
+  }, [refreshScores]);
 
   const handleRefresh = async () => {
     if (!currentTeacher) return;
-    
-    setIsLoading(true);
+
     try {
-      // Load latest scores from API
-      await loadScoresFromAPI();
-      
-      // Then trigger a refresh of scores data
-      await getPendingScores();
-      setLastRefresh(new Date());
+      await refreshScores();
       toast.success('Scores refreshed successfully');
     } catch (error) {
       console.error('Failed to refresh scores:', error);
       toast.error('Failed to refresh scores');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -159,8 +178,8 @@ export function ScoreApprovalPage() {
       class_name: classInfo ? classInfo.name : 'Unknown Class',
       teacher_name: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown Teacher',
       class_id: assignment?.class_id || 0,
-      academic_year: score.academic_year || currentAcademicYear,
-      term: score.term || currentTerm
+      academic_year: score.academic_year || currentAcademicYear || undefined,
+      term: score.term || currentTerm || undefined
     };
   });
 
@@ -244,9 +263,7 @@ export function ScoreApprovalPage() {
       setSelectedScore(null);
       
       // Trigger real-time refresh
-      await loadScoresFromAPI();
-      await getPendingScores();
-      setLastRefresh(new Date());
+      await refreshScores();
     } catch (error) {
       toast.error("Failed to reject score");
     }
@@ -287,9 +304,7 @@ export function ScoreApprovalPage() {
       toast.success("Score approved successfully");
       
       // Trigger real-time refresh
-      await loadScoresFromAPI();
-      await getPendingScores();
-      setLastRefresh(new Date());
+      await refreshScores();
     } catch (error) {
       toast.error("Failed to approve score");
     }
