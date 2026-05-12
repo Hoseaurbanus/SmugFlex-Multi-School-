@@ -82,7 +82,6 @@ export function BankAccountSettingsPage() {
 
       toast.success("Bank account settings saved successfully!");
     } catch (error) {
-      console.error('Error saving bank account settings:', error);
       toast.error("Failed to save bank account settings");
     } finally {
       setIsLoading(false);

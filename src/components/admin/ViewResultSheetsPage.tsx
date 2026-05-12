@@ -20,8 +20,8 @@ export function ViewResultSheetsPage() {
   } = useSchool();
 
   const [selectedClassId, setSelectedClassId] = useState<string>("");
-  const [selectedTerm, setSelectedTerm] = useState<string>(currentTerm);
-  const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear);
+  const [selectedTerm, setSelectedTerm] = useState<string>(currentTerm ?? "");
+  const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear ?? "");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
 
@@ -397,7 +397,7 @@ export function ViewResultSheetsPage() {
               {studentsWithResults.map((studentData) => {
             // Check if class should show position (not for early childhood classes)
             const shouldShowPosition = studentData!.className && 
-              !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2'].includes(studentData!.className.toUpperCase());
+              !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 2 (PEARL)'].includes(studentData!.className.toUpperCase());
 
             return (
               <div

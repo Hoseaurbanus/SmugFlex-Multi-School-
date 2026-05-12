@@ -28,6 +28,8 @@ function AvatarImage({
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn("aspect-square size-full", className)}
+      loading={(props as any).loading ?? 'lazy'}
+      decoding={(props as any).decoding ?? 'async'}
       {...props}
     />
   );

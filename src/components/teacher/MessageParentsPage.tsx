@@ -250,7 +250,6 @@ export function MessageParentsPage() {
       clearAllImages();
       
     } catch (error) {
-      console.error('Failed to send message:', error);
       toast.error("Failed to send message. Please try again.");
     } finally {
       setIsLoading(false);

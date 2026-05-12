@@ -14,9 +14,10 @@ interface DashboardTopBarProps {
   onLogout?: () => void;
   onNotificationClick?: () => void;
   onMarkAsRead?: (id: number) => void;
+  onChangePasswordClick?: () => void;
 }
 
-export function DashboardTopBar({ userName, userRole, notificationCount = 0, notifications = [], onLogout, onNotificationClick, onMarkAsRead }: DashboardTopBarProps) {
+export function DashboardTopBar({ userName, userRole, notificationCount = 0, notifications = [], onLogout, onNotificationClick, onMarkAsRead, onChangePasswordClick }: DashboardTopBarProps) {
   const { currentUser, getUnreadNotifications, deleteNotification } = useSchool();
   
   // Set up notification listener
@@ -105,9 +106,35 @@ export function DashboardTopBar({ userName, userRole, notificationCount = 0, not
 
           {/* User Profile */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:from-white/30 hover:to-white/20 transition-all shadow-sm ring-1 ring-white/20 group">
-              <User className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:from-white/30 hover:to-white/20 transition-all shadow-sm ring-1 ring-white/20 group"
+                  aria-label="Open profile menu"
+                >
+                  <User className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-2">
+                <div className="space-y-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      if (!onChangePasswordClick) {
+                        toast.error('Change password is not available here');
+                        return;
+                      }
+                      onChangePasswordClick();
+                    }}
+                  >
+                    Change Password
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Logout Button */}

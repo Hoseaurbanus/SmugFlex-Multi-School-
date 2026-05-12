@@ -80,8 +80,7 @@ class Logger {
       const recentLogs = existingLogs.slice(-100);
       localStorage.setItem('app_logs', JSON.stringify(recentLogs));
     } catch (error) {
-      // Fallback to console if localStorage fails
-      console.error('Failed to store log:', error);
+      // Silent fail for security
     }
   }
 
@@ -91,10 +90,10 @@ class Logger {
     const entry = this.createLogEntry('info', message, data, component);
     this.addLog(entry);
     
-    // Always show info logs in development
-    if (!this.isProduction) {
-      console.log(`ℹ️ [INFO] ${component ? `[${component}] ` : ''}${message}`, data || '');
-    }
+    // Production: no console output
+    // if (!this.isProduction) {
+    //   console.log(`ℹ️ [INFO] ${component ? `[${component}] ` : ''}${message}`, data || '');
+    // }
   }
 
   public warn(message: string, data?: any, component?: string): void {
@@ -103,8 +102,8 @@ class Logger {
     const entry = this.createLogEntry('warn', message, data, component);
     this.addLog(entry);
     
-    // Always show warning logs
-    console.warn(`⚠️ [WARN] ${component ? `[${component}] ` : ''}${message}`, data || '');
+    // Production: no console output
+    // console.warn(`⚠️ [WARN] ${component ? `[${component}] ` : ''}${message}`, data || '');
   }
 
   public error(message: string, error?: any, component?: string): void {
@@ -113,8 +112,8 @@ class Logger {
     const entry = this.createLogEntry('error', message, error, component);
     this.addLog(entry);
     
-    // Always show error logs
-    console.error(`❌ [ERROR] ${component ? `[${component}] ` : ''}${message}`, error || '');
+    // Production: no console output
+    // console.error(`❌ [ERROR] ${component ? `[${component}] ` : ''}${message}`, error || '');
   }
 
   public debug(message: string, data?: any, component?: string): void {
@@ -123,7 +122,8 @@ class Logger {
     const entry = this.createLogEntry('debug', message, data, component);
     this.addLog(entry);
     
-    console.log(`🐛 [DEBUG] ${component ? `[${component}] ` : ''}${message}`, data || '');
+    // Production: no console output
+    // console.log(`🐛 [DEBUG] ${component ? `[${component}] ` : ''}${message}`, data || '');
   }
 
   // Get recent logs for debugging

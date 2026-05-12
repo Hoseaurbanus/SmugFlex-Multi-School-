@@ -1,5 +1,5 @@
 import { Calculator, GraduationCap, Users } from 'lucide-react';
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -50,7 +50,7 @@ export function NotificationSystemPage() {
   const readRate = totalPossibleReads > 0 ? Math.round((totalReadCount / totalPossibleReads) * 100) : 0;
   const deliveryRate = 97; // Assume 97% delivery rate
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
 
     if (!formData.title || !formData.message || !formData.recipient) {
@@ -80,18 +80,10 @@ export function NotificationSystemPage() {
       targetAudience = formData.recipient as any;
     }
 
-    // Map priority to type
-    const typeMap = {
-      normal: 'info' as const,
-      low: 'info' as const,
-      high: 'warning' as const,
-      urgent: 'error' as const,
-    };
-
     addNotification({
       title: formData.title,
       message: formData.message,
-      type: typeMap[formData.priority as keyof typeof typeMap] || 'info',
+      type: formData.priority,
       targetAudience,
       sentBy: currentUser.id,
       sentDate: new Date().toISOString(),
@@ -130,73 +122,91 @@ export function NotificationSystemPage() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-6">
-        <h1 className="text-white mb-2">Notification System</h1>
-        <p className="text-[#C0C8D3]">Send notifications and announcements to users</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Notification System</h1>
+          <p className="text-gray-600 mt-1">Send notifications and announcements to users</p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Create Notification Form */}
         <div className="lg:col-span-2">
-          <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
-            <CardHeader className="p-5 border-b border-white/10">
-              <h3 className="text-white flex items-center gap-2">
-                <span className="w-5 h-5" />
-                Create New Notification
-              </h3>
+          <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
+            <CardHeader className="p-5 border-b border-gray-200">
+              <h3 className="text-gray-900 font-semibold">Create New Notification</h3>
             </CardHeader>
+
             <CardContent className="p-6">
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label className="text-white">Notification Title *</Label>
-                  <Input
-                    required
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="Enter notification title"
-                    className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
-                  />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-gray-700">Notification Title *</Label>
+                    <Input
+                      required
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      placeholder="e.g., School fees reminder"
+                      className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-gray-700">Recipients *</Label>
+                    <Select
+                      value={formData.recipient}
+                      onValueChange={(value: string) => setFormData({ ...formData, recipient: value })}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900">
+                        <SelectValue placeholder="Select recipient group" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200">
+                        <SelectItem value="all" className="text-gray-900">All Users</SelectItem>
+                        <SelectItem value="teachers" className="text-gray-900">All Teachers</SelectItem>
+                        <SelectItem value="parents" className="text-gray-900">All Parents</SelectItem>
+                        <SelectItem value="accountants" className="text-gray-900">All Accountants</SelectItem>
+                        <SelectItem value="custom" className="text-gray-900">Custom Selection</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-gray-700">Priority</Label>
+                    <Select
+                      value={formData.priority}
+                      onValueChange={(value: string) =>
+                        setFormData({ ...formData, priority: value as 'info' | 'warning' | 'success' | 'error' })
+                      }
+                    >
+                      <SelectTrigger className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200">
+                        <SelectItem value="info" className="text-gray-900">Info</SelectItem>
+                        <SelectItem value="success" className="text-gray-900">Success</SelectItem>
+                        <SelectItem value="warning" className="text-gray-900">Warning</SelectItem>
+                        <SelectItem value="error" className="text-gray-900">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-white">Message *</Label>
-                  <Textarea
-                    required
-                    value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    placeholder="Enter your message here..."
-                    className="min-h-32 rounded-xl border border-white/10 bg-[#0F243E] text-white"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-white">Recipients *</Label>
-                  <Select value={formData.recipient} onValueChange={(value: string) => setFormData({ ...formData, recipient: value })}>
-                    <SelectTrigger className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white">
-                      <SelectValue placeholder="Select recipient group" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#0F243E] border-white/10">
-                      <SelectItem value="all" className="text-white hover:bg-[#1E90FF]">All Users</SelectItem>
-                      <SelectItem value="teachers" className="text-white hover:bg-[#1E90FF]">All Teachers</SelectItem>
-                      <SelectItem value="parents" className="text-white hover:bg-[#1E90FF]">All Parents</SelectItem>
-                      <SelectItem value="accountants" className="text-white hover:bg-[#1E90FF]">All Accountants</SelectItem>
-                      <SelectItem value="custom" className="text-white hover:bg-[#1E90FF]">Custom Selection</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {formData.recipient === "custom" && (
-                  <div className="p-4 bg-[#0F243E] rounded-xl border border-white/10 space-y-3">
-                    <Label className="text-white">Select User Roles:</Label>
-                    <div className="space-y-2">
+                {formData.recipient === 'custom' && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-gray-700">Select User Roles</Label>
+                      <span className="text-xs text-gray-500">Optional (defaults to All)</span>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id="teachers"
                           checked={selectedRoles.teachers}
-                          onCheckedChange={(checked: boolean) => setSelectedRoles({ ...selectedRoles, teachers: checked })}
-                          className="border-white/20"
+                          onCheckedChange={(checked: boolean) =>
+                            setSelectedRoles({ ...selectedRoles, teachers: checked })
+                          }
+                          className="border-gray-300"
                         />
-                        <Label htmlFor="teachers" className="text-white cursor-pointer flex items-center gap-2">
+                        <Label htmlFor="teachers" className="text-gray-800 cursor-pointer flex items-center gap-2">
                           <GraduationCap className="w-4 h-4" />
                           Teachers
                         </Label>
@@ -205,10 +215,12 @@ export function NotificationSystemPage() {
                         <Checkbox
                           id="parents"
                           checked={selectedRoles.parents}
-                          onCheckedChange={(checked: boolean) => setSelectedRoles({ ...selectedRoles, parents: checked })}
-                          className="border-white/20"
+                          onCheckedChange={(checked: boolean) =>
+                            setSelectedRoles({ ...selectedRoles, parents: checked })
+                          }
+                          className="border-gray-300"
                         />
-                        <Label htmlFor="parents" className="text-white cursor-pointer flex items-center gap-2">
+                        <Label htmlFor="parents" className="text-gray-800 cursor-pointer flex items-center gap-2">
                           <Users className="w-4 h-4" />
                           Parents
                         </Label>
@@ -217,10 +229,12 @@ export function NotificationSystemPage() {
                         <Checkbox
                           id="accountants"
                           checked={selectedRoles.accountants}
-                          onCheckedChange={(checked: boolean) => setSelectedRoles({ ...selectedRoles, accountants: checked })}
-                          className="border-white/20"
+                          onCheckedChange={(checked: boolean) =>
+                            setSelectedRoles({ ...selectedRoles, accountants: checked })
+                          }
+                          className="border-gray-300"
                         />
-                        <Label htmlFor="accountants" className="text-white cursor-pointer flex items-center gap-2">
+                        <Label htmlFor="accountants" className="text-gray-800 cursor-pointer flex items-center gap-2">
                           <Calculator className="w-4 h-4" />
                           Accountants
                         </Label>
@@ -230,27 +244,30 @@ export function NotificationSystemPage() {
                 )}
 
                 <div className="space-y-2">
-                  <Label className="text-white">Priority Level</Label>
-                  <Select value={formData.priority} onValueChange={(value: string) => setFormData({ ...formData, priority: value as 'info' | 'warning' | 'success' | 'error' })}>
-                    <SelectTrigger className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#0F243E] border-white/10">
-                      <SelectItem value="info" className="text-white hover:bg-[#1E90FF]">Info</SelectItem>
-                      <SelectItem value="warning" className="text-white hover:bg-[#1E90FF]">Warning</SelectItem>
-                      <SelectItem value="success" className="text-white hover:bg-[#1E90FF]">Success</SelectItem>
-                      <SelectItem value="error" className="text-white hover:bg-[#1E90FF]">Error</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-gray-700">Message *</Label>
+                  <Textarea
+                    required
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    placeholder="Write the message you want recipients to see"
+                    className="min-h-36 rounded-xl border border-gray-300 bg-white text-gray-900"
+                  />
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  <Button
-                    type="submit"
-                    className="flex-1 h-12 bg-[#1E90FF] hover:bg-[#00BFFF] text-white rounded-xl shadow-md hover:scale-105 transition-all"
-                  >
-                    <span className="w-5 h-5 mr-2" />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white h-11 rounded-xl sm:flex-1">
                     Send Notification
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-gray-300 text-gray-900 hover:bg-gray-50 h-11 rounded-xl sm:flex-1"
+                    onClick={() => {
+                      setFormData({ title: '', message: '', recipient: '', priority: 'info' });
+                      setSelectedRoles({ teachers: false, parents: false, accountants: false });
+                    }}
+                  >
+                    Reset
                   </Button>
                 </div>
               </form>
@@ -258,64 +275,56 @@ export function NotificationSystemPage() {
           </Card>
         </div>
 
-        {/* Recent Notifications & Statistics */}
-        <div className="space-y-4">
-          <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
-            <CardHeader className="p-5 border-b border-white/10">
-              <h3 className="text-white flex items-center gap-2">
-                <span className="w-5 h-5" />
-                Recent Notifications
-              </h3>
+        <div className="space-y-6">
+          <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
+            <CardHeader className="p-5 border-b border-gray-200">
+              <h3 className="text-gray-900 font-semibold">Notification Analytics</h3>
             </CardHeader>
-            <CardContent className="p-5 space-y-3">
-              {recentNotifications.length === 0 ? (
-                <div className="text-center py-8">
-                  <span className="w-12 h-12 mx-auto mb-3 text-[#C0C8D3]" />
-                  <p className="text-white mb-1">No notifications yet</p>
-                  <p className="text-sm text-[#C0C8D3]">Send your first notification above</p>
+            <CardContent className="p-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-gray-600 text-xs">Sent This Week</p>
+                  <p className="text-gray-900 font-bold text-xl mt-1">{sentThisWeek}</p>
                 </div>
-              ) : (
-                recentNotifications.map((notification) => (
-                  <div key={notification.id} className="p-3 bg-[#0F243E] rounded-xl border border-white/5 hover:border-white/10 transition-all">
-                    <div className="flex items-start justify-between mb-2">
-                      <p className="text-white text-sm">{notification.title}</p>
-                      <Badge className={`${getPriorityColor(notification.type)} text-white border-0 text-xs`}>
-                        {notification.type}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-[#C0C8D3] mb-2 line-clamp-2">{notification.message}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[#C0C8D3]">{notification.targetAudience}</span>
-                      <span className="text-xs text-[#C0C8D3]">{new Date(notification.sentDate).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                ))
-              )}
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-gray-600 text-xs">Total Sent</p>
+                  <p className="text-gray-900 font-bold text-xl mt-1">{totalSent}</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-gray-600 text-xs">Read Rate</p>
+                  <p className="text-gray-900 font-bold text-xl mt-1">{readRate}%</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-gray-600 text-xs">Delivery Rate</p>
+                  <p className="text-gray-900 font-bold text-xl mt-1">{deliveryRate}%</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Statistics */}
-          <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
-            <CardHeader className="p-5 border-b border-white/10">
-              <h3 className="text-white text-sm">Statistics</h3>
+          <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
+            <CardHeader className="p-5 border-b border-gray-200">
+              <h3 className="text-gray-900 font-semibold">Recent Notifications</h3>
             </CardHeader>
             <CardContent className="p-5 space-y-3">
-              <div className="flex justify-between">
-                <span className="text-[#C0C8D3]">Sent This Week</span>
-                <span className="text-white">{sentThisWeek}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#C0C8D3]">Total Sent</span>
-                <span className="text-white">{totalSent}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#C0C8D3]">Delivered</span>
-                <span className="text-[#28A745]">{deliveryRate}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#C0C8D3]">Read Rate</span>
-                <span className="text-[#1E90FF]">{readRate}%</span>
-              </div>
+              {recentNotifications.length === 0 ? (
+                <p className="text-gray-600 text-sm">No notifications sent yet</p>
+              ) : (
+                recentNotifications.map((notification, index) => (
+                  <div key={index} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <Badge className={`${getPriorityColor(notification.type)} text-white text-xs`}>
+                        {String(notification.type || '').toUpperCase()}
+                      </Badge>
+                      <span className="text-gray-500 text-xs whitespace-nowrap">
+                        {new Date(notification.sentDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-gray-900 font-medium text-sm truncate">{notification.title}</p>
+                    <p className="text-gray-600 text-xs truncate">{notification.message}</p>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>

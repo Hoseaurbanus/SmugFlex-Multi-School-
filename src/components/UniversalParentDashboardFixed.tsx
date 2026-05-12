@@ -1,6 +1,6 @@
 // Parent Dashboard Component - Main interface for parent users
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Users, Calendar, Bell, Settings, User, CheckCircle, BookOpen, Award, TrendingUp, Download, Eye, Search, Filter, Mail, Phone, Lock, CreditCard, FileText, Clock, AlertCircle, Check, X, Edit2, Save, RefreshCw, Banknote, Upload, Printer } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Bell, Settings, User, CheckCircle, BookOpen, Award, TrendingUp, Download, Eye, Search, Filter, Mail, Phone, Lock, CreditCard, FileText, Clock, AlertCircle, Check, X, Edit2, Save, RefreshCw, Banknote, Upload, Printer, MessageCircle } from 'lucide-react';
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { useSchool } from "../contexts/SchoolContext";
 import { connectionMonitor } from "../utils/connectionMonitor";
 import { MyChildrenPage } from "./parent/MyChildrenPage";
-import { API_CONFIG } from "../config/api";
+import { API_CONFIG, getAuthToken } from "../config/api";
 import { PaymentReceipt } from "./ui/PaymentReceipt";
 
 // Naira symbol constant for reliable display
@@ -34,6 +34,7 @@ interface Child {
   admissionNumber: string;
   className: string;
   classLevel: string;
+  class_id?: number; // Add optional class_id for WhatsApp groups
   gender: string;
   photoUrl?: string;
   dateOfBirth: string;
@@ -51,34 +52,70 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     currentUser, 
     parents, 
     getParentChildren,
+    getParentChildrenFromAPI,
     getUnreadNotifications, 
     notifications, 
     currentTerm, 
     currentAcademicYear,
     loadParentsFromAPI,
-    loadParentStudentLinksFromAPI,
-    loadStudentsFromAPI,
+    loadClassesFromAPI,
     loadCompiledResultsFromAPI,
-    loadScoresFromAPI,
     loadSchoolSettings,
     compiledResults,
     getCompiledResults,
-    studentFeeBalances,
     payments,
+    loadPaymentsFromAPI,
     markNotificationAsRead,
     updateParent,
     addNotification,
-    parentStudentLinks,
-    students,
+    deleteNotification,
+    loadNotificationsFromAPI,
     classes,
     teachers,
-    scores,
     schoolSettings,
     feeStructures,
     loadFeeStructuresFromAPI,
-    loadStudentFeeBalancesFromAPI,
-    users
+    getStudentInvoice,
+    users,
+    changePassword
   } = useSchool();
+
+  const getChildPhotoCandidates = (child: any): string[] => {
+    const raw = child?.photoUrl || child?.photo_url || child?.photoURL;
+    if (!raw || typeof raw !== 'string') return [];
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) return [trimmed];
+
+    const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    let apiOrigin = '';
+    try {
+      apiOrigin = API_CONFIG?.BASE_URL ? new URL(API_CONFIG.BASE_URL).origin : '';
+    } catch {
+      apiOrigin = '';
+    }
+
+    const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
+    const candidates = [
+      appOrigin ? `${appOrigin}${normalizedPath}` : '',
+      apiOrigin ? `${apiOrigin}${normalizedPath}` : '',
+      trimmed,
+    ].filter(Boolean);
+
+    return Array.from(new Set(candidates));
+  };
+
+  const handleChildPhotoError = (e: React.SyntheticEvent<HTMLImageElement>, child: any) => {
+    const img = e.currentTarget;
+    const candidates = getChildPhotoCandidates(child);
+    const idx = Number(img.dataset.candidateIdx || '0');
+    const nextIdx = idx + 1;
+    if (nextIdx < candidates.length) {
+      img.dataset.candidateIdx = String(nextIdx);
+      img.src = candidates[nextIdx];
+    }
+  };
   
   const [activeItem, setActiveItem] = useState("dashboard");
 
@@ -99,7 +136,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           }
         }).catch(error => {
           if (isMounted) {
-            console.error('Connection reconnection failed:', error);
+            // Silent fail for security
           }
         });
       }
@@ -147,6 +184,192 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
   const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<any>(null);
 
+  const [invoiceSummaries, setInvoiceSummaries] = useState<Record<number, any>>({});
+
+  const bootstrapKeyRef = useRef<string>('');
+
+  // Load children data on mount and when parent links change
+  useEffect(() => {
+    const loadChildren = async () => {
+      if (!currentUser || currentUser.role !== 'parent' || !currentUser.linked_id) {
+        return;
+      }
+
+      const nextKey = String(currentUser.linked_id);
+      if (bootstrapKeyRef.current === nextKey && dataLoadedRef.current) {
+        return;
+      }
+      bootstrapKeyRef.current = nextKey;
+      
+      setLoading(true);
+      try {
+        // Parent bootstrap: keep it minimal and parent-safe to improve load time and stability.
+        // Parents should not depend on loading the entire students list.
+        await Promise.all([
+          loadParentsFromAPI(),
+          loadClassesFromAPI(),
+          loadCompiledResultsFromAPI(),
+          loadNotificationsFromAPI(),
+          loadFeeStructuresFromAPI(),
+          loadSchoolSettings(),
+        ]);
+
+        const parentId = currentUser.linked_id;
+        
+        // Try API first, fallback to context function
+        const apiChildren = await getParentChildrenFromAPI?.(Number(parentId));
+        const childrenData = Array.isArray(apiChildren) && apiChildren.length > 0
+          ? apiChildren
+          : getParentChildren(parentId);
+        
+        if (childrenData && childrenData.length > 0) {
+          const transformedChildren = childrenData.map((child: any) => ({
+            ...child,
+            firstName: child.firstName ?? child.first_name ?? "",
+            lastName: child.lastName ?? child.last_name ?? "",
+            fullName: child.fullName ?? child.full_name ?? `${child.firstName ?? child.first_name ?? ''} ${child.lastName ?? child.last_name ?? ''}`.trim(),
+            admissionNumber: child.admissionNumber ?? child.admission_number ?? "",
+            className: child.className ?? child.class_name ?? "",
+            class_id: child.class_id ?? child.classId ?? child.class_id,
+            gender: child.gender ?? "",
+            status: child.status ?? "Active",
+            feeBalance: child.feeBalance ?? 0,
+            totalFees: child.totalFees ?? 0
+          }));
+          setChildren(transformedChildren);
+          setDataLoadedSuccessfully(true);
+          dataLoadedRef.current = true;
+        } else {
+          setChildren([]);
+        }
+      } catch (error) {
+        setChildren([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadChildren();
+  }, [currentUser?.id, currentUser?.linked_id]);
+
+  // Keep parent results fresh without requiring hard refresh / cache clearing.
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'parent') return;
+
+    let intervalId: number | undefined;
+
+    const refresh = async () => {
+      try {
+        await loadCompiledResultsFromAPI();
+      } catch (e) {
+        // Keep UI stable if refresh fails.
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    refresh();
+    intervalId = window.setInterval(refresh, 10000);
+
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [currentUser?.id, currentUser?.role]);
+
+  const getPendingOnlinePaymentForStudent = (studentId: number, invoiceId?: number | null) => {
+    const safePayments = Array.isArray(payments) ? payments : [];
+    const invId = invoiceId ? Number(invoiceId) : null;
+    const rows = safePayments
+      .filter((p: any) => {
+        const sameStudent = Number(p?.student_id) === Number(studentId);
+        const isPending = p?.status === 'Pending';
+        const isOnline = p?.payment_method === 'Online Payment';
+        const sameInvoice = invId ? Number(p?.invoice_id) === invId : true;
+        return sameStudent && isPending && isOnline && sameInvoice;
+      })
+      .sort((a: any, b: any) => new Date(b.recorded_date).getTime() - new Date(a.recorded_date).getTime());
+
+    return rows.length > 0 ? rows[0] : null;
+  };
+
+  const refreshChildInvoice = async (childId: number) => {
+    if (!currentTerm || !currentAcademicYear) return;
+    try {
+      const summary = await getStudentInvoice(childId, currentTerm, currentAcademicYear);
+      setInvoiceSummaries(prev => ({ ...prev, [childId]: summary }));
+    } catch (e) {
+      // Keep UI stable if invoice not found yet
+      setInvoiceSummaries(prev => ({ ...prev, [childId]: null }));
+    }
+  };
+
+  const refreshAllInvoices = async () => {
+    if (!currentTerm || !currentAcademicYear) return;
+    if (!children || children.length === 0) return;
+
+    const entries = await Promise.all(
+      children.map(async (c) => {
+        try {
+          const summary = await getStudentInvoice(c.id, currentTerm, currentAcademicYear);
+          return [c.id, summary] as const;
+        } catch (e) {
+          return [c.id, null] as const;
+        }
+      })
+    );
+
+    const next: Record<number, any> = {};
+    for (const [id, summary] of entries) {
+      next[id] = summary;
+    }
+    setInvoiceSummaries(next);
+  };
+
+  // Refresh invoices when term/year changes (set by admin)
+  useEffect(() => {
+    if (!currentTerm || !currentAcademicYear) return;
+    if (!children || children.length === 0) return;
+    refreshAllInvoices();
+  }, [currentTerm, currentAcademicYear, children.length]);
+
+  useEffect(() => {
+    const refreshParentPayments = async () => {
+      if (!currentUser || currentUser.role !== 'parent') return;
+      if (!children || children.length === 0) return;
+      await loadPaymentsFromAPI();
+    };
+
+    refreshParentPayments();
+  }, [currentUser?.id, currentUser?.role, children.length]);
+
+  useEffect(() => {
+    if (!isPaymentModalOpen || !selectedChild) return;
+    const selectedInvoiceId = invoiceSummaries[selectedChild.id]?.invoice?.id;
+    const existingPendingOnline = getPendingOnlinePaymentForStudent(Number(selectedChild.id), selectedInvoiceId ?? null);
+    if (existingPendingOnline && paymentMethod === 'card') {
+      setPaymentMethod('transfer');
+    }
+  }, [isPaymentModalOpen, selectedChild?.id, payments.length]);
+
+  const getOutstandingForChild = (childId: number) => {
+    const inv = invoiceSummaries[childId];
+    const outstanding = inv && typeof inv.outstanding === 'number' ? inv.outstanding : 0;
+    const credit = inv && typeof inv.credit === 'number' ? inv.credit : 0;
+    return { outstanding, credit };
+  };
+
+  // WhatsApp Groups State
+  const [whatsappGroups, setWhatsappGroups] = useState<any[]>([]);
+  const [loadingWhatsappGroups, setLoadingWhatsappGroups] = useState(false);
+
   const [bankDetails] = useState({
     bank: "Bank details to be provided by school administration",
     accountName: "Please contact school for account information",
@@ -156,7 +379,11 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
   const currentParent = currentUser && parents.length > 0 ? parents.find((p) => p.id === currentUser?.linked_id) : null;
   
   let parentName = currentUser?.username || "Parent";
-  if (currentParent && currentParent.firstName && currentParent.lastName) {
+  const firstFromUser = (currentUser as any)?.first_name ?? (currentUser as any)?.firstName;
+  const lastFromUser = (currentUser as any)?.last_name ?? (currentUser as any)?.lastName;
+  if (firstFromUser && lastFromUser) {
+    parentName = `${firstFromUser} ${lastFromUser}`;
+  } else if (currentParent && currentParent.firstName && currentParent.lastName) {
     parentName = `${currentParent.firstName} ${currentParent.lastName}`;
   }
   
@@ -177,10 +404,12 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
   const approvedResults = getApprovedResultsForChildren();
 
   const handleViewResult = (resultId: number) => {
+    setActiveItem('children');
     toast.success(`Opening approved result details for ID: ${resultId}`);
   };
 
   const handleDownloadResult = (resultId: number) => {
+    setActiveItem('children');
     toast.success(`Downloading PDF result for ID: ${resultId}`);
     // In a real implementation, this would generate and download a PDF
   };
@@ -204,13 +433,18 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
       return;
     }
     
-    if (passwordData.newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (passwordData.newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
     
     try {
-      // In a real implementation, this would call an API to change password
+      const ok = await changePassword(passwordData.currentPassword, passwordData.newPassword);
+      if (!ok) {
+        toast.error("Current password is incorrect");
+        return;
+      }
+
       toast.success("Password changed successfully!");
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (error) {
@@ -281,8 +515,74 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
 
   const handleMakePayment = (child: Child) => {
     setSelectedChild(child);
-    setPaymentAmount(child.feeBalance || 0);
+    const inv = invoiceSummaries[child.id];
+    const outstanding = inv && typeof inv.outstanding === 'number' ? inv.outstanding : 0;
+    setPaymentAmount(outstanding > 0 ? outstanding : 0);
+
+    const selectedInvoiceId = invoiceSummaries[child.id]?.invoice?.id;
+    const existingPendingOnline = getPendingOnlinePaymentForStudent(Number(child.id), selectedInvoiceId ?? null);
+    setPaymentMethod(existingPendingOnline ? 'transfer' : 'card');
+
     setIsPaymentModalOpen(true);
+  };
+
+  // WhatsApp Groups Functions
+  const loadWhatsappGroups = async () => {
+    if (!currentUser?.linked_id || children.length === 0) {
+      setWhatsappGroups([]);
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      setWhatsappGroups([]);
+      toast.error('Session expired. Please log in again to view WhatsApp groups.');
+      return;
+    }
+
+    setLoadingWhatsappGroups(true);
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/classes/whatsapp-groups`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setWhatsappGroups(data.data || []);
+      } else if (response.status === 401) {
+        setWhatsappGroups([]);
+        toast.error('You are not authorized. Please log in again.');
+      } else {
+        setWhatsappGroups([]);
+      }
+    } catch (error) {
+      setWhatsappGroups([]);
+    } finally {
+      setLoadingWhatsappGroups(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeItem !== 'messages') return;
+    loadWhatsappGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeItem, currentUser?.linked_id, children.length]);
+
+  const handleJoinWhatsappGroup = (group: any) => {
+    if (!group || !group.whatsapp_group_link) {
+      toast.error('WhatsApp group link not available');
+      return;
+    }
+
+    try {
+      // Open WhatsApp group in new tab
+      window.open(group.whatsapp_group_link, '_blank');
+      toast.success(`Opening ${group.group_name || 'WhatsApp group'}`);
+    } catch (error) {
+      toast.error('Failed to open WhatsApp group');
+    }
   };
 
   const handlePaymentSubmit = async () => {
@@ -337,6 +637,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           },
           body: JSON.stringify({
             student_id: selectedChild.id,
+            invoice_id: invoiceSummaries[selectedChild.id]?.invoice?.id,
             amount: paymentAmount,
             payment_type: 'School Fees',
             term: currentTerm,
@@ -364,11 +665,27 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
         setBankTransferReceipt(null);
         setLoadingPayments(false);
 
-        // Refresh data
-        window.location.reload();
+        await refreshChildInvoice(selectedChild.id);
 
       } else {
         // Handle online payment (existing logic)
+        const selectedInvoiceId = invoiceSummaries[selectedChild.id]?.invoice?.id;
+        const existingPendingOnline = payments.find((p: any) => {
+          const sameStudent = Number(p?.student_id) === Number(selectedChild.id);
+          const isPending = p?.status === 'Pending';
+          const isOnline = p?.payment_method === 'Online Payment';
+          const sameInvoice = selectedInvoiceId ? Number(p?.invoice_id) === Number(selectedInvoiceId) : true;
+          return sameStudent && isPending && isOnline && sameInvoice;
+        });
+
+        if (existingPendingOnline) {
+          const ref = existingPendingOnline?.transaction_reference || existingPendingOnline?.reference;
+          toast.dismiss();
+          toast.error(ref ? 'You already have a pending online payment. Please use Check Status instead of paying again.' : 'You already have a pending online payment. Please wait or contact the school to confirm status.');
+          setLoadingPayments(false);
+          return;
+        }
+
         toast.loading("Initializing payment...");
 
         const initResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/online-init`, {
@@ -379,6 +696,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           },
           body: JSON.stringify({
             student_id: selectedChild.id,
+            invoice_id: invoiceSummaries[selectedChild.id]?.invoice?.id,
             amount: paymentAmount,
             payment_type: 'School Fees',
             term: currentTerm,
@@ -428,13 +746,14 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
               toast.dismiss();
               toast.success(`Payment successful! Receipt: ${verifyData.data.receipt_number}`);
 
-              // Refresh parent data to update payment and fee information
-              window.location.reload();
+              await refreshChildInvoice(selectedChild.id);
 
               setIsPaymentModalOpen(false);
               setPaymentAmount(0);
               setSelectedChild(null);
               setPaymentMethod("card");
+
+              setLoadingPayments(false);
 
             } catch (verifyError: any) {
               toast.dismiss();
@@ -457,8 +776,53 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     }
   };
 
+  const handleCheckPaymentStatus = async (reference: string, studentId: number) => {
+    try {
+      if (!reference) {
+        toast.error('Missing transaction reference');
+        return;
+      }
 
+      toast.loading('Checking payment status...');
+      const verifyResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/online-verify?reference=${encodeURIComponent(reference)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
 
+      const verifyData = await verifyResponse.json();
+      toast.dismiss();
+
+      if (verifyResponse.ok && verifyData && verifyData.success) {
+        toast.success('Payment status updated');
+        await loadPaymentsFromAPI();
+        await refreshChildInvoice(studentId);
+        return;
+      }
+
+      toast.error(verifyData?.message || 'Unable to verify payment right now');
+    } catch (e: any) {
+      toast.dismiss();
+      toast.error(e?.message || 'Unable to check payment status');
+    }
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    if (status === 'Verified') {
+      return <Badge className="bg-green-100 text-green-700 text-xs">Verified</Badge>;
+    }
+    if (status === 'Pending') {
+      return <Badge className="bg-yellow-100 text-yellow-700 text-xs">Pending</Badge>;
+    }
+    if (status === 'Rejected') {
+      return <Badge className="bg-red-100 text-red-700 text-xs">Rejected</Badge>;
+    }
+    if (status === 'Reversed') {
+      return <Badge className="bg-gray-100 text-gray-700 text-xs">Reversed</Badge>;
+    }
+    return <Badge className="bg-gray-100 text-gray-700 text-xs">{status}</Badge>;
+  };
 
   const renderNotificationsPage = () => (
     <div className="space-y-6">
@@ -538,6 +902,13 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                         Mark as Read
                       </Button>
                     )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteNotification(notification.id)}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -556,86 +927,6 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6">
-        {/* Profile Settings */}
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b">
-            <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Profile Settings</h3>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    value={profileData.firstName}
-                    onChange={(e) => setProfileData({...profileData, firstName: e.target.value})}
-                    disabled={!editingProfile}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    value={profileData.lastName}
-                    onChange={(e) => setProfileData({...profileData, lastName: e.target.value})}
-                    disabled={!editingProfile}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={profileData.email}
-                  onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                  disabled={!editingProfile}
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={profileData.phone}
-                  onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                  disabled={!editingProfile}
-                />
-              </div>
-              <div>
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={profileData.address}
-                  onChange={(e) => setProfileData({...profileData, address: e.target.value})}
-                  disabled={!editingProfile}
-                />
-              </div>
-              <div className="flex gap-2">
-                {editingProfile ? (
-                  <>
-                    <Button onClick={handleSaveProfile}>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Changes
-                    </Button>
-                    <Button variant="outline" onClick={() => setEditingProfile(false)}>
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={() => setEditingProfile(true)}>
-                    <Edit2 className="h-4 w-4 mr-2" />
-                    Edit Profile
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Password Settings */}
         <Card className="border-0 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-green-50 to-green-100 border-b">
@@ -679,254 +970,9 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             </div>
           </CardContent>
         </Card>
-
-        {/* Communication Settings */}
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 border-b">
-            <div className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-purple-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Send Message</h3>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="recipient">Recipient</Label>
-                <Select value={messageData.recipient} onValueChange={(value) => setMessageData({...messageData, recipient: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select recipient" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">School Administration</SelectItem>
-                    <SelectItem value="teachers">Teachers</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="subject">Subject</Label>
-                <Input
-                  id="subject"
-                  value={messageData.subject}
-                  onChange={(e) => setMessageData({...messageData, subject: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="message">Message</Label>
-                <Textarea
-                  id="message"
-                  value={messageData.message}
-                  onChange={(e) => setMessageData({...messageData, message: e.target.value})}
-                  placeholder="Type your message here..."
-                />
-              </div>
-              <Button onClick={handleSendMessage} className="w-full">
-                <Mail className="h-4 w-4 mr-2" />
-                Send Message
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Account Information */}
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b">
-            <div className="flex items-center gap-2">
-              <Settings className="h-5 w-5 text-gray-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Account Information</h3>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs font-medium text-gray-500 mb-1">Account Status</p>
-                <Badge variant={currentParent?.status === "Active" ? "default" : "secondary"}>
-                  {currentParent?.status || "Unknown"}
-                </Badge>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs font-medium text-gray-500 mb-1">Username</p>
-                <p className="text-gray-900 font-medium">{currentUser?.username}</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs font-medium text-gray-500 mb-1">Parent ID</p>
-                <p className="text-gray-900 font-medium">{currentUser?.linked_id}</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs font-medium text-gray-500 mb-1">Linked Children</p>
-                <p className="text-gray-900 font-medium">{children.length} student(s)</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
-
-  useEffect(() => {
-    const loadParentData = async () => {
-      if (currentUser && currentUser.role === "parent") {
-        setLoading(true);
-        try {
-          await Promise.all([
-            loadParentsFromAPI(),
-            loadParentStudentLinksFromAPI(),
-            loadStudentsFromAPI(),
-            loadCompiledResultsFromAPI(),
-            loadScoresFromAPI(), // ← IMPORTANT: Load scores for PDF
-            loadSchoolSettings(), // ← IMPORTANT: Load school settings for PDF
-            loadFeeStructuresFromAPI(), // ← IMPORTANT: Load fee structures for fee calculations
-            loadStudentFeeBalancesFromAPI() // ← IMPORTANT: Load fee balances for fee calculations
-          ]);
-
-          // Wait a moment for state to update after API calls
-          await new Promise(resolve => setTimeout(resolve, 500));
-
-          const parentId = currentUser?.linked_id;
-          
-          //console.log('=== UNIVERSAL DASHBOARD PARENT ID DEBUG ===');
-          //console.log('Current user:', currentUser);
-          //console.log('Parent ID from linked_id:', parentId);
-          //console.log('Parent ID type:', typeof parentId);
-          //console.log('Parent ID exists:', !!parentId);
-          
-          if (parentId) {
-            //console.log('Universal Dashboard - Fetching children for parent ID:', parentId);
-            //console.log('Universal Dashboard - Available parent-student links:', parentStudentLinks);
-            //console.log('Universal Dashboard - Available students:', students);
-            //console.log('Universal Dashboard - Data loaded check - links length:', parentStudentLinks.length, 'students length:', students.length);
-            
-            // Only proceed if data is actually loaded
-            if (parentStudentLinks.length > 0 && students.length > 0) {
-              const childrenData = getParentChildren(parentId);
-              //console.log('Universal Dashboard - Children data fetched:', childrenData);
-              
-              if (childrenData && childrenData.length > 0) {
-                const transformedChildren = childrenData.map((child: any) => ({
-                  ...child,
-                  dateOfBirth: child.dateOfBirth || "",
-                  address: child.address || "",
-                  parentContact: child.parentContact || "",
-                  enrollmentDate: child.enrollmentDate || "",
-                  recentActivities: child.recentActivities || [],
-                  feeBalance: child.feeBalance || 0,
-                  totalFees: child.totalFees || 0
-                }));
-                setChildren(transformedChildren);
-                setDataLoadedSuccessfully(true); // Mark data as successfully loaded
-                dataLoadedRef.current = true; // Set ref to true immediately
-                //console.log('Universal Dashboard - Children set successfully:', transformedChildren.length);
-              } else {
-                //console.log('Universal Dashboard - No children found for parent after data loaded');
-                //console.log('Universal Dashboard - About to set children to empty array');
-                setChildren([]);
-                // Check if parent exists in the system but has no linked students
-                const parentExists = parents.some(p => p.id == parentId); // Use == for type coercion
-                if (parentExists) {
-                  toast.info(`No linked students found. Please contact administration to link students to your account.`);
-                } else {
-                  toast.error("Parent account not properly linked. Please contact administration.");
-                }
-              }
-            } else {
-              //console.log('Universal Dashboard - Data not loaded yet - links:', parentStudentLinks.length, 'students:', students.length);
-              //console.log('Universal Dashboard - dataLoadedRef.current:', dataLoadedRef.current);
-              //console.log('Universal Dashboard - Retrying in 1 second...');
-              
-              // Only schedule retry if not already scheduled AND data hasn't been loaded successfully
-              if (!retryScheduled && !dataLoadedRef.current) {
-                setRetryScheduled(true);
-                
-                // Retry once more after 1 second
-                setTimeout(async () => {
-                  //console.log('Universal Dashboard - Retry - Available parent-student links:', parentStudentLinks.length);
-                  //console.log('Universal Dashboard - Retry - Available students:', students.length);
-                  //console.log('Universal Dashboard - Retry - dataLoadedRef.current:', dataLoadedRef.current);
-                  
-                  // Don't retry if data was already successfully loaded
-                  if (dataLoadedRef.current) {
-                    //console.log('Universal Dashboard - Skipping retry - data already loaded successfully');
-                    setRetryScheduled(false);
-                    return;
-                  }
-                  
-                  if (parentStudentLinks.length > 0 && students.length > 0) {
-                    const childrenData = getParentChildren(parentId);
-                    //console.log('Universal Dashboard - Retry - Children data fetched:', childrenData);
-                    
-                    if (childrenData && childrenData.length > 0) {
-                      const transformedChildren = childrenData.map((child: any) => ({
-                        ...child,
-                        dateOfBirth: child.dateOfBirth || "",
-                        address: child.address || "",
-                        parentContact: child.parentContact || "",
-                        enrollmentDate: child.enrollmentDate || "",
-                        recentActivities: child.recentActivities || [],
-                        feeBalance: child.feeBalance || 0,
-                        totalFees: child.totalFees || 0
-                      }));
-                      setChildren(transformedChildren);
-                      setDataLoadedSuccessfully(true); // Mark data as successfully loaded
-                      dataLoadedRef.current = true; // Set ref to true immediately
-                    } else {
-                      setChildren([]);
-                      const parentExists = parents.some(p => p.id == parentId);
-                      if (parentExists) {
-                        toast.info(`No linked students found. Please contact administration to link students to your account.`);
-                      } else {
-                        toast.error("Parent account not properly linked. Please contact administration.");
-                      }
-                    }
-                  } else {
-                    //console.log('Universal Dashboard - Retry failed - Data still not loaded');
-                    // Don't set children to empty array if data was already loaded successfully
-                    // Use ref to check if data was ever loaded successfully (more reliable than state)
-                    if (children.length === 0 && !dataLoadedRef.current) {
-                      setChildren([]);
-                      const parentExists = parents.some(p => p.id == parentId);
-                      if (parentExists) {
-                        toast.info(`No linked students found. Please contact administration to link students to your account.`);
-                      } else {
-                        toast.error("Parent account not properly linked. Please contact administration.");
-                      }
-                    }
-                  }
-                  setRetryScheduled(false); // Reset retry flag
-                }, 1000);
-              }
-            }
-          } else {
-            //console.log('=== NO PARENT ID FOUND ===');
-            //console.log('Current user:', currentUser);
-            //console.log('User linked_id:', currentUser?.linked_id);
-            //console.log('Universal Dashboard - About to set children to empty array - NO PARENT ID');
-            setChildren([]);
-            toast.error("Parent account not properly linked. Please contact administration.");
-          }
-        } catch (error) {
-          //console.error("Error loading parent data:", error);
-          toast.error("Failed to load parent data");
-          setChildren([]);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-    
-    loadParentData();
-  }, [currentUser?.id, currentUser?.linked_id, parents.length]);
-
-  // Initialize profile data when currentParent changes
-  useEffect(() => {
-    if (currentParent) {
-      setProfileData({
-        firstName: currentParent.firstName || "",
-        lastName: currentParent.lastName || "",
-        email: currentParent.email || "",
-        phone: currentParent.phone || "",
-        address: currentParent.address || ""
-      });
-    }
-  }, [currentParent]);
 
   const renderDashboard = () => (
     <div className="p-4 md:p-6 space-y-6">
@@ -1072,7 +1118,12 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             {children.length === 0 ? (
               <div className="text-center py-4">
                 <p className="text-gray-500 text-sm">No children linked to your account</p>
-                <Button variant="outline" size="sm" className="mt-2 text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-xs"
+                  onClick={() => setActiveItem('messages')}
+                >
                   Contact School Admin
                 </Button>
               </div>
@@ -1083,7 +1134,13 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
                         {child.photoUrl ? (
-                          <img src={child.photoUrl} alt={child.fullName} className="w-full h-full object-cover rounded-full" />
+                          <img
+                            src={getChildPhotoCandidates(child)[0] || ''}
+                            alt={child.fullName}
+                            className="w-full h-full object-cover rounded-full"
+                            data-candidate-idx={0}
+                            onError={(e) => handleChildPhotoError(e, child)}
+                          />
                         ) : (
                           <User className="h-4 w-4 text-blue-600" />
                         )}
@@ -1093,13 +1150,26 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                         <p className="text-xs text-gray-500">{child.className}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" className="text-xs text-blue-600">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-blue-600"
+                      onClick={() => {
+                        setActiveItem('children');
+                        toast.success(`Opening ${child.fullName}`);
+                      }}
+                    >
                       View
                     </Button>
                   </div>
                 ))}
                 {children.length > 3 && (
-                  <Button variant="outline" size="sm" className="w-full text-xs">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => setActiveItem('children')}
+                  >
                     View All {children.length} Children
                   </Button>
                 )}
@@ -1129,11 +1199,15 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                   if (!child) return null;
                   
                   return (
-                    <div key={result.id} className="p-2 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                    <div
+                      key={result.id}
+                      className="p-2 bg-green-50 rounded-lg hover:bg-green-100 transition-colors cursor-pointer"
+                      onClick={() => handleViewResult(result.id)}
+                    >
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-gray-900">{child.fullName}</p>
-                          <p className="text-xs text-gray-500">{result.term} â€¢ {result.average_score || 'N/A'}</p>
+                          <p className="text-xs text-gray-500">{result.term} • {result.average_score || 'N/A'}</p>
                         </div>
                         <Badge className="bg-green-100 text-green-700 text-xs">
                           {result.average_score ? 'View' : 'Pending'}
@@ -1143,7 +1217,12 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                   );
                 })}
                 {approvedResults.length > 3 && (
-                  <Button variant="outline" size="sm" className="w-full text-xs">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => setActiveItem('children')}
+                  >
                     View All {approvedResults.length} Results
                   </Button>
                 )}
@@ -1162,41 +1241,55 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           </CardHeader>
           <CardContent className="p-4">
             {(() => {
-              // Calculate real fee data for current parent's children
-              const currentTermFees = studentFeeBalances.filter(balance => 
-                balance.term === currentTerm && 
-                balance.academic_year === currentAcademicYear &&
-                children.some(child => child.id === balance.student_id)
-              );
-              
-              const totalFees = currentTermFees.reduce((sum, fee) => sum + fee.total_fee_required, 0);
-              const totalPaid = currentTermFees.reduce((sum, fee) => sum + fee.total_paid, 0);
-              const totalOutstanding = currentTermFees.reduce((sum, fee) => sum + fee.balance, 0);
+              const invoiceRows = children
+                .map(c => invoiceSummaries[c.id])
+                .filter(Boolean);
+
+              const totalFees = invoiceRows.reduce((sum: number, inv: any) => sum + Number(inv?.invoice?.invoice_total || 0), 0);
+              const totalPaid = invoiceRows.reduce((sum: number, inv: any) => sum + Number(inv?.paid_total || 0), 0);
+              const totalOutstanding = invoiceRows.reduce((sum: number, inv: any) => {
+                const outstanding = Number(inv?.outstanding || 0);
+                return sum + (outstanding > 0 ? outstanding : 0);
+              }, 0);
               
               return (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-2 bg-purple-50 rounded-lg">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Total Fees</p>
-                      <p className="text-xs text-gray-500">Academic Year {currentAcademicYear || "2025/2026"}</p>
+                      <p className="text-sm font-medium text-purple-600">Total Fees</p>
+                      <p className="text-2xl font-bold text-purple-800">{NAIRA}{totalFees.toLocaleString()}</p>
+                      <p className="text-xs text-purple-500 mt-1">Academic Year {currentAcademicYear || "2025/2026"}</p>
                     </div>
-                    <p className="text-lg font-bold text-purple-900">{NAIRA}{totalFees.toLocaleString()}</p>
+                    <div className="p-3 rounded-full bg-purple-100">
+                      <CreditCard className="h-6 w-6 text-purple-600" />
+                    </div>
                   </div>
                   <div className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Paid</p>
-                      <p className="text-xs text-gray-500">This term</p>
+                      <p className="text-sm font-medium text-green-600">Paid</p>
+                      <p className="text-2xl font-bold text-green-800">{NAIRA}{totalPaid.toLocaleString()}</p>
+                      <p className="text-xs text-green-500 mt-1">Total payments made</p>
                     </div>
-                    <p className="text-lg font-bold text-green-900">{NAIRA}{totalPaid.toLocaleString()}</p>
+                    <div className="p-3 rounded-full bg-green-100">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    </div>
                   </div>
                   <div className="flex items-center justify-between p-2 bg-orange-50 rounded-lg">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Outstanding</p>
-                      <p className="text-xs text-gray-500">Due this month</p>
+                      <p className="text-sm font-medium text-orange-600">Outstanding</p>
+                      <p className="text-2xl font-bold text-orange-800">{NAIRA}{totalOutstanding.toLocaleString()}</p>
+                      <p className="text-xs text-orange-500 mt-1">Due this month</p>
                     </div>
-                    <p className="text-lg font-bold text-orange-900">{NAIRA}{totalOutstanding.toLocaleString()}</p>
+                    <div className="p-3 rounded-full bg-orange-100">
+                      <TrendingUp className="h-6 w-6 text-orange-600" />
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full text-xs">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => setActiveItem('fees')}
+                  >
                     View Fee History
                   </Button>
                   <Button 
@@ -1274,74 +1367,22 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
         </CardContent>
       </Card>
 
-      {/* Modern Parent Information */}
-      {currentParent && (
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b">
-            <div className="space-y-1">
-              <h3 className="text-lg font-bold text-gray-900">Parent Information</h3>
-              <p className="text-sm text-gray-600">Your account and contact details</p>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 md:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 lg:gap-6">
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Personal Details</h4>
-                <div className="space-y-3">
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Full Name</p>
-                    <p className="text-gray-900 font-medium text-sm">{parentName}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Email Address</p>
-                    <p className="text-gray-900 font-medium text-sm">{currentParent.email}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Phone Number</p>
-                    <p className="text-gray-900 font-medium text-sm">{currentParent.phone}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Account Details</h4>
-                <div className="space-y-3">
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Account Status</p>
-                    <Badge variant={currentParent.status === "Active" ? "default" : "secondary"} className="text-xs">
-                      {currentParent.status}
-                    </Badge>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Username</p>
-                    <p className="text-gray-900 font-medium text-sm">{currentUser?.username}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Parent ID</p>
-                    <p className="text-gray-900 font-medium text-sm">{currentUser?.linked_id}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 
   const renderFeesPage = () => {
     try {
-      const totalOutstanding = children.reduce(
-        (sum, child) => sum + (child.feeBalance || 0),
-        0
-      );
-      const totalPaid = children.reduce(
-        (sum, child) => sum + ((child.totalFees || 0) - (child.feeBalance || 0)),
-        0
-      );
-      const currentTermFees = children.reduce(
-        (sum, child) => sum + (child.totalFees || 0),
-        0
-      );
+      const invRows = children
+        .map(c => invoiceSummaries[c.id])
+        .filter(Boolean);
+
+      const totalOutstanding = invRows.reduce((sum: number, inv: any) => {
+        const outstanding = Number(inv?.outstanding || 0);
+        return sum + (outstanding > 0 ? outstanding : 0);
+      }, 0);
+
+      const totalPaid = invRows.reduce((sum: number, inv: any) => sum + Number(inv?.paid_total || 0), 0);
+      const currentTermFees = invRows.reduce((sum: number, inv: any) => sum + Number(inv?.invoice?.invoice_total || 0), 0);
 
       const safePayments = Array.isArray(payments) ? payments : [];
       const childIdSet = new Set(children.map((child) => child.id));
@@ -1366,9 +1407,9 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-blue-600">Total Outstanding</p>
-                    <p className="text-2xl font-bold text-blue-800">{NAIRA}{totalOutstanding.toLocaleString()}</p>
-                    <p className="text-xs text-blue-500 mt-1">Across all children</p>
+                    <p className="text-sm font-medium text-blue-600">Total Fees</p>
+                    <p className="text-2xl font-bold text-blue-800">{NAIRA}{currentTermFees.toLocaleString()}</p>
+                    <p className="text-xs text-blue-500 mt-1">Academic Year {currentAcademicYear || "2025/2026"}</p>
                   </div>
                   <div className="p-3 rounded-full bg-blue-100">
                     <CreditCard className="h-6 w-6 text-blue-600" />
@@ -1413,12 +1454,13 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                   <div>
                     <p className="text-sm font-medium text-orange-600">Payment Status</p>
                     <p className="text-2xl font-bold text-orange-800">
-                      {children.length > 0 ? 
-                        `${children.filter(c => {
-                          const balance = c.totalFees - (c.totalFees * 0.7); // Assuming 70% paid
-                          return balance <= 0;
-                        }).length}/${children.length}` : '0/0'
-                      }
+                      {children.length > 0
+                        ? `${children.filter(c => {
+                            const inv = invoiceSummaries[c.id];
+                            const outstanding = Number(inv?.outstanding || 0);
+                            return outstanding <= 0;
+                          }).length}/${children.length}`
+                        : '0/0'}
                     </p>
                     <p className="text-xs text-orange-500 mt-1">Children paid</p>
                   </div>
@@ -1462,14 +1504,17 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                       </TableRow>
                     ) : (
                       children.map((child) => {
-                        const paid = (child.totalFees || 0) - (child.feeBalance || 0);
-                        const balance = child.feeBalance || 0;
+                        const inv = invoiceSummaries[child.id];
+                        const pendingOnline = getPendingOnlinePaymentForStudent(Number(child.id), inv?.invoice?.id ?? null);
+                        const pendingRef = pendingOnline?.transaction_reference || pendingOnline?.reference;
+                        const paid = Number(inv?.paid_total || 0);
+                        const balance = Number(inv?.outstanding || 0);
                         const status =
                           balance <= 0
                             ? "Paid"
-                            : balance === (child.totalFees || 0)
-                            ? "Unpaid"
-                            : "Partial";
+                            : paid > 0
+                              ? "Partial"
+                              : "Unpaid";
 
                         return (
                           <TableRow key={child.id} className="hover:bg-gray-50">
@@ -1480,19 +1525,24 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                                 </div>
                                 <div>
                                   <div className="text-sm font-medium text-gray-900">{child.fullName}</div>
-                                  <div className="text-sm text-gray-500">{child.className || "Class N/A"}</div>
+                                  <div className="text-sm text-gray-500">{child.className}</div>
+                                  {pendingOnline ? (
+                                    <div className="text-xs text-amber-600 mt-1">
+                                      Online payment pending — use Check Status or pay via Bank Transfer
+                                    </div>
+                                  ) : null}
                                 </div>
                               </div>
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
-                              {NAIRA}{(child.totalFees || 0).toLocaleString()}
+                              {NAIRA}{Number(inv?.invoice?.invoice_total || 0).toLocaleString()}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm text-green-600">
                               {NAIRA}{paid.toLocaleString()}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <span className={balance > 0 ? "text-red-600" : "text-green-600"}>
-                                {NAIRA}{balance.toLocaleString()}
+                                {NAIRA}{Math.max(0, balance).toLocaleString()}
                               </span>
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-right">
@@ -1528,6 +1578,18 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                                   </>
                                 )}
                               </Button>
+                              {pendingOnline && pendingRef ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={loadingPayments}
+                                  onClick={() => handleCheckPaymentStatus(String(pendingRef), Number(child.id))}
+                                  className="mr-2"
+                                >
+                                  Check Status
+                                </Button>
+                              ) : null}
                               <Button variant="ghost" size="sm">
                                 <FileText className="h-4 w-4" />
                               </Button>
@@ -1555,50 +1617,60 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                       <TableHead className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Child</TableHead>
                       <TableHead className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</TableHead>
                       <TableHead className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</TableHead>
+                      <TableHead className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Status</TableHead>
                       <TableHead className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt</TableHead>
+                      <TableHead className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {parentPayments.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="py-6 text-center text-sm text-gray-500">
+                        <TableCell colSpan={7} className="py-6 text-center text-sm text-gray-500">
                           No payment history found yet.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      parentPayments.map((payment) => (
-                        <TableRow key={payment.id} className="hover:bg-gray-50">
-                          <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {payment.recorded_date
-                              ? new Date(payment.recorded_date).toLocaleDateString()
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{payment.student_name}</div>
-                            <div className="text-xs text-gray-500">
-                              {payment.term} â€¢ {payment.academic_year}
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-6 py-4 text-sm text-gray-900">
-                            {payment.payment_type || "School Fees Payment"}
-                          </TableCell>
-                          <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-green-600">
-                            {NAIRA}{Number(payment.amount || 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-blue-600 hover:text-blue-800"
-                              onClick={() => openReceiptDialog(payment)}
-                              disabled={payment.status !== 'Verified'}
-                            >
-                              <Download className="h-4 w-4" />
-                              <span className="ml-1">Receipt</span>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      parentPayments.map((payment: any) => {
+                        const child = children.find((c) => c.id === payment.student_id);
+                        const ref = payment.transaction_reference || payment.reference;
+                        const canCheckStatus = payment.status === 'Pending' && payment.payment_method === 'Online Payment' && !!ref;
+                        return (
+                          <TableRow key={payment.id}>
+                            <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(payment.recorded_date).toLocaleDateString('en-GB')}
+                            </TableCell>
+                            <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {child?.fullName || payment.student_name || 'Student'}
+                            </TableCell>
+                            <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {payment.payment_type}
+                            </TableCell>
+                            <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                              {NAIRA}{Number(payment.amount || 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                              {getPaymentStatusBadge(payment.status)}
+                            </TableCell>
+                            <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 font-mono">
+                              {payment.receipt_number || '-'}</TableCell>
+                            <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                              {canCheckStatus ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={loadingPayments}
+                                  onClick={() => handleCheckPaymentStatus(String(ref), Number(payment.student_id))}
+                                >
+                                  Check Status
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -1624,12 +1696,40 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{selectedChild.fullName}</p>
-                        <p className="text-sm text-gray-500">{selectedChild.className || "Class N/A"}</p>
-                        <p className="text-xs text-gray-400">Outstanding: {NAIRA}{(selectedChild.feeBalance || 0).toLocaleString()}</p>
+                        <p className="text-sm text-gray-500">{selectedChild.className}</p>
+                        <p className="text-xs text-gray-400">Outstanding: {NAIRA}{Math.max(0, invoiceSummaries[selectedChild.id]?.outstanding || 0).toLocaleString()}</p>
                       </div>
                     </div>
                   </div>
                 )}
+
+                {selectedChild && (() => {
+                  const selectedInvoiceId = invoiceSummaries[selectedChild.id]?.invoice?.id;
+                  const pendingOnline = getPendingOnlinePaymentForStudent(Number(selectedChild.id), selectedInvoiceId ?? null);
+                  if (!pendingOnline) return null;
+                  const ref = pendingOnline.transaction_reference || pendingOnline.reference;
+                  return (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-yellow-900">Pending online payment detected</p>
+                          <p className="text-xs text-yellow-800 mt-1">To prevent double payment, online payment is disabled until status is confirmed.</p>
+                        </div>
+                        {ref ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={loadingPayments}
+                            onClick={() => handleCheckPaymentStatus(String(ref), Number(selectedChild.id))}
+                          >
+                            Check Status
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })()}
                 
                 <div className="space-y-2">
                   <Label htmlFor="amount" className="text-sm font-medium">Payment Amount ({NAIRA})</Label>
@@ -1643,7 +1743,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                   />
                   {selectedChild && paymentAmount > 0 && (
                     <p className="text-xs text-gray-500">
-                      Remaining balance after payment: {NAIRA}{Math.max(0, (selectedChild.feeBalance || 0) - paymentAmount).toLocaleString()}
+                      Remaining balance after payment: {NAIRA}{Math.max(0, getOutstandingForChild(selectedChild.id).outstanding - paymentAmount).toLocaleString()}
                     </p>
                   )}
                 </div>
@@ -1654,6 +1754,11 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
                     <Button
                       variant={paymentMethod === "card" ? "default" : "outline"}
                       onClick={() => setPaymentMethod("card")}
+                      disabled={(() => {
+                        if (!selectedChild) return false;
+                        const selectedInvoiceId = invoiceSummaries[selectedChild.id]?.invoice?.id;
+                        return !!getPendingOnlinePaymentForStudent(Number(selectedChild.id), selectedInvoiceId ?? null);
+                      })()}
                       className="h-auto p-4 justify-start"
                     >
                       <CreditCard className="h-5 w-5 mr-3" />
@@ -1749,14 +1854,108 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     }
   };
 
-  const renderMessagesPage = () => (
-    <div className="space-y-6">
-      <div className="mb-6">
-        <h1 className="text-[#1F2937] mb-2">Messages</h1>
-        <p className="text-[#6B7280]">Communicate with school administration</p>
+  const renderMessagesPage = () => {
+    // Get unique classes from children
+    const uniqueClasses = children
+      .map((child: any) => {
+        const rawClassId: unknown = child.class_id ?? child.classId;
+        const classId: number | undefined =
+          typeof rawClassId === 'number'
+            ? rawClassId
+            : typeof rawClassId === 'string'
+              ? parseInt(rawClassId, 10)
+              : undefined;
+        const classNameFromChild: string | undefined = child.className ?? child.class_name;
+        const classNameFromClasses: string | undefined =
+          typeof classId === 'number'
+            ? (classes as any[])?.find((c: any) => (c.id ?? c.classId) === classId)?.name
+            : undefined;
+
+        const className = (classNameFromChild || classNameFromClasses || '').trim();
+
+        return {
+          id: classId,
+          name: className
+        };
+      })
+      .filter((cls): cls is { id: number; name: string } => typeof cls.id === 'number' && !Number.isNaN(cls.id) && Boolean(cls.name))
+      .reduce((acc: { id: number; name: string }[], current) => {
+        // Remove duplicates by id
+        if (!acc.some(item => item.id === current.id)) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
+    return (
+      <div className="space-y-6">
+        <div className="mb-6">
+          <h1 className="text-[#1F2937] mb-2">Messages & Groups</h1>
+          <p className="text-[#6B7280]">Communicate with school administration and join class groups</p>
+        </div>
+
+        {/* WhatsApp Class Groups Section */}
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-green-50 to-green-100 border-b">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-green-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Class WhatsApp Groups</h3>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            {loadingWhatsappGroups ? (
+              <div className="text-center py-8">
+                <div className="w-8 h-8 border border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading WhatsApp groups...</p>
+              </div>
+            ) : children.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Classes Found</h3>
+                <p className="text-gray-600">No linked students found. WhatsApp groups will appear here once your children are linked to classes.</p>
+              </div>
+            ) : uniqueClasses.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Classes Found</h3>
+                <p className="text-gray-600">Your students are linked, but their classes could not be resolved. Please contact the school administration.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {uniqueClasses.map((classInfo) => {
+                  const whatsappGroup = whatsappGroups.find((g: any) => (g.class_id ?? g.classId) === classInfo.id);
+
+                  return (
+                    <Card key={classInfo.id} className="border border-gray-200 hover:border-green-300 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">{classInfo.name}</h4>
+                            <p className="text-sm text-gray-600">
+                              {whatsappGroup ? (whatsappGroup.group_name || 'Parents Group') : 'Group not configured'}
+                            </p>
+                          </div>
+                          <Button
+                            onClick={() => handleJoinWhatsappGroup(whatsappGroup)}
+                            disabled={!whatsappGroup || !whatsappGroup.whatsapp_group_link}
+                            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400"
+                            size="sm"
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            {whatsappGroup && whatsappGroup.whatsapp_group_link ? 'Join Group' : 'Not Available'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    </div>
-  );
+    );
+  };
 
   const sidebarItems = [
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },

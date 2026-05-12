@@ -1,6 +1,7 @@
 <?php
 // School Settings endpoint (standardized responses)
 require_once __DIR__ . '/helpers/Response.php';
+require_once __DIR__ . '/helpers/Middleware.php';
 require_once __DIR__ . '/config/database.php';
 
 // Handle preflight OPTIONS requests consistently
@@ -17,7 +18,9 @@ try {
     switch ($method) {
         case 'GET':
             // Get all school settings
+            // NOTE: Public endpoint - no authentication required for basic school info
             try {
+
                 // Align with actual database schema: columns are setting_key, setting_value, description, updated_by, updated_at
                 $sql = "SELECT setting_key, setting_value, description FROM school_settings ORDER BY setting_key";
                 $stmt = $conn->prepare($sql);
@@ -52,6 +55,8 @@ try {
             
         case 'POST':
             // Create or update school setting
+            // Only admins should be allowed to mutate system settings
+            Middleware::requireRole('admin');
             $data = json_decode(file_get_contents('php://input'), true);
 
             // Atomic update: update both current_academic_year and current_term in a single transaction
@@ -124,6 +129,8 @@ try {
             
         case 'PUT':
             // Update school setting
+            // Only admins should be allowed to mutate system settings
+            Middleware::requireRole('admin');
             $path_parts = explode('/', trim($_SERVER['PATH_INFO'] ?? '', '/'));
             if (empty($path_parts[0])) {
                 Response::badRequest('Setting key is required');

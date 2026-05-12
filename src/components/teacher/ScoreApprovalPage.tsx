@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Label } from "../ui/label";
+import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useSchool } from "../../contexts/SchoolContext";
 import { useNotificationService } from "../../contexts/NotificationService";
 import { toast } from "sonner";
@@ -60,6 +62,9 @@ export function ScoreApprovalPage() {
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("submitted");
+  const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
+  const [studentSearch, setStudentSearch] = useState("");
+  const [selectedScoreIds, setSelectedScoreIds] = useState<Set<number>>(new Set());
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [selectedScore, setSelectedScore] = useState<ScoreWithDetails | null>(null);
@@ -99,7 +104,7 @@ export function ScoreApprovalPage() {
       }
     }).catch(error => {
       if (isMounted) {
-        console.error('Failed to load teacher classes:', error);
+        // Silent fail for security
       }
     });
     
@@ -109,6 +114,7 @@ export function ScoreApprovalPage() {
   const refreshScores = useCallback(async () => {
     if (!currentTeacher) return;
     if (refreshInFlightRef.current) return;
+    if (!currentTerm || !currentAcademicYear) return;
 
     refreshInFlightRef.current = true;
     setIsLoading(true);
@@ -116,7 +122,7 @@ export function ScoreApprovalPage() {
       await loadScoresRef.current(currentTerm, currentAcademicYear);
       setLastRefresh(new Date());
     } catch (error) {
-      console.error('Failed to refresh scores:', error);
+      // Silent fail for security
     } finally {
       setIsLoading(false);
       refreshInFlightRef.current = false;
@@ -143,13 +149,53 @@ export function ScoreApprovalPage() {
         }
       }
     };
-
     // Set up notification listener
 
     return () => {
       // Cleanup listeners
     };
   }, [refreshScores]);
+
+  const handleToggleSelect = (scoreId: number, checked: boolean) => {
+    setSelectedScoreIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(scoreId);
+      else next.delete(scoreId);
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = (checked: boolean) => {
+    setSelectedScoreIds(() => {
+      if (!checked) return new Set();
+      return new Set(allSelectableIds);
+    });
+  };
+
+  const handleApproveSelected = async () => {
+    if (!currentUser) return;
+
+    const idsToApprove = allSelectableIds.filter(id => selectedScoreIds.has(id));
+    if (idsToApprove.length === 0) {
+      toast.error('Please select at least one submitted score');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      for (const scoreId of idsToApprove) {
+        await approveScore(scoreId, currentUser.id);
+      }
+
+      toast.success(`${idsToApprove.length} score(s) approved`);
+      setSelectedScoreIds(new Set());
+      await refreshScores();
+    } catch (error) {
+      toast.error('Failed to approve selected scores');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleRefresh = async () => {
     if (!currentTeacher) return;
@@ -158,7 +204,6 @@ export function ScoreApprovalPage() {
       await refreshScores();
       toast.success('Scores refreshed successfully');
     } catch (error) {
-      console.error('Failed to refresh scores:', error);
       toast.error('Failed to refresh scores');
     }
   };
@@ -171,13 +216,24 @@ export function ScoreApprovalPage() {
     const classInfo = assignment ? classes.find(c => c.id === assignment.class_id) : null;
     const teacher = assignment ? teachers.find(t => t.id === assignment.teacher_id) : null;
 
+    const scoreAny = score as any;
+    const resolvedClassId = Number(scoreAny.class_id ?? assignment?.class_id ?? 0);
+    const resolvedSubjectName = String(scoreAny.subject_name ?? subject?.name ?? 'Unknown Subject');
+    const resolvedClassName = String(scoreAny.class_name ?? classInfo?.name ?? 'Unknown Class');
+    const resolvedTeacherName = String(scoreAny.teacher_name ?? (teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown Teacher'));
+    const resolvedStudentName = student
+      ? `${student.firstName} ${student.lastName}`
+      : (scoreAny.student_first_name || scoreAny.student_last_name)
+        ? `${scoreAny.student_first_name ?? ''} ${scoreAny.student_last_name ?? ''}`.trim()
+        : 'Unknown Student';
+
     return {
       ...score,
-      student_name: student ? `${student.firstName} ${student.lastName}` : 'Unknown Student',
-      subject_name: subject ? subject.name : 'Unknown Subject',
-      class_name: classInfo ? classInfo.name : 'Unknown Class',
-      teacher_name: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown Teacher',
-      class_id: assignment?.class_id || 0,
+      student_name: resolvedStudentName,
+      subject_name: resolvedSubjectName,
+      class_name: resolvedClassName,
+      teacher_name: resolvedTeacherName,
+      class_id: resolvedClassId,
       academic_year: score.academic_year || currentAcademicYear || undefined,
       term: score.term || currentTerm || undefined
     };
@@ -185,18 +241,23 @@ export function ScoreApprovalPage() {
 
   // Filter scores based on teacher's classes and selected filters
   const filteredScores = scoresWithDetails.filter(score => {
-    // Only show scores from classes where current teacher is class teacher
-    const isClassTeacher = teacherClasses.some(tc => tc.classId === score.class_id);
-    
-    if (!isClassTeacher) return false;
+    const normalizedStatus = String(score.status || '').toLowerCase();
+
+    // Only show scores from classes where current teacher is class teacher.
+    // If class-teacher classes haven't loaded yet, don't filter here; backend already scopes the dataset.
+    if (teacherClasses.length > 0) {
+      const isClassTeacher = teacherClasses.some(tc => tc.classId === score.class_id);
+      if (!isClassTeacher) return false;
+    }
 
     // Apply filters
     if (selectedClass !== "all" && score.class_id !== parseInt(selectedClass)) return false;
     if (selectedSubject !== "all" && score.subject_assignment_id !== parseInt(selectedSubject)) return false;
-    if (selectedStatus === "submitted" && score.status !== "Submitted") return false;
-    if (selectedStatus === "rejected" && score.status !== "Rejected") return false;
-    if (selectedStatus === "approved" && score.status !== "Approved") return false;
-    if (selectedStatus === "all" && !["Submitted", "Rejected", "Approved"].includes(score.status)) return false;
+    if (selectedStudentId !== "all" && score.student_id !== parseInt(selectedStudentId)) return false;
+    if (selectedStatus === "submitted" && normalizedStatus !== "submitted") return false;
+    if (selectedStatus === "rejected" && normalizedStatus !== "rejected") return false;
+    if (selectedStatus === "approved" && normalizedStatus !== "approved") return false;
+    if (selectedStatus === "all" && !["submitted", "rejected", "approved"].includes(normalizedStatus)) return false;
 
     // Apply search filter
     if (searchTerm) {
@@ -211,6 +272,56 @@ export function ScoreApprovalPage() {
 
     return true;
   });
+
+  const teacherClassIds = useMemo(() => new Set(teacherClasses.map(tc => tc.classId)), [teacherClasses]);
+
+  const eligibleStudents = useMemo(() => {
+    return students
+      .filter(s => teacherClassIds.has(s.class_id) && s.status === 'Active')
+      .map(s => ({
+        id: s.id,
+        name: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim() || `Student ${s.id}`
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [students, teacherClassIds]);
+
+  const selectedStudentName = useMemo(() => {
+    if (selectedStudentId === 'all') return 'All Students';
+    const found = eligibleStudents.find(s => s.id === parseInt(selectedStudentId));
+    return found?.name ?? 'Selected Student';
+  }, [selectedStudentId, eligibleStudents]);
+
+  const submittedFilteredScores = useMemo(
+    () => filteredScores.filter(s => s.status === 'Submitted'),
+    [filteredScores]
+  );
+
+  const allSelectableIds = useMemo(
+    () => submittedFilteredScores.map(s => s.id),
+    [submittedFilteredScores]
+  );
+
+  const selectedCount = useMemo(
+    () => allSelectableIds.filter(id => selectedScoreIds.has(id)).length,
+    [allSelectableIds, selectedScoreIds]
+  );
+
+  const isAllSelected = useMemo(() => {
+    if (allSelectableIds.length === 0) return false;
+    return allSelectableIds.every(id => selectedScoreIds.has(id));
+  }, [allSelectableIds, selectedScoreIds]);
+
+  useEffect(() => {
+    // Keep selection consistent with current filters (drop selections not visible anymore)
+    setSelectedScoreIds(prev => {
+      const allowed = new Set(allSelectableIds);
+      const next = new Set<number>();
+      prev.forEach(id => {
+        if (allowed.has(id)) next.add(id);
+      });
+      return next;
+    });
+  }, [allSelectableIds]);
 
   // Get unique subjects for filter
   const uniqueSubjects = Array.from(new Set(
@@ -475,6 +586,66 @@ export function ScoreApprovalPage() {
               </div>
               <div>
                 <Label className="text-xs font-medium flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  Student
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1 h-8 text-sm w-full justify-start"
+                      type="button"
+                    >
+                      {selectedStudentName}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-2" align="start">
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search student..."
+                          value={studentSearch}
+                          onChange={(e) => setStudentSearch(e.target.value)}
+                          className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="max-h-56 overflow-auto space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedStudentId('all');
+                            setStudentSearch('');
+                          }}
+                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100"
+                        >
+                          All Students
+                        </button>
+                        {eligibleStudents
+                          .filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()))
+                          .slice(0, 100)
+                          .map(s => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedStudentId(String(s.id));
+                                setStudentSearch('');
+                              }}
+                              className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100"
+                            >
+                              {s.name}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label className="text-xs font-medium flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   Status
                 </Label>
@@ -490,11 +661,30 @@ export function ScoreApprovalPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-end">
+              <div className="flex flex-col items-start justify-end gap-2">
                 <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-md">
                   <TrendingUp className="w-3 h-3 inline mr-1" />
                   {filteredScores.length} scores
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={isAllSelected}
+                    onCheckedChange={(v) => handleToggleSelectAll(!!v)}
+                    disabled={allSelectableIds.length === 0}
+                  />
+                  <span className="text-xs text-gray-600">Select all submitted</span>
+                </div>
+
+                <Button
+                  onClick={handleApproveSelected}
+                  disabled={isLoading || selectedCount === 0}
+                  size="sm"
+                  className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Approve Selected ({selectedCount})
+                </Button>
               </div>
             </div>
           </div>
@@ -523,6 +713,14 @@ export function ScoreApprovalPage() {
                 <div className="space-y-3">
                   {/* Header Row */}
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {score.status === 'Submitted' && (
+                        <Checkbox
+                          checked={selectedScoreIds.has(score.id)}
+                          onCheckedChange={(v) => handleToggleSelect(score.id, !!v)}
+                        />
+                      )}
+                    </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <User className="w-3 h-3 text-gray-400" />

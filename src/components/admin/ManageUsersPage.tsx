@@ -40,6 +40,8 @@ export function ManageUsersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [activeTab, setActiveTab] = useState("users");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -64,6 +66,7 @@ export function ManageUsersPage() {
   const [selectedAccountant, setSelectedAccountant] = useState<Accountant | null>(null);
   const [resetViaEmail, setResetViaEmail] = useState(true);
   const [resetViaSMS, setResetViaSMS] = useState(false);
+  const [resetParentToDefault, setResetParentToDefault] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [teacherActionLoading, setTeacherActionLoading] = useState<string | null>(null);
   const [parentActionLoading, setParentActionLoading] = useState<string | null>(null);
@@ -170,6 +173,23 @@ export function ManageUsersPage() {
     });
   }, [users, searchTerm, filterRole]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterRole]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  }, [filteredUsers.length, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
+
   // Filter teachers - optimized with useMemo
   const filteredTeachers = useMemo(() => {
     if (!teachers || teachers.length === 0) return [];
@@ -254,6 +274,7 @@ export function ManageUsersPage() {
   // Handler functions
   const handleResetPassword = async (user: UserType) => {
     setSelectedUser(user);
+    setResetParentToDefault(false);
     setShowResetDialog(true);
   };
 
@@ -262,7 +283,9 @@ export function ManageUsersPage() {
     
     setIsLoading(true);
     try {
-      const newPassword = await resetUserPasswordAPI(selectedUser.id);
+      const requestedPassword = selectedUser.role === 'parent' ? 'parent123' : undefined;
+
+      const newPassword = await resetUserPasswordAPI(selectedUser.id, requestedPassword);
       
       if (newPassword) {
         const method = resetViaEmail && resetViaSMS 
@@ -273,7 +296,9 @@ export function ManageUsersPage() {
           ? "SMS" 
           : "not sent";
         
-        toast.success(`Password reset successfully for ${selectedUser.username}. New password: ${newPassword}`);
+        toast.success(
+          `Password reset successfully for ${selectedUser.username}. New password: ${newPassword}`
+        );
       }
     } catch (error) {
       toast.error(`Failed to reset password: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -287,6 +312,26 @@ export function ManageUsersPage() {
   const handleDeactivate = (user: UserType) => {
     setSelectedUser(user);
     setShowDeactivateDialog(true);
+  };
+
+  const confirmDeactivate = async () => {
+    if (!selectedUser) return;
+
+    setIsLoading(true);
+    try {
+      const currentStatus = selectedUser.status;
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+      await updateUserStatusAPI(selectedUser.id, newStatus);
+
+      setShowDeactivateDialog(false);
+      setSelectedUser(null);
+
+      toast.success(`User ${selectedUser.username} ${newStatus.toLowerCase()}d successfully`);
+    } catch (error) {
+      toast.error(`Failed to update user status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEdit = (user: UserType) => {
@@ -332,39 +377,9 @@ export function ManageUsersPage() {
       setShowDeleteDialog(false);
       setSelectedUser(null);
       
-      // Show success toast
       toast.success(`User ${selectedUser.username} deleted successfully`);
-      
-      // The API function already reloads users, no need to call again
     } catch (error) {
-      console.error('Delete user error:', error);
       toast.error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      // The API function already handles reloading on error
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const confirmDeactivate = async () => {
-    if (!selectedUser) return;
-    
-    setIsLoading(true);
-    try {
-      const currentStatus = selectedUser.status;
-      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
-      await updateUserStatusAPI(selectedUser.id, newStatus);
-
-      // Close dialogs first
-      setShowDeactivateDialog(false);
-      setSelectedUser(null);
-      
-      // Show success toast
-      toast.success(`User ${selectedUser.username} ${newStatus.toLowerCase()}d successfully`);
-      
-      // The API function already reloads users, no need to call again
-    } catch (error) {
-      console.error('Deactivate user error:', error);
-      toast.error(`Failed to update user status: ${error instanceof Error ? error.message : 'Unknown error'}`);
       // The API function already handles reloading on error
     } finally {
       setIsLoading(false);
@@ -836,7 +851,7 @@ export function ManageUsersPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredUsers.map((user: UserType) => (
+                      paginatedUsers.map((user: UserType) => (
                         <TableRow key={user.id} className="hover:bg-gray-50">
                           <TableCell>
                             <div>
@@ -919,6 +934,47 @@ export function ManageUsersPage() {
                   </TableBody>
                 </Table>
               </div>
+              {filteredUsers.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200">
+                  <div className="text-sm text-gray-600">
+                    Showing {Math.min(filteredUsers.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredUsers.length, currentPage * pageSize)} of {filteredUsers.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Rows" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10 / page</SelectItem>
+                        <SelectItem value="20">20 / page</SelectItem>
+                        <SelectItem value="50">50 / page</SelectItem>
+                        <SelectItem value="100">100 / page</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                      Page {currentPage} / {totalPages}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
       </div>

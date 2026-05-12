@@ -19,13 +19,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     Response::error('Method not allowed', 405);
 }
 
-// Require authentication and basic RBAC
+// SECURITY FIX: Restrict to admin-only - too dangerous for other roles
 try {
     $token_data = Middleware::requireAuth();
-    $allowed_roles = ['admin', 'teacher', 'accountant'];
-    if (!in_array($token_data['role'] ?? '', $allowed_roles, true)) {
-        error_log("Access denied: User " . ($token_data['username'] ?? 'unknown') . " with role " . ($token_data['role'] ?? 'none') . " attempted to access database query endpoint.");
-        Response::forbidden('Access denied for this operation');
+    $role = strtolower(trim((string)($token_data['role'] ?? '')));
+    // SECURITY FIX: Only admin can execute raw SQL - teacher/accountant removed
+    if ($role !== 'admin') {
+        error_log("SECURITY: Access denied: User " . ($token_data['username'] ?? 'unknown') . " with role " . ($token_data['role'] ?? 'none') . " attempted to access database query endpoint.");
+        Response::forbidden('Access denied: Only administrators can execute database queries');
     }
 } catch (Exception $e) {
     error_log("Authentication failed for database query: " . $e->getMessage());
@@ -60,7 +61,8 @@ if (!in_array($queryType, $allowed_verbs, true)) {
 // Basic security check: prevent highly destructive queries
 $disallowed_keywords = ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE', 'CREATE'];
 foreach ($disallowed_keywords as $keyword) {
-    if (stripos($query, $keyword) !== false) {
+    // Match whole words only to avoid false positives on column names like created_at
+    if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/i', $query)) {
         Response::badRequest("Disallowed query type: {$keyword} statements are not permitted.");
     }
 }

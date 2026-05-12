@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class UserController {
     private $conn;
@@ -21,6 +22,9 @@ class UserController {
      */
     public function getAllUsers() {
         try {
+            // CRITICAL SECURITY FIX: Require admin authentication
+            Middleware::requireRole('admin');
+            
             // Prevent caching to ensure real-time data
             header('Cache-Control: no-cache, must-revalidate, no-store, max-age=0');
             header('Pragma: no-cache');
@@ -139,6 +143,9 @@ class UserController {
      */
     public function createUser() {
         try {
+            // CRITICAL SECURITY FIX: Require admin authentication
+            Middleware::requireRole('admin');
+            
             $data = json_decode(file_get_contents('php://input'), true);
             
             if (!$data || !isset($data['username']) || !isset($data['role']) || !isset($data['password'])) {
@@ -195,7 +202,12 @@ class UserController {
                 $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ?";
                 $updateStmt = $this->conn->prepare($updateQuery);
                 $updateStmt->execute([$teacherId, $userId]);
-                
+                RealtimeEvents::publish(['users', 'teachers', 'classes', 'subject_assignments'], [
+                    'action' => 'created',
+                    'user_id' => (int)$userId,
+                    'role' => 'teacher',
+                    'linked_id' => (int)$teacherId,
+                ]);
             } elseif ($data['role'] === 'parent') {
                 $firstName = $data['firstName'] ?? '';
                 $lastName = $data['lastName'] ?? '';
@@ -216,7 +228,12 @@ class UserController {
                 $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ?";
                 $updateStmt = $this->conn->prepare($updateQuery);
                 $updateStmt->execute([$parentId, $userId]);
-                
+                RealtimeEvents::publish(['users', 'parents', 'students', 'notifications', 'payments', 'compiled_results'], [
+                    'action' => 'created',
+                    'user_id' => (int)$userId,
+                    'role' => 'parent',
+                    'linked_id' => (int)$parentId,
+                ]);
             } elseif ($data['role'] === 'accountant') {
                 $firstName = $data['firstName'] ?? '';
                 $lastName = $data['lastName'] ?? '';
@@ -235,6 +252,20 @@ class UserController {
                 $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ?";
                 $updateStmt = $this->conn->prepare($updateQuery);
                 $updateStmt->execute([$accountantId, $userId]);
+                RealtimeEvents::publish(['users', 'payments', 'students'], [
+                    'action' => 'created',
+                    'user_id' => (int)$userId,
+                    'role' => 'accountant',
+                    'linked_id' => (int)$accountantId,
+                ]);
+            }
+
+            if ($data['role'] === 'admin') {
+                RealtimeEvents::publish(['users'], [
+                    'action' => 'created',
+                    'user_id' => (int)$userId,
+                    'role' => 'admin',
+                ]);
             }
             
             Response::success(['id' => $userId], 'User created successfully');
@@ -249,6 +280,9 @@ class UserController {
      */
     public function updateUser($id) {
         try {
+            // CRITICAL SECURITY FIX: Require admin authentication
+            Middleware::requireRole('admin');
+            
             $data = json_decode(file_get_contents('php://input'), true);
             
             if (!$data) {
@@ -442,6 +476,29 @@ class UserController {
                 }
             }
             
+            $topics = ['users'];
+            if ($user['role'] === 'teacher') {
+                $topics[] = 'teachers';
+                $topics[] = 'classes';
+                $topics[] = 'subject_assignments';
+            } elseif ($user['role'] === 'parent') {
+                $topics[] = 'parents';
+                $topics[] = 'students';
+                $topics[] = 'notifications';
+                $topics[] = 'payments';
+                $topics[] = 'compiled_results';
+            } elseif ($user['role'] === 'accountant') {
+                $topics[] = 'payments';
+                $topics[] = 'students';
+            }
+
+            RealtimeEvents::publish($topics, [
+                'action' => 'updated',
+                'user_id' => (int)$id,
+                'role' => (string)$user['role'],
+                'linked_id' => isset($user['linked_id']) ? (int)$user['linked_id'] : null,
+            ]);
+
             Response::success(null, 'User updated successfully');
             
         } catch (Exception $e) {
@@ -454,6 +511,9 @@ class UserController {
      */
     public function deleteUser($id) {
         try {
+            // CRITICAL SECURITY FIX: Require admin authentication
+            Middleware::requireRole('admin');
+            
             // Check if user exists
             $checkStmt = $this->conn->prepare("SELECT id, role, linked_id FROM users WHERE id = ?");
             $checkStmt->execute([$id]);
@@ -482,6 +542,29 @@ class UserController {
             $deleteQuery = "DELETE FROM users WHERE id = ?";
             $deleteStmt = $this->conn->prepare($deleteQuery);
             $deleteStmt->execute([$id]);
+
+            $topics = ['users'];
+            if ($user['role'] === 'teacher') {
+                $topics[] = 'teachers';
+                $topics[] = 'classes';
+                $topics[] = 'subject_assignments';
+            } elseif ($user['role'] === 'parent') {
+                $topics[] = 'parents';
+                $topics[] = 'students';
+                $topics[] = 'notifications';
+                $topics[] = 'payments';
+                $topics[] = 'compiled_results';
+            } elseif ($user['role'] === 'accountant') {
+                $topics[] = 'payments';
+                $topics[] = 'students';
+            }
+
+            RealtimeEvents::publish($topics, [
+                'action' => 'deleted',
+                'user_id' => (int)$id,
+                'role' => (string)$user['role'],
+                'linked_id' => isset($user['linked_id']) ? (int)$user['linked_id'] : null,
+            ]);
             
             Response::success(null, 'User deleted successfully');
             
@@ -495,6 +578,9 @@ class UserController {
      */
     public function resetPassword($id) {
         try {
+            // CRITICAL SECURITY FIX: Require admin authentication
+            Middleware::requireRole('admin');
+            
             // Generate new password
             $newPassword = bin2hex(random_bytes(4));
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
@@ -503,6 +589,11 @@ class UserController {
             $query = "UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?";
             $stmt = $this->conn->prepare($query);
             $stmt->execute([$passwordHash, $id]);
+
+            RealtimeEvents::publish(['users'], [
+                'action' => 'password_reset',
+                'user_id' => (int)$id,
+            ]);
             
             Response::success(['password' => $newPassword], 'Password reset successfully');
             

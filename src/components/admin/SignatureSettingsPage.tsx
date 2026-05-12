@@ -1,5 +1,5 @@
 import { School } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,19 +27,44 @@ interface SignatureSettings {
 }
 
 export function SignatureSettingsPage() {
-  const { currentUser } = useSchool();
+  const { currentUser, currentAcademicYear, currentTerm } = useSchool();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const loadSeqRef = useRef(0);
+  const dateEditSeqRef = useRef(0);
+
+  const normalizeDateForInput = (value: unknown): string => {
+    const raw = String(value ?? '').trim();
+    if (!raw || raw === '0000-00-00' || raw === '0000-00-00 00:00:00') return '';
+
+    // Accept datetime and YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+
+    // Convert DD/MM/YYYY to YYYY-MM-DD
+    const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) {
+      const [, dd, mm, yyyy] = m;
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    return raw;
+  };
+
+  const normalizeDateForSave = (value: unknown): string => {
+    // We store YYYY-MM-DD (or empty) consistently.
+    const normalized = normalizeDateForInput(value);
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : '';
+  };
   const [signatureSettings, setSignatureSettings] = useState<SignatureSettings>({
-    academic_year: '2024/2025',
-    term: 'Third Term',
+    academic_year: currentAcademicYear || '',
+    term: currentTerm || '',
     principal_name: 'OROGUN GLORY EJIRO',
     principal_signature: null,
     principal_comment: 'A very good result. Release your potentials cause you can do more dear.',
     head_teacher_name: 'MRS. ABDULHAMID BINTA',
     head_teacher_signature: null,
     head_teacher_comment: 'A very good result. Keep up the excellent work!',
-    resumption_date: '2025-09-15'
+    resumption_date: ''
   });
 
   const [principalSignatureFile, setPrincipalSignatureFile] = useState<File | null>(null);
@@ -48,33 +73,62 @@ export function SignatureSettingsPage() {
   const [headTeacherSignaturePreview, setHeadTeacherSignaturePreview] = useState<string>('');
 
   useEffect(() => {
-    loadSignatureSettings();
-  }, []);
+    // Keep the setting scope aligned with the system's current term/session
+    setSignatureSettings(prev => ({
+      ...prev,
+      academic_year: currentAcademicYear || prev.academic_year,
+      term: currentTerm || prev.term
+    }));
+  }, [currentAcademicYear, currentTerm]);
+
+  useEffect(() => {
+    if (signatureSettings.academic_year && signatureSettings.term) {
+      loadSignatureSettings();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signatureSettings.academic_year, signatureSettings.term]);
 
   const loadSignatureSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_CONFIG.BASE_URL}/database/query`, {
-        method: 'POST',
+      const loadSeq = ++loadSeqRef.current;
+      const dateEditSeqAtStart = dateEditSeqRef.current;
+      const token = localStorage.getItem('jwt_token');
+      const scopedAcademicYear = currentAcademicYear || signatureSettings.academic_year;
+      const scopedTerm = currentTerm || signatureSettings.term;
+
+      if (!scopedAcademicYear || !scopedTerm) {
+        return;
+      }
+      const query = new URLSearchParams({
+        academic_year: scopedAcademicYear,
+        term: scopedTerm
+      });
+      const response = await fetch(`${API_CONFIG.BASE_URL}/signature_settings.php?${query.toString()}`, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
-        },
-        body: JSON.stringify({
-          query: `
-            SELECT * FROM signature_settings 
-            WHERE academic_year = ? AND term = ? 
-            ORDER BY created_at DESC 
-            LIMIT 1
-          `,
-          params: [signatureSettings.academic_year, signatureSettings.term]
-        })
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
       });
 
       const result = await response.json();
-      if (result.success && result.data && result.data.length > 0) {
-        const settings = result.data[0];
-        setSignatureSettings(settings);
+      if (loadSeq !== loadSeqRef.current) return;
+      if (result && result.success && result.data) {
+        const settings = result.data;
+
+        const loadedResumptionDate = normalizeDateForInput((settings as any)?.resumption_date);
+        setSignatureSettings((prev) => {
+          const userEditedDateAfterLoadStarted = dateEditSeqRef.current !== dateEditSeqAtStart;
+          return {
+            ...prev,
+            ...settings,
+            // Force correct scope; do not allow stale rows to switch the UI scope.
+            academic_year: scopedAcademicYear,
+            term: scopedTerm,
+            resumption_date: userEditedDateAfterLoadStarted ? prev.resumption_date : loadedResumptionDate
+          };
+        });
         
         if (settings.principal_signature) {
           setPrincipalSignaturePreview(settings.principal_signature);
@@ -84,7 +138,6 @@ export function SignatureSettingsPage() {
         }
       }
     } catch (error) {
-      console.error('Error loading signature settings:', error);
       toast.error('Failed to load signature settings');
     } finally {
       setLoading(false);
@@ -129,60 +182,46 @@ export function SignatureSettingsPage() {
     try {
       setSaving(true);
 
-      const query = signatureSettings.id 
-        ? `UPDATE signature_settings SET 
-            principal_name = ?, principal_signature = ?, principal_comment = ?,
-            head_teacher_name = ?, head_teacher_signature = ?, head_teacher_comment = ?,
-            resumption_date = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?`
-        : `INSERT INTO signature_settings (
-            academic_year, term, principal_name, principal_signature, principal_comment,
-            head_teacher_name, head_teacher_signature, head_teacher_comment, resumption_date
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      const token = localStorage.getItem('jwt_token');
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
 
-      const params = signatureSettings.id
-        ? [
-            signatureSettings.principal_name,
-            signatureSettings.principal_signature,
-            signatureSettings.principal_comment,
-            signatureSettings.head_teacher_name,
-            signatureSettings.head_teacher_signature,
-            signatureSettings.head_teacher_comment,
-            signatureSettings.resumption_date,
-            signatureSettings.id
-          ]
-        : [
-            signatureSettings.academic_year,
-            signatureSettings.term,
-            signatureSettings.principal_name,
-            signatureSettings.principal_signature,
-            signatureSettings.principal_comment,
-            signatureSettings.head_teacher_name,
-            signatureSettings.head_teacher_signature,
-            signatureSettings.head_teacher_comment,
-            signatureSettings.resumption_date
-          ];
+      const scopedAcademicYear = currentAcademicYear || signatureSettings.academic_year;
+      const scopedTerm = currentTerm || signatureSettings.term;
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/database/query`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/signature_settings.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ query, params })
+        body: JSON.stringify({
+          academic_year: scopedAcademicYear,
+          term: scopedTerm,
+          principal_name: signatureSettings.principal_name,
+          principal_signature: signatureSettings.principal_signature,
+          principal_comment: signatureSettings.principal_comment,
+          head_teacher_name: signatureSettings.head_teacher_name,
+          head_teacher_signature: signatureSettings.head_teacher_signature,
+          head_teacher_comment: signatureSettings.head_teacher_comment,
+          resumption_date: normalizeDateForSave(signatureSettings.resumption_date),
+        })
       });
 
       const result = await response.json();
-      if (result.success) {
+      if (result && result.success) {
         toast.success('Signature settings saved successfully');
-        if (!signatureSettings.id && result.insertId) {
-          setSignatureSettings(prev => ({ ...prev, id: result.insertId }));
+        if (result.data?.id) {
+          setSignatureSettings(prev => ({ ...prev, id: result.data.id }));
         }
+
+        await loadSignatureSettings();
       } else {
         toast.error('Failed to save signature settings');
       }
     } catch (error) {
-      console.error('Error saving signature settings:', error);
       toast.error('Failed to save signature settings');
     } finally {
       setSaving(false);
@@ -204,8 +243,8 @@ export function SignatureSettingsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Signature Settings</h1>
-          <p className="text-gray-600">Manage signatures and resumption dates for result sheets</p>
+          <h1 className="text-3xl font-bold">Result Sheet Settings</h1>
+          <p className="text-gray-600">Configure signatures and next term resumption date shown on student result sheets</p>
         </div>
         <Badge variant="outline" className="text-sm">
           <span className="w-4 h-4 mr-1" />
@@ -364,26 +403,40 @@ export function SignatureSettingsPage() {
         </Card>
       </div>
 
-      {/* School Resumption Date */}
+      
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <span className="w-5 h-5" />
-            School Resumption Date
+            Next Term Begins (Result Sheet)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="max-w-md">
-            <Label htmlFor="resumption_date">Next Term Resumption Date</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+            <div>
+              <Label>Academic Year</Label>
+              <Input value={signatureSettings.academic_year} disabled />
+            </div>
+            <div>
+              <Label>Term</Label>
+              <Input value={signatureSettings.term} disabled />
+            </div>
+
+            <div className="md:col-span-2 max-w-md">
+              <Label htmlFor="resumption_date">Next Term Resumption Date</Label>
             <Input
               id="resumption_date"
               type="date"
               value={signatureSettings.resumption_date}
-              onChange={(e) => setSignatureSettings(prev => ({ ...prev, resumption_date: e.target.value }))}
+              onChange={(e) => {
+                dateEditSeqRef.current += 1;
+                setSignatureSettings(prev => ({ ...prev, resumption_date: e.target.value }));
+              }}
             />
             <p className="text-sm text-gray-600 mt-1">
-              This date will appear on all result sheets
+              This date will appear on student result sheets as "Next Term Begins" for the selected academic year and term.
             </p>
+            </div>
           </div>
         </CardContent>
       </Card>

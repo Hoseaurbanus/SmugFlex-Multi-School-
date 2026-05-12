@@ -1,5 +1,5 @@
 import { LogOut, Book, LayoutDashboard, BookOpen, FileSpreadsheet, Users, MessageSquare, Calendar, PenTool, Award, Heart, Activity } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
 import { Card, CardContent, CardHeader } from "./ui/card";
@@ -26,8 +26,31 @@ interface TeacherDashboardProps {
 }
 
 export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
-  const { currentUser, teachers, classes, getTeacherAssignments, getTeacherClasses, getTeacherResponsibilities, getUnreadNotifications, getActivityLogs, subjectAssignments, classTeacherAssignments, currentTerm, currentAcademicYear } = useSchool();
+  const {
+    currentUser,
+    teachers,
+    classes,
+    getTeacherAssignments,
+    getTeacherClasses,
+    getTeacherResponsibilities,
+    getUnreadNotifications,
+    getActivityLogs,
+    subjectAssignments,
+    classTeacherAssignments,
+    currentTerm,
+    currentAcademicYear,
+    loadSubjectAssignmentsFromAPI,
+    loadClassTeacherAssignmentsFromAPI,
+    loadStudentsFromAPI,
+    loadClassesFromAPI,
+    loadTeachersFromAPI,
+    loadNotificationsFromAPI,
+    loadScoresFromAPI,
+    loadAssignmentsFromAPI,
+    loadAttendancesFromAPI,
+  } = useSchool();
   const [activeItem, setActiveItem] = useState("dashboard");
+  const [isWelcomeLoading, setIsWelcomeLoading] = useState(false);
   
   // Notification dialog state
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
@@ -45,14 +68,13 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
       // Reduced connection monitoring toasts - only show critical issues
       if (!connectionMonitor.isHealthy()) {
         // Only show warning if connection is critically bad
-        console.warn('Connection issues detected, attempting to reconnect...');
         connectionMonitor.forceReconnect().then(success => {
           if (isMounted && !success) {
             toast.error('Connection failed. Please refresh the page.');
           }
         }).catch(error => {
           if (isMounted) {
-            console.error('Connection reconnection failed:', error);
+            // Silent fail for security
           }
         });
       }
@@ -72,7 +94,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     currentUser && Array.isArray(teachers) && teachers.length > 0
       ? teachers.find(t => String(t?.id) === String(currentUser.linked_id))
       : null;
-  const teacherId = currentTeacher ? Number(currentTeacher.id) : null;
+  const teacherId = currentUser?.role === 'teacher'
+    ? (Number(currentUser.linked_id) || (currentTeacher ? Number(currentTeacher.id) : null))
+    : (currentTeacher ? Number(currentTeacher.id) : null);
   
   // Memoize responsibilities calculation to prevent excessive re-calculations
   const responsibilities = useMemo(() => {
@@ -94,8 +118,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     return getTeacherResponsibilities(Number(teacherId));
   }, [teacherId, classes, getTeacherResponsibilities]);
   
-  // Memoize teacher classes calculation
-  const [teacherClasses, setTeacherClasses] = useState<Array<{
+  type TeacherClassInfo = {
     classId: number;
     className: string;
     classLevel: string;
@@ -105,24 +128,138 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
       subjectName: string;
       subjectCode: string;
     }>;
-  }>>([]);
+  };
+
+  // Memoize teacher classes calculation
+  const [teacherClasses, setTeacherClasses] = useState<TeacherClassInfo[]>([]);
+
+  const visibleTeacherClasses = useMemo<TeacherClassInfo[]>(() => {
+    return (teacherClasses || []).filter((tc) => {
+      const studentCount = Number(tc?.studentCount ?? 0);
+      const subjectsCount = Array.isArray(tc?.subjects) ? tc.subjects.length : 0;
+      return studentCount > 0 || subjectsCount > 0;
+    });
+  }, [teacherClasses]);
   
   useEffect(() => {
     if (!teacherId) return;
+    if (!currentTerm || !currentAcademicYear) return;
     
     let isMounted = true;
-    getTeacherClasses(Number(teacherId)).then(classes => {
-      if (isMounted) {
-        setTeacherClasses(classes);
+
+    const load = async () => {
+      try {
+        await Promise.all([
+          loadSubjectAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+          loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+        ]);
+
+        const classes = await getTeacherClasses(Number(teacherId));
+        if (isMounted) {
+          setTeacherClasses(classes);
+        }
+      } catch (error) {
+        if (isMounted) {
+          // Silent fail for security
+        }
       }
-    }).catch(error => {
-      if (isMounted) {
-        console.error('Failed to load teacher classes:', error);
-      }
-    });
+    };
+
+    load();
     
     return () => { isMounted = false; };
+  }, [teacherId, currentTerm, currentAcademicYear, getTeacherClasses, loadSubjectAssignmentsFromAPI, loadClassTeacherAssignmentsFromAPI]);
+
+  const computeTeacherClasses = useCallback(async () => {
+    if (!teacherId) return;
+    try {
+      const computed = await getTeacherClasses(Number(teacherId));
+      setTeacherClasses(computed);
+    } catch (e) {
+      // Silent fail for security
+    }
   }, [teacherId, getTeacherClasses]);
+
+  const lastTeacherClassesSyncRef = useRef<string>('');
+
+  useEffect(() => {
+    if (activeItem !== 'dashboard') return;
+    if (!teacherId) return;
+    if (!currentTerm || !currentAcademicYear) return;
+
+    const key = [
+      teacherId,
+      currentAcademicYear,
+      currentTerm,
+      (classes || []).length,
+      (subjectAssignments || []).length,
+      (classTeacherAssignments || []).length,
+    ].join('|');
+
+    if (lastTeacherClassesSyncRef.current === key) return;
+    lastTeacherClassesSyncRef.current = key;
+
+    computeTeacherClasses();
+  }, [activeItem, teacherId, currentTerm, currentAcademicYear, classes, subjectAssignments, classTeacherAssignments, computeTeacherClasses]);
+
+  const refreshData = useCallback(async () => {
+    if (!teacherId) return;
+    if (!currentTerm || !currentAcademicYear) return;
+
+    setIsWelcomeLoading(true);
+    try {
+      await Promise.allSettled([
+        loadStudentsFromAPI(),
+        loadTeachersFromAPI(),
+        loadClassesFromAPI(true),
+        loadNotificationsFromAPI(),
+        loadScoresFromAPI(currentTerm, currentAcademicYear),
+        loadAssignmentsFromAPI(),
+        loadAttendancesFromAPI(),
+        loadSubjectAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+        loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+      ]);
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      try {
+        const refreshedClasses = await getTeacherClasses(Number(teacherId));
+        setTeacherClasses(refreshedClasses);
+      } catch (e) {
+        // Silent fail for security
+      } finally {
+        setIsWelcomeLoading(false);
+      }
+    } catch (e) {
+      setIsWelcomeLoading(false);
+    }
+  }, [teacherId, currentTerm, currentAcademicYear, loadStudentsFromAPI, loadTeachersFromAPI, loadClassesFromAPI, loadNotificationsFromAPI, loadScoresFromAPI, loadAssignmentsFromAPI, loadAttendancesFromAPI, loadSubjectAssignmentsFromAPI, loadClassTeacherAssignmentsFromAPI, getTeacherClasses]);
+
+  const didInitialRefreshRef = useRef(false);
+
+  useEffect(() => {
+    if (didInitialRefreshRef.current) return;
+    if (!currentUser || currentUser.role !== 'teacher') return;
+    if (activeItem !== 'dashboard') return;
+    if (!teacherId) return;
+    if (!currentTerm || !currentAcademicYear) return;
+
+    didInitialRefreshRef.current = true;
+    (async () => {
+      await refreshData();
+    })();
+  }, [activeItem, currentAcademicYear, currentTerm, currentUser, refreshData, teacherId]);
+
+  useEffect(() => {
+    if (activeItem !== 'dashboard') return;
+    const intervalId = window.setInterval(() => {
+      refreshData();
+    }, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeItem, refreshData]);
   
   // Memoize class teacher status calculation
   const isClassTeacherDirect = useMemo(() => {
@@ -139,18 +276,23 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   
   // Memoize class teacher classes count
   const classTeacherClassesCount = useMemo(() => {
-    return teacherClasses.filter((tc: any) => 
+    return visibleTeacherClasses.filter((tc: any) => 
       classTeacherAssignments && Array.isArray(classTeacherAssignments) && classTeacherAssignments.some((cta: any) => 
         String(cta.teacher_id) === String(teacherId) && 
-        cta.class_id === tc.classId &&
-        cta.academic_year === currentAcademicYear && 
+        String(cta.class_id) === String(tc.classId) &&
+        cta.status === 'Active' &&
+        cta.academic_year === currentAcademicYear &&
         cta.term === currentTerm
       )
     ).length;
-  }, [teacherClasses, classTeacherAssignments, currentAcademicYear, currentTerm]);
+  }, [visibleTeacherClasses, classTeacherAssignments, currentAcademicYear, currentTerm]);
   
   const isClassTeacher = isClassTeacherDirect;
-  const teacherName = currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'Teacher';
+  const teacherName = currentTeacher
+    ? `${currentTeacher.firstName} ${currentTeacher.lastName}`
+    : ((currentUser as any)?.firstName && (currentUser as any)?.lastName
+        ? `${(currentUser as any).firstName} ${(currentUser as any).lastName}`
+        : ((currentUser as any)?.name ? String((currentUser as any).name) : 'Teacher'));
   
   // Get unread notifications count
   const unreadNotifications = getUnreadNotifications();
@@ -207,13 +349,40 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {activeItem === "dashboard" && (
             <div className="space-y-6">
               <div className="mb-6">
-                <h1 className="text-[#1F2937] mb-2">Teacher Dashboard</h1>
-                <p className="text-[#6B7280]">
-                  {isClassTeacher 
-                    ? 'Welcome, Class Teacher. Manage your class and student assessments.'
-                    : 'Welcome, Subject Teacher. Enter scores for your assigned subjects.'
-                  }
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h1 className="text-[#1F2937] mb-2">Teacher Dashboard</h1>
+                    <p className="text-[#6B7280]">
+                      {isClassTeacher 
+                        ? `Welcome, ${teacherName} (Class Teacher). Manage your class and student assessments.`
+                        : `Welcome, ${teacherName} (Subject Teacher). Enter scores for your assigned subjects.`
+                      }
+                    </p>
+                    {(currentTerm || currentAcademicYear) && (
+                      <div className="mt-2">
+                        <Badge variant="outline">
+                          {(currentTerm ? String(currentTerm) : '').trim()}
+                          {currentTerm && currentAcademicYear ? ' • ' : ''}
+                          {(currentAcademicYear ? String(currentAcademicYear) : '').trim()}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        await refreshData();
+                        toast.success('Dashboard refreshed');
+                      } catch (e) {
+                        toast.error('Failed to refresh dashboard');
+                      }
+                    }}
+                  >
+                    Refresh
+                  </Button>
+                </div>
               </div>
 
               <div className="grid md:grid-cols-3 gap-4">
@@ -223,7 +392,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                       <p className="text-[#6B7280] text-sm">Classes Assigned</p>
                       <BookOpen className="w-5 h-5 text-[#3B82F6]" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{teacherClasses.length}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{isWelcomeLoading ? '...' : visibleTeacherClasses.length}</p>
                     <p className="text-xs text-[#6B7280]">Total classes</p>
                   </CardContent>
                 </Card>
@@ -234,7 +403,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                       <p className="text-[#6B7280] text-sm">Total Students</p>
                       <span className="w-5 h-5 text-[#3B82F6]" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{teacherClasses.reduce((total: number, tc: any) => total + (tc.studentCount || 0), 0)}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{isWelcomeLoading ? '...' : visibleTeacherClasses.reduce((total: number, tc: any) => total + (tc.studentCount || 0), 0)}</p>
                     <p className="text-xs text-[#6B7280]">Across all classes</p>
                   </CardContent>
                 </Card>
@@ -245,7 +414,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                       <p className="text-[#6B7280] text-sm">Class Teacher Role</p>
                       <span className="w-5 h-5 text-[#10B981]" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{classTeacherClassesCount}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{isWelcomeLoading ? '...' : classTeacherClassesCount}</p>
                     <p className="text-xs text-[#6B7280]">Classes managed</p>
                   </CardContent>
                 </Card>
@@ -259,7 +428,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                       <p className="text-[#6B7280] text-sm">Subject Assignments</p>
                       <BookOpen className="w-5 h-5 text-blue-600" />
                     </div>
-                    <p className="text-[#1F2937] mb-1 font-semibold">{teacherClasses.reduce((total: number, tc: any) => total + (tc.subjects?.length || 0), 0)}</p>
+                    <p className="text-[#1F2937] mb-1 font-semibold">{isWelcomeLoading ? '...' : visibleTeacherClasses.reduce((total: number, tc: any) => total + (tc.subjects?.length || 0), 0)}</p>
                     <p className="text-xs text-[#6B7280]">Subjects teaching</p>
                   </CardContent>
                 </Card>
@@ -283,13 +452,13 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   <h3 className="text-[#1F2937]">Your Classes & Subjects</h3>
                 </CardHeader>
                 <CardContent className="space-y-3 p-5 pt-5">
-                  {teacherClasses.length === 0 ? (
+                  {visibleTeacherClasses.length === 0 ? (
                     <div className="text-center py-8">
                       <BookOpen className="w-12 h-12 text-[#9CA3AF] mx-auto mb-3" />
                       <p className="text-[#6B7280]">No class assignments yet</p>
                     </div>
                   ) : (
-                    teacherClasses.map((classInfo) => (
+                    visibleTeacherClasses.map((classInfo: any) => (
                       <div key={classInfo.classId} className="p-4 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
                         <div className="flex items-center justify-between mb-3">
                           <div>
@@ -303,7 +472,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                         <div className="space-y-3">
                           <p className="text-sm font-medium text-[#374151] mb-3">Assigned Subjects:</p>
                           <div className="grid grid-cols-2 gap-2">
-                            {classInfo.subjects.map((subject) => (
+                            {classInfo.subjects.map((subject: any) => (
                               <div key={subject.subjectId} className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-[#F3F4F6] to-[#E5E7EB] border border-[#D1D5DB] rounded-lg hover:from-[#E5E7EB] hover:to-[#D1D5DB] transition-colors">
                                 <div className="w-2 h-2 bg-[#3B82F6] rounded-full flex-shrink-0"></div>
                                 <span className="text-sm font-medium text-[#1F2937] truncate">{subject.subjectName}</span>

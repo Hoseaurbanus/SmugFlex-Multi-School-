@@ -11,6 +11,7 @@ import { useSchool } from "../../contexts/SchoolContext";
 interface Child {
   id: number;
   firstName: string;
+  otherName?: string;
   lastName: string;
   fullName: string;
   admissionNumber: string;
@@ -51,25 +52,20 @@ export function MyChildrenPage() {
     currentUser, 
     parents, 
     getParentChildren,
+    getParentChildrenFromAPI,
     compiledResults,
+    scores,
     loadParentsFromAPI,
-    loadParentStudentLinksFromAPI,
-    loadStudentsFromAPI,
     loadCompiledResultsFromAPI,
     loadClassesFromAPI,
-    loadAffectiveDomainsFromAPI,
-    loadPsychomotorDomainsFromAPI,
     loadSchoolSettings,
     currentTerm,
     currentAcademicYear,
-    students,
     classes,
     schoolSettings,
     teachers,
-    scores,
     affectiveDomains,
-    psychomotorDomains,
-    loadScoresFromAPI
+    psychomotorDomains
   } = useSchool();
   
   const [children, setChildren] = useState<Child[]>([]);
@@ -100,63 +96,100 @@ export function MyChildrenPage() {
     // Use same filtering as admin for current term/year
     let allResults = compiledResults;
 
-    let results = allResults.filter(
-      (r: any) =>
-        r.term === currentTerm &&
-        r.academic_year === currentAcademicYear
-    );
+    // Parents must only see results for their linked children
+    const linkedChildIds = new Set((children || []).map(c => c.id));
+    if (linkedChildIds.size > 0) {
+      allResults = allResults.filter((r: any) => linkedChildIds.has(r.student_id));
+    } else {
+      allResults = [];
+    }
 
     // Filter by status - same as admin approved tab
-    results = results.filter((r: any) => r.status === "Approved");
+    let results = allResults.filter((r: any) => r.status === "Approved");
+
+    // Only enforce term/year when they are available in context.
+    if (currentTerm && currentAcademicYear) {
+      results = results.filter(
+        (r: any) =>
+          r.term === currentTerm &&
+          r.academic_year === currentAcademicYear
+      );
+    }
 
     return results;
-  }, [compiledResults, currentTerm, currentAcademicYear]);
+  }, [compiledResults, currentTerm, currentAcademicYear, children]);
 
   // Get students with results - EXACT same as admin
   const studentsWithResults = useMemo(() => {
     return filteredResults
       .map((result: any) => {
-        const student = students.find((s: any) => s.id === result.student_id);
+        const child = (children || []).find((c: any) => Number(c.id) === Number(result.student_id));
+        // Prefer the already-loaded children list for parents (fast + parent-safe).
+        // Fall back to result payload fields when necessary.
+        const fallbackStudent = {
+          id: result.student_id,
+          firstName: result.first_name ?? result.student_first_name ?? '',
+          otherName: '',
+          lastName: result.last_name ?? result.student_last_name ?? '',
+          admissionNumber: result.admission_number ?? '',
+          class_id: result.class_id,
+        };
+        const student = child || fallbackStudent;
         return student ? { ...student, result } : null;
       })
       .filter(Boolean);
-  }, [filteredResults, students]);
+  }, [filteredResults, children]);
 
   useEffect(() => {
     const loadParentData = async () => {
       if (currentUser && currentUser.role === "parent") {
         setLoading(true);
         try {
-          console.log('MyChildrenPage: Loading parent data...');
           await Promise.all([
             loadParentsFromAPI(),
-            loadParentStudentLinksFromAPI(),
-            loadStudentsFromAPI(),
             loadCompiledResultsFromAPI(),
             loadClassesFromAPI(), // ← IMPORTANT: Load classes for class name fetching
-            loadScoresFromAPI(), // ← IMPORTANT: Load scores like admin
-            loadAffectiveDomainsFromAPI(), // ← Load affective domains
-            loadPsychomotorDomainsFromAPI(), // ← Load psychomotor domains
             loadSchoolSettings() // ← Load school settings for logo and info
           ]);
-          
-          console.log('MyChildrenPage: Data loaded, compiledResults length:', compiledResults.length);
 
           const parentId = currentUser?.linked_id;
           
           if (parentId) {
-            const childrenData = getParentChildren(parentId);
+            const apiChildren = await getParentChildrenFromAPI(Number(parentId));
+            const childrenData = Array.isArray(apiChildren) && apiChildren.length > 0
+              ? apiChildren
+              : getParentChildren(parentId);
             
             if (childrenData && childrenData.length > 0) {
               const transformedChildren = childrenData.map((child: any) => ({
                 ...child,
-                dateOfBirth: child.dateOfBirth || "",
-                address: child.address || "",
-                parentContact: child.parentContact || "",
-                enrollmentDate: child.enrollmentDate || "",
-                recentActivities: child.recentActivities || [],
-                feeBalance: child.feeBalance || 0,
-                totalFees: child.totalFees || 0
+                firstName: child.firstName ?? child.first_name ?? "",
+                otherName: child.otherName ?? child.other_name ?? "",
+                lastName: child.lastName ?? child.last_name ?? "",
+                fullName: (
+                  child.fullName ??
+                  child.full_name ??
+                  [
+                    child.firstName ?? child.first_name ?? '',
+                    child.otherName ?? child.other_name ?? '',
+                    child.lastName ?? child.last_name ?? ''
+                  ]
+                    .filter((p: any) => String(p || '').trim() !== '')
+                    .join(' ')
+                    .trim()
+                ),
+                admissionNumber: child.admissionNumber ?? child.admission_number ?? "",
+                className: child.className ?? child.class_name ?? "",
+                classLevel: child.classLevel ?? child.level ?? "",
+                gender: child.gender ?? "",
+                status: child.status ?? "Active",
+                dateOfBirth: child.dateOfBirth ?? child.date_of_birth ?? "",
+                address: child.address ?? "",
+                parentContact: child.parentContact ?? "",
+                enrollmentDate: child.enrollmentDate ?? child.admission_date ?? "",
+                recentActivities: child.recentActivities ?? [],
+                feeBalance: child.feeBalance ?? 0,
+                totalFees: child.totalFees ?? 0
               }));
               setChildren(transformedChildren);
               
@@ -173,7 +206,6 @@ export function MyChildrenPage() {
             toast.error("Parent account not properly linked");
           }
         } catch (error) {
-          console.error("Error loading parent data:", error);
           toast.error("Failed to load parent data");
           setChildren([]);
         } finally {
@@ -185,17 +217,55 @@ export function MyChildrenPage() {
     loadParentData();
   }, [currentUser?.id, currentUser?.linked_id, parents.length]);
 
+  // Keep parent results fresh without requiring hard refresh / cache clearing.
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'parent') return;
+
+    let intervalId: number | undefined;
+
+    const refresh = async () => {
+      try {
+        await loadCompiledResultsFromAPI();
+      } catch (e) {
+        // Keep UI stable if refresh fails.
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    refresh();
+    intervalId = window.setInterval(refresh, 10000);
+
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [currentUser?.id, currentUser?.role]);
+
   // Filter children based on search
-  const filteredChildren = children.filter(child =>
-    child.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    child.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    child.className.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredChildren = children.filter(child => {
+    const query = (searchTerm || '').toLowerCase();
+    const fullName = String((child as any).fullName ?? '').toLowerCase();
+    const admissionNumber = String((child as any).admissionNumber ?? '').toLowerCase();
+    const className = String((child as any).className ?? '').toLowerCase();
+    return (
+      fullName.includes(query) ||
+      admissionNumber.includes(query) ||
+      className.includes(query)
+    );
+  });
 
   const handleViewResult = (resultId: number) => {
     // Use the same result viewing as admin - FullPageResultView
     const result = compiledResults.find(r => r.id === resultId);
-    const student = students.find(s => s.id === result?.student_id);
+    const student = children.find((c: any) => Number(c.id) === Number(result?.student_id));
     
     if (result && student) {
       // Open the same FullPageResultView that admin uses
@@ -208,38 +278,23 @@ export function MyChildrenPage() {
   const handleDownloadResult = async (student: any, result: any) => {
     try {
       if (!student || !result) {
-        toast.error("Student or result not found");
+        toast.error('Missing student or result data');
         return;
       }
-
-      console.log('=== PARENT PDF DOWNLOAD STARTED ===');
-      console.log('Student:', student.firstName, student.lastName);
-      console.log('Student ID:', student.id);
-      console.log('Result ID:', result.id);
       
-      // Use the EXACT same admin PDF function from shared utility
-      
-      // Pass exact same context that admin uses
       const context = {
         schoolSettings: schoolSettings,
         teachers: teachers,
         classes: classes,
-        scores: scores, // ← IMPORTANT: Pass scores context
-        affectiveDomains: affectiveDomains, // ← Pass affective domains
-        psychomotorDomains: psychomotorDomains // ← Pass psychomotor domains
+        students: children,
+        scores: scores,
+        affectiveDomains: affectiveDomains,
+        psychomotorDomains: psychomotorDomains
       };
       
-      console.log('Parent context being passed:', context);
-      console.log('School settings from context:', schoolSettings);
-      console.log('Scores from context:', scores.length);
-      
       await generatePDFFromData(student, result, context);
-      
-      console.log('=== PARENT PDF COMPLETED SUCCESSFULLY ===');
       toast.success('PDF downloaded successfully!');
     } catch (error) {
-      console.error('=== PARENT PDF GENERATION FAILED ===');
-      console.error('Error:', error);
       toast.error('Failed to download PDF');
     }
   };

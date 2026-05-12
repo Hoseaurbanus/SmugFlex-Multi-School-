@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class ParentController {
     private $conn;
@@ -20,11 +21,36 @@ class ParentController {
      * Get All Parents
      */
     public function getAllParents() {
-        Middleware::requireAuth();
+        $token_data = Middleware::requireAuth();
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         
         try {
+            $role = strtolower(trim((string)($token_data['role'] ?? '')));
+            // Parents must not be able to enumerate all parent records.
+            // If caller is a parent, return only their own parent record.
+            if ($role === 'parent') {
+                $token_parent_id = $token_data['linked_id'] ?? null;
+
+                // Fallback: if linked_id is missing in the token, resolve it from the users table
+                if (empty($token_parent_id)) {
+                    $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                    $user_stmt = $this->conn->prepare($user_query);
+                    $user_stmt->bindParam(':username', $token_data['username']);
+                    $user_stmt->execute();
+                    $user_data = $user_stmt->fetch();
+                    $token_parent_id = $user_data['linked_id'] ?? null;
+                }
+
+                if (empty($token_parent_id)) {
+                    Response::forbidden('Parent account not properly linked');
+                }
+
+                // Reuse the existing parent-by-id logic (includes parent-only access check)
+                $this->getParentById((int)$token_parent_id);
+                return;
+            }
+
             $query = "SELECT p.*, 
                              (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id) as children_count,
                              (SELECT GROUP_CONCAT(s.first_name, ' ', s.last_name) 
@@ -77,7 +103,8 @@ class ParentController {
         $parent_id = Middleware::validateInteger($id, 'parent_id');
         
         // Check access permissions
-        if ($token_data['role'] === 'parent') {
+        $role = strtolower(trim((string)($token_data['role'] ?? '')));
+        if ($role === 'parent') {
             // Handle missing linked_id in JWT token
             $token_parent_id = $token_data['linked_id'] ?? null;
             
@@ -223,6 +250,11 @@ class ParentController {
                 'New parent registered',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['parents', 'users', 'students', 'notifications', 'payments', 'compiled_results'], [
+                'action' => 'created',
+                'parent_id' => (int)$parent_id,
+            ]);
             
             Response::created(['id' => $parent_id], 'Parent created successfully');
             
@@ -240,9 +272,11 @@ class ParentController {
     public function updateParent($id) {
         $token_data = Middleware::requireAuth();
         $parent_id = Middleware::validateInteger($id, 'parent_id');
+
+        $role = strtolower(trim((string)($token_data['role'] ?? '')));
         
         // Check permissions
-        if ($token_data['role'] === 'parent' && $token_data['linked_id'] != $parent_id) {
+        if ($role === 'parent' && $token_data['linked_id'] != $parent_id) {
             Response::forbidden('Access denied');
         }
         
@@ -301,6 +335,11 @@ class ParentController {
                 'Parent information updated',
                 $token_data['user_id']
             );
+
+            RealtimeEvents::publish(['parents', 'users', 'students', 'notifications', 'payments', 'compiled_results'], [
+                'action' => 'updated',
+                'parent_id' => (int)$parent_id,
+            ]);
             
             Response::success(null, 'Parent updated successfully');
             
@@ -355,6 +394,11 @@ class ParentController {
                 'Parent record deleted',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['parents', 'users', 'students', 'notifications', 'payments', 'compiled_results'], [
+                'action' => 'deleted',
+                'parent_id' => (int)$parent_id,
+            ]);
             
             Response::success(null, 'Parent deleted successfully');
             
@@ -371,8 +415,10 @@ class ParentController {
         $token_data = Middleware::requireAuth();
         $parent_id = Middleware::validateInteger($id, 'parent_id');
 
+        $role = strtolower(trim((string)($token_data['role'] ?? '')));
+
         // If the caller is a parent, make sure the requested ID matches their linked parent record
-        if ($token_data['role'] === 'parent') {
+        if ($role === 'parent') {
             $token_parent_id = $token_data['linked_id'] ?? null;
 
             // Fallback: if linked_id is missing in the token, resolve it from the users table
@@ -394,7 +440,7 @@ class ParentController {
         if (ob_get_length()) ob_clean();
         
         try {
-            $query = "SELECT s.id, s.first_name, s.last_name, s.admission_number, s.gender, s.date_of_birth,
+            $query = "SELECT s.id, s.class_id, s.first_name, s.last_name, s.other_name, s.admission_number, s.gender, s.date_of_birth,
                              s.status, s.photo_url, s.admission_date,
                              c.name as class_name, c.level,
                              psl.relationship, psl.is_primary,
@@ -418,8 +464,10 @@ class ParentController {
             $mappedChildren = array_map(function($child) {
                 return [
                     'id' => $child['id'],
+                    'classId' => $child['class_id'],
                     'firstName' => $child['first_name'],
                     'lastName' => $child['last_name'],
+                    'otherName' => $child['other_name'],
                     'admissionNumber' => $child['admission_number'],
                     'gender' => $child['gender'],
                     'dateOfBirth' => $child['date_of_birth'],
@@ -450,11 +498,38 @@ class ParentController {
      * Get All Parent-Student Links
      */
     public function getAllParentStudentLinks() {
-        Middleware::requireAuth();
+        $token_data = Middleware::requireAuth();
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         
         try {
+            $where = '';
+            $params = [];
+
+            $role = strtolower(trim((string)($token_data['role'] ?? '')));
+
+            // Parents must only see their own links. Admin/staff can see all.
+            if ($role === 'parent') {
+                $token_parent_id = $token_data['linked_id'] ?? null;
+
+                // Fallback: if linked_id is missing in the token, resolve it from the users table
+                if (empty($token_parent_id)) {
+                    $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                    $user_stmt = $this->conn->prepare($user_query);
+                    $user_stmt->bindParam(':username', $token_data['username']);
+                    $user_stmt->execute();
+                    $user_data = $user_stmt->fetch();
+                    $token_parent_id = $user_data['linked_id'] ?? null;
+                }
+
+                if (empty($token_parent_id)) {
+                    Response::forbidden('Parent account not properly linked');
+                }
+
+                $where = 'WHERE psl.parent_id = :parent_id';
+                $params[':parent_id'] = (int)$token_parent_id;
+            }
+
             $query = "SELECT psl.*, 
                              s.first_name as student_first_name, 
                              s.last_name as student_last_name,
@@ -463,9 +538,13 @@ class ParentController {
                       FROM parent_student_links psl
                       LEFT JOIN students s ON psl.student_id = s.id
                       LEFT JOIN parents p ON psl.parent_id = p.id
+                      $where
                       ORDER BY psl.created_at DESC";
             
             $stmt = $this->conn->prepare($query);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value);
+            }
             $stmt->execute();
             
             $links = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -502,7 +581,8 @@ class ParentController {
      * Link Parent to Student
      */
     public function linkToStudent($id) {
-        $token_data = Middleware::requireAuth(); // Allow any authenticated user
+        Middleware::requireRole('admin');
+        $token_data = Middleware::requireAuth();
         
         $parent_id = Middleware::validateInteger($id, 'parent_id');
         $data = json_decode(file_get_contents('php://input'), true);
@@ -513,6 +593,8 @@ class ParentController {
             $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
             $relationship = Middleware::validateEnum($data['relationship'], ['Father', 'Mother', 'Guardian'], 'relationship');
             $is_primary = isset($data['is_primary']) ? (bool)$data['is_primary'] : false;
+
+            $this->conn->beginTransaction();
             
             // Check if link already exists
             $check_query = "SELECT id FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
@@ -522,6 +604,9 @@ class ParentController {
             $check_stmt->execute();
             
             if ($check_stmt->fetch()) {
+                if ($this->conn->inTransaction()) {
+                    $this->conn->rollBack();
+                }
                 Response::conflict('Parent is already linked to this student');
             }
             
@@ -530,7 +615,9 @@ class ParentController {
                 $update_query = "UPDATE parent_student_links SET is_primary = FALSE WHERE student_id = :student_id";
                 $update_stmt = $this->conn->prepare($update_query);
                 $update_stmt->bindParam(':student_id', $student_id);
-                $update_stmt->execute();
+                if (!$update_stmt->execute()) {
+                    throw new Exception('Failed to update existing primary link');
+                }
             }
             
             // Create link
@@ -545,49 +632,63 @@ class ParentController {
             
             if (!$link_stmt->execute()) {
                 error_log("Failed to insert parent-student link: " . print_r($link_stmt->errorInfo(), true));
-                Response::serverError('Failed to create parent-student link');
+                throw new Exception('Failed to create parent-student link');
+            }
+
+            // Commit core link creation first so optional cache updates can't turn a successful link into a 500.
+            if ($this->conn->inTransaction()) {
+                $this->conn->commit();
             }
             
-            // Update student's parent information to prevent ID mismatches
-            $parent_info_query = "SELECT first_name, last_name, email FROM parents WHERE id = :parent_id";
-            $parent_info_stmt = $this->conn->prepare($parent_info_query);
-            $parent_info_stmt->bindParam(':parent_id', $parent_id);
-            
-            if (!$parent_info_stmt->execute()) {
-                error_log("Failed to select parent info: " . print_r($parent_info_stmt->errorInfo(), true));
-                Response::serverError('Failed to retrieve parent information');
-            }
-            
-            $parent_info = $parent_info_stmt->fetch();
-            
-            if ($parent_info) {
-                $parent_name = $parent_info['first_name'] . ' ' . $parent_info['last_name'];
-                $parent_email = $parent_info['email'];
-                
-                // Update student record with parent information
-                $update_student_query = "UPDATE students SET parent_id = :parent_id, parent_name = :parent_name WHERE id = :student_id";
-                $update_student_stmt = $this->conn->prepare($update_student_query);
-                $update_student_stmt->bindParam(':parent_id', $parent_id);
-                $update_student_stmt->bindParam(':parent_name', $parent_name);
-                $update_student_stmt->bindParam(':student_id', $student_id);
-                
-                if (!$update_student_stmt->execute()) {
-                    error_log("Failed to update student record: " . print_r($update_student_stmt->errorInfo(), true));
-                    Response::serverError('Failed to update student record');
+            // Best-effort cache updates (must never fail the link operation)
+            $parent_email = null;
+            $parent_name = null;
+            try {
+                $parent_info_query = "SELECT first_name, last_name, email FROM parents WHERE id = :parent_id";
+                $parent_info_stmt = $this->conn->prepare($parent_info_query);
+                $parent_info_stmt->bindParam(':parent_id', $parent_id);
+                if ($parent_info_stmt->execute()) {
+                    $parent_info = $parent_info_stmt->fetch();
+                    if ($parent_info) {
+                        $parent_name = ($parent_info['first_name'] ?? '') . ' ' . ($parent_info['last_name'] ?? '');
+                        $parent_name = trim($parent_name);
+                        $parent_email = $parent_info['email'] ?? null;
+                    }
                 }
-                
-                // Ensure parent's linked_id matches the parent_id used in students table
-                if (!empty($parent_email)) {
-                    $update_user_query = "UPDATE users SET linked_id = :parent_id WHERE email = :email AND role = 'parent'";
+            } catch (Exception $e) {
+                error_log('Warning: Failed to fetch parent info for cache update: ' . $e->getMessage());
+            }
+
+            // Update student record (attempt parent_id + parent_name; fallback to only parent_id)
+            try {
+                if ($parent_name !== null) {
+                    $update_student_query = "UPDATE students SET parent_id = :parent_id, parent_name = :parent_name WHERE id = :student_id";
+                    $update_student_stmt = $this->conn->prepare($update_student_query);
+                    $update_student_stmt->bindParam(':parent_id', $parent_id);
+                    $update_student_stmt->bindParam(':parent_name', $parent_name);
+                    $update_student_stmt->bindParam(':student_id', $student_id);
+                    $update_student_stmt->execute();
+                } else {
+                    $update_student_query = "UPDATE students SET parent_id = :parent_id WHERE id = :student_id";
+                    $update_student_stmt = $this->conn->prepare($update_student_query);
+                    $update_student_stmt->bindParam(':parent_id', $parent_id);
+                    $update_student_stmt->bindParam(':student_id', $student_id);
+                    $update_student_stmt->execute();
+                }
+            } catch (Exception $e) {
+                error_log('Warning: Failed to update student cache fields during link: ' . $e->getMessage());
+            }
+
+            // Ensure parent's linked_id matches the parent_id used in students table (best-effort)
+            if (!empty($parent_email)) {
+                try {
+                    $update_user_query = "UPDATE users SET linked_id = :parent_id WHERE email = :email AND LOWER(role) = 'parent'";
                     $update_user_stmt = $this->conn->prepare($update_user_query);
                     $update_user_stmt->bindParam(':parent_id', $parent_id, PDO::PARAM_INT);
                     $update_user_stmt->bindParam(':email', $parent_email);
-                    
-                    if (!$update_user_stmt->execute()) {
-                        error_log("Failed to update user record: " . print_r($update_user_stmt->errorInfo(), true));
-                        // Don't fail the whole operation if user update fails, just log it
-                        error_log("Warning: Failed to update user linked_id for parent $parent_id");
-                    }
+                    $update_user_stmt->execute();
+                } catch (Exception $e) {
+                    error_log('Warning: Failed to update users.linked_id during link: ' . $e->getMessage());
                 }
             }
             
@@ -601,11 +702,30 @@ class ParentController {
                 "Parent linked to student as $relationship",
                 $_SESSION['user_id'] ?? null
             );
-            
+
+            RealtimeEvents::publish(['parents', 'students', 'notifications', 'payments', 'compiled_results'], [
+                'action' => 'linked',
+                'parent_id' => (int)$parent_id,
+                'student_id' => (int)$student_id,
+            ]);
+
             Response::success(null, 'Parent linked to student successfully');
             
         } catch (PDOException $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            if ((string)$e->getCode() === '23000') {
+                Response::conflict('Parent is already linked to this student');
+            }
+            error_log("Database error linking parent to student: " . $e->getMessage());
             Response::serverError('Database error linking parent to student');
+        } catch (Exception $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            error_log("Error linking parent to student: " . $e->getMessage());
+            Response::serverError($e->getMessage());
         }
     }
     
@@ -613,7 +733,8 @@ class ParentController {
      * Unlink Parent from Student
      */
     public function unlinkFromStudent($parent_id, $student_id) {
-        $token_data = Middleware::requireAuth(); // Allow any authenticated user
+        Middleware::requireRole('admin');
+        $token_data = Middleware::requireAuth();
         
         $parent_id = Middleware::validateInteger($parent_id, 'parent_id');
         $student_id = Middleware::validateInteger($student_id, 'student_id');
@@ -637,6 +758,33 @@ class ParentController {
             $delete_stmt->bindParam(':parent_id', $parent_id);
             $delete_stmt->bindParam(':student_id', $student_id);
             $delete_stmt->execute();
+
+            // If no more links exist for this student, clear cached parent fields on student record
+            $remaining_query = "SELECT COUNT(*) FROM parent_student_links WHERE student_id = :student_id";
+            $remaining_stmt = $this->conn->prepare($remaining_query);
+            $remaining_stmt->bindParam(':student_id', $student_id);
+            $remaining_stmt->execute();
+            $remaining_count = (int)$remaining_stmt->fetchColumn();
+
+            if ($remaining_count === 0) {
+                // Best-effort cache clear (some environments may not have parent_name)
+                try {
+                    $clear_student_query = "UPDATE students SET parent_id = NULL, parent_name = NULL WHERE id = :student_id";
+                    $clear_student_stmt = $this->conn->prepare($clear_student_query);
+                    $clear_student_stmt->bindParam(':student_id', $student_id);
+                    $clear_student_stmt->execute();
+                } catch (Exception $e) {
+                    error_log('Warning: Failed to clear students.parent_name during unlink, falling back to parent_id only: ' . $e->getMessage());
+                    try {
+                        $clear_student_query = "UPDATE students SET parent_id = NULL WHERE id = :student_id";
+                        $clear_student_stmt = $this->conn->prepare($clear_student_query);
+                        $clear_student_stmt->bindParam(':student_id', $student_id);
+                        $clear_student_stmt->execute();
+                    } catch (Exception $e2) {
+                        error_log('Warning: Failed to clear students.parent_id during unlink: ' . $e2->getMessage());
+                    }
+                }
+            }
             
             // Log activity
             Middleware::logActivity(
@@ -648,6 +796,12 @@ class ParentController {
                 'Parent unlinked from student',
                 $token_data['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['parents', 'students', 'notifications', 'payments', 'compiled_results'], [
+                'action' => 'unlinked',
+                'parent_id' => (int)$parent_id,
+                'student_id' => (int)$student_id,
+            ]);
             
             Response::success(null, 'Parent unlinked from student successfully');
             

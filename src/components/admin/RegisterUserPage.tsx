@@ -13,7 +13,7 @@ import sqlDatabase from '../../services/sqlDatabase';
 import { API_CONFIG } from '../../config/api';
 
 export function RegisterUserPage() {
-  const { addTeacher, addParent, addAccountant, createUserAPI, classes } = useSchool();
+  const { addTeacher, addParent, addAccountant, createUserAPI, classes, users } = useSchool();
 
   const [selectedRole, setSelectedRole] = useState<'teacher' | 'parent' | 'accountant' | ''>('');
   const [photoPreview, setPhotoPreview] = useState<string>('');
@@ -33,27 +33,23 @@ export function RegisterUserPage() {
     setUsernameValidation({ isValid: false, message: 'Checking...', isChecking: true });
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/user/check-username.php?username=${encodeURIComponent(username.trim())}`);
-      const result = await response.json();
+      const normalized = username.trim().toLowerCase();
+      const exists = (users || []).some((u: any) => String(u?.username || '').toLowerCase() === normalized);
 
-      if (response.ok && result.success) {
-        if (result.isAvailable) {
-          setUsernameValidation({ 
-            isValid: true, 
-            message: 'Username available', 
-            isChecking: false 
-          });
-        } else {
-          setUsernameValidation({ 
-            isValid: false, 
-            message: 'Username already taken', 
-            isChecking: false 
-          });
-        }
-      } else {
-        // Handle API error gracefully
-        setUsernameValidation({ isValid: true, message: '', isChecking: false });
+      if (exists) {
+        setUsernameValidation({
+          isValid: false,
+          message: 'Username already taken',
+          isChecking: false,
+        });
+        return;
       }
+
+      setUsernameValidation({
+        isValid: true,
+        message: 'Username available',
+        isChecking: false,
+      });
     } catch (error) {
       // Handle network error
       setUsernameValidation({ 
@@ -205,7 +201,6 @@ export function RegisterUserPage() {
       setSelectedRole('');
 
     } catch (error) {
-      console.error('Failed to register user:', error);
       toast.error('An unexpected error occurred during registration.');
     }
   };

@@ -39,7 +39,6 @@ class JWT {
         $parts = explode('.', $jwt);
 
         if (count($parts) !== 3) {
-            error_log("JWT decode: Invalid JWT format - wrong number of parts: " . count($parts));
             return false;
         }
 
@@ -49,7 +48,6 @@ class JWT {
         $payload = json_decode(self::base64url_decode($payload_encoded), true);
 
         if (!$header || !$payload) {
-            error_log("JWT decode: Failed to decode header or payload JSON");
             return false;
         }
 
@@ -58,19 +56,14 @@ class JWT {
         $signature_check = self::base64url_decode($signature_encoded);
 
         if (!hash_equals($signature, $signature_check)) {
-            error_log("JWT decode: Signature verification failed");
-            error_log("JWT decode: Expected signature: " . bin2hex($signature));
-            error_log("JWT decode: Received signature: " . bin2hex($signature_check));
+            // Security: Silent fail
             return false;
         }
 
         // Check expiration
         if (isset($payload['exp']) && $payload['exp'] < time()) {
-            error_log("JWT decode: Token expired - exp: " . date('Y-m-d H:i:s', $payload['exp']) . ", now: " . date('Y-m-d H:i:s', time()));
             return false;
         }
-
-        error_log("JWT decode: Token validation successful for user: " . ($payload['username'] ?? 'unknown'));
         return $payload;
     }
     
@@ -118,30 +111,20 @@ class JWT {
             }
         }
 
-        error_log("JWT validateToken: Auth header found: " . substr($auth_header, 0, 50) . "...");
-
         if (!$auth_header) {
-            error_log("JWT validateToken: No Authorization header found. Available headers: " . json_encode(array_keys($headers)));
-            error_log("JWT validateToken: Server vars: " . json_encode(array_filter(array_keys($_SERVER), function($k) {
-                return strpos($k, 'AUTH') !== false || strpos($k, 'HTTP_') !== false;
-            })));
             return false;
         }
 
         if (preg_match('/Bearer\s(\S+)/', $auth_header, $matches)) {
             $jwt = $matches[1];
-            error_log("JWT validateToken: Found Bearer token, attempting to decode. Token length: " . strlen($jwt));
             $result = self::decode($jwt);
             if (!$result) {
-                error_log("JWT validateToken: Token decode failed for token: " . substr($jwt, 0, 50) . "...");
                 return false;
             } else {
-                error_log("JWT validateToken: Token decoded successfully for user: " . ($result['username'] ?? 'unknown'));
                 return $result;
             }
         }
 
-        error_log("JWT validateToken: Bearer token not found in auth header: " . substr($auth_header, 0, 50) . "...");
         return false;
     }
     

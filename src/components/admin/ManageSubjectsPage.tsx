@@ -1,5 +1,5 @@
 import { Book, BookOpen, FileText, Plus } from 'lucide-react';
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -25,6 +25,8 @@ export function ManageSubjectsPageFixed() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [showSubjectForm, setShowSubjectForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -48,8 +50,32 @@ export function ManageSubjectsPageFixed() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterCategory, filterStatus]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredSubjects.length / pageSize));
+  }, [filteredSubjects.length, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const paginatedSubjects = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSubjects.slice(start, start + pageSize);
+  }, [filteredSubjects, currentPage, pageSize]);
+
   // Get unique categories
-  const categories = ["All", "Creche", "Nursery", "Primary", "JSS", "SSS"];
+  const categories = ["All", "Creche", "Nursery", "Primary", "JSS", "SS"];
+
+  const allowedSubjectCategories = ["Creche", "Nursery", "Primary", "JSS", "SS", "General"] as const;
+  type AllowedSubjectCategory = (typeof allowedSubjectCategories)[number];
+
+  const isAllowedSubjectCategory = (value: string): value is AllowedSubjectCategory => {
+    return (allowedSubjectCategories as readonly string[]).includes(value);
+  };
 
   // Statistics
   const stats = {
@@ -64,46 +90,65 @@ export function ManageSubjectsPageFixed() {
     return subjectAssignments.filter(sa => sa.subject_id === subject_id).length;
   };
 
-  const handleToggleStatus = (subject: any) => {
+  const handleToggleStatus = async (subject: any) => {
     const newStatus = subject.status === 'Active' ? 'Inactive' : 'Active';
-    updateSubject(subject.id, { status: newStatus });
-    toast.success(`Subject ${subject.name} ${newStatus === 'Active' ? 'enabled' : 'disabled'}`);
+    setActionLoading(`toggle-${subject.id}`);
+    try {
+      await updateSubject(subject.id, { status: newStatus });
+      toast.success(`Subject ${subject.name} ${newStatus === 'Active' ? 'enabled' : 'disabled'}`);
+    } catch (error: any) {
+      const message = error?.message || 'Failed to update subject status';
+      toast.error(message);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleCreateSubjectSuccess = () => {
     // Refresh subjects data is handled by the form
-    setShowSubjectForm(false);
+    closeSubjectDialog();
   };
 
   const handleCreateSubjectClose = () => {
-    setShowSubjectForm(false);
+    closeSubjectDialog();
   };
 
   const handleEditSubject = async () => {
-    if (!selectedSubject || !selectedSubject.name || !selectedSubject.code || !selectedSubject.category) {
+    const name = String(selectedSubject?.name || '').trim();
+    const code = String(selectedSubject?.code || '').trim().toUpperCase();
+    const categoryRaw = String(selectedSubject?.category || '').trim();
+    const department = String(selectedSubject?.department || '').trim();
+
+    if (!selectedSubject || !name || !code || !categoryRaw) {
       toast.error("Please fill all required fields");
       return;
     }
+
+    if (!isAllowedSubjectCategory(categoryRaw)) {
+      toast.error('Invalid subject category');
+      return;
+    }
+
+    const category: AllowedSubjectCategory = categoryRaw;
 
     setActionLoading("edit");
 
     try {
       await updateSubject(selectedSubject.id, {
-        name: selectedSubject.name,
-        code: selectedSubject.code,
-        category: selectedSubject.category,
-        department: selectedSubject.department || selectedSubject.category,
+        name,
+        code,
+        category,
+        department: department || category,
         description: selectedSubject.description,
         status: selectedSubject.status,
         is_core: selectedSubject.is_core,
       });
       
-      toast.success(`Subject "${selectedSubject.name}" updated successfully!`);
-      setShowSubjectForm(false);
-      setIsEditing(false);
-      setSelectedSubject(null);
-    } catch (error) {
-      toast.error('Failed to update subject');
+      toast.success(`Subject "${name}" updated successfully!`);
+      closeSubjectDialog();
+    } catch (error: any) {
+      const message = error?.message || 'Failed to update subject';
+      toast.error(message);
     } finally {
       setActionLoading(null);
     }
@@ -129,9 +174,18 @@ export function ManageSubjectsPageFixed() {
   };
 
   const openEditForm = (subject: any) => {
-    setSelectedSubject(subject);
+    setSelectedSubject({
+      ...subject,
+      department: subject.department || subject.category,
+    });
     setIsEditing(true);
     setShowSubjectForm(true);
+  };
+
+  const closeSubjectDialog = () => {
+    setShowSubjectForm(false);
+    setIsEditing(false);
+    setSelectedSubject(null);
   };
 
   const openDeleteDialog = (subject: any) => {
@@ -202,7 +256,8 @@ export function ManageSubjectsPageFixed() {
           </Button>
           <Button 
             onClick={() => {
-              console.log('=== CREATE SUBJECT BUTTON CLICKED ===');
+              setIsEditing(false);
+              setSelectedSubject(null);
               setShowSubjectForm(true);
             }}
             className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
@@ -217,16 +272,147 @@ export function ManageSubjectsPageFixed() {
 
       {/* Subject Creation Form Dialog */}
       {showSubjectForm && (
-        <Dialog open={showSubjectForm} onOpenChange={setShowSubjectForm}>
+        <Dialog
+          open={showSubjectForm}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeSubjectDialog();
+              return;
+            }
+            setShowSubjectForm(true);
+          }}
+        >
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create Subject</DialogTitle>
-              <DialogDescription>Fill in the details to create a new subject. Subject code must be unique.</DialogDescription>
+              <DialogTitle>{isEditing ? 'Edit Subject' : 'Create Subject'}</DialogTitle>
+              <DialogDescription>
+                {isEditing
+                  ? 'Update the subject details and save changes.'
+                  : 'Fill in the details to create a new subject. Subject code must be unique.'}
+              </DialogDescription>
             </DialogHeader>
-            <SubjectCreationForm 
-              onClose={handleCreateSubjectClose}
-              onSuccess={handleCreateSubjectSuccess}
-            />
+
+            {!isEditing ? (
+              <SubjectCreationForm 
+                onClose={handleCreateSubjectClose}
+                onSuccess={handleCreateSubjectSuccess}
+              />
+            ) : (
+              <div className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">
+                      Subject Name <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      value={selectedSubject?.name || ''}
+                      onChange={(e) => setSelectedSubject((prev: any) => ({ ...prev, name: e.target.value }))}
+                      placeholder="e.g., Mathematics"
+                      className="border-gray-300 rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">
+                      Subject Code <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      value={selectedSubject?.code || ''}
+                      onChange={(e) => setSelectedSubject((prev: any) => ({ ...prev, code: String(e.target.value || '').toUpperCase() }))}
+                      placeholder="e.g., MATH"
+                      maxLength={10}
+                      className="border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">
+                      Category <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={selectedSubject?.category || ''}
+                      onValueChange={(value) => setSelectedSubject((prev: any) => ({ ...prev, category: value }))}
+                    >
+                      <SelectTrigger className="border-gray-300 rounded-lg">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["Creche", "Nursery", "Primary", "JSS", "SS"].map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Department</Label>
+                    <Input
+                      value={selectedSubject?.department || ''}
+                      onChange={(e) => setSelectedSubject((prev: any) => ({ ...prev, department: e.target.value }))}
+                      placeholder="e.g., Sciences"
+                      className="border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Description</Label>
+                  <Textarea
+                    value={selectedSubject?.description || ''}
+                    onChange={(e) => setSelectedSubject((prev: any) => ({ ...prev, description: e.target.value }))}
+                    placeholder="Optional description"
+                    className="border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Status</Label>
+                    <Select
+                      value={selectedSubject?.status || 'Active'}
+                      onValueChange={(value) => setSelectedSubject((prev: any) => ({ ...prev, status: value }))}
+                    >
+                      <SelectTrigger className="border-gray-300 rounded-lg">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-8">
+                    <Checkbox
+                      checked={!!selectedSubject?.is_core}
+                      onCheckedChange={(checked) => setSelectedSubject((prev: any) => ({ ...prev, is_core: !!checked }))}
+                    />
+                    <Label className="text-sm font-medium text-gray-700">Core subject</Label>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={closeSubjectDialog}
+                    disabled={actionLoading === 'edit'}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleEditSubject}
+                    disabled={actionLoading === 'edit'}
+                    className="bg-[#3B82F6] hover:bg-[#2563EB] text-white"
+                  >
+                    {actionLoading === 'edit' ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       )}
@@ -354,7 +540,7 @@ export function ManageSubjectsPageFixed() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSubjects.map((subject: any) => (
+                {paginatedSubjects.map((subject: any) => (
                   <TableRow key={subject.id}>
                     <TableCell className="font-mono">{subject.code}</TableCell>
                     <TableCell className="font-medium">{subject.name}</TableCell>
@@ -386,8 +572,11 @@ export function ManageSubjectsPageFixed() {
                           variant="outline"
                           onClick={() => handleToggleStatus(subject)}
                           className="h-8"
+                          disabled={actionLoading === `toggle-${subject.id}`}
                         >
-                          {subject.status === 'Active' ? 'Disable' : 'Enable'}
+                          {actionLoading === `toggle-${subject.id}`
+                            ? 'Updating...'
+                            : (subject.status === 'Active' ? 'Disable' : 'Enable')}
                         </Button>
                         <Button
                           size="sm"
@@ -416,6 +605,48 @@ export function ManageSubjectsPageFixed() {
               <Book className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <h3 className="text-lg font-medium mb-2">No Subjects Found</h3>
               <p className="text-gray-500">Try adjusting your filters or create a new subject.</p>
+            </div>
+          )}
+
+          {filteredSubjects.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4">
+              <div className="text-sm text-gray-600">
+                Showing {Math.min(filteredSubjects.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredSubjects.length, currentPage * pageSize)} of {filteredSubjects.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Rows" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / page</SelectItem>
+                    <SelectItem value="20">20 / page</SelectItem>
+                    <SelectItem value="50">50 / page</SelectItem>
+                    <SelectItem value="100">100 / page</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                  Page {currentPage} / {totalPages}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

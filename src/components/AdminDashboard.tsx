@@ -1,4 +1,4 @@
-import { Settings, BarChart, Book, Database, LayoutDashboard, Link, BookOpen, BarChart3, GraduationCap, Plus, FileText, Users, Calendar, DollarSign, Bell, MessageSquare } from 'lucide-react';
+import { Settings, BarChart, Book, Database, LayoutDashboard, Link, BookOpen, BarChart3, GraduationCap, Plus, FileText, Users, Calendar, Bell, MessageSquare } from 'lucide-react';
 import React, { useState, useEffect, memo } from 'react';
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
@@ -20,7 +20,6 @@ import { AttendanceReportsPage } from "./admin/AttendanceReportsPage";
 import { ExamTimetablePage } from "./admin/ExamTimetablePage";
 import { DataBackupPage } from "./admin/DataBackupPage";
 import { ActivityLogsPage } from "./admin/ActivityLogsPage";
-import { FeeManagementPage } from "./admin/FeeManagementPage";
 import { NotificationSystemPage } from "./admin/NotificationSystemPage";
 import { NotificationArchivesPage } from "./admin/NotificationArchivesPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
@@ -54,9 +53,6 @@ const sidebarItems = [
   // Timetable
   { icon: <Calendar className="w-5 h-5" />, label: "Exam Timetable", id: "exam-timetable" },
   
-  // Financial Management
-  { icon: <DollarSign className="w-5 h-5" />, label: "Fee Management", id: "fee-management" },
-  
   // Communication & Settings
   { icon: <Bell className="w-5 h-5" />, label: "Send Notifications", id: "send-notifications" },
   { icon: <MessageSquare className="w-5 h-5" />, label: "View Messages", id: "view-messages" },
@@ -69,7 +65,23 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({ onLogout }: AdminDashboardProps) {
-  const { students, teachers, compiledResults, getPendingApprovals, currentUser, checkUserPermissionAPI, currentAcademicYear, currentTerm, loadCompiledResultsFromAPI, notifications, addNotification } = useSchool();
+  const {
+    students,
+    teachers,
+    compiledResults,
+    getPendingApprovals,
+    currentUser,
+    checkUserPermissionAPI,
+    currentAcademicYear,
+    currentTerm,
+    loadCompiledResultsFromAPI,
+    loadStudentsFromAPI,
+    loadTeachersFromAPI,
+    loadClassesFromAPI,
+    loadNotificationsFromAPI,
+    notifications,
+    addNotification
+  } = useSchool();
   const [activeItem, setActiveItem] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -77,22 +89,44 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const adminName = currentUser ? currentUser.username : 'Administrator';
 
     
+  const refreshData = async () => {
+    await Promise.allSettled([
+      loadStudentsFromAPI(),
+      loadTeachersFromAPI(),
+      loadClassesFromAPI(true),
+      loadNotificationsFromAPI(),
+      loadCompiledResultsFromAPI(null, currentTerm, currentAcademicYear),
+    ]);
+    setRefreshKey(prev => prev + 1);
+  };
+
   // Force refresh compiled results on component mount
   useEffect(() => {
     let isMounted = true;
-    const refreshData = async () => {
+
+    const run = async () => {
       if (isMounted) {
-        await loadCompiledResultsFromAPI();
-        setRefreshKey(prev => prev + 1);
+        await refreshData();
       }
     };
-    
-    refreshData();
+
+    run();
     
     return () => {
       isMounted = false;
     };
-  }, []); // Remove loadCompiledResultsFromAPI from dependencies to prevent infinite loops
+  }, []); // Remove refreshData from dependencies to prevent infinite loops
+
+  useEffect(() => {
+    if (activeItem !== 'dashboard') return;
+    const intervalId = window.setInterval(() => {
+      loadCompiledResultsFromAPI(null, currentTerm, currentAcademicYear);
+    }, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeItem, currentTerm, currentAcademicYear, loadCompiledResultsFromAPI]);
   
   // Real-time notification listener for admins
   useNotificationListener(currentUser?.role, currentUser?.id);
@@ -152,8 +186,26 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {activeItem === "dashboard" && (
             <div className="space-y-6">
               <div className="mb-6">
-                <h1 className="text-[#1F2937] mb-2">Welcome, {adminName}</h1>
-                <p className="text-[#6B7280]">System Overview & Management</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h1 className="text-[#1F2937] mb-2">Welcome, {adminName}</h1>
+                    <p className="text-[#6B7280]">System Overview & Management</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        await refreshData();
+                        toast.success('Dashboard refreshed');
+                      } catch (e) {
+                        toast.error('Failed to refresh dashboard');
+                      }
+                    }}
+                  >
+                    Refresh
+                  </Button>
+                </div>
               </div>
 
               {/* Stats Cards */}
@@ -341,9 +393,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {activeItem === "link-student-parent" && (
             <LinkStudentParentPage />
           )}
-          {activeItem === "fee-management" && (
-            <FeeManagementPage />
-          )}
           {activeItem === "send-notifications" && (
             <NotificationSystemPage />
           )}
@@ -365,21 +414,17 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {activeItem === "exam-timetable" && (
             <ExamTimetablePage />
           )}
+
           {activeItem === "results-management" && (
             <ResultsManagementPage />
           )}
-                    
-          {!["dashboard", "register-user", "manage-students", "manage-users", "manage-classes", "manage-subjects", "teacher-assignments", "promotion-system", "link-student-parent", "fee-management", "send-notifications", "view-messages", "activity-logs", "data-backup", "settings", "attendance-reports", "exam-timetable", "results-management"].includes(activeItem) && (
+
+          {!(["dashboard", "register-user", "manage-students", "manage-users", "manage-classes", "manage-subjects", "teacher-assignments", "promotion-system", "link-student-parent", "send-notifications", "view-messages", "activity-logs", "data-backup", "settings", "attendance-reports", "exam-timetable", "results-management"].includes(activeItem)) && (
             <div className="space-y-6">
               <div className="flex items-center justify-center min-h-[400px]">
                 <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical max-w-md w-full">
-                  <CardContent className="p-12 text-center">
-                    <div className="w-16 h-16 rounded-lg bg-[#3B82F6] flex items-center justify-center mx-auto mb-4">
-                      {sidebarItems.find(item => item.id === activeItem)?.icon}
-                    </div>
-                    <h3 className="text-[#1F2937] mb-3 font-semibold">
-                      {sidebarItems.find(item => item.id === activeItem)?.label}
-                    </h3>
+                  <CardContent className="p-6 text-center">
+                    <h2 className="text-xl font-semibold text-[#1F2937] mb-2">Page Not Found</h2>
                     <p className="text-[#6B7280]">
                       This section contains the functionality for {sidebarItems.find(item => item.id === activeItem)?.label.toLowerCase()}.
                     </p>

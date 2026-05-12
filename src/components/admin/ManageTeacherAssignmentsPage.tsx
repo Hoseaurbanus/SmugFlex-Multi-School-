@@ -45,6 +45,8 @@ export function ManageTeacherAssignmentsPage() {
   const [filterClass, setFilterClass] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
   const [activeTab, setActiveTab] = useState<'subjects' | 'class-teachers'>('subjects');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isClassTeacherDialogOpen, setIsClassTeacherDialogOpen] = useState(false);
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
@@ -189,6 +191,30 @@ export function ManageTeacherAssignmentsPage() {
     return matchesSearch && matchesTeacher && matchesClass && assignment.status === 'Active';
   }) : [];
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterTeacher, filterClass, activeTab]);
+
+  const paginatedCounts = useMemo(() => {
+    const total = activeTab === 'subjects' ? filteredAssignments.length : classTeacherAssignments.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    return { total, totalPages };
+  }, [activeTab, filteredAssignments.length, classTeacherAssignments.length, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > paginatedCounts.totalPages) setCurrentPage(paginatedCounts.totalPages);
+  }, [currentPage, paginatedCounts.totalPages]);
+
+  const paginatedFilteredAssignments = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredAssignments.slice(start, start + pageSize);
+  }, [filteredAssignments, currentPage, pageSize]);
+
+  const paginatedClassTeacherAssignments = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return classTeacherAssignments.slice(start, start + pageSize);
+  }, [classTeacherAssignments, currentPage, pageSize]);
+
   // Add activity log
   const addActivityLog = (action: string, teacherName: string, details: string, type: 'assignment' | 'class_teacher' | 'removal') => {
     const newLog = {
@@ -213,14 +239,11 @@ export function ManageTeacherAssignmentsPage() {
   };
 
   const handleAddAssignment = (subject_id: number, class_id: number) => {
-    console.log('handleAddAssignment called:', { subject_id, class_id, currentAssignments: selectedAssignments.length });
     const exists = selectedAssignments.some((a) => a.subject_id === subject_id && a.class_id === class_id);
 
     if (exists) {
-      console.log('Removing existing assignment');
       setSelectedAssignments(selectedAssignments.filter((a) => !(a.subject_id === subject_id && a.class_id === class_id)));
     } else {
-      console.log('Adding new assignment');
       setSelectedAssignments([...selectedAssignments, { subject_id, class_id }]);
     }
   };
@@ -234,16 +257,8 @@ export function ManageTeacherAssignmentsPage() {
     // Validate current term and academic year
     if (!currentAcademicYear || !currentTerm) {
       toast.error('Current academic year or term is not set. Please refresh the page.');
-      console.error('Missing term/year data:', { currentAcademicYear, currentTerm });
       return;
     }
-
-    console.log('Saving assignments with:', {
-      selectedTeacherId,
-      numAssignments: selectedAssignments.length,
-      currentAcademicYear,
-      currentTerm
-    });
 
     setIsSaving(true);
     setSaveStatus('saving');
@@ -264,14 +279,6 @@ export function ManageTeacherAssignmentsPage() {
         );
 
         if (!exists) {
-          console.log('Creating assignment:', {
-            teacherId: selectedTeacherId,
-            subjectId: assignment.subject_id,
-            classId: assignment.class_id,
-            academicYear: currentAcademicYear,
-            term: currentTerm
-          });
-
           const success = await assignSubjectToTeacherAPI(
             selectedTeacherId!,
             assignment.subject_id,
@@ -294,10 +301,9 @@ export function ManageTeacherAssignmentsPage() {
             );
           } else {
             failureCount++;
-            console.error('Failed to create assignment:', assignment);
           }
         } else {
-          console.log('Assignment already exists:', assignment);
+          // Assignment already exists, skip
         }
       }
 
@@ -310,7 +316,6 @@ export function ManageTeacherAssignmentsPage() {
         setIsAssignDialogOpen(false);
         
         // Refresh data to show new assignments and update counts
-        console.log('Refreshing assignments data...');
         await Promise.all([
           loadSubjectAssignmentsFromAPI(),
           loadTeachersFromAPI(), // Refresh to update assignment counts
@@ -323,7 +328,6 @@ export function ManageTeacherAssignmentsPage() {
       }
       
     } catch (error) {
-      console.error('Error saving assignments:', error);
       toast.error('Failed to save assignments. Please try again.');
       setSaveStatus('error');
     } finally {
@@ -341,12 +345,6 @@ export function ManageTeacherAssignmentsPage() {
   };
 
   const handleAssignClassTeacher = async () => {
-    console.log('handleAssignClassTeacher called:', { 
-      selectedTeacherId, 
-      selectedClassForTeacher, 
-      teachers: teachers?.length,
-      classes: classes?.length 
-    });
     
     if (!selectedTeacherId || !selectedClassForTeacher) {
       toast.error('Please select both teacher and class');
@@ -356,36 +354,39 @@ export function ManageTeacherAssignmentsPage() {
     // Validate current term and academic year
     if (!currentAcademicYear || !currentTerm) {
       toast.error('Current academic year or term is not set. Please refresh the page.');
-      console.error('Missing term/year data:', { currentAcademicYear, currentTerm });
       return;
     }
 
     const teacher = teachers?.find(t => t.id.toString() === selectedTeacherId.toString());
     const cls = classes?.find(c => c.id.toString() === selectedClassForTeacher.toString());
 
-    console.log('Teacher and class found:', { teacher, cls });
-    console.log('Selected IDs:', { selectedTeacherId, selectedClassForTeacher: parseInt(selectedClassForTeacher) });
-    console.log('Available teachers:', teachers?.map(t => ({ id: t.id, name: `${t.firstName} ${t.lastName}` })));
-    console.log('Available classes:', classes?.map(c => ({ id: c.id, name: c.name })));
-
     if (!teacher || !cls) {
-      console.error('Teacher or class not found');
       toast.error('Invalid teacher or class selection');
       return;
     }
 
+    const classIdNumber = parseInt(selectedClassForTeacher);
+    const alreadyAssigned = (classTeacherAssignments || []).some((a: any) =>
+      String(a.teacher_id) === String(selectedTeacherId) &&
+      String(a.class_id) === String(classIdNumber) &&
+      String(a.term) === String(currentTerm) &&
+      String(a.academic_year) === String(currentAcademicYear) &&
+      String(a.status || 'Active') === 'Active'
+    );
+
+    if (alreadyAssigned) {
+      toast.info(`This class teacher assignment already exists for ${currentTerm} ${currentAcademicYear}`);
+      return;
+    }
+
     try {
-      console.log('Making API call to assign class teacher...');
-      
       // Create term-specific class teacher assignment
       const response = await api.post(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.CREATE, {
         teacher_id: selectedTeacherId,
-        class_id: parseInt(selectedClassForTeacher),
+        class_id: classIdNumber,
         academic_year: currentAcademicYear,
         term: currentTerm
       });
-
-      console.log('API response:', response);
 
       if (response && response.success) {
         toast.success(`${teacher.firstName} ${teacher.lastName} assigned as class teacher of ${cls.name} for ${currentTerm} ${currentAcademicYear}`);
@@ -399,9 +400,8 @@ export function ManageTeacherAssignmentsPage() {
         );
 
         // Refresh data to show new assignments and update counts
-        console.log('Refreshing class teacher assignments data...');
         await Promise.all([
-          loadClassTeacherAssignmentsFromAPI(),
+          loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
           loadTeachersFromAPI(), // Refresh to update assignment counts
           loadClassesFromAPI()    // Refresh to update teacher counts
         ]);
@@ -410,53 +410,63 @@ export function ManageTeacherAssignmentsPage() {
         setSelectedClassForTeacher('');
         setIsClassTeacherDialogOpen(false);
       } else {
-        console.error('API response unsuccessful:', response);
         toast.error(response?.message || 'Failed to assign class teacher');
       }
     } catch (error) {
-      console.error('Error assigning class teacher:', error);
+      const message = String((error as any)?.message || '');
+      if (message.toLowerCase().includes('duplicate entry') || message.toLowerCase().includes('unique_assignment')) {
+        toast.info(`This class teacher assignment already exists for ${currentTerm} ${currentAcademicYear}`);
+        return;
+      }
       toast.error('An error occurred while assigning class teacher');
     }
   };
 
-  const handleRemoveClassTeacher = async (classId: number) => {
-    const cls = classes?.find(c => c.id === classId);
-    if (!cls || !cls.classTeacherId) return;
+  const handleRemoveClassTeacher = async (assignment: any) => {
+    if (!assignment?.id) {
+      toast.error('Unable to remove class teacher: missing assignment id');
+      return;
+    }
+    if (!currentAcademicYear || !currentTerm) {
+      toast.error('Current academic year or term is not set. Please refresh the page.');
+      return;
+    }
 
     try {
-      // Find the assignment ID for current term
-      const response = await api.get(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear!, currentTerm!));
-      
-      if (response && response.success) {
-        const assignments = (response.data as any[]) || [];
-        const assignment = (assignments as any[]).find((a: any) => a.class_id === classId);
-        
-        if (assignment) {
-          // Delete the assignment
-          const deleteResponse = await api.delete(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.DELETE(assignment.id));
-          
-          if (deleteResponse && deleteResponse.success) {
-            const teacher = teachers?.find(t => t.id === cls.classTeacherId);
-            toast.success(`Class teacher removed from ${cls.name}`);
-            
-            // Add activity log
-            addActivityLog(
-              'Class Teacher Removed',
-              teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown',
-              `Removed as class teacher from ${cls.name} for ${currentTerm} ${currentAcademicYear}`,
-              'class_teacher'
-            );
+      setRemovingAssignmentId(String(assignment.id));
+      const deleteResponse = await api.delete(
+        API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.DELETE(assignment.id)
+      );
 
-            // Refresh class teacher assignments
-            await loadClassTeacherAssignmentsFromAPI();
-          } else {
-            toast.error('Failed to remove class teacher');
-          }
+      if (deleteResponse && deleteResponse.success) {
+        toast.success(`Class teacher removed from ${assignment.class_name}`);
+
+        addActivityLog(
+          'Class Teacher Removed',
+          assignment.teacher_name || 'Unknown',
+          `Removed as class teacher from ${assignment.class_name} for ${currentTerm} ${currentAcademicYear}`,
+          'class_teacher'
+        );
+
+        const refreshResponse = await api.get(
+          API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.BY_TERM(currentAcademicYear!, currentTerm!)
+        );
+        if (refreshResponse && refreshResponse.success) {
+          setClassTeacherAssignments((refreshResponse.data as any[]) || []);
         }
+
+        await Promise.all([
+          loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+          loadTeachersFromAPI(),
+          loadClassesFromAPI(),
+        ]);
+      } else {
+        toast.error(deleteResponse?.message || 'Failed to remove class teacher');
       }
     } catch (error) {
-      console.error('Error removing class teacher:', error);
       toast.error('An error occurred while removing class teacher');
+    } finally {
+      setRemovingAssignmentId(null);
     }
   };
 
@@ -485,6 +495,23 @@ export function ManageTeacherAssignmentsPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const reloadForTermYear = async () => {
+      if (!currentAcademicYear || !currentTerm) return;
+      try {
+        await Promise.all([
+          loadSubjectAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+          loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+          loadSubjectRegistrationsFromAPI(),
+        ]);
+      } catch (error) {
+        // Silent fail for security
+      }
+    };
+
+    reloadForTermYear();
+  }, [currentAcademicYear, currentTerm]);
+
   // Load class teacher assignments when tab changes or term/year changes
   useEffect(() => {
     const loadClassTeacherData = async () => {
@@ -495,7 +522,7 @@ export function ManageTeacherAssignmentsPage() {
             setClassTeacherAssignments((response.data as any[]) || []);
           }
         } catch (error) {
-          console.error('Error loading class teacher assignments:', error);
+          // Silent fail for security
         }
       }
     };
@@ -756,7 +783,7 @@ export function ManageTeacherAssignmentsPage() {
                             </TableCell>
                           </TableRow>
                     ) : (
-                      filteredAssignments.map((assignment) => (
+                      paginatedFilteredAssignments.map((assignment) => (
                         <TableRow key={assignment.id} className="hover:bg-gray-50 border-b border-gray-100">
                           <TableCell className="py-4">
                             <div className="flex items-center gap-3">
@@ -802,15 +829,6 @@ export function ManageTeacherAssignmentsPage() {
                               size="sm"
                               onClick={async () => {
                                 try {
-                                  console.log('=== DELETE ASSIGNMENT CLICKED ===');
-                                  console.log('Assignment data:', {
-                                    teacher_id: assignment.teacher_id,
-                                    subject_id: assignment.subject_id,
-                                    class_id: assignment.class_id,
-                                    academic_year: assignment.academic_year,
-                                    term: assignment.term
-                                  });
-                                  
                                   // Handle remove assignment
                                   const success = await removeSubjectAssignmentAPI(
                                     assignment.teacher_id,
@@ -827,7 +845,6 @@ export function ManageTeacherAssignmentsPage() {
                                     toast.error('Failed to remove assignment');
                                   }
                                 } catch (error) {
-                                  console.error('Error removing assignment:', error);
                                   toast.error('An error occurred while removing assignment');
                                 }
                               }}
@@ -867,7 +884,7 @@ export function ManageTeacherAssignmentsPage() {
                         </Card>
                       </div>
                     ) : (
-                      filteredAssignments.map((assignment) => (
+                      paginatedFilteredAssignments.map((assignment) => (
                         <Card key={assignment.id} className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
                           <CardContent className="p-6">
                             <div className="flex items-start justify-between mb-4">
@@ -885,15 +902,6 @@ export function ManageTeacherAssignmentsPage() {
                                 size="sm"
                                 onClick={async () => {
                                   try {
-                                    console.log('=== DELETE ASSIGNMENT CLICKED (GRID) ===');
-                                    console.log('Assignment data:', {
-                                      teacher_id: assignment.teacher_id,
-                                      subject_id: assignment.subject_id,
-                                      class_id: assignment.class_id,
-                                      academic_year: assignment.academic_year,
-                                      term: assignment.term
-                                    });
-                                    
                                     const success = await removeSubjectAssignmentAPI(
                                       assignment.teacher_id,
                                       assignment.subject_id,
@@ -909,7 +917,6 @@ export function ManageTeacherAssignmentsPage() {
                                       toast.error('Failed to remove assignment');
                                     }
                                   } catch (error) {
-                                    console.error('Error removing assignment:', error);
                                     toast.error('An error occurred while removing assignment');
                                   }
                                 }}
@@ -989,7 +996,7 @@ export function ManageTeacherAssignmentsPage() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {classTeacherAssignments.map((assignment) => (
+                      {paginatedClassTeacherAssignments.map((assignment) => (
                         <div key={assignment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-semibold">
@@ -1024,7 +1031,8 @@ export function ManageTeacherAssignmentsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleRemoveClassTeacher(assignment.class_id)}
+                              onClick={() => handleRemoveClassTeacher(assignment)}
+                              disabled={removingAssignmentId === String(assignment.id)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
                               aria-label="Remove class teacher"
                             >
@@ -1033,6 +1041,48 @@ export function ManageTeacherAssignmentsPage() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {paginatedCounts.total > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-6">
+                      <div className="text-sm text-gray-600">
+                        Showing {Math.min(paginatedCounts.total, (currentPage - 1) * pageSize + 1)}-{Math.min(paginatedCounts.total, currentPage * pageSize)} of {paginatedCounts.total}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
+                          <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="Rows" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10 / page</SelectItem>
+                            <SelectItem value="20">20 / page</SelectItem>
+                            <SelectItem value="50">50 / page</SelectItem>
+                            <SelectItem value="100">100 / page</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage <= 1}
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        >
+                          Previous
+                        </Button>
+                        <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                          Page {currentPage} / {paginatedCounts.totalPages}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage >= paginatedCounts.totalPages}
+                          onClick={() => setCurrentPage(p => Math.min(paginatedCounts.totalPages, p + 1))}
+                        >
+                          Next
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>

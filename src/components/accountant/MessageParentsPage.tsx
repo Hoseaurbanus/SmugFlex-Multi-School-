@@ -99,7 +99,7 @@ export function AccountantMessagePage() {
         await markNotificationAsRead(notification.id);
         toast.success('Message marked as read');
       } catch (error) {
-        console.error('Failed to mark message as read:', error);
+        // Silent fail for security
       }
     }
   };

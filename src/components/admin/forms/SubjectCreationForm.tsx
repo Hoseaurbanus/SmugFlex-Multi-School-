@@ -33,7 +33,7 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
   const [selectedClassIds, setSelectedClassIds] = useState<number[]>([]);
 
   // Available categories
-  const categories = ["Creche", "Nursery", "Primary", "JSS", "SSS"];
+  const categories = ["Creche", "Nursery", "Primary", "JSS", "SS"];
 
   // Validation
   const validateForm = () => {
@@ -100,9 +100,6 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
         is_core: formData.is_core,
       };
 
-      console.log('=== SUBJECT CREATION ===');
-      console.log('Submitting subject data:', subjectData);
-
       const newSubjectId = await addSubject(subjectData);
       
       if (newSubjectId > 0) {
@@ -111,7 +108,7 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
             try {
               await registerSubjectForClass(classId, newSubjectId, currentAcademicYear, currentTerm, true);
             } catch (e) {
-              console.error('Error registering subject for class during creation:', e);
+              // Silent fail for security
             }
           }
         }
@@ -123,7 +120,6 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
         toast.error('Failed to create subject - please try again');
       }
     } catch (error) {
-      console.error('Subject creation error:', error);
       
       // Handle specific error types
       if (error instanceof Error) {

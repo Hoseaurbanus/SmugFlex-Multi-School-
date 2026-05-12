@@ -13,6 +13,7 @@ import { Separator } from "../ui/separator";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
 import { GraduationCap, Users, TrendingUp, AlertTriangle, Download, CheckCircle, XCircle, Clock, Settings } from "lucide-react";
+import { API_CONFIG } from "../../config/api";
 
 // Enhanced promotion status types matching database
 const PROMOTION_STATUSES = [
@@ -48,10 +49,21 @@ export function PromotionSystemPage() {
   const [selectedSourceClass, setSelectedSourceClass] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
   const [promotionMapping, setPromotionMapping] = useState<{ [studentId: number]: number }>({});
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [newAcademicYear, setNewAcademicYear] = useState("2025/2026");
+  const getNextAcademicYear = (year: string) => {
+    const match = (year || '').match(/^(\d{4})\/(\d{4})$/);
+    if (!match) return year;
+    const start = Number(match[1]);
+    const end = Number(match[2]);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return year;
+    return `${start + 1}/${end + 1}`;
+  };
+
+  const [newAcademicYear, setNewAcademicYear] = useState(() => getNextAcademicYear(currentAcademicYear));
   const [isPromoting, setIsPromoting] = useState(false);
   const [promotionProgress, setPromotionProgress] = useState(0);
   const [promotionHistory, setPromotionHistory] = useState<any[]>([]);
@@ -62,9 +74,16 @@ export function PromotionSystemPage() {
   const [progressionRules, setProgressionRules] = useState<any[]>([]);
   const [classCapacity, setClassCapacity] = useState<{ [classId: number]: { current: number; max: number } }>({});
   const [promotionErrors, setPromotionErrors] = useState<{ [studentId: number]: string }>({});
+  const [newRuleFromClassId, setNewRuleFromClassId] = useState<number | null>(null);
+  const [newRuleToClassId, setNewRuleToClassId] = useState<number | null>(null);
+  const [newRuleIsActive, setNewRuleIsActive] = useState(true);
+  const [ruleActionLoading, setRuleActionLoading] = useState(false);
+  const [ruleAlertMessage, setRuleAlertMessage] = useState<string | null>(null);
   const [showManualClassChangeDialog, setShowManualClassChangeDialog] = useState(false);
   const [manualClassChangeReason, setManualClassChangeReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+
+  const isThirdTerm = String(currentTerm) === 'Third Term';
 
   // Load progression rules and promotion history on component mount and when dependencies change
   useEffect(() => {
@@ -80,6 +99,10 @@ export function PromotionSystemPage() {
     loadData();
   }, [currentAcademicYear]);
 
+  useEffect(() => {
+    setNewAcademicYear(getNextAcademicYear(currentAcademicYear));
+  }, [currentAcademicYear]);
+
   // Load class capacity when classes data changes
   useEffect(() => {
     loadClassCapacity();
@@ -92,20 +115,19 @@ export function PromotionSystemPage() {
 
   const loadProgressionRules = async () => {
     try {
-      console.log('Loading progression rules for academic year:', currentAcademicYear);
-      const response = await fetch(`/api/progression/rules?academic_year=${currentAcademicYear}`);
+      const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+      const response = await fetch(`/api/progression/rules?academic_year=${encodeURIComponent(currentAcademicYear)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (response.ok) {
         const data = await response.json();
-        console.log('Progression rules loaded:', data);
         setProgressionRules(data.data || []);
       } else {
-        console.error('Failed to load progression rules:', response.status);
         // Fallback to empty array - page will still work
         setProgressionRules([]);
         toast.error('Progression rules unavailable - using default behavior');
       }
     } catch (error) {
-      console.error('Error loading progression rules:', error);
       // Fallback to empty array
       setProgressionRules([]);
       toast.error('Progression rules unavailable - using default behavior');
@@ -113,36 +135,134 @@ export function PromotionSystemPage() {
   };
 
   const loadClassCapacity = () => {
-    console.log('Loading class capacity, classes count:', classes.length);
     const capacity: { [classId: number]: { current: number; max: number } } = {};
     classes.forEach(cls => {
       capacity[cls.id] = {
         current: cls.currentStudents || 0,
-        max: cls.capacity || 40
+        max: cls.capacity || 50
       };
     });
-    console.log('Class capacity loaded:', capacity);
     setClassCapacity(capacity);
   };
 
   const loadPromotionHistory = async () => {
     try {
-      console.log('Loading promotion history...');
-      const response = await fetch('/api/student/promotion-history');
+      const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+      const response = await fetch('/api/student/promotion-history', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (response.ok) {
         const data = await response.json();
-        console.log('Promotion history loaded:', data);
         setPromotionHistory(data.data || []);
       } else {
-        console.error('Failed to load promotion history:', response.status);
         // Fallback to empty array
         setPromotionHistory([]);
         // Don't show error toast for 404 - this endpoint might not exist yet
       }
     } catch (error) {
-      console.error('Error loading promotion history:', error);
       // Fallback to empty array
       setPromotionHistory([]);
+    }
+  };
+
+  const createProgressionRule = async () => {
+    if (!newRuleFromClassId || !newRuleToClassId) {
+      toast.error('Please select both source and destination classes');
+      return;
+    }
+
+    if (newRuleFromClassId === newRuleToClassId) {
+      toast.error('Source and destination class cannot be the same');
+      return;
+    }
+
+    setRuleActionLoading(true);
+    setRuleAlertMessage(null);
+
+    try {
+      const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+      const response = await fetch('/api/progression/rules', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          from_class_id: newRuleFromClassId,
+          to_class_id: newRuleToClassId,
+          academic_year: currentAcademicYear,
+          is_active: newRuleIsActive,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to create progression rule');
+      }
+
+      toast.success('Progression rule created successfully');
+      setNewRuleFromClassId(null);
+      setNewRuleToClassId(null);
+      setNewRuleIsActive(true);
+      await loadProgressionRules();
+    } catch (error: any) {
+      toast.error(error.message || 'Unable to create progression rule');
+    } finally {
+      setRuleActionLoading(false);
+    }
+  };
+
+  const updateProgressionRuleStatus = async (ruleId: number, active: boolean) => {
+    setRuleActionLoading(true);
+    try {
+      const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+      const response = await fetch(`/api/progression/rules/${ruleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ is_active: active }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to update progression rule');
+      }
+
+      toast.success('Progression rule updated');
+      await loadProgressionRules();
+    } catch (error: any) {
+      toast.error(error.message || 'Unable to update rule');
+    } finally {
+      setRuleActionLoading(false);
+    }
+  };
+
+  const deleteProgressionRule = async (ruleId: number) => {
+    if (!window.confirm('Delete this progression rule?')) return;
+
+    setRuleActionLoading(true);
+    try {
+      const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+      const response = await fetch(`/api/progression/rules/${ruleId}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to delete progression rule');
+      }
+
+      toast.success('Progression rule deleted');
+      await loadProgressionRules();
+    } catch (error: any) {
+      toast.error(error.message || 'Unable to delete rule');
+    } finally {
+      setRuleActionLoading(false);
     }
   };
 
@@ -151,42 +271,51 @@ export function PromotionSystemPage() {
     const classStudentsList = selectedSourceClass
       ? students.filter((s: any) => s.class_id === Number(selectedSourceClass) && s.status === 'Active')
       : [];
-    console.log('Class students for class', selectedSourceClass, ':', classStudentsList.length);
     return classStudentsList;
   }, [selectedSourceClass, students]);
 
   // Get latest results for each student to determine promotion status
   const studentsWithStatus = useMemo(() => {
-    console.log('Calculating promotion status for', classStudents.length, 'students');
-    console.log('Available compiled results:', compiledResults.length);
+    const TERMS = ['First Term', 'Second Term', 'Third Term'];
     
     return classStudents.map((student: any) => {
-      const latestResult = compiledResults
-        .filter(r => r.student_id === student.id && r.status === 'Approved')
-        .sort((a, b) => new Date(b.compiled_date).getTime() - new Date(a.compiled_date).getTime())[0];
-
       let promotionStatus: PromotionStatus = "Repeated";
-      let averageScore = 0;
-      let attendance = 0;
 
-      if (latestResult) {
-        averageScore = typeof latestResult.average_score === 'string' 
-          ? parseFloat(latestResult.average_score) 
-          : Number(latestResult.average_score) || 0;
-        attendance = latestResult.total_attendance_days > 0 
-          ? (latestResult.times_present / latestResult.total_attendance_days) * 100 
-          : 0;
+      const sessionResults = compiledResults.filter((r: any) =>
+        Number(r.student_id) === Number(student.id) &&
+        r.status === 'Approved' &&
+        String(r.academic_year) === String(currentAcademicYear) &&
+        TERMS.includes(String(r.term))
+      );
 
-        // Check for manual override first
-        if (manualOverride[student.id]) {
-          promotionStatus = manualOverride[student.id];
-        } else if (averageScore >= 50 && attendance >= 75) {
-          promotionStatus = "Promoted";
-        } else if (averageScore >= 40 && averageScore < 50) {
-          promotionStatus = "Conditional";
-        } else {
-          promotionStatus = "Repeated";
-        }
+      const termAverages = sessionResults
+        .map((r: any) => {
+          const raw = (r as any)?.average_score;
+          const n = typeof raw === 'string' ? parseFloat(raw) : Number(raw);
+          return Number.isFinite(n) ? n : 0;
+        })
+        .filter((n: number) => Number.isFinite(n));
+
+      const termCount = termAverages.length;
+      const averageScore = termCount > 0
+        ? termAverages.reduce((a: number, b: number) => a + b, 0) / termCount
+        : 0;
+
+      const totalPresent = sessionResults.reduce((sum: number, r: any) => sum + (Number(r.times_present) || 0), 0);
+      const totalDays = sessionResults.reduce((sum: number, r: any) => sum + (Number(r.total_attendance_days) || 0), 0);
+      const attendance = totalDays > 0 ? (totalPresent / totalDays) * 100 : 0;
+
+      const thirdTermResult = sessionResults
+        .filter((r: any) => String(r.term) === 'Third Term')
+        .sort((a: any, b: any) => new Date(b.compiled_date).getTime() - new Date(a.compiled_date).getTime())[0];
+
+      // Check for manual override first
+      if (manualOverride[student.id]) {
+        promotionStatus = manualOverride[student.id];
+      } else if (averageScore >= 50 && attendance >= 50) {
+        promotionStatus = "Promoted";
+      } else {
+        promotionStatus = "Repeated";
       }
 
       return {
@@ -194,11 +323,12 @@ export function PromotionSystemPage() {
         averageScore,
         attendance,
         promotionStatus,
-        position: latestResult?.position || 0,
-        totalStudents: latestResult?.total_students || 0,
+        position: thirdTermResult?.position || 0,
+        totalStudents: thirdTermResult?.total_students || 0,
+        termCount,
       };
     });
-  }, [classStudents, compiledResults, manualOverride]);
+  }, [classStudents, compiledResults, manualOverride, currentAcademicYear, currentTerm]);
 
   // Apply filters
   const filteredStudents = useMemo(() => {
@@ -214,9 +344,25 @@ export function PromotionSystemPage() {
       
       return matchesSearch && matchesStatus;
     });
-    console.log('Filtered students:', filtered.length);
     return filtered;
   }, [studentsWithStatus, searchQuery, filterStatus]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedSourceClass, searchQuery, filterStatus]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredStudents.length / pageSize));
+  }, [filteredStudents.length, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredStudents.slice(start, start + pageSize);
+  }, [filteredStudents, currentPage, pageSize]);
 
   // Calculate summary
   const summary = useMemo(() => {
@@ -231,15 +377,14 @@ export function PromotionSystemPage() {
       pendingApproval: filteredStudents.filter((s: any) => s.promotionStatus === "Pending Approval").length,
       manual: filteredStudents.filter((s: any) => s.promotionStatus === "Manual").length,
     };
-    console.log('Summary calculated:', summaryData);
     return summaryData;
   }, [filteredStudents]);
 
   const handleSelectStudent = (studentId: number, isChecked: boolean) => {
     if (isChecked) {
-      setSelectedStudents([...selectedStudents, studentId]);
+      setSelectedStudents((prev) => (prev.includes(studentId) ? prev : [...prev, studentId]));
     } else {
-      setSelectedStudents(selectedStudents.filter((id: number) => id !== studentId));
+      setSelectedStudents((prev) => prev.filter((id: number) => id !== studentId));
       const newMapping = { ...promotionMapping };
       delete newMapping[studentId];
       setPromotionMapping(newMapping);
@@ -260,13 +405,6 @@ export function PromotionSystemPage() {
   };
 
   const handleSetDestinationClass = (studentId: number, classId: number) => {
-    // Check capacity first
-    const capacity = classCapacity[classId];
-    if (capacity && capacity.current >= capacity.max) {
-      toast.error('Destination class is at full capacity');
-      return;
-    }
-
     // Validate promotion before setting
     const validation = validatePromotion(studentId, classId);
     if (!validation.valid) {
@@ -305,18 +443,13 @@ export function PromotionSystemPage() {
       return;
     }
 
-    // Check capacity
-    const capacity = classCapacity[demotionClassId!];
-    if (capacity && capacity.current >= capacity.max) {
-      toast.error('Target class is at full capacity');
-      return;
-    }
-
     try {
+      const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
       const response = await fetch('/api/student/manual-class-change', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           student_id: selectedStudentForManual.id,
@@ -338,7 +471,6 @@ export function PromotionSystemPage() {
         throw new Error('Failed to complete manual class change');
       }
     } catch (error) {
-      console.error('Manual class change error:', error);
       toast.error('Failed to complete manual class change');
     }
   };
@@ -354,13 +486,21 @@ export function PromotionSystemPage() {
         
         // Set destination class
         if (action === 'Promoted') {
-          setSelectedStudents([...selectedStudents, selectedStudentForManual.id]);
+          setSelectedStudents((prev) => prev.includes(selectedStudentForManual.id) ? prev : [...prev, selectedStudentForManual.id]);
         } else if (action === 'Repeated' && targetClassId) {
           // For demotion, set the target class in promotion mapping
           setPromotionMapping({
             ...promotionMapping,
             [selectedStudentForManual.id]: targetClassId,
           });
+          setSelectedStudents((prev) => prev.includes(selectedStudentForManual.id) ? prev : [...prev, selectedStudentForManual.id]);
+        } else if (action === 'Repeated') {
+          // Repeat in the same class
+          setPromotionMapping({
+            ...promotionMapping,
+            [selectedStudentForManual.id]: selectedStudentForManual.class_id,
+          });
+          setSelectedStudents((prev) => prev.includes(selectedStudentForManual.id) ? prev : [...prev, selectedStudentForManual.id]);
         }
         
         toast.success(`Manual ${action} status set for ${selectedStudentForManual.firstName} ${selectedStudentForManual.lastName}`);
@@ -369,6 +509,14 @@ export function PromotionSystemPage() {
         setManualOverride({
           ...manualOverride,
           [selectedStudentForManual.id]: action,
+        });
+
+        // Remove from batch if the new status should not be processed as a class move.
+        setSelectedStudents((prev) => prev.filter((id) => id !== selectedStudentForManual.id));
+        setPromotionMapping((prev) => {
+          const next = { ...prev };
+          delete next[selectedStudentForManual.id];
+          return next;
         });
         toast.success(`Manual ${action} status set for ${selectedStudentForManual.firstName} ${selectedStudentForManual.lastName}`);
       }
@@ -401,26 +549,40 @@ export function PromotionSystemPage() {
     const student = students.find((s: any) => s.id === studentId);
     if (!student) return { valid: false, message: 'Student not found' };
 
-    // Check progression path
-    const validPath = progressionRules.some((rule: any) => 
-      rule.from_class_id === student.class_id && 
-      rule.to_class_id === toClassId
-    );
-    
-    if (!validPath) {
-      return { valid: false, message: 'Invalid progression path' };
-    }
+    const studentStatus: PromotionStatus = manualOverride[studentId] || 'Promoted';
 
-    // Check capacity
-    const capacity = classCapacity[toClassId];
-    if (capacity && capacity.current >= capacity.max) {
-      return { valid: false, message: 'Destination class is at full capacity' };
+    if (studentStatus === 'Repeated') {
+      const sameClass = (student.class_id === toClassId);
+      const validDemotion = progressionRules.some((rule: any) =>
+        rule.to_class_id === student.class_id &&
+        rule.from_class_id === toClassId
+      );
+      if (!sameClass && !validDemotion) {
+        return { valid: false, message: 'Invalid repeat/demotion path' };
+      }
+    } else if (studentStatus === 'Manual') {
+      // Manual overrides allow admin to choose any class.
+    } else {
+      // Check progression path
+      const validPath = progressionRules.some((rule: any) => 
+        rule.from_class_id === student.class_id && 
+        rule.to_class_id === toClassId
+      );
+      
+      if (!validPath) {
+        return { valid: false, message: 'Invalid progression path' };
+      }
     }
 
     return { valid: true, message: 'Valid promotion path' };
   };
 
   const handlePromoteStudents = () => {
+    if (!isThirdTerm) {
+      toast.error("Promotion can only be done at the end of the session (Third Term)");
+      return;
+    }
+
     if (selectedStudents.length === 0) {
       toast.error("Please select students to promote");
       return;
@@ -483,10 +645,12 @@ export function PromotionSystemPage() {
       });
 
       // Call the API
+      const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
       const response = await fetch('/api/student/promote-students', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           promotions: promotions,
@@ -547,7 +711,6 @@ export function PromotionSystemPage() {
       setManualOverride({});
       
     } catch (error) {
-      console.error('Promotion error:', error);
       toast.error("Failed to promote students. Please try again.");
     } finally {
       setIsPromoting(false);
@@ -815,6 +978,142 @@ export function PromotionSystemPage() {
         </CardContent>
       </Card>
 
+      {/* Progression Rule Management */}
+      <Card className="border-0 shadow-xl bg-white">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <GraduationCap className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Progression Rules</h3>
+                <p className="text-sm text-gray-600">Manage valid class progression paths for {currentAcademicYear}.</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <Badge variant="outline" className="text-indigo-600 border-indigo-200">
+                {currentAcademicYear}
+              </Badge>
+              <Button
+                onClick={loadProgressionRules}
+                disabled={ruleActionLoading}
+                variant="outline"
+                className="h-10 border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Refresh Rules
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-6">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label className="text-gray-700 font-medium">From Class</Label>
+              <Select value={newRuleFromClassId ? newRuleFromClassId.toString() : ''} onValueChange={(value) => setNewRuleFromClassId(value ? Number(value) : null)}>
+                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                  <SelectValue placeholder="Select source class" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200">
+                  {classes.filter((c: any) => c.status === 'Active').map((cls: any) => (
+                    <SelectItem key={cls.id} value={cls.id.toString()} className="text-gray-900">
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700 font-medium">To Class</Label>
+              <Select value={newRuleToClassId ? newRuleToClassId.toString() : ''} onValueChange={(value) => setNewRuleToClassId(value ? Number(value) : null)}>
+                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                  <SelectValue placeholder="Select destination class" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200">
+                  {classes.filter((c: any) => c.status === 'Active').map((cls: any) => (
+                    <SelectItem key={cls.id} value={cls.id.toString()} className="text-gray-900">
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700 font-medium">Rule Active</Label>
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={newRuleIsActive}
+                  onCheckedChange={(checked: boolean) => setNewRuleIsActive(checked)}
+                  className="border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Active</span>
+              </div>
+              <Button
+                onClick={createProgressionRule}
+                disabled={ruleActionLoading}
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl"
+              >
+                Add Rule
+              </Button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50 border-b border-gray-200">
+                  <TableHead className="text-gray-700 font-semibold">From Class</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">To Class</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Academic Year</TableHead>
+                  <TableHead className="text-gray-700 font-semibold text-center">Active</TableHead>
+                  <TableHead className="text-gray-700 font-semibold text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {progressionRules.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-12 text-gray-500">
+                      No progression rules found for this academic year.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  progressionRules.map((rule: any) => (
+                    <TableRow key={rule.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <TableCell>{rule.from_class_name || `#${rule.from_class_id}`}</TableCell>
+                      <TableCell>{rule.to_class_name || `#${rule.to_class_id}`}</TableCell>
+                      <TableCell>{rule.academic_year}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={rule.is_active ? 'bg-green-500 text-white border-0' : 'bg-gray-300 text-gray-700 border-0'}>
+                          {rule.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center space-x-2">
+                        <Button
+                          onClick={() => updateProgressionRuleStatus(rule.id, rule.is_active ? false : true)}
+                          disabled={ruleActionLoading}
+                          variant="outline"
+                          className="h-9 px-3 text-sm border-gray-200"
+                        >
+                          {rule.is_active ? 'Disable' : 'Activate'}
+                        </Button>
+                        <Button
+                          onClick={() => deleteProgressionRule(rule.id)}
+                          disabled={ruleActionLoading}
+                          variant="destructive"
+                          className="h-9 px-3 text-sm"
+                        >
+                          Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Students Table */}
       {selectedSourceClass ? (
         <Card className="border-0 shadow-xl bg-white">
@@ -888,7 +1187,7 @@ export function PromotionSystemPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredStudents.map((student: any) => {
+                    paginatedStudents.map((student: any) => {
                       const nextClasses = getNextClasses(student.class_id);
                       return (
                         <TableRow key={student.id} className="border-b border-gray-100 hover:bg-gray-50">
@@ -999,6 +1298,48 @@ export function PromotionSystemPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {filteredStudents.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200">
+                <div className="text-sm text-gray-600">
+                  Showing {Math.min(filteredStudents.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredStudents.length, currentPage * pageSize)} of {filteredStudents.length}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Rows" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10 / page</SelectItem>
+                      <SelectItem value="20">20 / page</SelectItem>
+                      <SelectItem value="50">50 / page</SelectItem>
+                      <SelectItem value="100">100 / page</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                    Page {currentPage} / {totalPages}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

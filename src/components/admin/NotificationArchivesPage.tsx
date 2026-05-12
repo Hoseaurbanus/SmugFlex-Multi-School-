@@ -183,7 +183,7 @@ export function NotificationArchivesPage() {
         await markNotificationAsRead(notification.originalNotification.id);
         toast.success('Notification marked as read');
       } catch (error) {
-        console.error('Failed to mark notification as read:', error);
+        // Silent fail for security
       }
     }
   };

@@ -7,10 +7,64 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class ResultsController
 {
     private $conn;
+
+    private function tableExists(string $tableName): bool
+    {
+        if (!$this->conn) {
+            return false;
+        }
+
+        try {
+            $dbNameStmt = $this->conn->query('SELECT DATABASE()');
+            $dbName = $dbNameStmt ? $dbNameStmt->fetchColumn() : null;
+            if (!$dbName) {
+                return false;
+            }
+
+            $stmt = $this->conn->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :table"
+            );
+            $stmt->bindValue(':db', $dbName);
+            $stmt->bindValue(':table', $tableName);
+            $stmt->execute();
+
+            return (int)$stmt->fetchColumn() > 0;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    private function columnExists(string $tableName, string $columnName): bool
+    {
+        if (!$this->conn) {
+            return false;
+        }
+
+        try {
+            $dbNameStmt = $this->conn->query('SELECT DATABASE()');
+            $dbName = $dbNameStmt ? $dbNameStmt->fetchColumn() : null;
+            if (!$dbName) {
+                return false;
+            }
+
+            $stmt = $this->conn->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :table AND COLUMN_NAME = :col"
+            );
+            $stmt->bindValue(':db', $dbName);
+            $stmt->bindValue(':table', $tableName);
+            $stmt->bindValue(':col', $columnName);
+            $stmt->execute();
+
+            return (int)$stmt->fetchColumn() > 0;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
 
     public function __construct()
     {
@@ -20,12 +74,11 @@ class ResultsController
             
             if ($this->conn) {
                 $this->ensureCompiledResultsTableExists();
+                $this->ensureCompiledResultsColumnsExist();
                 $this->ensureScoresApprovalColumnsExist();
-            } else {
-                error_log("ResultsController: Database connection failed (conn is null)");
             }
         } catch (Throwable $e) {
-            error_log("ResultsController Constructor Error: " . $e->getMessage());
+            // Silent fail for security
         }
     }
 
@@ -74,6 +127,46 @@ class ResultsController
             $this->conn->exec($query);
         } catch (Throwable $e) {
             // Silently handle table creation errors
+        }
+    }
+
+    private function ensureCompiledResultsColumnsExist() {
+        if (!$this->conn) {
+            return;
+        }
+
+        try {
+            $dbNameStmt = $this->conn->query('SELECT DATABASE()');
+            $dbName = $dbNameStmt ? $dbNameStmt->fetchColumn() : null;
+            if (!$dbName) {
+                return;
+            }
+
+            $requiredColumns = [
+                'status' => "ALTER TABLE compiled_results ADD COLUMN status VARCHAR(20) DEFAULT 'Draft'",
+                'print_approved' => "ALTER TABLE compiled_results ADD COLUMN print_approved TINYINT(1) DEFAULT 0",
+                'approved_by' => "ALTER TABLE compiled_results ADD COLUMN approved_by INT NULL",
+                'approved_date' => "ALTER TABLE compiled_results ADD COLUMN approved_date DATETIME NULL",
+                'rejection_reason' => "ALTER TABLE compiled_results ADD COLUMN rejection_reason TEXT NULL",
+                'created_at' => "ALTER TABLE compiled_results ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                'updated_at' => "ALTER TABLE compiled_results ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+            ];
+
+            foreach ($requiredColumns as $column => $alterSql) {
+                $check = $this->conn->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'compiled_results' AND COLUMN_NAME = :col"
+                );
+                $check->bindParam(':db', $dbName);
+                $check->bindParam(':col', $column);
+                $check->execute();
+
+                $exists = (int)$check->fetchColumn();
+                if ($exists === 0) {
+                    $this->conn->exec($alterSql);
+                }
+            }
+        } catch (Throwable $e) {
+            // Avoid breaking the API if migration fails.
         }
     }
 
@@ -145,6 +238,213 @@ class ResultsController
         $check_stmt->execute();
         if ($check_stmt->fetchColumn() == 0) {
             Response::forbidden('Only the class teacher can approve or reject scores for this class');
+        }
+    }
+
+    /**
+     * Approve a single score (class teacher)
+     */
+    public function approveScore($score_id)
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        $token_data = Middleware::requireAuth();
+        if (($token_data['role'] ?? null) !== 'teacher') {
+            Response::forbidden('Only teachers can approve scores');
+        }
+
+        try {
+            $score_id = Middleware::validateInteger($score_id, 'score_id');
+            $row = $this->getScoreWithAssignmentAndClass($score_id);
+            if (!$row) {
+                Response::notFound('Score not found');
+            }
+
+            $this->requireClassTeacherForClass($token_data, (int)$row['class_id']);
+
+            $update = $this->conn->prepare(
+                "UPDATE scores
+                 SET status = 'Approved', approved_by = :approved_by, approved_date = NOW(),
+                     rejection_reason = NULL, rejected_by = NULL, rejected_date = NULL
+                 WHERE id = :score_id"
+            );
+            $update->bindParam(':approved_by', $token_data['user_id']);
+            $update->bindParam(':score_id', $score_id);
+            $update->execute();
+
+            RealtimeEvents::publish(['scores', 'compiled_results'], [
+                'action' => 'approved',
+                'score_id' => (int)$score_id,
+                'class_id' => (int)$row['class_id'],
+                'term' => (string)($row['assignment_term'] ?? ''),
+                'academic_year' => (string)($row['assignment_year'] ?? ''),
+            ]);
+
+            Response::success(null, 'Score approved successfully');
+        } catch (PDOException $e) {
+            Response::serverError('Database error approving score');
+        } catch (Throwable $e) {
+            Response::serverError('Error approving score');
+        }
+    }
+
+    /**
+     * Reject a single score (class teacher)
+     */
+    public function rejectScore($score_id)
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        $token_data = Middleware::requireAuth();
+        if (($token_data['role'] ?? null) !== 'teacher') {
+            Response::forbidden('Only teachers can reject scores');
+        }
+
+        $data = json_decode(file_get_contents('php://input'), true);
+        $reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : '';
+
+        if (!$reason) {
+            Response::badRequest('Rejection reason is required');
+        }
+
+        try {
+            $score_id = Middleware::validateInteger($score_id, 'score_id');
+            $row = $this->getScoreWithAssignmentAndClass($score_id);
+            if (!$row) {
+                Response::notFound('Score not found');
+            }
+
+            $this->requireClassTeacherForClass($token_data, (int)$row['class_id']);
+
+            $update = $this->conn->prepare(
+                "UPDATE scores
+                 SET status = 'Rejected', rejection_reason = :reason, rejected_by = :rejected_by, rejected_date = NOW(),
+                     approved_by = NULL, approved_date = NULL
+                 WHERE id = :score_id"
+            );
+            $update->bindParam(':reason', $reason);
+            $update->bindParam(':rejected_by', $token_data['user_id']);
+            $update->bindParam(':score_id', $score_id);
+            $update->execute();
+
+            RealtimeEvents::publish(['scores', 'compiled_results'], [
+                'action' => 'rejected',
+                'score_id' => (int)$score_id,
+                'class_id' => (int)$row['class_id'],
+                'term' => (string)($row['assignment_term'] ?? ''),
+                'academic_year' => (string)($row['assignment_year'] ?? ''),
+            ]);
+
+            Response::success(null, 'Score rejected successfully');
+        } catch (PDOException $e) {
+            Response::serverError('Database error rejecting score');
+        } catch (Throwable $e) {
+            Response::serverError('Error rejecting score');
+        }
+    }
+
+    public function getPendingApprovals()
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        try {
+            $this->ensureCompiledResultsTableExists();
+            $this->ensureCompiledResultsColumnsExist();
+
+            $token_data = Middleware::requireAuth();
+            if (($token_data['role'] ?? null) !== 'teacher' && ($token_data['role'] ?? null) !== 'admin') {
+                Response::forbidden('Only teachers and admins can view pending approvals');
+            }
+
+            $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : null;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
+            $class_id = null;
+            if (isset($_GET['class_id']) && $_GET['class_id'] !== '') {
+                $class_id = Middleware::validateInteger($_GET['class_id'], 'class_id');
+            }
+
+            if (!$term || !$academic_year) {
+                $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year')";
+                $settings_stmt = $this->conn->prepare($settings_query);
+                $settings_stmt->execute();
+                $settings_results = $settings_stmt->fetchAll(PDO::FETCH_ASSOC);
+                $settings = [];
+                foreach ($settings_results as $result) {
+                    $settings[$result['setting_key']] = $result['setting_value'];
+                }
+
+                $term = $term ?: ($settings['current_term'] ?? null);
+                $academic_year = $academic_year ?: ($settings['current_academic_year'] ?? null);
+            }
+
+            if (!$term || !$academic_year) {
+                Response::badRequest('Term and academic year are required');
+                return;
+            }
+
+            $query = "SELECT cr.*, s.first_name, s.last_name, s.admission_number, c.name as class_name
+                      FROM compiled_results cr
+                      JOIN students s ON cr.student_id = s.id
+                      JOIN classes c ON cr.class_id = c.id
+                      WHERE cr.status = 'Submitted'
+                        AND cr.term = :term
+                        AND cr.academic_year = :academic_year";
+
+            $params = [
+                ':term' => $term,
+                ':academic_year' => $academic_year
+            ];
+
+            if ($class_id) {
+                $query .= " AND cr.class_id = :class_id";
+                $params[':class_id'] = $class_id;
+            }
+
+            if (($token_data['role'] ?? null) === 'teacher') {
+                if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
+                    Response::success([], 'Teacher profile not linked');
+                    return;
+                }
+
+                $query .= " AND cr.class_id IN (
+                    SELECT cta.class_id FROM class_teacher_assignments cta
+                    WHERE cta.teacher_id = :teacher_id
+                      AND cta.term = :cta_term
+                      AND cta.academic_year = :cta_academic_year
+                      AND cta.status = 'Active'
+                )";
+                $params[':teacher_id'] = $token_data['linked_id'];
+                $params[':cta_term'] = $term;
+                $params[':cta_academic_year'] = $academic_year;
+            }
+
+            $query .= " ORDER BY c.name, s.last_name, s.first_name";
+
+            $stmt = $this->conn->prepare($query);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value);
+            }
+            $stmt->execute();
+
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($results === false) {
+                $results = [];
+            }
+
+            Response::success($results, 'Pending approvals retrieved successfully');
+        } catch (PDOException $e) {
+            Response::serverError('Database error retrieving pending approvals');
+        } catch (Throwable $e) {
+            Response::serverError('Error retrieving pending approvals');
         }
     }
 
@@ -236,8 +536,11 @@ class ResultsController
             }
 
             // Check if this is a creche class
-            $is_creche = strtolower($assignment_info['class_level']) === 'creche' ||
-                strpos(strtolower($assignment_info['class_name']), 'creche') !== false;
+            $class_level_lc = strtolower((string)($assignment_info['class_level'] ?? ''));
+            $class_name_lc = strtolower((string)($assignment_info['class_name'] ?? ''));
+            $is_creche = $class_level_lc === 'creche' ||
+                strpos($class_name_lc, 'creche') !== false ||
+                strpos($class_name_lc, 'crèche') !== false;
 
             $class_id = (int)$assignment_info['class_id'];
             $assignment_term = $this->getAssignmentTerm($assignment_id);
@@ -320,8 +623,9 @@ class ResultsController
             if ($ca2 !== null && ($ca2 < 0 || $ca2 > 40)) {
                 Response::badRequest('CA2 must be between 0 and 40');
             }
-            if ($exam !== null && ($exam < 0 || $exam > 60)) {
-                Response::badRequest('Exam must be between 0 and 60');
+            $exam_max = $is_creche ? 100 : 60;
+            if ($exam !== null && ($exam < 0 || $exam > $exam_max)) {
+                Response::badRequest('Exam must be between 0 and ' . $exam_max);
             }
 
             $total = ($ca1 ?? 0) + ($ca2 ?? 0) + ($exam ?? 0);
@@ -424,6 +728,11 @@ class ResultsController
             $token_data['user_id']
         );
 
+            RealtimeEvents::publish(['scores', 'compiled_results'], [
+                'action' => 'saved',
+                'assignment_id' => (int)$assignment_id,
+            ]);
+
             Response::success(null, 'Scores saved successfully');
 
         } catch (PDOException $e) {
@@ -482,6 +791,11 @@ class ResultsController
             $update_stmt->bindParam(':assignment_id', $assignment_id);
             $update_stmt->execute();
 
+            RealtimeEvents::publish(['scores', 'compiled_results'], [
+                'action' => 'submitted',
+                'assignment_id' => (int)$assignment_id,
+            ]);
+
             Middleware::logActivity(
                 $token_data['username'],
                 'Teacher',
@@ -510,22 +824,25 @@ class ResultsController
 
         try {
             $token_data = Middleware::requireAuth();
+            $role = strtolower(trim((string)($token_data['role'] ?? '')));
 
             $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : 'First Term';
             $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : '2025/2026';
 
-            // Base query filtered by term and academic year from subject_assignments
+            // Base query filtered by term and academic year from SCORE rows.
+            // Using sa.term/sa.academic_year alone can hide valid score rows if assignments metadata
+            // is stale/mismatched, causing class teachers not to see some submitted scores.
             $query = "SELECT sc.*, sa.subject_id, sa.class_id, sub.name as subject_name,
                              CONCAT(t.first_name, ' ', t.last_name) as teacher_name,
                              s.first_name as student_first_name, s.last_name as student_last_name,
-                             s.admission_number, c.name as class_name, c.level
+                             s.admission_number, c.name as class_name
                       FROM scores sc
                       JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
                       JOIN subjects sub ON sa.subject_id = sub.id
                       JOIN teachers t ON sa.teacher_id = t.id
                       JOIN students s ON sc.student_id = s.id
                       JOIN classes c ON sa.class_id = c.id
-                      WHERE sa.term = :term AND sa.academic_year = :academic_year";
+                      WHERE sc.term = :term AND sc.academic_year = :academic_year";
 
             $params = [
                 ':term' => $term,
@@ -533,15 +850,41 @@ class ResultsController
             ];
 
             // Role-based filtering
-            if (($token_data['role'] ?? null) === 'teacher') {
+            if ($role === 'teacher') {
                 if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
                     Response::success([], 'No scores found - teacher profile incomplete');
                     return;
                 }
 
-                $query .= " AND sa.teacher_id = :teacher_id";
-                $params[':teacher_id'] = $token_data['linked_id'];
-            } elseif (($token_data['role'] ?? null) === 'parent') {
+                // Subject teachers must always see their own scores (including Draft).
+                // Class teachers must also see scores submitted for approval in their assigned classes.
+                // To avoid leaking drafts from other subject teachers, only include non-draft rows
+                // for the class-teacher class scope.
+
+                $teacher_id = (int)$token_data['linked_id'];
+                $params[':teacher_id'] = $teacher_id;
+
+                if ($this->tableExists('class_teacher_assignments')) {
+                    $query .= " AND (sa.teacher_id = :teacher_id OR (sa.class_id IN (
+                        SELECT cta.class_id FROM class_teacher_assignments cta
+                        WHERE cta.teacher_id = :class_teacher_id
+                          AND cta.term = :cta_term
+                          AND cta.academic_year = :cta_academic_year
+                          AND cta.status = 'Active'
+                    ) AND sc.status IN ('Submitted','Rejected','Approved')))";
+                    $params[':class_teacher_id'] = $teacher_id;
+                    $params[':cta_term'] = $term;
+                    $params[':cta_academic_year'] = $academic_year;
+                } else {
+                    // Fallback for older schema (no term/year on classes; best-effort)
+                    if ($this->columnExists('classes', 'class_teacher_id')) {
+                        $query .= " AND (sa.teacher_id = :teacher_id OR (c.class_teacher_id = :fallback_class_teacher_id AND sc.status IN ('Submitted','Rejected','Approved')))";
+                        $params[':fallback_class_teacher_id'] = $teacher_id;
+                    } else {
+                        $query .= " AND sa.teacher_id = :teacher_id";
+                    }
+                }
+            } elseif ($role === 'parent') {
                 $parent_id = $token_data['linked_id'] ?? null;
                 if (!$parent_id) {
                     Response::forbidden('Parent ID not found in token');
@@ -568,10 +911,8 @@ class ResultsController
             Response::success($scores, 'Scores retrieved successfully');
 
         } catch (PDOException $e) {
-            error_log("Database error in getScoresByTerm: " . $e->getMessage());
             Response::serverError('Database error retrieving scores');
         } catch (Exception $e) {
-            error_log("General error in getScoresByTerm: " . $e->getMessage());
             Response::serverError('Error retrieving scores');
         }
     }
@@ -583,19 +924,26 @@ class ResultsController
     {
         try {
             if (!$this->conn) {
-                error_log("getAllCompiledResults: Database connection failed");
                 Response::serverError('Database connection failed');
                 return;
             }
 
             $this->ensureCompiledResultsTableExists();
+            $this->ensureCompiledResultsColumnsExist();
+
+            // If core tables are missing, avoid 500s and return empty results.
+            if (!$this->tableExists('compiled_results') || !$this->tableExists('students') || !$this->tableExists('classes')) {
+                Response::success([], 'Required tables missing');
+                return;
+            }
 
             $token_data = Middleware::requireAuth();
             if (!$token_data || !is_array($token_data) || !isset($token_data['role'])) {
-                error_log("getAllCompiledResults: Invalid or missing authentication token");
                 Response::unauthorized('Invalid authentication token');
                 return;
             }
+
+            $role = strtolower(trim((string)$token_data['role']));
 
             $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : null;
             $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
@@ -605,18 +953,36 @@ class ResultsController
             }
             $status = isset($_GET['status']) ? Middleware::sanitizeString($_GET['status']) : null;
 
-            error_log("getAllCompiledResults: Raw parameters - term: " . ($term ?? 'null') . ", academic_year: " . ($academic_year ?? 'null') . ", class_id: " . ($class_id ?? 'null') . ", status: " . ($status ?? 'null'));
-
             // For parents, always enforce Approved status at the backend level
             // so unapproved or draft results are never exposed regardless of caller params
-            if ($token_data['role'] === 'parent') {
+            if ($role === 'parent') {
                 $status = 'Approved';
             }
 
-            // Start with a simple query that doesn't depend on complex joins
-            // For parents, include basic info (scores will be loaded separately)
-            // For other users, keep basic query
-            if ($token_data['role'] === 'parent') {
+            $studentSelect = [];
+            if ($this->columnExists('students', 'first_name')) {
+                $studentSelect[] = 's.first_name';
+            }
+            if ($this->columnExists('students', 'last_name')) {
+                $studentSelect[] = 's.last_name';
+            }
+            if ($this->columnExists('students', 'admission_number')) {
+                $studentSelect[] = 's.admission_number';
+            }
+
+            $classSelect = [];
+            if ($this->columnExists('classes', 'name')) {
+                $classSelect[] = 'c.name as class_name';
+            }
+
+            $extraSelectSql = '';
+            $extraParts = array_merge($studentSelect, $classSelect);
+            if (!empty($extraParts)) {
+                $extraSelectSql = ', ' . implode(', ', $extraParts);
+            }
+
+            // Start with a basic query and only select columns that actually exist.
+            if ($role === 'parent') {
                 // Build WHERE clause based on available parameters
                 $where_clause = "WHERE 1=1";
                 if ($term) {
@@ -626,8 +992,7 @@ class ResultsController
                     $where_clause .= " AND cr.academic_year = :academic_year";
                 }
 
-                $query = "SELECT cr.*, s.first_name, s.last_name, s.admission_number,
-                                 c.name as class_name, c.level
+                $query = "SELECT cr.*$extraSelectSql
                           FROM compiled_results cr
                           JOIN students s ON cr.student_id = s.id
                           JOIN classes c ON cr.class_id = c.id
@@ -642,8 +1007,7 @@ class ResultsController
                     $where_clause .= " AND cr.academic_year = :academic_year";
                 }
 
-                $query = "SELECT cr.*, s.first_name, s.last_name, s.admission_number,
-                                 c.name as class_name, c.level
+                $query = "SELECT cr.*$extraSelectSql
                           FROM compiled_results cr
                           JOIN students s ON cr.student_id = s.id
                           JOIN classes c ON cr.class_id = c.id
@@ -658,14 +1022,10 @@ class ResultsController
                 $params[':academic_year'] = $academic_year;
             }
 
-            error_log("getAllCompiledResults: Initial query built for role " . $token_data['role']);
-            error_log("getAllCompiledResults: Initial params: " . json_encode($params));
-
             // Add role-based filtering
-            if ($token_data['role'] === 'parent') {
+            if ($role === 'parent') {
                 if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
                     // Flat empty array keeps response shape consistent
-                    error_log("getAllCompiledResults: Parent profile not linked, returning empty array");
                     Response::success([], 'Parent profile not linked');
                     return;
                 }
@@ -680,7 +1040,6 @@ class ResultsController
                 $has_children = $children_stmt->fetch()['count'] > 0;
 
                 if (!$has_children) {
-                    error_log("getAllCompiledResults: Parent has no linked children, returning empty array");
                     Response::success([], 'No linked children found for parent');
                     return;
                 }
@@ -691,33 +1050,58 @@ class ResultsController
                     WHERE psl.parent_id = :parent_id
                 )";
                 $params[':parent_id'] = $token_data['linked_id'];
-                error_log("getAllCompiledResults: Added parent filtering");
-            } else if ($token_data['role'] === 'teacher') {
+            } else if ($role === 'teacher') {
                 if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
-                    error_log("getAllCompiledResults: Teacher profile not linked, returning empty array");
-                    Response::success(['data' => []], 'Teacher profile not linked');
+                    Response::success([], 'Teacher profile not linked');
+                    return;
+                }
+
+                if (!$this->tableExists('class_teacher_assignments')) {
+                    Response::success([], 'No class assignments table found');
                     return;
                 }
 
                 // Check if teacher has any class assignments first
-                $check_term = $term ?: 'First Term';
-                $check_academic_year = $academic_year ?: '2025/2026';
-                $teacher_check = "SELECT COUNT(*) as count FROM class_teacher_assignments
-                                 WHERE teacher_id = :teacher_id AND term = :term AND academic_year = :academic_year AND status = 'Active'";
-                $check_stmt = $this->conn->prepare($teacher_check);
-                $check_stmt->bindValue(':teacher_id', $token_data['linked_id']);
-                $check_stmt->bindValue(':term', $check_term);
-                $check_stmt->bindValue(':academic_year', $check_academic_year);
-                $check_stmt->execute();
+                $check_term = $term;
+                $check_academic_year = $academic_year;
 
-                $result = $check_stmt->fetch();
-                $assignment_count = $result ? $result['count'] : 0;
+                if (!$check_term || !$check_academic_year) {
+                    $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year')";
+                    $settings_stmt = $this->conn->prepare($settings_query);
+                    $settings_stmt->execute();
+                    $settings_results = $settings_stmt->fetchAll(PDO::FETCH_ASSOC);
+                    $settings = [];
+                    foreach ($settings_results as $result) {
+                        $settings[$result['setting_key']] = $result['setting_value'];
+                    }
 
-                error_log("getAllCompiledResults: Teacher " . $token_data['linked_id'] . " has $assignment_count assignments for term '$check_term' year '$check_academic_year'");
+                    $check_term = $check_term ?: ($settings['current_term'] ?? null);
+                    $check_academic_year = $check_academic_year ?: ($settings['current_academic_year'] ?? null);
+                }
+
+                if (!$check_term || !$check_academic_year) {
+                    Response::badRequest('Term and academic year are required');
+                    return;
+                }
+
+                try {
+                    $teacher_check = "SELECT COUNT(*) as count FROM class_teacher_assignments
+                                     WHERE teacher_id = :teacher_id AND term = :term AND academic_year = :academic_year AND status = 'Active'";
+                    $check_stmt = $this->conn->prepare($teacher_check);
+                    $check_stmt->bindValue(':teacher_id', $token_data['linked_id']);
+                    $check_stmt->bindValue(':term', $check_term);
+                    $check_stmt->bindValue(':academic_year', $check_academic_year);
+                    $check_stmt->execute();
+
+                    $result = $check_stmt->fetch();
+                    $assignment_count = $result ? $result['count'] : 0;
+                } catch (Throwable $e) {
+                    Response::success([], 'Unable to verify class assignments');
+                    return;
+                }
 
                 if ($assignment_count == 0) {
                     // Teacher has no assignments for this term/year, return empty result
-                    error_log("getAllCompiledResults: No assignments found for teacher, returning empty results");
                     Response::success([], 'No class assignments found for this term and academic year');
                     return;
                 }
@@ -728,16 +1112,15 @@ class ResultsController
                     $query .= " AND cr.class_id IN (
                         SELECT cta.class_id FROM class_teacher_assignments cta
                         WHERE cta.teacher_id = :teacher_id
-                        AND cta.term = :term
-                        AND cta.academic_year = :academic_year
+                        AND cta.term = :cta_term
+                        AND cta.academic_year = :cta_academic_year
                         AND cta.status = 'Active'
                     )";
                     $params[':teacher_id'] = $token_data['linked_id'];
-                    $params[':term'] = $check_term;
-                    $params[':academic_year'] = $check_academic_year;
+                    $params[':cta_term'] = $check_term;
+                    $params[':cta_academic_year'] = $check_academic_year;
                 } else {
                     // Teacher has no assignments, return empty result
-                    error_log("getAllCompiledResults: Teacher has no assignments, returning empty results");
                     Response::success(['data' => []], 'No class assignments found for teacher');
                     return;
                 }
@@ -756,9 +1139,6 @@ class ResultsController
 
             $query .= " ORDER BY c.name, s.last_name, s.first_name";
 
-            error_log("getAllCompiledResults: Final query: " . $query);
-            error_log("getAllCompiledResults: Final params: " . json_encode($params));
-
             $stmt = $this->conn->prepare($query);
             foreach ($params as $key => $value) {
                 $stmt->bindValue($key, $value);
@@ -770,14 +1150,62 @@ class ResultsController
                 $results = []; // Ensure we always have an array
             }
 
-            error_log("getAllCompiledResults: Query executed successfully, returned " . count($results) . " results");
+            // Attach affective/psychomotor domains so clients (especially parents) can render
+            // the same domain values shown in the admin result sheet/PDF.
+            $hasAffectiveTable = $this->tableExists('affective_domains');
+            $hasPsychomotorTable = $this->tableExists('psychomotor_domains');
+
+            $affectiveStmt = null;
+            if ($hasAffectiveTable) {
+                $affectiveStmt = $this->conn->prepare(
+                    "SELECT * FROM affective_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year LIMIT 1"
+                );
+            }
+
+            $psychomotorStmt = null;
+            if ($hasPsychomotorTable) {
+                $psychomotorStmt = $this->conn->prepare(
+                    "SELECT * FROM psychomotor_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year LIMIT 1"
+                );
+            }
+
+            if ($affectiveStmt || $psychomotorStmt) {
+                foreach ($results as &$row) {
+                    $sid = isset($row['student_id']) ? (int)$row['student_id'] : 0;
+                    $rTerm = isset($row['term']) ? (string)$row['term'] : '';
+                    $rYear = isset($row['academic_year']) ? (string)$row['academic_year'] : '';
+
+                    if ($affectiveStmt && $sid > 0 && $rTerm !== '' && $rYear !== '') {
+                        $affectiveStmt->bindValue(':student_id', $sid, PDO::PARAM_INT);
+                        $affectiveStmt->bindValue(':term', $rTerm);
+                        $affectiveStmt->bindValue(':academic_year', $rYear);
+                        $affectiveStmt->execute();
+                        $aff = $affectiveStmt->fetch(PDO::FETCH_ASSOC);
+                        $row['affective'] = $aff ? $aff : null;
+                    } else {
+                        $row['affective'] = null;
+                    }
+
+                    if ($psychomotorStmt && $sid > 0 && $rTerm !== '' && $rYear !== '') {
+                        $psychomotorStmt->bindValue(':student_id', $sid, PDO::PARAM_INT);
+                        $psychomotorStmt->bindValue(':term', $rTerm);
+                        $psychomotorStmt->bindValue(':academic_year', $rYear);
+                        $psychomotorStmt->execute();
+                        $psy = $psychomotorStmt->fetch(PDO::FETCH_ASSOC);
+                        $row['psychomotor'] = $psy ? $psy : null;
+                    } else {
+                        $row['psychomotor'] = null;
+                    }
+                }
+                unset($row);
+            }
 
             // Return a flat array so frontend can reliably treat response.data as an array
             Response::success($results, 'Compiled results retrieved successfully');
 
+        } catch (PDOException $e) {
+            Response::serverError('Database error retrieving compiled results');
         } catch (Exception $e) {
-            error_log("getAllCompiledResults: Exception - " . $e->getMessage());
-            error_log("getAllCompiledResults: Exception trace: " . $e->getTraceAsString());
             Response::serverError('Error retrieving compiled results');
         }
     }
@@ -788,32 +1216,21 @@ class ResultsController
     private function calculateGrade($total, $is_creche = false)
     {
         if ($is_creche) {
-            // CRECHE grading scale (0-200)
-            if ($total >= 150)
-                return 'A';
-            if ($total >= 120)
-                return 'B';
-            if ($total >= 100)
-                return 'C';
-            if ($total >= 80)
-                return 'D';
-            if ($total >= 60)
-                return 'E';
-            return 'F';
-        } else {
-            // Standard grading scale (0-100)
-            if ($total >= 80)
-                return 'A';
-            if ($total >= 70)
-                return 'B';
-            if ($total >= 60)
-                return 'C';
-            if ($total >= 50)
-                return 'D';
-            if ($total >= 40)
-                return 'E';
+            // CRECHE grading scale (0-100) - exam-only
+            if ($total >= 90) return 'A';
+            if ($total >= 80) return 'B';
+            if ($total >= 70) return 'C';
+            if ($total >= 60) return 'D';
+            if ($total >= 50) return 'E';
             return 'F';
         }
+
+        if ($total >= 90) return 'A';
+        if ($total >= 80) return 'B';
+        if ($total >= 70) return 'C';
+        if ($total >= 60) return 'D';
+        if ($total >= 50) return 'E';
+        return 'F';
     }
 
     /**
@@ -821,28 +1238,37 @@ class ResultsController
      */
     private function getRemark($grade, $is_creche = false)
     {
-        if ($is_creche) {
-            // CRECHE remarks
-            $remarks = [
-                'A' => 'Outstanding',
-                'B' => 'Excellent',
-                'C' => 'Very Good',
-                'D' => 'Good',
-                'E' => 'Fair',
-                'F' => 'Fail'
-            ];
-        } else {
-            // Standard remarks
-            $remarks = [
-                'A' => 'Excellent',
-                'B' => 'Very Good',
-                'C' => 'Good',
-                'D' => 'Fair',
-                'E' => 'Pass',
-                'F' => 'Fail'
-            ];
-        }
+        $remarks = [
+            'A' => 'Excellent',
+            'B' => 'V. Good',
+            'C' => 'Good',
+            'D' => 'Satisfactory',
+            'E' => 'Fair',
+            'F' => 'It is well'
+        ];
+
         return $remarks[$grade] ?? 'N/A';
+    }
+
+    private function generateAutoTeacherComment($averageScore)
+    {
+        $avg = is_numeric($averageScore) ? (float)$averageScore : 0.0;
+
+        if ($avg >= 90 && $avg <= 100) {
+            return 'An excellent result Keep it up.';
+        } elseif ($avg >= 80 && $avg < 90) {
+            return 'A very good result, Keep it up.';
+        } elseif ($avg >= 70 && $avg < 80) {
+            return 'A good result, You can do better.';
+        } elseif ($avg >= 60 && $avg < 70) {
+            return 'A satisfactory result, you can do better.';
+        } elseif ($avg >= 50 && $avg < 60) {
+            return 'A Fair result you have it in you to do better.';
+        } elseif ($avg >= 0 && $avg < 50) {
+            return 'It is well';
+        }
+
+        return 'It is well';
     }
 
     /**
@@ -890,38 +1316,76 @@ class ResultsController
     private function validateCompilationRequirements($class_id, $term, $academic_year, $student_results)
     {
         $errors = [];
+        $__validation_step = 'init';
+        $__validation_query = null;
 
         try {
+            $student_ids = [];
+            foreach (is_array($student_results) ? $student_results : [] as $r) {
+                if (is_array($r) && isset($r['student_id'])) {
+                    $sid = (int)$r['student_id'];
+                    if ($sid > 0) {
+                        $student_ids[] = $sid;
+                    }
+                }
+            }
+            $student_ids = array_values(array_unique($student_ids));
+
+            if (empty($student_ids)) {
+                $errors[] = 'No valid students provided for compilation';
+                return $errors;
+            }
+
+            // IMPORTANT: PDO does not allow mixing named parameters (e.g. :class_id) with positional
+            // parameters (?) in the same prepared statement.
+            // Build a stable named placeholder list for the IN (...) clauses.
+            $student_named_placeholders = [];
+            foreach ($student_ids as $i => $sid) {
+                $student_named_placeholders[] = ':sid' . $i;
+            }
+            $student_placeholders = implode(',', $student_named_placeholders);
+
             // Get current school settings to ensure compliance
-            $settings_query = "SELECT setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year')";
+            $__validation_step = 'school_settings_current_term_year';
+            $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year')";
+            $__validation_query = $settings_query;
             $settings_stmt = $this->conn->prepare($settings_query);
             $settings_stmt->execute();
             $settings = $settings_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             // Validate that compilation uses current school settings
-            if ($term !== $settings['current_term']) {
-                $errors[] = "Compilation term ($term) does not match current school term ({$settings['current_term']})";
+            $current_term = $settings['current_term'] ?? null;
+            $current_academic_year = $settings['current_academic_year'] ?? null;
+
+            if ($current_term !== null && $term !== $current_term) {
+                $errors[] = "Compilation term ($term) does not match current school term ({$current_term})";
             }
 
-            if ($academic_year !== $settings['current_academic_year']) {
-                $errors[] = "Compilation academic year ($academic_year) does not match current school academic year ({$settings['current_academic_year']})";
+            if ($current_academic_year !== null && $academic_year !== $current_academic_year) {
+                $errors[] = "Compilation academic year ($academic_year) does not match current school academic year ({$current_academic_year})";
             }
             // Check 1: All students have complete scores
+            $__validation_step = 'check_scores_complete';
             $score_check_query = "SELECT COUNT(DISTINCT s.id) as total_students,
                                  COUNT(DISTINCT sc.student_id) as students_with_scores,
                                  GROUP_CONCAT(DISTINCT CONCAT(s.first_name, ' ', s.last_name) ORDER BY s.last_name, s.first_name) as students_without_scores
                                  FROM students s
                                  LEFT JOIN scores sc ON s.id = sc.student_id
                                  LEFT JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
-                                 WHERE s.class_id = :class_id AND s.status = 'Active' 
+                                 WHERE s.class_id = :class_id AND s.status = 'Active'
+                                 AND s.id IN ($student_placeholders)
                                  AND sa.term = :term AND sa.academic_year = :academic_year
                                  GROUP BY s.id
                                  HAVING COUNT(sc.id) = 0";
 
+            $__validation_query = $score_check_query;
             $score_stmt = $this->conn->prepare($score_check_query);
             $score_stmt->bindParam(':class_id', $class_id);
             $score_stmt->bindParam(':term', $term);
             $score_stmt->bindParam(':academic_year', $academic_year);
+            foreach ($student_ids as $i => $sid) {
+                $score_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
+            }
             $score_stmt->execute();
             $students_without_scores = $score_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -931,6 +1395,7 @@ class ResultsController
             }
 
             // Check 2: All scores are submitted (not in Draft status)
+            $__validation_step = 'check_scores_no_draft';
             $submitted_check_query = "SELECT COUNT(*) as draft_count,
                                      GROUP_CONCAT(DISTINCT CONCAT(s.first_name, ' ', s.last_name, ' - ', sub.name) ORDER BY s.last_name, s.first_name) as draft_details
                                      FROM scores sc
@@ -938,12 +1403,17 @@ class ResultsController
                                      JOIN students s ON sc.student_id = s.id
                                      JOIN subjects sub ON sa.subject_id = sub.id
                                      WHERE sa.class_id = :class_id AND sa.term = :term AND sa.academic_year = :academic_year
-                                     AND sc.status = :status";
+                                     AND sc.student_id IN ($student_placeholders)
+                                     AND sc.status = 'Draft'";
 
+            $__validation_query = $submitted_check_query;
             $submitted_stmt = $this->conn->prepare($submitted_check_query);
             $submitted_stmt->bindParam(':class_id', $class_id);
             $submitted_stmt->bindParam(':term', $term);
             $submitted_stmt->bindParam(':academic_year', $academic_year);
+            foreach ($student_ids as $i => $sid) {
+                $submitted_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
+            }
             $submitted_stmt->execute();
             $submitted_result = $submitted_stmt->fetch();
 
@@ -952,8 +1422,10 @@ class ResultsController
             }
 
             // Check 3: Attendance data meets school requirements
+            $__validation_step = 'check_attendance_required_days_setting';
             $attendance_setting_key = 'attendance_' . strtolower(str_replace(' ', '_', $term));
             $required_days_query = "SELECT setting_value FROM school_settings WHERE setting_key = :setting_key";
+            $__validation_query = $required_days_query;
             $required_days_stmt = $this->conn->prepare($required_days_query);
             $required_days_stmt->bindParam(':setting_key', $attendance_setting_key);
             $required_days_stmt->execute();
@@ -962,20 +1434,36 @@ class ResultsController
             if ($required_days == 0) {
                 $errors[] = "Attendance requirements not set for term: $term";
             } else {
-                // Check attendance using the new attendance structure (single record per student)
+                // Attendance is stored as per-day rows (date/status) by AttendanceController.
+                // However, the frontend compile flow also writes/updates a single row with a remarks summary like:
+                //   "Attended X out of Y days"
+                // So for validation we support BOTH:
+                // - per-day present count
+                // - max attended days parsed from remarks
+                // and take whichever is higher.
+                $__validation_step = 'check_attendance_records';
                 $attendance_check_query = "SELECT s.id, s.first_name, s.last_name,
-                                          a.attended_days,
-                                          a.required_days,
-                                          a.attendance_rate
+                                          COALESCE(SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END), 0) as present_days,
+                                          COUNT(a.id) as recorded_days,
+                                          GROUP_CONCAT(a.remarks SEPARATOR '\n') as remarks_blob
                                           FROM students s
                                           LEFT JOIN attendance a ON s.id = a.student_id
-                                          WHERE s.class_id = :class_id AND s.status = 'Active'
-                                          AND a.term = :term AND a.academic_year = :academic_year";
+                                            AND a.class_id = :class_id_join
+                                            AND a.term = :term
+                                            AND a.academic_year = :academic_year
+                                          WHERE s.class_id = :class_id_where AND s.status = 'Active'
+                                          AND s.id IN ($student_placeholders)
+                                          GROUP BY s.id, s.first_name, s.last_name";
 
+                $__validation_query = $attendance_check_query;
                 $attendance_stmt = $this->conn->prepare($attendance_check_query);
-                $attendance_stmt->bindParam(':class_id', $class_id);
+                $attendance_stmt->bindValue(':class_id_join', $class_id, PDO::PARAM_INT);
+                $attendance_stmt->bindValue(':class_id_where', $class_id, PDO::PARAM_INT);
                 $attendance_stmt->bindParam(':term', $term);
                 $attendance_stmt->bindParam(':academic_year', $academic_year);
+                foreach ($student_ids as $i => $sid) {
+                    $attendance_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
+                }
                 $attendance_stmt->execute();
                 $attendance_records = $attendance_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -983,11 +1471,46 @@ class ResultsController
                 $students_insufficient_attendance = [];
 
                 foreach ($attendance_records as $record) {
-                    if (!$record['attended_days'] || $record['attended_days'] === null) {
+                    $present_days = isset($record['present_days']) ? (int) $record['present_days'] : 0;
+                    $recorded_days = isset($record['recorded_days']) ? (int) $record['recorded_days'] : 0;
+
+                    $remarks_blob = (string)($record['remarks_blob'] ?? '');
+                    $parsed_attended_days = 0;
+                    if ($remarks_blob !== '') {
+                        // Support both formats that exist in the system:
+                        // 1) "Attended X out of Y days" or "X out of Y days"
+                        // 2) "Attended X" (legacy)
+
+                        // Extract all "X out of Y days" occurrences and take the maximum X.
+                        if (preg_match_all('/(\d+)\s*out\s*of\s*(\d+)\s*days/i', $remarks_blob, $m)) {
+                            foreach ($m[1] as $num) {
+                                $n = (int)$num;
+                                if ($n > $parsed_attended_days) {
+                                    $parsed_attended_days = $n;
+                                }
+                            }
+                        }
+
+                        // Extract all "Attended X" occurrences and take the maximum.
+                        if (preg_match_all('/Attended\s+(\d+)/i', $remarks_blob, $m2)) {
+                            foreach ($m2[1] as $num) {
+                                $n = (int)$num;
+                                if ($n > $parsed_attended_days) {
+                                    $parsed_attended_days = $n;
+                                }
+                            }
+                        }
+                    }
+
+                    $attended_days = max($present_days, $parsed_attended_days);
+                    $record_required_days = (int) $required_days;
+                    $attendance_rate = $record_required_days > 0 ? round(($attended_days / $record_required_days) * 100, 2) : 0;
+
+                    if ($recorded_days === 0) {
                         $students_missing_attendance[] = $record['first_name'] . ' ' . $record['last_name'];
-                    } elseif ($record['attendance_rate'] < 75) { // Minimum 75% required
+                    } elseif ($attendance_rate < 50) {
                         $students_insufficient_attendance[] = $record['first_name'] . ' ' . $record['last_name'] .
-                            ' (' . $record['attendance_rate'] . '% - ' . $record['attended_days'] . '/' . $required_days . ' days)';
+                            ' (' . $attendance_rate . '% - ' . $attended_days . '/' . $record_required_days . ' days)';
                     }
                 }
 
@@ -996,25 +1519,31 @@ class ResultsController
                 }
 
                 if (!empty($students_insufficient_attendance)) {
-                    $errors[] = "Insufficient attendance (minimum 75% required): " . implode(', ', $students_insufficient_attendance);
+                    $errors[] = "Insufficient attendance (minimum 50% required): " . implode(', ', $students_insufficient_attendance);
                 }
             }
 
             // Check 4: Affective domains are complete
+            $__validation_step = 'check_affective_domains';
             $affective_check_query = "SELECT COUNT(DISTINCT s.id) as total_students,
                                      COUNT(DISTINCT ad.student_id) as students_with_affective,
                                      GROUP_CONCAT(DISTINCT CONCAT(s.first_name, ' ', s.last_name) ORDER BY s.last_name, s.first_name) as students_without_affective
                                      FROM students s
                                      LEFT JOIN affective_domains ad ON s.id = ad.student_id
                                      WHERE s.class_id = :class_id AND s.status = 'Active'
+                                     AND s.id IN ($student_placeholders)
                                      AND ad.term = :term AND ad.academic_year = :academic_year
                                      GROUP BY s.id
                                      HAVING COUNT(ad.id) = 0";
 
+            $__validation_query = $affective_check_query;
             $affective_stmt = $this->conn->prepare($affective_check_query);
             $affective_stmt->bindParam(':class_id', $class_id);
             $affective_stmt->bindParam(':term', $term);
             $affective_stmt->bindParam(':academic_year', $academic_year);
+            foreach ($student_ids as $i => $sid) {
+                $affective_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
+            }
             $affective_stmt->execute();
             $students_without_affective = $affective_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1024,20 +1553,26 @@ class ResultsController
             }
 
             // Check 5: Psychomotor domains are complete
+            $__validation_step = 'check_psychomotor_domains';
             $psychomotor_check_query = "SELECT COUNT(DISTINCT s.id) as total_students,
                                        COUNT(DISTINCT pd.student_id) as students_with_psychomotor,
                                        GROUP_CONCAT(DISTINCT CONCAT(s.first_name, ' ', s.last_name) ORDER BY s.last_name, s.first_name) as students_without_psychomotor
                                        FROM students s
                                        LEFT JOIN psychomotor_domains pd ON s.id = pd.student_id
                                        WHERE s.class_id = :class_id AND s.status = 'Active'
+                                       AND s.id IN ($student_placeholders)
                                        AND pd.term = :term AND pd.academic_year = :academic_year
                                        GROUP BY s.id
                                        HAVING COUNT(pd.id) = 0";
 
+            $__validation_query = $psychomotor_check_query;
             $psychomotor_stmt = $this->conn->prepare($psychomotor_check_query);
             $psychomotor_stmt->bindParam(':class_id', $class_id);
             $psychomotor_stmt->bindParam(':term', $term);
             $psychomotor_stmt->bindParam(':academic_year', $academic_year);
+            foreach ($student_ids as $i => $sid) {
+                $psychomotor_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
+            }
             $psychomotor_stmt->execute();
             $students_without_psychomotor = $psychomotor_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1049,18 +1584,47 @@ class ResultsController
             // Check 6: Teacher comments are provided for each student
             $students_missing_comments = [];
             foreach ($student_results as $result) {
-                if (!isset($result['class_teacher_comment']) || empty(trim($result['class_teacher_comment']))) {
-                    $students_missing_comments[] = $result['student_id'];
+                if (!is_array($result)) {
+                    continue;
+                }
+
+                $comment = isset($result['class_teacher_comment']) ? (string)$result['class_teacher_comment'] : '';
+                if (trim($comment) !== '') {
+                    continue;
+                }
+
+                // If comment is missing, attempt to auto-generate from average_score.
+                // This keeps the API robust even when the frontend fails to send a comment.
+                $avg = $result['average_score'] ?? null;
+                $auto = $this->generateAutoTeacherComment($avg);
+                if (trim($auto) === '') {
+                    $students_missing_comments[] = $result['student_id'] ?? null;
                 }
             }
 
             if (!empty($students_missing_comments)) {
-                // Get student names for those missing comments
-                $placeholders = str_repeat('?,', count($students_missing_comments) - 1) . '?';
-                $comment_check_query = "SELECT first_name, last_name FROM students WHERE id IN ($placeholders)";
-                $comment_stmt = $this->conn->prepare($comment_check_query);
-                $comment_stmt->execute($students_missing_comments);
-                $comment_students = $comment_stmt->fetchAll(PDO::FETCH_ASSOC);
+                $__validation_step = 'check_teacher_comments_lookup_student_names';
+                $students_missing_comments = array_values(array_filter($students_missing_comments, function ($id) {
+                    return is_numeric($id) && (int)$id > 0;
+                }));
+
+                if (!empty($students_missing_comments)) {
+                    // Get student names for those missing comments
+                    $comment_placeholders = [];
+                    foreach ($students_missing_comments as $i => $sid) {
+                        $comment_placeholders[] = ':cid' . $i;
+                    }
+                    $comment_check_query = 'SELECT first_name, last_name FROM students WHERE id IN (' . implode(', ', $comment_placeholders) . ')';
+                    $__validation_query = $comment_check_query;
+                    $comment_stmt = $this->conn->prepare($comment_check_query);
+                    foreach ($students_missing_comments as $i => $sid) {
+                        $comment_stmt->bindValue(':cid' . $i, (int)$sid, PDO::PARAM_INT);
+                    }
+                    $comment_stmt->execute();
+                    $comment_students = $comment_stmt->fetchAll(PDO::FETCH_ASSOC);
+                } else {
+                    $comment_students = [];
+                }
 
                 $student_names = array_map(function ($student) {
                     return $student['first_name'] . ' ' . $student['last_name'];
@@ -1069,56 +1633,461 @@ class ResultsController
                 $errors[] = "Teacher comments missing for students: " . implode(', ', $student_names);
             }
 
-            // Check 7: Attendance summaries are calculated for all students
-            $students_missing_attendance_summary = [];
-            foreach ($student_results as $result) {
-                $student_id = $result['student_id'];
-
-                // Calculate attendance summary from daily records
-                $attendance_summary_query = "SELECT 
-                    SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) as times_present,
-                    SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) as times_absent,
-                    SUM(CASE WHEN a.status = 'Late' THEN 1 ELSE 0 END) as times_late,
-                    SUM(CASE WHEN a.status = 'Excused' THEN 1 ELSE 0 END) as times_excused
-                    FROM attendance a
-                    WHERE a.student_id = :student_id AND a.term = :term AND a.academic_year = :academic_year";
-
-                $attendance_summary_stmt = $this->conn->prepare($attendance_summary_query);
-                $attendance_summary_stmt->bindParam(':student_id', $student_id);
-                $attendance_summary_stmt->bindParam(':term', $term);
-                $attendance_summary_stmt->bindParam(':academic_year', $academic_year);
-                $attendance_summary_stmt->execute();
-                $attendance_summary = $attendance_summary_stmt->fetch();
-
-                // Check if student has any attendance records
-                $total_records = $attendance_summary['times_present'] + $attendance_summary['times_absent'] +
-                    $attendance_summary['times_late'] + $attendance_summary['times_excused'];
-
-                if ($total_records == 0) {
-                    $students_missing_attendance_summary[] = $student_id;
-                }
-            }
-
-            if (!empty($students_missing_attendance_summary)) {
-                // Get student names for those missing attendance summaries
-                $placeholders = str_repeat('?,', count($students_missing_attendance_summary) - 1) . '?';
-                $attendance_check_query = "SELECT first_name, last_name FROM students WHERE id IN ($placeholders)";
-                $attendance_stmt = $this->conn->prepare($attendance_check_query);
-                $attendance_stmt->execute($students_missing_attendance_summary);
-                $attendance_students = $attendance_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                $student_names = array_map(function ($student) {
-                    return $student['first_name'] . ' ' . $student['last_name'];
-                }, $attendance_students);
-
-                $errors[] = "No attendance records found for students: " . implode(', ', $student_names);
-            }
+            // Check 7 is covered by Check 3 (recorded_days === 0 indicates missing attendance for the term/year).
 
         } catch (PDOException $e) {
-            $errors[] = "Database error during validation";
+            $debug = 'validateCompilationRequirements PDOException at step ' . $__validation_step . ': ' . $e->getMessage();
+            if ($__validation_query) {
+                $debug .= ' | query: ' . preg_replace('/\s+/', ' ', trim((string)$__validation_query));
+            }
+            $errors[] = 'Database error during validation: ' . ' (step: ' . $__validation_step . ')';
         }
 
         return $errors;
+    }
+
+    /**
+     * Compile Results (Class Teacher/Admin)
+     * Endpoint: POST /results/compile
+     */
+    public function compileResults()
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        $token_data = Middleware::requireAuth();
+        $role = strtolower(trim((string)($token_data['role'] ?? '')));
+        if ($role !== 'teacher' && $role !== 'admin') {
+            Response::forbidden('Only teachers and admins can compile results');
+            return;
+        }
+
+        $data = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($data)) {
+            Response::badRequest('Invalid JSON payload');
+            return;
+        }
+
+        Middleware::validateRequired($data, ['class_id', 'term', 'academic_year', 'student_results']);
+
+        try {
+            $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
+            $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
+            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $student_results = $data['student_results'];
+
+            if (!is_array($student_results)) {
+                Response::badRequest('student_results must be an array');
+                return;
+            }
+
+            // Ensure class teacher comment is always present (auto-generated from average_score when missing)
+            foreach ($student_results as $idx => $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $comment = isset($row['class_teacher_comment']) ? (string)$row['class_teacher_comment'] : '';
+                if (trim($comment) === '') {
+                    $avg = $row['average_score'] ?? null;
+                    $student_results[$idx]['class_teacher_comment'] = $this->generateAutoTeacherComment($avg);
+                }
+            }
+
+            // Teachers must have an assignment to the class for this term/year (best-effort enforcement).
+            if ($role === 'teacher') {
+                if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
+                    Response::forbidden('Teacher profile not linked');
+                    return;
+                }
+
+                if ($this->tableExists('class_teacher_assignments')) {
+                    $stmt = $this->conn->prepare(
+                        "SELECT COUNT(*) FROM class_teacher_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year AND status = 'Active'"
+                    );
+                    $stmt->bindValue(':teacher_id', $token_data['linked_id']);
+                    $stmt->bindValue(':class_id', $class_id);
+                    $stmt->bindValue(':term', $term);
+                    $stmt->bindValue(':academic_year', $academic_year);
+                    $stmt->execute();
+                    if ((int)$stmt->fetchColumn() === 0) {
+                        Response::forbidden('You are not assigned as class teacher for this class/term/year');
+                        return;
+                    }
+                }
+            }
+
+            $errors = $this->validateCompilationRequirements($class_id, $term, $academic_year, $student_results);
+            if (!empty($errors)) {
+                Response::badRequest('Compilation requirements not met', ['errors' => $errors]);
+                return;
+            }
+
+            $this->ensureCompiledResultsTableExists();
+            $this->ensureCompiledResultsColumnsExist();
+
+            $compiled_by = (int)($token_data['user_id'] ?? 0);
+            if ($compiled_by <= 0) {
+                Response::unauthorized('Invalid token: user_id missing');
+                return;
+            }
+
+            $this->conn->beginTransaction();
+
+            $saved = 0;
+            $ids = [];
+
+            foreach ($student_results as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $student_id = Middleware::validateInteger($row['student_id'] ?? null, 'student_id');
+
+                // Find existing compiled_results row
+                $findStmt = $this->conn->prepare(
+                    'SELECT id FROM compiled_results WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year LIMIT 1'
+                );
+                $findStmt->bindValue(':student_id', $student_id);
+                $findStmt->bindValue(':class_id', $class_id);
+                $findStmt->bindValue(':term', $term);
+                $findStmt->bindValue(':academic_year', $academic_year);
+                $findStmt->execute();
+                $existing_id = $findStmt->fetchColumn();
+
+                // Teachers always submit for admin approval.
+                // Admins may create/update Drafts manually.
+                $status = Middleware::sanitizeString($row['status'] ?? 'Draft');
+                if ($role === 'teacher') {
+                    $status = 'Submitted';
+                }
+
+                $payload = [
+                    'total_score' => $row['total_score'] ?? null,
+                    'average_score' => $row['average_score'] ?? null,
+                    'class_average' => $row['class_average'] ?? null,
+                    'position' => $row['position'] ?? null,
+                    'total_students' => $row['total_students'] ?? null,
+                    'times_present' => $row['times_present'] ?? 0,
+                    'times_absent' => $row['times_absent'] ?? 0,
+                    'total_attendance_days' => $row['total_attendance_days'] ?? 0,
+                    'term_begin' => $row['term_begin'] ?? null,
+                    'term_end' => $row['term_end'] ?? null,
+                    'next_term_begin' => $row['next_term_begin'] ?? null,
+                    'class_teacher_name' => Middleware::sanitizeString($row['class_teacher_name'] ?? ''),
+                    'class_teacher_comment' => $row['class_teacher_comment'] ?? null,
+                    'principal_name' => Middleware::sanitizeString($row['principal_name'] ?? ''),
+                    'principal_comment' => $row['principal_comment'] ?? null,
+                    'principal_signature' => $row['principal_signature'] ?? null,
+                    'compiled_by' => $compiled_by,
+                    'status' => $status,
+                    'print_approved' => isset($row['print_approved']) ? (int)$row['print_approved'] : 0,
+                    'approved_by' => $role === 'teacher' ? null : ($row['approved_by'] ?? null),
+                    'approved_date' => $role === 'teacher' ? null : ($row['approved_date'] ?? null),
+                    'rejection_reason' => $role === 'teacher' ? null : ($row['rejection_reason'] ?? null),
+                ];
+
+                if ($existing_id) {
+                    $updateSql = 'UPDATE compiled_results SET
+                        total_score = :total_score,
+                        average_score = :average_score,
+                        class_average = :class_average,
+                        position = :position,
+                        total_students = :total_students,
+                        times_present = :times_present,
+                        times_absent = :times_absent,
+                        total_attendance_days = :total_attendance_days,
+                        term_begin = :term_begin,
+                        term_end = :term_end,
+                        next_term_begin = :next_term_begin,
+                        class_teacher_name = :class_teacher_name,
+                        class_teacher_comment = :class_teacher_comment,
+                        principal_name = :principal_name,
+                        principal_comment = :principal_comment,
+                        principal_signature = :principal_signature,
+                        compiled_by = :compiled_by,
+                        status = :status,
+                        print_approved = :print_approved,
+                        approved_by = :approved_by,
+                        approved_date = :approved_date,
+                        rejection_reason = :rejection_reason
+                        WHERE id = :id';
+                    $stmt = $this->conn->prepare($updateSql);
+                    foreach ($payload as $k => $v) {
+                        $stmt->bindValue(':' . $k, $v);
+                    }
+                    $stmt->bindValue(':id', $existing_id);
+                    $stmt->execute();
+                    $ids[] = (int)$existing_id;
+                    $saved++;
+                } else {
+                    $insertSql = 'INSERT INTO compiled_results (
+                        student_id, class_id, term, academic_year,
+                        total_score, average_score, class_average, position,
+                        total_students, times_present, times_absent, total_attendance_days,
+                        term_begin, term_end, next_term_begin,
+                        class_teacher_name, class_teacher_comment,
+                        principal_name, principal_comment, principal_signature,
+                        compiled_by, status, print_approved, approved_by, approved_date, rejection_reason
+                    ) VALUES (
+                        :student_id, :class_id, :term, :academic_year,
+                        :total_score, :average_score, :class_average, :position,
+                        :total_students, :times_present, :times_absent, :total_attendance_days,
+                        :term_begin, :term_end, :next_term_begin,
+                        :class_teacher_name, :class_teacher_comment,
+                        :principal_name, :principal_comment, :principal_signature,
+                        :compiled_by, :status, :print_approved, :approved_by, :approved_date, :rejection_reason
+                    )';
+                    $stmt = $this->conn->prepare($insertSql);
+                    $stmt->bindValue(':student_id', $student_id);
+                    $stmt->bindValue(':class_id', $class_id);
+                    $stmt->bindValue(':term', $term);
+                    $stmt->bindValue(':academic_year', $academic_year);
+                    foreach ($payload as $k => $v) {
+                        $stmt->bindValue(':' . $k, $v);
+                    }
+                    $stmt->execute();
+                    $newId = (int)$this->conn->lastInsertId();
+                    $ids[] = $newId;
+                    $saved++;
+                }
+            }
+
+            $this->conn->commit();
+
+            RealtimeEvents::publish(['compiled_results'], [
+                'action' => 'compiled',
+                'class_id' => (int)$class_id,
+                'term' => (string)$term,
+                'academic_year' => (string)$academic_year,
+            ]);
+
+            Response::success([
+                'saved' => $saved,
+                'ids' => $ids,
+                'class_id' => $class_id,
+                'term' => $term,
+                'academic_year' => $academic_year
+            ], 'Results compiled successfully');
+        } catch (Throwable $e) {
+            if ($this->conn && $this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            Response::serverError('Error compiling results');
+        }
+    }
+
+    /**
+     * Approve a compiled result (Admin)
+     * Endpoint: POST /results/approve/{id}
+     * Creates targeted notification for parent + class teacher only
+     */
+    public function approveResult($id)
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        $token_data = Middleware::requireRole('admin');
+
+        try {
+            $result_id = Middleware::validateInteger($id, 'id');
+
+            $this->ensureCompiledResultsTableExists();
+            $this->ensureCompiledResultsColumnsExist();
+
+            // Get result details with student and class info
+            $stmt = $this->conn->prepare('SELECT cr.*, s.admission_number FROM compiled_results cr JOIN students s ON cr.student_id = s.id WHERE cr.id = :id LIMIT 1');
+            $stmt->bindValue(':id', $result_id);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$result) {
+                Response::notFound('Compiled result not found');
+                return;
+            }
+
+            $approved_by = (int)($token_data['user_id'] ?? 0);
+            $approved_date = date('Y-m-d H:i:s');
+
+            $update = $this->conn->prepare(
+                "UPDATE compiled_results SET status = 'Approved', approved_by = :approved_by, approved_date = :approved_date WHERE id = :id"
+            );
+            $update->bindValue(':approved_by', $approved_by > 0 ? $approved_by : null);
+            $update->bindValue(':approved_date', $approved_date);
+            $update->bindValue(':id', $result_id);
+            $update->execute();
+
+            // Create targeted notification for parent and class teacher only
+            $target_users = [];
+
+            // Get parent user_id from parent_student_links
+            $parent_stmt = $this->conn->prepare(
+                "SELECT u.id as user_id FROM parent_student_links psl
+                 JOIN users u ON u.linked_id = psl.parent_id AND u.role = 'parent'
+                 WHERE psl.student_id = :student_id AND psl.is_primary = 1 LIMIT 1"
+            );
+            $parent_stmt->bindValue(':student_id', $result['student_id']);
+            $parent_stmt->execute();
+            $parent_user = $parent_stmt->fetch(PDO::FETCH_ASSOC);
+            if ($parent_user) {
+                $target_users[] = (int)$parent_user['user_id'];
+            }
+
+            // Get class teacher user_id
+            $teacher_stmt = $this->conn->prepare(
+                "SELECT u.id as user_id FROM classes c
+                 JOIN teachers t ON t.id = c.class_teacher_id
+                 JOIN users u ON u.linked_id = t.id AND u.role = 'teacher'
+                 WHERE c.id = :class_id LIMIT 1"
+            );
+            $teacher_stmt->bindValue(':class_id', $result['class_id']);
+            $teacher_stmt->execute();
+            $teacher_user = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
+            if ($teacher_user) {
+                $target_users[] = (int)$teacher_user['user_id'];
+            }
+
+            // Create notification only for target users
+            if (!empty($target_users)) {
+                $notification_title = "Result Approved";
+                $notification_message = "Result for student {$result['admission_number']} has been approved for {$result['term']} {$result['academic_year']}";
+                
+                $notif_stmt = $this->conn->prepare(
+                    "INSERT INTO notifications (title, message, type, priority, target_audience, target_users, created_by)
+                     VALUES (:title, :message, 'Success', 'High', 'Specific', :target_users, :created_by)"
+                );
+                $notif_stmt->bindValue(':title', $notification_title);
+                $notif_stmt->bindValue(':message', $notification_message);
+                $notif_stmt->bindValue(':target_users', json_encode($target_users));
+                $notif_stmt->bindValue(':created_by', $approved_by > 0 ? $approved_by : null);
+                $notif_stmt->execute();
+
+                // Create user notification records for each target user
+                $notification_id = $this->conn->lastInsertId();
+                foreach ($target_users as $user_id) {
+                    $user_notif_stmt = $this->conn->prepare(
+                        "INSERT INTO user_notifications (user_id, notification_id, is_read) VALUES (:user_id, :notification_id, 0)"
+                    );
+                    $user_notif_stmt->bindValue(':user_id', $user_id);
+                    $user_notif_stmt->bindValue(':notification_id', $notification_id);
+                    $user_notif_stmt->execute();
+                }
+
+                RealtimeEvents::publish('notifications', [
+                    'action' => 'created',
+                    'notification_id' => (int)$notification_id,
+                    'target_users' => $target_users
+                ]);
+            }
+
+            RealtimeEvents::publish(['compiled_results'], [
+                'action' => 'approved',
+                'result_id' => (int)$result_id,
+            ]);
+
+            Response::success([
+                'id' => $result_id,
+                'status' => 'Approved',
+                'approved_by' => $approved_by > 0 ? $approved_by : null,
+                'approved_date' => $approved_date
+            ], 'Compiled result approved');
+        } catch (Throwable $e) {
+            Response::serverError('Error approving compiled result');
+        }
+    }
+
+    /**
+     * Reject a compiled result (Admin)
+     * Endpoint: POST /results/reject/{id}
+     */
+    public function rejectResult($id)
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        Middleware::requireRole('admin');
+
+        $data = json_decode(file_get_contents('php://input'), true);
+        $reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : '';
+        if (!$reason) {
+            Response::badRequest('Rejection reason is required');
+        }
+
+        try {
+            $result_id = Middleware::validateInteger($id, 'id');
+
+            $this->ensureCompiledResultsTableExists();
+            $this->ensureCompiledResultsColumnsExist();
+
+            $stmt = $this->conn->prepare('SELECT id FROM compiled_results WHERE id = :id LIMIT 1');
+            $stmt->bindValue(':id', $result_id);
+            $stmt->execute();
+            $exists = $stmt->fetchColumn();
+            if (!$exists) {
+                Response::notFound('Compiled result not found');
+                return;
+            }
+
+            $update = $this->conn->prepare(
+                "UPDATE compiled_results
+                 SET status = 'Rejected', rejection_reason = :reason, approved_by = NULL, approved_date = NULL
+                 WHERE id = :id"
+            );
+            $update->bindValue(':reason', $reason);
+            $update->bindValue(':id', $result_id);
+            $update->execute();
+
+            RealtimeEvents::publish(['compiled_results', 'notifications'], [
+                'action' => 'rejected',
+                'result_id' => (int)$result_id,
+            ]);
+
+            Response::success([
+                'id' => $result_id,
+                'status' => 'Rejected',
+                'rejection_reason' => $reason,
+            ], 'Compiled result rejected');
+        } catch (Throwable $e) {
+            Response::serverError('Error rejecting compiled result');
+        }
+    }
+
+    /**
+     * Delete a compiled result (Admin)
+     * Endpoint: DELETE /results/compiled/{id}
+     */
+    public function deleteCompiledResult($id)
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        Middleware::requireRole('admin');
+
+        try {
+            $result_id = Middleware::validateInteger($id, 'id');
+
+            $this->ensureCompiledResultsTableExists();
+            $this->ensureCompiledResultsColumnsExist();
+
+            $stmt = $this->conn->prepare('DELETE FROM compiled_results WHERE id = :id');
+            $stmt->bindValue(':id', $result_id);
+            $stmt->execute();
+
+            RealtimeEvents::publish(['compiled_results'], [
+                'action' => 'deleted',
+                'result_id' => (int)$result_id,
+            ]);
+
+            Response::success(null, 'Compiled result deleted');
+        } catch (Throwable $e) {
+            Response::serverError('Error deleting compiled result');
+        }
     }
 
     /**
@@ -1216,18 +2185,47 @@ class ResultsController
             $required_days_stmt->execute();
             $required_days = $required_days_stmt->fetchColumn() ?: 0;
 
-            $attendance_query = "SELECT COUNT(*) as days_present
-                               FROM attendance 
-                               WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year";
+            // Attendance is stored as per-day rows (date/status/remarks). Some flows also store
+            // a summary inside remarks like: "Attended X out of Y days".
+            // Compute attended_days as the maximum of:
+            // - count of Present rows
+            // - max parsed "Attended X" in remarks
+            $attendance_query = "SELECT
+                                  COALESCE(SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END), 0) as present_days,
+                                  COUNT(id) as recorded_days,
+                                  GROUP_CONCAT(remarks SEPARATOR '\n') as remarks_blob
+                                FROM attendance
+                                WHERE student_id = :student_id
+                                  AND class_id = :class_id
+                                  AND term = :term
+                                  AND academic_year = :academic_year";
+
             $attendance_stmt = $this->conn->prepare($attendance_query);
             $attendance_stmt->bindParam(':student_id', $student_id);
+            $attendance_stmt->bindParam(':class_id', $student['class_id']);
             $attendance_stmt->bindParam(':term', $term);
             $attendance_stmt->bindParam(':academic_year', $academic_year);
             $attendance_stmt->execute();
-            $attendance_result = $attendance_stmt->fetch();
+            $attendance_result = $attendance_stmt->fetch(PDO::FETCH_ASSOC);
 
-            $status['attendance']['completed'] = $attendance_result['days_present'] >= $required_days;
-            $status['attendance']['days_present'] = (int) $attendance_result['days_present'];
+            $present_days = $attendance_result && isset($attendance_result['present_days']) ? (int)$attendance_result['present_days'] : 0;
+            $remarks_blob = (string)($attendance_result['remarks_blob'] ?? '');
+            $parsed_attended_days = 0;
+            if ($remarks_blob !== '') {
+                if (preg_match_all('/Attended\s+(\d+)/i', $remarks_blob, $m)) {
+                    foreach ($m[1] as $num) {
+                        $n = (int)$num;
+                        if ($n > $parsed_attended_days) {
+                            $parsed_attended_days = $n;
+                        }
+                    }
+                }
+            }
+
+            $attended_days = max($present_days, $parsed_attended_days);
+
+            $status['attendance']['completed'] = $required_days > 0 ? ($attended_days >= $required_days) : false;
+            $status['attendance']['days_present'] = (int) $attended_days;
             $status['attendance']['days_required'] = (int) $required_days;
 
             // Check affective domains for this student
@@ -1449,12 +2447,14 @@ class ResultsController
             $required_days = $required_days_stmt->fetchColumn() ?: 0;
 
             $attendance_check_query = "SELECT s.id, s.first_name, s.last_name,
-                                      COUNT(a.id) as attendance_days
+                                      a.attended_days,
+                                      a.required_days,
+                                      a.attendance_rate
                                       FROM students s
                                       LEFT JOIN attendance a ON s.id = a.student_id
-                                      WHERE s.class_id = :class_id AND s.status = 'Active'
-                                      AND a.term = :term AND a.academic_year = :academic_year
-                                      GROUP BY s.id";
+                                        AND a.class_id = :class_id
+                                        AND a.term = :term AND a.academic_year = :academic_year
+                                      WHERE s.class_id = :class_id AND s.status = 'Active'";
 
             $attendance_stmt = $this->conn->prepare($attendance_check_query);
             $attendance_stmt->bindParam(':class_id', $class_id);
@@ -1464,10 +2464,18 @@ class ResultsController
             $attendance_results = $attendance_stmt->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($attendance_results as $result) {
-                if ($result['attendance_days'] < $required_days) {
+                $attended_days = isset($result['attended_days']) && $result['attended_days'] !== null ? (int) $result['attended_days'] : 0;
+                $record_required_days = isset($result['required_days']) && $result['required_days'] !== null ? (int) $result['required_days'] : (int) $required_days;
+                if ($record_required_days <= 0) {
+                    $status['attendance']['completed'] = false;
+                    $status['attendance']['missing_students'][] = $result['first_name'] . ' ' . $result['last_name'] . ' (requirements not set)';
+                    continue;
+                }
+
+                if (!isset($result['attended_days']) || $result['attended_days'] === null || $attended_days < $record_required_days) {
                     $status['attendance']['completed'] = false;
                     $status['attendance']['missing_students'][] = $result['first_name'] . ' ' . $result['last_name'] .
-                        ' (' . $result['attendance_days'] . '/' . $required_days . ' days)';
+                        ' (' . $attended_days . '/' . $record_required_days . ' days)';
                 }
             }
 
@@ -1570,6 +2578,186 @@ class ResultsController
         $stmt->execute();
         $result = $stmt->fetch();
         return $result ? $result['academic_year'] : '2025/2026';
+    }
+
+    /**
+     * Get Student Results
+     * Returns compiled results for a specific student
+     */
+    public function getStudentResults($student_id)
+    {
+        try {
+            if (!$this->conn) {
+                Response::serverError('Database connection failed');
+                return;
+            }
+
+            $this->ensureCompiledResultsTableExists();
+            $this->ensureCompiledResultsColumnsExist();
+
+            // If core tables are missing, avoid 500s and return empty results.
+            if (!$this->tableExists('compiled_results') || !$this->tableExists('students') || !$this->tableExists('classes')) {
+                Response::success([], 'Required tables missing');
+                return;
+            }
+
+            $token_data = Middleware::requireAuth();
+            if (!$token_data || !is_array($token_data) || !isset($token_data['role'])) {
+                Response::unauthorized('Invalid authentication token');
+                return;
+            }
+
+            $role = strtolower(trim((string)$token_data['role']));
+
+            // Validate student_id parameter
+            $student_id = Middleware::validateInteger($student_id, 'student_id');
+
+            $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : null;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
+
+            // For parents, always enforce Approved status at the backend level
+            $status_filter = '';
+            if ($role === 'parent') {
+                $status_filter = " AND cr.status = 'Approved'";
+            }
+
+            $studentSelect = [];
+            if ($this->columnExists('students', 'first_name')) {
+                $studentSelect[] = 's.first_name';
+            }
+            if ($this->columnExists('students', 'last_name')) {
+                $studentSelect[] = 's.last_name';
+            }
+            if ($this->columnExists('students', 'admission_number')) {
+                $studentSelect[] = 's.admission_number';
+            }
+
+            $classSelect = [];
+            if ($this->columnExists('classes', 'name')) {
+                $classSelect[] = 'c.name as class_name';
+            }
+
+            $extraSelectSql = '';
+            $extraParts = array_merge($studentSelect, $classSelect);
+            if (!empty($extraParts)) {
+                $extraSelectSql = ', ' . implode(', ', $extraParts);
+            }
+
+            // Build WHERE clause
+            $where_clause = "WHERE cr.student_id = :student_id";
+            if ($term) {
+                $where_clause .= " AND cr.term = :term";
+            }
+            if ($academic_year) {
+                $where_clause .= " AND cr.academic_year = :academic_year";
+            }
+            $where_clause .= $status_filter;
+
+            $query = "SELECT cr.*$extraSelectSql
+                      FROM compiled_results cr
+                      JOIN students s ON cr.student_id = s.id
+                      JOIN classes c ON cr.class_id = c.id
+                      $where_clause
+                      ORDER BY cr.academic_year DESC, 
+                               CASE cr.term 
+                                   WHEN 'First Term' THEN 1 
+                                   WHEN 'Second Term' THEN 2 
+                                   WHEN 'Third Term' THEN 3 
+                               END DESC";
+
+            $params = [':student_id' => $student_id];
+            if ($term) {
+                $params[':term'] = $term;
+            }
+            if ($academic_year) {
+                $params[':academic_year'] = $academic_year;
+            }
+
+            // Add role-based access control
+            if ($role === 'parent') {
+                if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
+                    Response::forbidden('Parent profile not linked to any students');
+                    return;
+                }
+
+                // Verify the requested student is linked to this parent
+                $link_check = "SELECT COUNT(*) as count FROM parent_student_links psl
+                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id";
+                $link_stmt = $this->conn->prepare($link_check);
+                $link_stmt->bindValue(':parent_id', $token_data['linked_id']);
+                $link_stmt->bindValue(':student_id', $student_id);
+                $link_stmt->execute();
+
+                if ($link_stmt->fetch()['count'] == 0) {
+                    Response::forbidden('Not authorized to view this student\'s results');
+                    return;
+                }
+            } elseif ($role === 'teacher') {
+                if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
+                    Response::forbidden('Teacher profile not linked');
+                    return;
+                }
+
+                // Verify teacher has access to this student's class
+                $access_check = "SELECT COUNT(*) as count 
+                                FROM students st
+                                JOIN classes cl ON st.class_id = cl.id
+                                LEFT JOIN class_teacher_assignments cta ON cl.id = cta.class_id
+                                WHERE st.id = :student_id 
+                                AND (cl.class_teacher_id = :teacher_id OR cta.teacher_id = :teacher_id)";
+                $access_stmt = $this->conn->prepare($access_check);
+                $access_stmt->bindValue(':student_id', $student_id);
+                $access_stmt->bindValue(':teacher_id', $token_data['linked_id']);
+                $access_stmt->execute();
+
+                if ($access_stmt->fetch()['count'] == 0) {
+                    Response::forbidden('Not authorized to view this student\'s results');
+                    return;
+                }
+            }
+            // Admin and accountant have full access
+
+            $stmt = $this->conn->prepare($query);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value);
+            }
+            $stmt->execute();
+
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Convert snake_case to camelCase for frontend compatibility
+            $camelCaseResults = array_map(function($result) {
+                return [
+                    'id' => $result['id'] ?? null,
+                    'studentId' => $result['student_id'] ?? null,
+                    'classId' => $result['class_id'] ?? null,
+                    'term' => $result['term'] ?? null,
+                    'academicYear' => $result['academic_year'] ?? null,
+                    'status' => $result['status'] ?? null,
+                    'totalScore' => $result['total_score'] ?? null,
+                    'average' => $result['average'] ?? null,
+                    'position' => $result['position'] ?? null,
+                    'grade' => $result['grade'] ?? null,
+                    'subjects' => json_decode($result['subjects'] ?? '[]', true),
+                    'attendance' => json_decode($result['attendance'] ?? '[]', true),
+                    'affectiveDomains' => json_decode($result['affective_domains'] ?? '[]', true),
+                    'psychomotorDomains' => json_decode($result['psychomotor_domains'] ?? '[]', true),
+                    'teacherComment' => $result['teacher_comment'] ?? null,
+                    'headTeacherComment' => $result['head_teacher_comment'] ?? null,
+                    'compiledAt' => $result['compiled_at'] ?? null,
+                    'compiledBy' => $result['compiled_by'] ?? null,
+                    'firstName' => $result['first_name'] ?? null,
+                    'lastName' => $result['last_name'] ?? null,
+                    'admissionNumber' => $result['admission_number'] ?? null,
+                    'className' => $result['class_name'] ?? null,
+                ];
+            }, $results);
+
+            Response::success($camelCaseResults, 'Student results retrieved successfully');
+
+        } catch (Exception $e) {
+            Response::serverError('Failed to retrieve student results');
+        }
     }
 }
 ?>

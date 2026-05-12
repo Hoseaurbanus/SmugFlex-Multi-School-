@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -20,19 +20,31 @@ export function PaymentReportsPage() {
     currentTerm,
     currentAcademicYear,
     schoolSettings,
+    getAllAcademicYears,
   } = useSchool();
 
   const [filterClass, setFilterClass] = useState<string>("all");
-  const [filterTerm, setFilterTerm] = useState(currentTerm);
-  const [filterYear, setFilterYear] = useState(currentAcademicYear);
+  const [filterTerm, setFilterTerm] = useState<string>(currentTerm || "");
+  const [filterYear, setFilterYear] = useState<string>(currentAcademicYear || "");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [academicYears, setAcademicYears] = useState<string[]>([]);
+
+  // Load academic years dynamically
+  useEffect(() => {
+    const loadYears = async () => {
+      const years = await getAllAcademicYears();
+      setAcademicYears(years);
+    };
+    loadYears();
+  }, [getAllAcademicYears]);
 
   const getFilteredData = (): any[] => {
     return studentFeeBalances.filter(
       (balance) =>
         (filterClass === "all" || balance.class_id === Number(filterClass)) &&
         balance.academic_year === filterYear &&
-        balance.term === filterTerm
+        balance.term === filterTerm &&
+        (filterStatus === "all" || balance.status === filterStatus)
     );
   };
 
@@ -124,11 +136,20 @@ export function PaymentReportsPage() {
   };
 
   const exportToCSV = () => {
+    const escapeCSV = (value: any) => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const filteredBalances = getFilteredData();
     const stats = calculateStats();
 
     let csv = "Payment Report\n";
-    csv += `${schoolSettings.school_name}\n`;
+    csv += `${escapeCSV(schoolSettings.school_name)}\n`;
     csv += `Term: ${filterTerm}, Academic Year: ${filterYear}\n`;
     csv += `Generated: ${new Date().toLocaleDateString()}\n\n`;
     
@@ -148,21 +169,22 @@ export function PaymentReportsPage() {
       const student = students.find((s) => s.id === balance.student_id);
       const classInfo = classes.find((c) => c.id === balance.class_id);
       
-      csv += `${student ? `${student.firstName} ${student.lastName}` : "N/A"},`;
-      csv += `${student?.admissionNumber || "N/A"},`;
-      csv += `${classInfo?.name || "N/A"},`;
+      csv += `${escapeCSV(student ? `${student.firstName} ${student.lastName}` : "N/A")},`;
+      csv += `${escapeCSV(student?.admissionNumber || "N/A")},`;
+      csv += `${escapeCSV(classInfo?.name || "N/A")},`;
       csv += `${balance.total_fee_required},`;
       csv += `${balance.total_paid},`;
       csv += `${balance.balance},`;
       csv += `${balance.status}\n`;
     });
 
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `Payment_Report_${filterTerm}_${filterYear}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
     
     toast.success("CSV exported successfully!");
   };
@@ -363,9 +385,17 @@ export function PaymentReportsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2023/2024">2023/2024</SelectItem>
-                  <SelectItem value="2024/2025">2024/2025</SelectItem>
-                  <SelectItem value="2025/2026">2025/2026</SelectItem>
+                  {academicYears.length > 0 ? (
+                    academicYears.map((year) => (
+                      <SelectItem key={year} value={year}>{year}</SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="2023/2024">2023/2024</SelectItem>
+                      <SelectItem value="2024/2025">2024/2025</SelectItem>
+                      <SelectItem value="2025/2026">2025/2026</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

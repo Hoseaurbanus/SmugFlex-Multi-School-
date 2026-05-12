@@ -138,17 +138,6 @@ class ProgressionController {
                 return ['valid' => false, 'message' => 'Invalid progression path'];
             }
             
-            // Check class capacity
-            $capacity_query = "SELECT capacity, current_students, max_capacity FROM classes WHERE id = :to_class_id";
-            $capacity_stmt = $this->conn->prepare($capacity_query);
-            $capacity_stmt->bindParam(':to_class_id', $toClassId);
-            $capacity_stmt->execute();
-            $class_info = $capacity_stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($class_info && $class_info['current_students'] >= $class_info['max_capacity']) {
-                return ['valid' => false, 'message' => 'Destination class is at full capacity'];
-            }
-            
             return ['valid' => true, 'message' => 'Promotion path is valid'];
             
         } catch (PDOException $e) {

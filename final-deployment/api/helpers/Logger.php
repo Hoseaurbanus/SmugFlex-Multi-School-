@@ -145,10 +145,11 @@ class Logger {
         // Write to log file
         file_put_contents(self::$logFile, $logEntry, FILE_APPEND | LOCK_EX);
         
-        // Also log to PHP error log for critical errors
-        if ($level === 'CRITICAL' || $level === 'ERROR') {
-            error_log("SCHOOL_SYSTEM: {$message}");
-        }
+        // Security: No logging to PHP error log in production
+        // Use internal logging only
+        // if ($level === 'CRITICAL' || $level === 'ERROR') {
+        //     error_log("SCHOOL_SYSTEM: {$message}");
+        // }
     }
     
     /**

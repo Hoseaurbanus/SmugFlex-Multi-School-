@@ -4,13 +4,22 @@
  * Graceland Royal Academy School Management System
  */
 
-// Set enhanced CORS headers for all requests (explicit and early)
+// CORS Configuration: Only allow requests from whitelisted domains
+$allowed_origins = [
+    'https://gracelandroyalacademy.com.ng',
+    'https://www.gracelandroyalacademy.com.ng',
+    'http://localhost:3000',  // Development only
+];
+
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if (in_array($origin, $allowed_origins)) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+}
+
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
-header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
-header('Access-Control-Allow-Credentials: true');
-header('Access-Control-Max-Age: 86400');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization');
+header('Access-Control-Max-Age: 3600');
 
 // Handle preflight requests immediately
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -32,6 +41,7 @@ require_once 'controllers/ClassController.php';
 require_once 'controllers/SubjectController.php';
 require_once 'controllers/ResultsController.php';
 require_once 'controllers/PaymentController.php';
+require_once 'controllers/InvoiceController.php';
 require_once 'controllers/ParentController.php';
 require_once 'controllers/ReportController.php';
 require_once 'controllers/AttendanceController.php';
@@ -40,6 +50,7 @@ require_once 'controllers/AssignmentController.php';
 require_once 'controllers/FileController.php';
 require_once 'controllers/UserController.php';
 require_once 'controllers/ProgressionController.php';
+require_once 'controllers/RealtimeController.php';
 
 // Get request method and path
 $method = $_SERVER['REQUEST_METHOD'];
@@ -54,10 +65,18 @@ $path_parts = explode('/', trim($path, '/'));
 // Simple routing
 try {
     switch ($path_parts[0]) {
-        // TEMPORARY: Debug endpoint — DELETE AFTER DIAGNOSIS
-        case 'debug-auth':
-            require_once __DIR__ . '/debug-auth.php';
+
+        // Realtime (SSE) routes
+        case 'realtime':
+            $realtimeController = new RealtimeController();
+
+            if ($method === 'GET' && isset($path_parts[1]) && $path_parts[1] === 'stream') {
+                $realtimeController->stream();
+            } else {
+                Response::notFound('Realtime endpoint not found');
+            }
             break;
+
 
         // Database query routes
         case 'database':
@@ -65,6 +84,29 @@ try {
                 require_once __DIR__ . '/database/query.php';
             } else {
                 Response::notFound('Database endpoint not found');
+            }
+            break;
+
+        // Invoice routes
+        case 'invoices':
+            $invoiceController = new InvoiceController();
+
+            if ($method === 'POST') {
+                if (isset($path_parts[1]) && $path_parts[1] === 'auto-generate') {
+                    $invoiceController->autoGenerateInvoices();
+                } else {
+                    Response::notFound('Invoice endpoint not found');
+                }
+            } elseif ($method === 'GET') {
+                if (isset($path_parts[1]) && $path_parts[1] === 'student' && isset($path_parts[2])) {
+                    $invoiceController->getStudentInvoice($path_parts[2]);
+                } elseif (isset($path_parts[1]) && $path_parts[1] === 'class' && isset($path_parts[2])) {
+                    $invoiceController->getClassInvoices($path_parts[2]);
+                } else {
+                    Response::notFound('Invoice endpoint not found');
+                }
+            } else {
+                Response::notFound('Invoice endpoint not found');
             }
             break;
 
@@ -255,6 +297,8 @@ try {
                         $classController->getClassStatistics($path_parts[2]);
                     } elseif ($path_parts[1] === 'by-level' && isset($path_parts[2])) {
                         $classController->getClassesByLevel($path_parts[2]);
+                    } elseif ($path_parts[1] === 'whatsapp-groups') {
+                        $classController->getClassWhatsappGroups();
                     } else {
                         $classController->getClassById($path_parts[1]);
                     }
@@ -300,6 +344,10 @@ try {
                     $resultsController->approveScore($path_parts[3]);
                 } elseif ($path_parts[1] === 'scores' && isset($path_parts[2]) && $path_parts[2] === 'reject' && isset($path_parts[3])) {
                     $resultsController->rejectScore($path_parts[3]);
+                } elseif ($path_parts[1] === 'approve' && isset($path_parts[2])) {
+                    $resultsController->approveResult($path_parts[2]);
+                } elseif ($path_parts[1] === 'reject' && isset($path_parts[2])) {
+                    $resultsController->rejectResult($path_parts[2]);
                 } elseif ($path_parts[1] === 'scores') {
                     $resultsController->upsertScores();
                 } elseif ($path_parts[1] === 'compile') {
@@ -310,6 +358,12 @@ try {
                     $resultsController->checkStudentCompilationStatus();
                 } elseif ($path_parts[1] === 'submit' && isset($path_parts[2])) {
                     $resultsController->submitScores($path_parts[2]);
+                } else {
+                    Response::notFound('Results endpoint not found');
+                }
+            } elseif ($method === 'DELETE') {
+                if ($path_parts[1] === 'compiled' && isset($path_parts[2])) {
+                    $resultsController->deleteCompiledResult($path_parts[2]);
                 } else {
                     Response::notFound('Results endpoint not found');
                 }
@@ -326,6 +380,10 @@ try {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'reports') {
                         $paymentController->getPaymentReports();
+                    } elseif ($path_parts[1] === 'reconciliation-summary') {
+                        $paymentController->getReconciliationSummary();
+                    } elseif ($path_parts[1] === 'exceptions') {
+                        $paymentController->getPaymentExceptions();
                     } elseif ($path_parts[1] === 'online-verify') {
                         $paymentController->verifyOnlinePayment();
                     } elseif ($path_parts[1] === 'student' && isset($path_parts[2])) {
@@ -346,6 +404,8 @@ try {
                 if (isset($path_parts[1])) {
                     if ($path_parts[1] === 'verify' && isset($path_parts[2])) {
                         $paymentController->verifyPayment($path_parts[2]);
+                    } elseif ($path_parts[1] === 'reverse' && isset($path_parts[2])) {
+                        $paymentController->reversePayment($path_parts[2]);
                     } elseif ($path_parts[1] === 'online-init') {
                         $paymentController->initializeOnlinePayment();
                     } elseif ($path_parts[1] === 'bank-transfer-proof') {
@@ -519,7 +579,13 @@ try {
                     $notificationController->markAsRead($path_parts[1]);
                 }
             } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                $notificationController->deleteNotificationForUser($path_parts[1]);
+                // Admin can delete globally. Other roles can only dismiss for themselves.
+                $token_data = Middleware::requireAuth();
+                if (($token_data['role'] ?? '') === 'admin') {
+                    $notificationController->deleteNotification($path_parts[1]);
+                } else {
+                    $notificationController->deleteNotificationForUser($path_parts[1]);
+                }
             } else {
                 Response::notFound('Notification endpoint not found');
             }
@@ -556,34 +622,6 @@ try {
                 $assignmentController->deleteAssignment($path_parts[1]);
             } else {
                 Response::notFound('Assignment endpoint not found');
-            }
-            break;
-
-        // Results routes
-        case 'results':
-            require_once 'controllers/ResultsController.php';
-            $resultsController = new ResultsController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'compiled') {
-                    $resultsController->getAllCompiledResults();
-                } elseif (isset($path_parts[1]) && $path_parts[1] === 'pending-approvals') {
-                    $resultsController->getPendingApprovals();
-                } elseif (isset($path_parts[1]) && $path_parts[1] === 'assignment' && isset($path_parts[2])) {
-                    $resultsController->getScoresByAssignment($path_parts[2]);
-                } else {
-                    $resultsController->getScoresByTerm();
-                }
-            } elseif ($method === 'POST') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'compile') {
-                    $resultsController->compileResults();
-                } elseif (isset($path_parts[1]) && $path_parts[1] === 'approve' && isset($path_parts[2])) {
-                    $resultsController->approveResult($path_parts[2]);
-                } else {
-                    Response::notFound('Results endpoint not found');
-                }
-            } else {
-                Response::notFound('Results endpoint not found');
             }
             break;
 

@@ -3,7 +3,7 @@
  * Production-ready database operations with proper error handling
  * Integrates with existing PHP API structure
  */
-import { getAuthToken, API_CONFIG } from '../config/api';
+import { getAuthToken, API_CONFIG, getCurrentUser as getApiCurrentUser } from '../config/api';
 import { tokenManager } from '../utils/tokenManager';
 
 // Production database configuration
@@ -110,6 +110,16 @@ class SQLDatabaseService {
 
     return this.debouncedRequest(queryKey, async () => {
       try {
+        const storedUser: any = getApiCurrentUser();
+        if (String(storedUser?.role || '').toLowerCase() === 'parent') {
+          return {
+            success: false,
+            status: 403,
+            message: 'Access denied for this operation',
+            data: null
+          };
+        }
+
         let token = getAuthToken();
         if (!token) {
           throw new Error('Authentication required for database operations');
@@ -130,17 +140,14 @@ class SQLDatabaseService {
 
         // If unauthorized, attempt to refresh token once
         if (response.status === 401) {
-          console.warn('Received 401 Unauthorized. Attempting token refresh...');
           const refreshed = await tokenManager.refreshAuthToken();
 
           if (refreshed) {
             token = getAuthToken();
             if (token) {
-              console.log('Token refreshed. Retrying query...');
               response = await makeRequest(token);
             }
           } else {
-            console.error('Token refresh failed. Directing user to login...');
             // Redirect to login or logout if refresh fails
             tokenManager.clearToken();
             window.location.href = '/login';

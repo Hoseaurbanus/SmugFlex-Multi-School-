@@ -10,6 +10,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
+require_once __DIR__ . '/../helpers/Middleware.php';
+
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -33,21 +35,34 @@ if (!$input) {
 }
 
 // Validate required fields
-$required_fields = ['username', 'email', 'role', 'firstName', 'lastName', 'password'];
+$required_fields = ['username', 'email', 'role', 'password'];
 foreach ($required_fields as $field) {
-    if (!isset($input[$field]) || empty(trim($input[$field]))) {
+    if (!isset($input[$field]) || empty(trim((string)$input[$field]))) {
         http_response_code(400);
         echo json_encode(['error' => "Missing required field: $field"]);
         exit();
     }
 }
 
-$username = trim($input['username']);
-$email = trim(strtolower($input['email']));
-$role = $input['role'];
-$firstName = trim($input['firstName']);
-$lastName = trim($input['lastName']);
-$password = $input['password'];
+$username = trim((string)$input['username']);
+$email = trim(strtolower((string)$input['email']));
+$role = (string)$input['role'];
+
+// firstName/lastName are required for non-admin roles. For admin creation, default them.
+$firstName = isset($input['firstName']) ? trim((string)$input['firstName']) : '';
+$lastName = isset($input['lastName']) ? trim((string)$input['lastName']) : '';
+if (strtolower($role) === 'admin') {
+    if ($firstName === '') $firstName = $username;
+    if ($lastName === '') $lastName = 'Admin';
+} else {
+    if ($firstName === '' || $lastName === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing required field: firstName/lastName']);
+        exit();
+    }
+}
+
+$password = (string)$input['password'];
 $phone = $input['phone'] ?? '';
 $address = $input['address'] ?? '';
 $occupation = $input['occupation'] ?? '';
@@ -72,6 +87,9 @@ if (!in_array($role, $valid_roles)) {
 }
 
 try {
+    // Only admins can create users
+    Middleware::requireRole('admin');
+
     // Use existing database configuration
     require_once __DIR__ . '/../config/database.php';
     
@@ -130,13 +148,33 @@ try {
         // Generate unique employee_id if not provided
         $employee_id = $input['employee_id'] ?? '';
         if (empty($employee_id)) {
-            // Generate unique employee ID
             $prefix = 'TCH';
             $year = date('Y');
-            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM teachers WHERE employee_id LIKE ?");
-            $stmt->execute(["{$prefix}%"]);
-            $count = $stmt->fetch()['count'];
-            $employee_id = $prefix . $year . sprintf('%03d', $count + 1);
+            $basePrefix = $prefix . $year;
+
+            $attempt = 0;
+            $maxAttempts = 10;
+            while (true) {
+                $stmt = $conn->prepare("SELECT MAX(CAST(SUBSTRING(employee_id, 8) AS UNSIGNED)) AS max_seq FROM teachers WHERE employee_id LIKE ?");
+                $stmt->execute(["{$basePrefix}%"]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                $maxSeq = isset($row['max_seq']) && $row['max_seq'] !== null ? (int)$row['max_seq'] : 0;
+
+                $nextSeq = $maxSeq + 1 + $attempt;
+                $candidate = $basePrefix . sprintf('%03d', $nextSeq);
+
+                $check = $conn->prepare("SELECT id FROM teachers WHERE employee_id = ? LIMIT 1");
+                $check->execute([$candidate]);
+                if (!$check->fetch()) {
+                    $employee_id = $candidate;
+                    break;
+                }
+
+                $attempt++;
+                if ($attempt >= $maxAttempts) {
+                    throw new Exception('Failed to generate unique employee ID');
+                }
+            }
         }
         
         // Handle specialization as JSON
@@ -209,6 +247,19 @@ try {
         ]
     ]);
     
+} catch (PDOException $e) {
+    if (isset($conn) && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
+
+    if ($e->getCode() === '23000') {
+        http_response_code(409);
+        echo json_encode(['error' => 'Duplicate entry detected. Please retry.']);
+        exit();
+    }
+
+    http_response_code(500);
+    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
 } catch (Exception $e) {
     // Roll back transaction on error
     if (isset($conn) && $conn->inTransaction()) {

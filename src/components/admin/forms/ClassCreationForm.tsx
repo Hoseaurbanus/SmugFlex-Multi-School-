@@ -20,7 +20,7 @@ export function ClassCreationForm({ onClose, onSuccess }: ClassCreationFormProps
     name: "",
     category: "",
     level: "",
-    capacity: "",
+    capacity: "50",
     classTeacherId: "",
     section: "",
     status: "Active" as "Active" | "Inactive"
@@ -69,6 +69,11 @@ export function ClassCreationForm({ onClose, onSuccess }: ClassCreationFormProps
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!currentAcademicYear) {
+      toast.error('Please set the current academic year in Settings before creating a class');
+      return;
+    }
     
     if (!validateForm()) {
       toast.error("Please fix all errors before submitting");
@@ -97,9 +102,6 @@ export function ClassCreationForm({ onClose, onSuccess }: ClassCreationFormProps
         updatedAt: new Date().toISOString(),
       };
 
-      console.log('=== CLASS CREATION ===');
-      console.log('Submitting class data:', classData);
-
       const newClassId = await addClass(classData);
       
       if (newClassId > 0) {
@@ -110,8 +112,11 @@ export function ClassCreationForm({ onClose, onSuccess }: ClassCreationFormProps
         toast.error('Failed to create class - please try again');
       }
     } catch (error) {
-      console.error('Class creation error:', error);
-      toast.error('Failed to create class - please check your connection and try again');
+      if (error instanceof Error && error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to create class - please check your connection and try again');
+      }
     } finally {
       setIsSubmitting(false);
     }

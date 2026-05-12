@@ -32,7 +32,6 @@ export function NotificationsPage() {
       try {
         await loadNotificationsFromAPI();
       } catch (error) {
-        console.error('Error loading notifications:', error);
         toast.error('Failed to load notifications');
       } finally {
         setLoading(false);

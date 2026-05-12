@@ -11,7 +11,17 @@ class Response {
     public static function json($data, $status_code = 200, $message = '') {
         header_remove();
         header('Content-Type: application/json');
-        header('Access-Control-Allow-Origin: *');
+
+        // SECURITY FIX: Use specific origins instead of wildcard
+        $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+        $allowedOrigins = Config::getAllowedOrigins();
+        if (in_array($origin, $allowedOrigins, true)) {
+            header("Access-Control-Allow-Origin: $origin");
+        } else {
+            // Default to first allowed origin or empty if none configured
+            header('Access-Control-Allow-Origin: ' . ($allowedOrigins[0] ?? ''));
+        }
+
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
         header('Access-Control-Allow-Credentials: true');
@@ -144,7 +154,16 @@ class Response {
     public static function options() {
         header_remove();
         header('Content-Type: application/json');
-        header('Access-Control-Allow-Origin: *');
+
+        // SECURITY FIX: Use specific origins instead of wildcard
+        $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+        $allowedOrigins = Config::getAllowedOrigins();
+        if (in_array($origin, $allowedOrigins, true)) {
+            header("Access-Control-Allow-Origin: $origin");
+        } else {
+            header('Access-Control-Allow-Origin: ' . ($allowedOrigins[0] ?? ''));
+        }
+
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
         header('Access-Control-Allow-Credentials: true');

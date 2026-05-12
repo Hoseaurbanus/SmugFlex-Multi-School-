@@ -158,25 +158,12 @@ export function CreateUserPage() {
         status: accountStatus === 'active' ? 'Active' : 'Inactive'
       };
 
-      // Debug: Log the complete user data being sent to API
-      console.log('=== FRONTEND USER CREATION DEBUG ===');
-      console.log('Original fullName:', fullName);
-      console.log('Parsed firstName:', firstName);
-      console.log('Parsed lastName:', lastName);
-      console.log('Complete userData object:', userData);
-      console.log('Role:', role);
-      console.log('AccountStatus:', accountStatus);
-      console.log('=====================================');
-
       // Create user through API
-      console.log('Calling createUserAPI with userData:', userData);
       const newUser = await createUserAPI(userData);
-      console.log('createUserAPI response:', newUser);
       
       if (newUser && newUser.id) {
         // Additional validation for parent users to ensure proper linked_id
         if (role === 'parent' && (!newUser.linked_id || newUser.linked_id === 0)) {
-          console.error('Parent user created without valid linked_id');
           toast.error("Parent user created without proper linking. Please contact administrator.");
           return;
         }
@@ -185,7 +172,6 @@ export function CreateUserPage() {
         if (role === 'parent' && newUser.linked_id) {
           const parentRecord = parents.find(p => p.id === newUser.linked_id);
           if (!parentRecord) {
-            console.error('Parent user linked to non-existent parent record:', newUser.linked_id);
             toast.error("Parent user linked to invalid record. Please contact administrator.");
             return;
           }
@@ -215,11 +201,9 @@ export function CreateUserPage() {
         setAssignedClass("");
         setAssignedSubjects([]);
       } else {
-        console.error('User creation failed - no user returned from API');
         toast.error("Failed to create user - please check all fields and try again");
       }
     } catch (error: any) {
-      console.error('Create user error:', error);
       toast.error(`Failed to create user: ${error.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);

@@ -10,10 +10,11 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
 import { API_CONFIG } from '../../config/api';
+import { tokenManager } from '../../utils/tokenManager';
 
 export function SystemSettingsPage() {
-  // Remove console.log from render body - move to useEffect for initial mount only
   const isInitialMount = useRef(true);
+  const hasEditedAttendance = useRef(false);
   
   const {
     students,
@@ -67,19 +68,6 @@ export function SystemSettingsPage() {
   // Log initial mount only once
   useEffect(() => {
     if (isInitialMount.current) {
-      console.log("=== SYSTEM SETTINGS PAGE MOUNTED ===");
-      console.log("SystemSettingsPage - Context data:", {
-        currentUser: currentUser ? { id: currentUser.id, role: currentUser.role, username: currentUser.username } : null,
-        currentAcademicYear,
-        currentTerm,
-        schoolSettings: Object.keys(schoolSettings).length > 0 ? "loaded" : "empty",
-        usersCount: users.length
-      });
-      console.log("SystemSettingsPage - Permission check:", {
-        currentUser: currentUser ? { id: currentUser.id, role: currentUser.role, username: currentUser.username } : null,
-        hasAccess
-      });
-      console.log("SystemSettingsPage - Access granted, rendering page...");
       isInitialMount.current = false;
     }
   }, [currentUser, currentAcademicYear, currentTerm, schoolSettings, users.length, hasAccess]);
@@ -123,6 +111,28 @@ export function SystemSettingsPage() {
     principalName: '',
   });
 
+  const normalizeDateForInput = useCallback((value: unknown): string => {
+    const raw = String(value ?? '').trim();
+    if (!raw || raw === '0000-00-00' || raw === '0000-00-00 00:00:00') return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) {
+      const [, dd, mm, yyyy] = m;
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return raw;
+  }, []);
+
+  const normalizeDateForSave = useCallback((value: unknown): string => {
+    const normalized = normalizeDateForInput(value);
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : '';
+  }, [normalizeDateForInput]);
+
+  const [nextTermResumptionDate, setNextTermResumptionDate] = useState<string>('');
+  const [loadedSignatureSettings, setLoadedSignatureSettings] = useState<any>(null);
+  const [isNextTermLoading, setIsNextTermLoading] = useState(false);
+  const [isNextTermSaving, setIsNextTermSaving] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
 
   // Update local state when context changes - use useCallback to prevent unnecessary re-renders
@@ -140,20 +150,17 @@ export function SystemSettingsPage() {
   // Memoized attendance requirements loading to prevent repeated calls
   const loadAttendanceRequirementsOnce = useCallback(async () => {
     if (currentUser) {
-      console.log('SystemSettingsPage - currentUser detected, loading attendance requirements');
       try {
-        await loadAttendanceRequirements();
-        console.log('SystemSettingsPage - attendance requirements loaded, updating local state');
-        const requirements = getAttendanceRequirements();
-        console.log('SystemSettingsPage - requirements after load:', requirements);
-        if (requirements && Object.keys(requirements).length > 0) {
+        const requirements = await loadAttendanceRequirements();
+
+        if (!hasEditedAttendance.current && requirements && Object.keys(requirements).length > 0) {
           setAttendanceData(requirements);
         }
       } catch (error) {
-        console.error('SystemSettingsPage - Error loading attendance requirements:', error);
+        // Silent fail for security
       }
     }
-  }, [currentUser, loadAttendanceRequirements, getAttendanceRequirements]);
+  }, [currentUser, loadAttendanceRequirements]);
 
   // Load attendance requirements only when currentUser changes
   useEffect(() => {
@@ -178,13 +185,13 @@ export function SystemSettingsPage() {
   // Memoized signature data update
   const updateSignatureData = useCallback(() => {
     if (schoolSettings && Object.keys(schoolSettings).length > 0) {
-      setSignatureData({
+      setSignatureData((prev) => ({
+        ...prev,
         principal_name: schoolSettings.principal_name || '',
         principal_comment: schoolSettings.principal_comment || '',
         head_teacher_name: schoolSettings.head_teacher_name || '',
-        head_teacher_comment: schoolSettings.head_teacher_comment || '',
-        resumption_date: schoolSettings.resumption_date || ''
-      });
+        head_teacher_comment: schoolSettings.head_teacher_comment || ''
+      }));
       
       // Set signature previews from school settings
       if (schoolSettings.principal_signature) {
@@ -227,6 +234,104 @@ export function SystemSettingsPage() {
     };
   }, [currentUser, loadSchoolSettings]);
 
+  // Load per-term "Next Term Begins" value used on student result sheets
+  useEffect(() => {
+    let isMounted = true;
+    const loadNextTermResumptionDate = async () => {
+      try {
+        if (!currentAcademicYear || !currentTerm) return;
+
+        setIsNextTermLoading(true);
+        await tokenManager.ensureToken(currentUser);
+        const token = tokenManager.getToken();
+        if (!token) return;
+
+        const query = new URLSearchParams({
+          academic_year: String(currentAcademicYear),
+          term: String(currentTerm)
+        });
+
+        const resp = await fetch(`${API_CONFIG.BASE_URL}/signature_settings.php?${query.toString()}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const json = await resp.json();
+        const data = (json && json.success === true) ? (json.data ?? null) : null;
+        const loaded = normalizeDateForInput((data as any)?.resumption_date);
+
+        if (!isMounted) return;
+        setLoadedSignatureSettings(data);
+        setNextTermResumptionDate(loaded);
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadedSignatureSettings(null);
+        setNextTermResumptionDate('');
+      } finally {
+        if (isMounted) setIsNextTermLoading(false);
+      }
+    };
+
+    loadNextTermResumptionDate();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentAcademicYear, currentTerm, normalizeDateForInput]);
+
+  const handleSaveNextTermBegins = async () => {
+    setIsNextTermSaving(true);
+    try {
+      await tokenManager.ensureToken(currentUser);
+      const token = tokenManager.getToken();
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
+      if (!currentAcademicYear || !currentTerm) {
+        toast.error('Academic year and term must be set');
+        return;
+      }
+
+      const payload = {
+        academic_year: String(currentAcademicYear),
+        term: String(currentTerm),
+        principal_name: String((loadedSignatureSettings as any)?.principal_name ?? ''),
+        principal_signature: (loadedSignatureSettings as any)?.principal_signature ?? null,
+        principal_comment: String((loadedSignatureSettings as any)?.principal_comment ?? ''),
+        head_teacher_name: String((loadedSignatureSettings as any)?.head_teacher_name ?? ''),
+        head_teacher_signature: (loadedSignatureSettings as any)?.head_teacher_signature ?? null,
+        head_teacher_comment: String((loadedSignatureSettings as any)?.head_teacher_comment ?? ''),
+        resumption_date: normalizeDateForSave(nextTermResumptionDate),
+      };
+
+      const resp = await fetch(`${API_CONFIG.BASE_URL}/signature_settings.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const json = await resp.json();
+      if (!json || json.success !== true) {
+        throw new Error((json as any)?.message || 'Failed to save next term begins date');
+      }
+
+      const saved = (json as any)?.data ?? null;
+      setLoadedSignatureSettings(saved);
+      setNextTermResumptionDate(normalizeDateForInput((saved as any)?.resumption_date));
+      toast.success('Next term begins date saved');
+    } catch (error) {
+      toast.error('Failed to save next term begins date');
+    } finally {
+      setIsNextTermSaving(false);
+    }
+  };
+
   const [adminData, setAdminData] = useState({
     username: "",
     email: "",
@@ -244,7 +349,6 @@ export function SystemSettingsPage() {
       await updateCurrentTermAndYear(sessionData.currentSession, sessionData.currentTerm);
       toast.success(`Academic session and term updated to ${sessionData.currentSession} - ${sessionData.currentTerm}`);
     } catch (error) {
-      console.error('Error updating session:', error);
       toast.error("Failed to update academic session and term");
     } finally {
       setIsLoading(false);
@@ -267,7 +371,6 @@ export function SystemSettingsPage() {
         loadSchoolSettings();
       }, 500);
     } catch (error) {
-      console.error('Error saving branding:', error);
       toast.error("Failed to save school branding");
     } finally {
       setIsLoading(false);
@@ -275,7 +378,6 @@ export function SystemSettingsPage() {
   };
 
   const handleSaveAttendance = async () => {
-    console.log('Save button clicked, current attendance data:', attendanceData);
     setIsLoading(true);
     
     try {
@@ -287,17 +389,12 @@ export function SystemSettingsPage() {
         .map(([term, days]) => `${term}: ${days} days`)
         .join(', ');
       
-      console.log('About to show success message with:', savedTerms);
-      
       if (savedTerms) {
         toast.success(`Attendance requirements saved successfully! ${savedTerms}`);
       } else {
         toast.success('Attendance requirements saved successfully!');
       }
-      
-      console.log('Success message should be displayed now');
     } catch (error) {
-      console.error('Error saving attendance requirements:', error);
       toast.error('Failed to save attendance requirements');
     } finally {
       setIsLoading(false);
@@ -312,7 +409,6 @@ export function SystemSettingsPage() {
         head_teacher_name: signatureData.head_teacher_name,
         principal_comment: signatureData.principal_comment,
         head_teacher_comment: signatureData.head_teacher_comment,
-        resumption_date: signatureData.resumption_date,
         principal_signature: principalSignaturePreview,
         head_teacher_signature: headTeacherSignaturePreview
       });
@@ -323,7 +419,6 @@ export function SystemSettingsPage() {
         loadSchoolSettings();
       }, 500);
     } catch (error) {
-      console.error('Error saving signature settings:', error);
       toast.error("Failed to save signature settings");
     } finally {
       setIsLoading(false);
@@ -375,7 +470,6 @@ export function SystemSettingsPage() {
             toast.error('Upload failed: Server error');
           }
         } catch (error) {
-          console.error('Upload error:', error);
           toast.error('Upload failed: Network error');
         }
       } else {
@@ -429,7 +523,6 @@ export function SystemSettingsPage() {
             toast.error('Upload failed: Server error');
           }
         } catch (error) {
-          console.error('Upload error:', error);
           toast.error('Upload failed: Network error');
         }
       } else {
@@ -483,7 +576,6 @@ export function SystemSettingsPage() {
             toast.error('Upload failed: Server error');
           }
         } catch (error) {
-          console.error('Upload error:', error);
           toast.error('Upload failed: Network error');
         }
       } else {
@@ -517,7 +609,6 @@ export function SystemSettingsPage() {
       toast.success("New admin account created successfully!");
       setAdminData({ username: "", email: "", password: "" });
     } catch (error) {
-      console.error('Error creating admin:', error);
       toast.error("Failed to create admin account");
     } finally {
       setIsLoading(false);
@@ -548,7 +639,6 @@ export function SystemSettingsPage() {
         toast.error("Password reset failed");
       }
     } catch (error) {
-      console.error('Error resetting password:', error);
       toast.error("Failed to reset password");
     } finally {
       setIsLoading(false);
@@ -712,8 +802,8 @@ export function SystemSettingsPage() {
                   type="number"
                   value={attendanceData['First Term'] === 0 ? '' : attendanceData['First Term'] || ''}
                   onChange={(e) => {
+                    hasEditedAttendance.current = true;
                     const newValue = e.target.value;
-                    console.log('First Term input changed:', newValue);
                     setAttendanceData(prev => ({ 
                       ...prev, 
                       'First Term': newValue === '' ? 0 : parseInt(newValue) || 0 
@@ -731,8 +821,8 @@ export function SystemSettingsPage() {
                   type="number"
                   value={attendanceData['Second Term'] === 0 ? '' : attendanceData['Second Term'] || ''}
                   onChange={(e) => {
+                    hasEditedAttendance.current = true;
                     const newValue = e.target.value;
-                    console.log('Second Term input changed:', newValue);
                     setAttendanceData(prev => ({ 
                       ...prev, 
                       'Second Term': newValue === '' ? 0 : parseInt(newValue) || 0 
@@ -750,8 +840,8 @@ export function SystemSettingsPage() {
                   type="number"
                   value={attendanceData['Third Term'] === 0 ? '' : attendanceData['Third Term'] || ''}
                   onChange={(e) => {
+                    hasEditedAttendance.current = true;
                     const newValue = e.target.value;
-                    console.log('Third Term input changed:', newValue);
                     setAttendanceData(prev => ({ 
                       ...prev, 
                       'Third Term': newValue === '' ? 0 : parseInt(newValue) || 0 
@@ -779,9 +869,9 @@ export function SystemSettingsPage() {
       </Card>
 
       {/* Signature Settings */}
-      <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg max-w-4xl">
-        <CardHeader className="p-5 border-b border-white/10">
-          <h3 className="text-white flex items-center">
+      <Card className="rounded-xl bg-white border border-gray-200 shadow-lg max-w-4xl">
+        <CardHeader className="p-5 border-b border-gray-200">
+          <h3 className="text-gray-900 flex items-center">
             <span className="w-5 h-5 mr-2" />
             Signature Settings
           </h3>
@@ -790,27 +880,27 @@ export function SystemSettingsPage() {
           <div className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-white">Principal Name</Label>
+                <Label className="text-gray-700">Principal Name</Label>
                 <Input
                   value={signatureData.principal_name}
                   onChange={(e) => setSignatureData({ ...signatureData, principal_name: e.target.value })}
-                  className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
+                  className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-white">Head Teacher Name</Label>
+                <Label className="text-gray-700">Head Teacher Name</Label>
                 <Input
                   value={signatureData.head_teacher_name}
                   onChange={(e) => setSignatureData({ ...signatureData, head_teacher_name: e.target.value })}
-                  className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
+                  className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
                 />
               </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <Label className="text-white">Principal Signature</Label>
+                <Label className="text-gray-700">Principal Signature</Label>
                 <div className="space-y-3">
                   <input
                     ref={principalSignatureRef}
@@ -822,19 +912,19 @@ export function SystemSettingsPage() {
                   <Button
                     type="button"
                     onClick={() => principalSignatureRef.current?.click()}
-                    className="w-full bg-[#1E90FF] hover:bg-[#00BFFF] text-white rounded-xl border border-white/10"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
                   >
                     <span className="w-4 h-4 mr-2" />
                     Upload Principal Signature
                   </Button>
                   {principalSignaturePreview && (
-                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                       <img 
                         src={principalSignaturePreview} 
                         alt="Principal Signature" 
                         className="max-h-20 mx-auto"
                       />
-                      <p className="text-xs text-[#C0C8D3] mt-2 text-center">
+                      <p className="text-xs text-gray-600 mt-2 text-center">
                         {principalSignatureFile?.name}
                       </p>
                     </div>
@@ -843,7 +933,7 @@ export function SystemSettingsPage() {
               </div>
 
               <div className="space-y-4">
-                <Label className="text-white">Head Teacher Signature</Label>
+                <Label className="text-gray-700">Head Teacher Signature</Label>
                 <div className="space-y-3">
                   <input
                     ref={headTeacherSignatureRef}
@@ -855,19 +945,19 @@ export function SystemSettingsPage() {
                   <Button
                     type="button"
                     onClick={() => headTeacherSignatureRef.current?.click()}
-                    className="w-full bg-[#1E90FF] hover:bg-[#00BFFF] text-white rounded-xl border border-white/10"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
                   >
                     <span className="w-4 h-4 mr-2" />
                     Upload Head Teacher Signature
                   </Button>
                   {headTeacherSignaturePreview && (
-                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                       <img 
                         src={headTeacherSignaturePreview} 
                         alt="Head Teacher Signature" 
                         className="max-h-20 mx-auto"
                       />
-                      <p className="text-xs text-[#C0C8D3] mt-2 text-center">
+                      <p className="text-xs text-gray-600 mt-2 text-center">
                         {headTeacherSignatureFile?.name}
                       </p>
                     </div>
@@ -878,43 +968,33 @@ export function SystemSettingsPage() {
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-white">Principal Default Comment</Label>
+                <Label className="text-gray-700">Principal Default Comment</Label>
                 <textarea
                   value={signatureData.principal_comment}
                   onChange={(e) => setSignatureData({ ...signatureData, principal_comment: e.target.value })}
-                  className="w-full h-20 rounded-xl border border-white/10 bg-[#0F243E] text-white p-3 resize-none"
+                  className="w-full h-20 rounded-xl border border-gray-300 bg-white text-gray-900 p-3 resize-none"
                   placeholder="Default comment for principal approval"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-white">Head Teacher Default Comment</Label>
+                <Label className="text-gray-700">Head Teacher Default Comment</Label>
                 <textarea
                   value={signatureData.head_teacher_comment}
                   onChange={(e) => setSignatureData({ ...signatureData, head_teacher_comment: e.target.value })}
-                  className="w-full h-20 rounded-xl border border-white/10 bg-[#0F243E] text-white p-3 resize-none"
+                  className="w-full h-20 rounded-xl border border-gray-300 bg-white text-gray-900 p-3 resize-none"
                   placeholder="Default comment for head teacher approval"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-white">Next Term Resumption Date</Label>
-              <Input
-                type="date"
-                value={signatureData.resumption_date}
-                onChange={(e) => setSignatureData({ ...signatureData, resumption_date: e.target.value })}
-                className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
-              />
-            </div>
-
-            <div className="p-4 bg-[#1E90FF]/10 border border-[#1E90FF] rounded-xl">
-              <p className="text-[#C0C8D3]">
-                <strong className="text-white">Note:</strong> Upload signature images for report cards. Supported formats: PNG, JPG, JPEG. Signatures will appear on student result cards when printed or exported.
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <p className="text-gray-700">
+                <strong className="text-gray-900">Note:</strong> Upload signature images for report cards. Supported formats: PNG, JPG, JPEG. Signatures will appear on student result cards when printed or exported.
               </p>
             </div>
 
-            <Button onClick={handleSaveSignature} disabled={isLoading} className="bg-[#1E90FF] hover:bg-[#00BFFF] text-white rounded-xl shadow-md hover:scale-105 transition-all">
+            <Button onClick={handleSaveSignature} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md hover:scale-105 transition-all">
               <span className="w-4 h-4 mr-2" />
               {isLoading ? "Saving..." : "Save Signature Settings"}
             </Button>
@@ -923,45 +1003,45 @@ export function SystemSettingsPage() {
       </Card>
 
       {/* Create Admin Account */}
-      <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg max-w-4xl">
-        <CardHeader className="p-5 border-b border-white/10">
-          <h3 className="text-white">Administrator Management</h3>
+      <Card className="rounded-xl bg-white border border-gray-200 shadow-lg max-w-4xl">
+        <CardHeader className="p-5 border-b border-gray-200">
+          <h3 className="text-gray-900">Administrator Management</h3>
         </CardHeader>
         <CardContent className="p-6">
           <form onSubmit={handleCreateAdmin} className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-white">New Admin Username</Label>
+                <Label className="text-gray-700">New Admin Username</Label>
                 <Input
                   required
                   value={adminData.username}
                   onChange={(e) => setAdminData({ ...adminData, username: e.target.value })}
                   placeholder="Enter username"
-                  className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
+                  className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-white">Admin Email</Label>
+                <Label className="text-gray-700">Admin Email</Label>
                 <Input
                   required
                   type="email"
                   value={adminData.email}
                   onChange={(e) => setAdminData({ ...adminData, email: e.target.value })}
                   placeholder="admin@gracelandgombe.edu"
-                  className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
+                  className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-white">Initial Password</Label>
+                <Label className="text-gray-700">Initial Password</Label>
                 <Input
                   required
                   type="password"
                   value={adminData.password}
                   onChange={(e) => setAdminData({ ...adminData, password: e.target.value })}
                   placeholder="Enter secure password"
-                  className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
+                  className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
                 />
               </div>
             </div>
@@ -972,25 +1052,25 @@ export function SystemSettingsPage() {
             </Button>
           </form>
 
-          <Separator className="my-6 bg-white/10" />
+          <Separator className="my-6 bg-gray-200" />
 
           <div className="space-y-4">
-            <h4 className="text-white">Password Management</h4>
-            <p className="text-[#C0C8D3]">Reset password for existing users (Admin, Teacher, Accountant, Parent)</p>
+            <h4 className="text-gray-900">Password Management</h4>
+            <p className="text-gray-600">Reset password for existing users (Admin, Teacher, Accountant, Parent)</p>
             
             <div className="grid md:grid-cols-2 gap-3">
               <Input
                 placeholder="Enter username"
                 value={passwordResetData.username}
                 onChange={(e) => setPasswordResetData({ ...passwordResetData, username: e.target.value })}
-                className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
+                className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
               />
               <Input
                 type="password"
                 placeholder="Enter new password"
                 value={passwordResetData.newPassword}
                 onChange={(e) => setPasswordResetData({ ...passwordResetData, newPassword: e.target.value })}
-                className="h-12 rounded-xl border border-white/10 bg-[#0F243E] text-white"
+                className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
               />
             </div>
             <Button onClick={handleResetPassword} disabled={isLoading} className="bg-[#FFC107] hover:bg-[#FFC107]/90 text-[#0A2540] rounded-xl shadow-md hover:scale-105 transition-all whitespace-nowrap px-6">
@@ -1000,28 +1080,55 @@ export function SystemSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* System Info */}
-      <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg max-w-4xl">
-        <CardHeader className="p-5 border-b border-white/10">
-          <h3 className="text-white">System Information</h3>
+      {/* Next Term Begins (Result Sheet) */}
+      <Card className="rounded-xl bg-white border border-gray-200 shadow-lg max-w-4xl">
+        <CardHeader className="p-5 border-b border-gray-200">
+          <h3 className="text-gray-900">Next Term Begins (Result Sheet)</h3>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="p-4 bg-[#0F243E] rounded-xl border border-white/5">
-              <p className="text-[#C0C8D3] mb-1">System Version</p>
-              <p className="text-white">v1.0.0</p>
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              This date is shown on student result sheets as <strong>Next Term Begins</strong>. It is saved per academic year and term.
+            </p>
+
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="text-gray-700">Academic Year</Label>
+                <Input
+                  value={currentAcademicYear || ''}
+                  disabled
+                  className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700">Term</Label>
+                <Input
+                  value={currentTerm || ''}
+                  disabled
+                  className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700">Next Term Resumption Date</Label>
+                <Input
+                  type="date"
+                  value={nextTermResumptionDate}
+                  onChange={(e) => setNextTermResumptionDate(e.target.value)}
+                  disabled={isNextTermLoading}
+                  className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
+                />
+              </div>
             </div>
-            <div className="p-4 bg-[#0F243E] rounded-xl border border-white/5">
-              <p className="text-[#C0C8D3] mb-1">Last Backup</p>
-              <p className="text-white">2024-01-15 10:30 AM</p>
-            </div>
-            <div className="p-4 bg-[#0F243E] rounded-xl border border-white/5">
-              <p className="text-[#C0C8D3] mb-1">Total Users</p>
-              <p className="text-white">{users.length}</p>
-            </div>
-            <div className="p-4 bg-[#0F243E] rounded-xl border border-white/5">
-              <p className="text-[#C0C8D3] mb-1">System Status</p>
-              <p className="text-[#28A745]">Operational</p>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSaveNextTermBegins}
+                disabled={isNextTermSaving || isNextTermLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md hover:scale-105 transition-all"
+              >
+                <span className="w-4 h-4 mr-2" />
+                {isNextTermSaving ? 'Saving...' : 'Save Next Term Begins'}
+              </Button>
             </div>
           </div>
         </CardContent>

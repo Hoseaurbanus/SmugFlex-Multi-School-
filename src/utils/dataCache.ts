@@ -166,7 +166,6 @@ export const withCache = async <T>(
     // If fetch fails, try to return stale cached data
     const stale = cache.get<T>(key);
     if (stale !== null) {
-      console.warn(`Using stale cache for key: ${key}`);
       return stale;
     }
     throw error;

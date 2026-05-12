@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import {
@@ -23,7 +23,7 @@ interface Student {
   level: string;
   class_id: number;
   parent_id: number | null;
-  parent_name?: string;
+  parent_name?: string | null;
   date_of_birth: string;
   profileImage?: string;
 }
@@ -65,6 +65,17 @@ const LinkStudentParentPage: React.FC = () => {
   const [parentSearch, setParentSearch] = useState("");
   const [showUnlinkDialog, setShowUnlinkDialog] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const linkInFlightRef = useRef(false);
+
+  const getParentDisplayName = (parent: any) => {
+    const first = parent?.first_name ?? parent?.firstName ?? '';
+    const last = parent?.last_name ?? parent?.lastName ?? '';
+    return `${first} ${last}`.trim();
+  };
+
+  const getParentEmail = (parent: any) => {
+    return parent?.email ?? '';
+  };
 
   // Load data on component mount
   useEffect(() => {
@@ -75,31 +86,39 @@ const LinkStudentParentPage: React.FC = () => {
   const refreshData = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([
+      const results = await Promise.allSettled([
         loadStudentsFromAPI(),
         loadParentsFromAPI(),
         loadParentStudentLinksFromAPI()
       ]);
-      
-      // Debug: Log loaded data
-      console.log('Loaded students:', students.length);
-      console.log('Loaded parents:', parents.length);
-      console.log('Parent-student links:', parentStudentLinks.length);
-      console.log('Students with parent_id:', students.filter(s => s.parent_id !== null).length);
-      console.log('Students with links (including from parentStudentLinks):', students.filter(s => s.parent_id !== null || parentStudentLinks.some(link => link.student_id === s.id)).length);
-      
-      toast.success("Data refreshed successfully");
+
+      const values = results.map(r => (r.status === 'fulfilled' ? r.value : false));
+      const [studentsOk, parentsOk, linksOk] = values as boolean[];
+
+      if (studentsOk && parentsOk && linksOk) {
+        toast.success("Data refreshed successfully");
+      } else {
+        const failed = [
+          !studentsOk ? 'students' : null,
+          !parentsOk ? 'parents' : null,
+          !linksOk ? 'links' : null,
+        ].filter(Boolean).join(', ');
+        toast.error(`Refresh incomplete: failed to load ${failed}`);
+      }
     } catch (error) {
-      console.error('Error refreshing data:', error);
       toast.error("Failed to refresh data");
     } finally {
       setIsRefreshing(false);
     }
   };
 
+  const linkedStudentIdSet = React.useMemo(() => {
+    return new Set(parentStudentLinks.map((l: any) => String(l.student_id)));
+  }, [parentStudentLinks]);
+
   // Helper function to check if student is linked
   const isStudentLinked = (student: Student) => {
-    return parentStudentLinks.some(link => link.student_id === student.id);
+    return linkedStudentIdSet.has(String(student.id));
   };
 
   // Filter students and parents based on search
@@ -108,30 +127,63 @@ const LinkStudentParentPage: React.FC = () => {
     student.admissionNumber.toLowerCase().includes(studentSearch.toLowerCase())
   );
 
-  const filteredParents = parents.filter(parent =>
-    `${parent.first_name} ${parent.last_name}`.toLowerCase().includes(parentSearch.toLowerCase()) ||
-    parent.email.toLowerCase().includes(parentSearch.toLowerCase())
-  );
+  const filteredParents = parents.filter(parent => {
+    const q = parentSearch.toLowerCase();
+    const name = getParentDisplayName(parent).toLowerCase();
+    const email = getParentEmail(parent).toLowerCase();
+    return name.includes(q) || email.includes(q);
+  });
 
   // Calculate statistics
   const totalStudents = students.length;
-  const linkedStudents = students.filter(student => isStudentLinked(student)).length;
-  const unlinkedStudents = totalStudents - linkedStudents;
+  const linkedStudents = linkedStudentIdSet.size;
+  const unlinkedStudents = Math.max(0, totalStudents - linkedStudents);
   const linkingProgress = totalStudents > 0 ? (linkedStudents / totalStudents) * 100 : 0;
 
   const handleLinkStudentParent = async () => {
+    if (linkInFlightRef.current || isLinking) {
+      return;
+    }
+
     if (!selectedStudent || !selectedParent) {
       toast.error("Please select both a student and a parent to link");
       return;
     }
 
+    // Prevent avoidable API conflicts: detect existing links locally
+    const alreadyLinkedToThisParent = parentStudentLinks.some(
+      (l: any) => String(l.student_id) === String(selectedStudent.id) && String(l.parent_id) === String(selectedParent.id)
+    );
+
+    if (alreadyLinkedToThisParent) {
+      toast.error('This student is already linked to the selected parent');
+      return;
+    }
+
+    const linkedToAnotherParent =
+      selectedStudent.parent_id != null && String(selectedStudent.parent_id) !== String(selectedParent.id);
+
+    if (linkedToAnotherParent) {
+      toast.error('This student is already linked to another parent. Unlink the student first before linking to a different parent.');
+      return;
+    }
+
     setIsLinking(true);
+    linkInFlightRef.current = true;
     try {
-      await linkStudentToParent(selectedParent.id, selectedStudent.id, relationshipType.charAt(0).toUpperCase() + relationshipType.slice(1) as 'Father' | 'Mother' | 'Guardian');
-      toast.success(`Successfully linked ${selectedStudent.firstName} ${selectedStudent.lastName} with ${selectedParent.first_name} ${selectedParent.last_name}`);
+      const ok = await linkStudentToParent(
+        selectedParent.id,
+        selectedStudent.id,
+        relationshipType.charAt(0).toUpperCase() + relationshipType.slice(1) as 'Father' | 'Mother' | 'Guardian'
+      );
+
+      if (!ok) {
+        throw new Error('Link operation failed');
+      }
+
+      toast.success(`Successfully linked ${selectedStudent.firstName} ${selectedStudent.lastName} with ${getParentDisplayName(selectedParent)}`);
       
-      // Refresh data to reflect changes
-      await refreshData();
+      // Links are refreshed inside linkStudentToParent; avoid additional refresh here that can overwrite fresh state.
       
       // Reset selection
       setSelectedStudent(null);
@@ -140,6 +192,7 @@ const LinkStudentParentPage: React.FC = () => {
     } catch (error: any) {
       toast.error(error.message || "Failed to link student and parent");
     } finally {
+      linkInFlightRef.current = false;
       setIsLinking(false);
     }
   };
@@ -154,24 +207,27 @@ const LinkStudentParentPage: React.FC = () => {
     try {
       // Find the parent_id from either student record or parentStudentLinks
       let parentId = selectedStudent.parent_id;
-      if (!parentId) {
-        const link = parentStudentLinks.find(link => link.student_id === selectedStudent.id);
+      if (parentId == null) {
+        const link = parentStudentLinks.find((link: any) => String(link.student_id) === String(selectedStudent.id));
         if (link) {
           parentId = link.parent_id;
         }
       }
       
-      if (!parentId) {
+      if (parentId == null) {
         toast.error("No parent link found for this student");
         return;
       }
       
-      await unlinkStudentFromParent(parentId, selectedStudent.id);
+      const ok = await unlinkStudentFromParent(Number(parentId), Number(selectedStudent.id));
+      if (!ok) {
+        throw new Error('Unlink operation failed');
+      }
+
       toast.success(`Successfully unlinked ${selectedStudent.firstName} ${selectedStudent.lastName}`);
       setShowUnlinkDialog(false);
       
-      // Refresh data to reflect changes
-      await refreshData();
+      // Links are refreshed inside unlinkStudentFromParent; avoid additional refresh here that can overwrite fresh state.
       
       setSelectedStudent(null);
     } catch (error: any) {
@@ -184,8 +240,8 @@ const LinkStudentParentPage: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Modern Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 md:p-8 text-white mb-8 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 md:p-8 text-white mb-8 shadow-xl relative">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold mb-2 flex items-center gap-3 text-white" style={{ color: 'white' }}>
               <Link className="w-8 h-8" style={{ color: 'white' }} />
@@ -447,9 +503,9 @@ const LinkStudentParentPage: React.FC = () => {
                         </div>
                         <div>
                           <p className="font-medium text-gray-900 text-sm">
-                            {parent.first_name} {parent.last_name}
+                            {getParentDisplayName(parent) || 'Unknown Parent'}
                           </p>
-                          <p className="text-xs text-gray-500">{parent.email}</p>
+                          <p className="text-xs text-gray-500">{getParentEmail(parent)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

@@ -27,9 +27,6 @@ try {
         }
     }
     
-    // Debug: Log actual counts
-    error_log("Teachers API: Raw DB count = $rawCount, Returned count = " . count($teachers));
-    
     echo json_encode([
         'success' => true,
         'message' => 'Teachers loaded successfully',

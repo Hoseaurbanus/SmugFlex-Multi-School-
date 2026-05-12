@@ -34,19 +34,26 @@ class TokenManagerImpl implements TokenManager {
       // If still no token, try to get it from localStorage directly
       if (!token) {
         try {
-          const storedUser = localStorage.getItem('currentUser');
-          if (storedUser) {
-            const user = JSON.parse(storedUser);
-            if (user.token) {
+          const candidates = [
+            localStorage.getItem(API_CONFIG.AUTH.USER_KEY),
+            localStorage.getItem('currentUser'),
+            localStorage.getItem('current_user')
+          ].filter(Boolean) as string[];
 
+          for (const storedUser of candidates) {
+            const user = JSON.parse(storedUser);
+            if (user?.token) {
               setAuthToken(user.token);
               token = user.token;
+              break;
             }
           }
         } catch (error) {
 
           // Clear corrupted data
+          localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
           localStorage.removeItem('currentUser');
+          localStorage.removeItem('current_user');
         }
       }
 
@@ -107,13 +114,11 @@ class TokenManagerImpl implements TokenManager {
 
           // Check if token is expired (with 1 minute buffer)
           if (payload.exp && payload.exp < (currentTime - 60)) {
-            console.warn('Token expired at:', new Date(payload.exp * 1000).toISOString());
             return false;
           }
         }
         return true;
       } catch (error) {
-        console.error('Error parsing token:', error);
         return false;
       }
     }
@@ -143,15 +148,12 @@ class TokenManagerImpl implements TokenManager {
         const result = await response.json();
         if (result.success && result.data?.token) {
           this.setToken(result.data.token);
-          console.log('Token refreshed successfully');
           return true;
         }
       }
 
-      console.error('Token refresh failed:', response.statusText);
       return false;
     } catch (error) {
-      console.error('Error refreshing token:', error);
       return false;
     }
   }

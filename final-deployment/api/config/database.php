@@ -205,10 +205,8 @@ class Config {
     public static function getJwtSecret() {
         $secret = self::get('JWT_SECRET');
         if (!$secret) {
-            // Fallback for production servers
-            $fallbackSecret = 'graceland-academy-jwt-secret-key-2024-secure';
-            error_log("Config: JWT_SECRET not found, using fallback secret");
-            return $fallbackSecret;
+            // SECURITY FIX: Remove hardcoded fallback - require env var
+            throw new Exception('JWT_SECRET environment variable is required. Please set it in your .env file.');
         }
         return $secret;
     }

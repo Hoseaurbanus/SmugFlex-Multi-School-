@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class StudentController {
     private $conn;
@@ -20,6 +21,7 @@ class StudentController {
      * Get All Students (with pagination and filtering)
      */
     public function getAllStudents() {
+        $token_data = Middleware::requireAuth();
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         
@@ -32,9 +34,38 @@ class StudentController {
                       LEFT JOIN classes c ON s.class_id = c.id
                       LEFT JOIN parent_student_links psl ON s.id = psl.student_id 
                       LEFT JOIN parents p ON psl.parent_id = p.id
-                      ORDER BY c.name, s.last_name, s.first_name";
+                      WHERE 1=1";
+
+            $params = [];
+
+            // Role-based conditions
+            if (($token_data['role'] ?? null) === 'parent') {
+                $parent_id = $token_data['linked_id'] ?? null;
+                if (empty($parent_id)) {
+                    Response::forbidden('Parent account not properly linked');
+                }
+                $query .= " AND s.id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id)";
+                $params[':parent_id'] = (int)$parent_id;
+            } elseif (($token_data['role'] ?? null) === 'teacher') {
+                $teacher_id = $token_data['linked_id'] ?? null;
+                if (empty($teacher_id)) {
+                    Response::forbidden('Teacher account not properly linked');
+                }
+                // Teachers can see students for classes they teach (via subject assignments)
+                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id)";
+                $params[':teacher_id'] = (int)$teacher_id;
+            } elseif (($token_data['role'] ?? null) === 'accountant' || ($token_data['role'] ?? null) === 'admin') {
+                // Full access
+            } else {
+                Response::forbidden('Access denied');
+            }
+
+            $query .= " ORDER BY c.name, s.last_name, s.first_name";
             
             $stmt = $this->conn->prepare($query);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value);
+            }
             $stmt->execute();
             $students = $stmt->fetchAll();
             
@@ -273,6 +304,12 @@ class StudentController {
                 $_SESSION['user_id'] ?? null
             );
             
+            RealtimeEvents::publish(['students', 'classes'], [
+                'action' => 'created',
+                'student_id' => (int)$student_id,
+                'class_id' => (int)$class_id,
+            ]);
+
             Response::created(['id' => $student_id, 'admission_number' => $admission_number], 'Student created successfully');
             
         } catch (PDOException $e) {
@@ -308,7 +345,7 @@ class StudentController {
             $update_fields = [];
             $params = [':id' => $student_id];
             
-            $allowed_fields = ['first_name', 'last_name', 'other_name', 'class_id', 'parent_id', 'date_of_birth', 'gender', 'status'];
+            $allowed_fields = ['first_name', 'last_name', 'other_name', 'admission_number', 'class_id', 'parent_id', 'date_of_birth', 'gender', 'status'];
             
             foreach ($allowed_fields as $field) {
                 if (isset($data[$field])) {
@@ -366,6 +403,16 @@ class StudentController {
                 $_SESSION['user_id'] ?? null
             );
             
+            // Emit realtime update. Include class_id when present so listeners can refresh class views.
+            $topicPayload = [
+                'action' => 'updated',
+                'student_id' => (int)$student_id,
+            ];
+            if (isset($data['class_id'])) {
+                $topicPayload['class_id'] = (int)$params[':class_id'];
+            }
+            RealtimeEvents::publish(['students', 'classes'], $topicPayload);
+
             Response::success(null, 'Student updated successfully');
             
         } catch (PDOException $e) {
@@ -398,6 +445,11 @@ class StudentController {
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $student_id);
             $stmt->execute();
+
+            RealtimeEvents::publish(['students', 'classes', 'payments', 'compiled_results', 'scores'], [
+                'action' => 'deleted',
+                'student_id' => (int)$student_id,
+            ]);
             
             // Log activity
             Middleware::logActivity(
@@ -466,82 +518,156 @@ class StudentController {
      * Promote Students
      */
     public function promoteStudents() {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
         
         $data = json_decode(file_get_contents('php://input'), true);
         
         Middleware::validateRequired($data, ['promotions', 'to_academic_year']);
         
         try {
+            // Promotion is only allowed at the end of the session (Third Term).
+            // This is enforced server-side to guarantee correctness.
+            try {
+                $term_stmt = $this->conn->prepare("SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' LIMIT 1");
+                $term_stmt->execute();
+                $term_row = $term_stmt->fetch(PDO::FETCH_ASSOC);
+                $current_term = $term_row ? ($term_row['setting_value'] ?? '') : '';
+                if (trim((string)$current_term) !== 'Third Term') {
+                    Response::error('Promotion can only be performed in Third Term');
+                    return;
+                }
+            } catch (Throwable $e) {
+                // If settings are unavailable, fail closed.
+                Response::serverError('Unable to verify current term for promotion');
+                return;
+            }
+
             $promotions = $data['promotions'];
             $to_academic_year = Middleware::sanitizeString($data['to_academic_year']);
             $promotion_date = date('Y-m-d');
-            
-            $this->conn->beginTransaction();
-            
+
             // Validate batch size (max 50 students per call)
-        if (count($promotions) > 50) {
-            Response::error('Maximum 50 students can be processed per call');
-            return;
-        }
+            if (count($promotions) > 50) {
+                Response::error('Maximum 50 students can be processed per call');
+                return;
+            }
+
+            // Load progression controller for validation
+            require_once __DIR__ . '/ProgressionController.php';
+            $database = new Database();
+            $progressionController = new ProgressionController($database);
+
+            $this->conn->beginTransaction();
+            $processed_students = [];
+            $failed_students = [];
         
-        // Load progression controller for validation
-        require_once 'ProgressionController.php';
-        $progressionController = new ProgressionController($this->database);
-        
-        $this->conn->beginTransaction();
-        $processed_students = [];
-        $failed_students = [];
-        
-        foreach ($promotions as $index => $promotion) {
-            try {
-                $student_id = Middleware::validateInteger($promotion['student_id'], 'student_id');
-                $from_class_id = Middleware::validateInteger($promotion['from_class_id'], 'from_class_id');
-                $to_class_id = Middleware::validateInteger($promotion['to_class_id'], 'to_class_id');
-                $status = Middleware::validateEnum($promotion['status'], ['Promoted', 'Repeated', 'Transferred', 'On Hold', 'Withdrawn', 'Pending Approval', 'Conditional', 'Manual'], 'status');
-                
-                // Get current academic year
-                $from_academic_year = $promotion['from_academic_year'] ?? '2024/2025';
-                
-                // Validate progression path (skip for manual overrides)
-                if ($status !== 'Manual') {
-                    $validation = $progressionController->validatePromotion($student_id, $to_class_id, $to_academic_year);
-                    if (!$validation['valid']) {
-                        $failed_students[] = [
-                            'student_id' => $student_id,
-                            'error' => $validation['message']
-                        ];
-                        continue;
+            foreach ($promotions as $index => $promotion) {
+                try {
+                    $student_id = Middleware::validateInteger($promotion['student_id'], 'student_id');
+                    $from_class_id = Middleware::validateInteger($promotion['from_class_id'], 'from_class_id');
+                    $to_class_id = Middleware::validateInteger($promotion['to_class_id'], 'to_class_id');
+                    $status = Middleware::validateEnum($promotion['status'], ['Promoted', 'Repeated', 'Transferred', 'On Hold', 'Withdrawn', 'Pending Approval', 'Conditional', 'Manual'], 'status');
+                    
+                    // Get current academic year
+                    $from_academic_year = $promotion['from_academic_year'] ?? '2024/2025';
+
+                    // Authoritative automatic promotion calculation (session-based).
+                    // - Uses compiled_results for First/Second/Third Term in the FROM academic year.
+                    // - Session average = mean of available term averages (divide by 2 if only 2 terms exist).
+                    // - Session attendance = sum(times_present)/sum(total_attendance_days) * 100.
+                    // - Student is Promoted if avg >= 50 AND attendance >= 50.
+                    // Admin override rules:
+                    // - If status is Manual, trust the admin.
+                    // - If override_reason is provided, trust the admin-supplied status.
+                    $override_reason_in = isset($promotion['override_reason']) ? trim((string)$promotion['override_reason']) : '';
+                    $has_override = ($status === 'Manual') || ($override_reason_in !== '');
+
+                    if (!$has_override) {
+                        $terms = ['First Term', 'Second Term', 'Third Term'];
+                        $cr_query = "SELECT term, average_score, times_present, total_attendance_days
+                                     FROM compiled_results
+                                     WHERE student_id = :student_id
+                                       AND academic_year = :academic_year
+                                       AND status = 'Approved'
+                                       AND term IN ('First Term','Second Term','Third Term')";
+                        $cr_stmt = $this->conn->prepare($cr_query);
+                        $cr_stmt->bindParam(':student_id', $student_id);
+                        $cr_stmt->bindParam(':academic_year', $from_academic_year);
+                        $cr_stmt->execute();
+                        $rows = $cr_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                        $term_avgs = [];
+                        $total_present = 0;
+                        $total_days = 0;
+                        foreach ($rows as $row) {
+                            $avg = isset($row['average_score']) ? (float)$row['average_score'] : 0.0;
+                            $term_avgs[] = $avg;
+                            $total_present += (int)($row['times_present'] ?? 0);
+                            $total_days += (int)($row['total_attendance_days'] ?? 0);
+                        }
+
+                        $term_count = count($term_avgs);
+                        $session_avg = $term_count > 0 ? (array_sum($term_avgs) / $term_count) : 0.0;
+                        $session_att = $total_days > 0 ? (($total_present / $total_days) * 100.0) : 0.0;
+
+                        $status = ($session_avg >= 50.0 && $session_att >= 50.0) ? 'Promoted' : 'Repeated';
                     }
-                }
-                
-                // Update student class and academic year
-                if (in_array($status, ['Promoted', 'Manual'])) {
-                    $update_query = "UPDATE students SET class_id = :to_class_id, academic_year = :to_academic_year WHERE id = :student_id";
-                    $update_stmt = $this->conn->prepare($update_query);
-                    $update_stmt->bindParam(':to_class_id', $to_class_id);
-                    $update_stmt->bindParam(':to_academic_year', $to_academic_year);
-                    $update_stmt->bindParam(':student_id', $student_id);
-                    $update_stmt->execute();
-                    
-                    // Update level based on new class
-                    $class_query = "SELECT level FROM classes WHERE id = :class_id";
-                    $class_stmt = $this->conn->prepare($class_query);
-                    $class_stmt->bindParam(':class_id', $to_class_id);
-                    $class_stmt->execute();
-                    $class_info = $class_stmt->fetch();
-                    
-                    if ($class_info) {
-                        $level_update_query = "UPDATE students SET level = :level WHERE id = :student_id";
-                        $level_update_stmt = $this->conn->prepare($level_update_query);
-                        $level_update_stmt->bindParam(':level', $class_info['level']);
-                        $level_update_stmt->bindParam(':student_id', $student_id);
-                        $level_update_stmt->execute();
+
+                    // Validate progression path ONLY for real promotions.
+                    // - Manual: admin override (skip)
+                    // - Repeated: can be same class or a demotion class (skip progression rule check here)
+                    // Capacity is NOT enforced.
+                    if ($status === 'Promoted') {
+                        $validation = $progressionController->validatePromotion($student_id, $to_class_id, $to_academic_year);
+                        if (!$validation['valid']) {
+                            $failed_students[] = [
+                                'student_id' => $student_id,
+                                'error' => $validation['message']
+                            ];
+                            continue;
+                        }
                     }
-                    
-                    // Update class counts
-                    $this->updateClassCounts($from_class_id, $to_class_id);
-                }
+
+                    // Update student class/year for statuses that involve a class placement decision.
+                    // - Promoted: move to next class
+                    // - Manual: admin decides
+                    // - Repeated: can stay in same class or move to a different class (demotion)
+                    if (in_array($status, ['Promoted', 'Manual', 'Repeated'], true)) {
+                        // Find current class_id in DB to keep class counts accurate even if payload is stale
+                        $current_class_query = "SELECT class_id FROM students WHERE id = :student_id";
+                        $current_class_stmt = $this->conn->prepare($current_class_query);
+                        $current_class_stmt->bindParam(':student_id', $student_id);
+                        $current_class_stmt->execute();
+                        $current_student = $current_class_stmt->fetch(PDO::FETCH_ASSOC);
+                        $actual_from_class_id = $current_student ? (int)$current_student['class_id'] : $from_class_id;
+
+                        $update_query = "UPDATE students SET class_id = :to_class_id, academic_year = :to_academic_year WHERE id = :student_id";
+                        $update_stmt = $this->conn->prepare($update_query);
+                        $update_stmt->bindParam(':to_class_id', $to_class_id);
+                        $update_stmt->bindParam(':to_academic_year', $to_academic_year);
+                        $update_stmt->bindParam(':student_id', $student_id);
+                        $update_stmt->execute();
+                        
+                        // Update level based on new class
+                        $class_query = "SELECT level FROM classes WHERE id = :class_id";
+                        $class_stmt = $this->conn->prepare($class_query);
+                        $class_stmt->bindParam(':class_id', $to_class_id);
+                        $class_stmt->execute();
+                        $class_info = $class_stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($class_info) {
+                            $level_update_query = "UPDATE students SET level = :level WHERE id = :student_id";
+                            $level_update_stmt = $this->conn->prepare($level_update_query);
+                            $level_update_stmt->bindParam(':level', $class_info['level']);
+                            $level_update_stmt->bindParam(':student_id', $student_id);
+                            $level_update_stmt->execute();
+                        }
+                        
+                        // Update class counts only if class actually changed
+                        if ($actual_from_class_id !== (int)$to_class_id) {
+                            $this->updateClassCounts($actual_from_class_id, $to_class_id);
+                        }
+                    }
                 
                 // Record promotion with enhanced fields
                 $promotion_query = "INSERT INTO student_promotions (student_id, from_class_id, to_class_id, 
@@ -557,7 +683,7 @@ class StudentController {
                 $promotion_stmt->bindParam(':from_academic_year', $from_academic_year);
                 $promotion_stmt->bindParam(':to_academic_year', $to_academic_year);
                 $promotion_stmt->bindParam(':status', $status);
-                $promoted_by = $_SESSION['user_id'] ?? 1;
+                $promoted_by = (int)($token_data['user_id'] ?? 0);
                 $promotion_stmt->bindParam(':promoted_by', $promoted_by);
                 $promotion_stmt->bindParam(':promotion_date', $promotion_date);
                 $manual_override = ($status === 'Manual') ? 1 : 0;
@@ -574,19 +700,19 @@ class StudentController {
                     'error' => $e->getMessage()
                 ];
             }
-        }
+            }
             
             $this->conn->commit();
             
             // Log activity
             Middleware::logActivity(
-                'Admin',
+                $token_data['username'] ?? 'Admin',
                 'Admin',
                 'PROMOTE_STUDENTS',
                 'Batch Promotion',
                 'Success',
                 count($processed_students) . ' students processed for promotion',
-                $_SESSION['user_id'] ?? null
+                $token_data['user_id'] ?? null
             );
             
             // Return detailed response
@@ -630,7 +756,7 @@ class StudentController {
      * Manual Class Change (Admin can change student class anytime)
      */
     public function manualClassChange() {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
         
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['student_id', 'from_class_id', 'to_class_id', 'reason']);
@@ -677,7 +803,7 @@ class StudentController {
             $change_stmt->bindParam(':to_class_id', $to_class_id);
             $change_stmt->bindParam(':academic_year', $academic_year);
             $change_stmt->bindParam(':reason', $reason);
-            $changed_by = $_SESSION['user_id'] ?? 1;
+            $changed_by = (int)($token_data['user_id'] ?? 0);
             $change_stmt->bindParam(':changed_by', $changed_by);
             $change_date = date('Y-m-d H:i:s');
             $change_stmt->bindParam(':change_date', $change_date);
@@ -690,13 +816,13 @@ class StudentController {
             
             // Log activity
             Middleware::logActivity(
-                'Admin',
+                $token_data['username'] ?? 'Admin',
                 'Admin',
                 'MANUAL_CLASS_CHANGE',
                 "Student ID: {$student_id} moved from class {$from_class_id} to {$to_class_id}",
                 'Success',
                 "Reason: {$reason}",
-                $_SESSION['user_id'] ?? null
+                $token_data['user_id'] ?? null
             );
             
             Response::success(null, 'Manual class change completed successfully');
@@ -714,7 +840,8 @@ class StudentController {
         Middleware::requireRole('admin');
         
         try {
-            $query = "SELECT sp.*, s.firstName, s.lastName, s.admissionNumber, 
+            $query = "SELECT sp.*, 
+                     s.first_name, s.last_name, s.admission_number,
                      c_from.name as from_class_name, c_to.name as to_class_name,
                      u.username as promoted_by_name
                      FROM student_promotions sp 

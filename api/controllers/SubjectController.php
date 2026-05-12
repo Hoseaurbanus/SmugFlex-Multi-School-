@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class SubjectController {
     private $conn;
@@ -20,8 +21,7 @@ class SubjectController {
      * Get All Subjects
      */
     public function getAllSubjects() {
-        // Temporarily remove authentication for debugging
-        // Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
+        Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
         
         $pagination = Middleware::getPaginationParams();
         $search_params = Middleware::getSearchParams();
@@ -196,6 +196,11 @@ class SubjectController {
                 'New subject created',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['subjects', 'subject_assignments', 'scores', 'compiled_results'], [
+                'action' => 'created',
+                'subject_id' => (int)$subject_id,
+            ]);
             
             Response::created(['id' => $subject_id], 'Subject created successfully');
             
@@ -276,6 +281,11 @@ class SubjectController {
                 'Subject information updated',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['subjects', 'subject_assignments', 'scores', 'compiled_results'], [
+                'action' => 'updated',
+                'subject_id' => (int)$subject_id,
+            ]);
             
             Response::success(null, 'Subject updated successfully');
             
@@ -330,6 +340,11 @@ class SubjectController {
                 'Subject deleted',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['subjects', 'subject_assignments', 'scores', 'compiled_results'], [
+                'action' => 'deleted',
+                'subject_id' => (int)$subject_id,
+            ]);
             
             Response::success(null, 'Subject deleted successfully');
             
@@ -370,14 +385,9 @@ class SubjectController {
      * Assign Subject to Class and Teacher
      */
     public function assignSubject() {
-        // Temporarily remove authentication for debugging
-        // Middleware::requireRole('admin');
+        Middleware::requireRole('admin');
         
         $data = json_decode(file_get_contents('php://input'), true);
-        
-        // Debug logging
-        file_put_contents('debug.log', "Subject Assignment - Received data: " . json_encode($data) . "\n", FILE_APPEND);
-        file_put_contents('debug.log', "Subject Assignment - Headers: " . json_encode(getallheaders()) . "\n", FILE_APPEND);
         
         // Handle array format (frontend sends array of assignments)
         if (is_array($data) && isset($data[0])) {
@@ -478,6 +488,16 @@ class SubjectController {
                 'Subject assigned successfully',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['subject_assignments', 'classes', 'teachers', 'scores', 'compiled_results'], [
+                'action' => 'created',
+                'assignment_id' => (int)$assignment_id,
+                'class_id' => (int)$class_id,
+                'teacher_id' => (int)$teacher_id,
+                'subject_id' => (int)$subject_id,
+                'term' => (string)$term,
+                'academic_year' => (string)$academic_year,
+            ]);
             
             Response::created([
                 'id' => $assignment_id,
@@ -573,20 +593,13 @@ class SubjectController {
             }
             
             $stmt->execute();
-            
-            // Log activity
-            Middleware::logActivity(
-                'Admin',
-                'Admin',
-                'UPDATE_ASSIGNMENT',
-                "Assignment ID: $assignment_id",
-                'Success',
-                'Subject assignment updated',
-                $_SESSION['user_id'] ?? null
-            );
-            
+
+            RealtimeEvents::publish(['subject_assignments', 'classes', 'teachers', 'scores', 'compiled_results'], [
+                'action' => 'updated',
+                'assignment_id' => (int)$assignment_id,
+            ]);
+
             Response::success(null, 'Assignment updated successfully');
-            
         } catch (PDOException $e) {
             Response::serverError('Database error updating assignment');
         }
@@ -643,6 +656,11 @@ class SubjectController {
                 'Subject assignment deleted',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['subject_assignments', 'classes', 'teachers', 'scores', 'compiled_results'], [
+                'action' => 'deleted',
+                'assignment_id' => (int)$assignment_id,
+            ]);
             
             Response::success(null, 'Assignment deleted successfully');
             
@@ -654,8 +672,7 @@ class SubjectController {
      * Get Subject Assignments
      */
     public function getAssignments() {
-        // Temporarily remove authentication for debugging
-        // Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
+        Middleware::requireAnyRole(['admin', 'teacher']);
         
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();

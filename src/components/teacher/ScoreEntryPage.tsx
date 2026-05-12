@@ -45,15 +45,25 @@ export function ScoreEntryPage() {
   // Check if selected class is CRECHE (dynamic detection)
   const isCrecheClass = useMemo(() => {
     const selectedClass = classes.find(c => String(c.id) === selectedClassId);
-    return selectedClass?.name?.toLowerCase().includes('creche') || 
-           selectedClass?.level?.toLowerCase().includes('creche') ||
-           selectedClass?.name?.toLowerCase().includes('onyx') ||
-           selectedClass?.name?.toLowerCase().includes('nursery') ||
-           selectedClass?.name?.toLowerCase().includes('kindergarten');
+    const name = (selectedClass?.name || '').toString().trim().toLowerCase();
+    const level = (selectedClass?.level || '').toString().trim().toLowerCase();
+
+    const normalize = (s: string) => s
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .trim()
+      .toLowerCase();
+
+    const nName = normalize(name);
+    const nLevel = normalize(level);
+
+    // IMPORTANT: Only Creche classes are exam-only.
+    // KG/Nursery should follow the normal CA1 + CA2 + Exam flow.
+    return nName.includes('creche') || nLevel.includes('creche');
   }, [selectedClassId, classes]);
 
   // Get current teacher
-  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+  const currentTeacher = currentUser ? teachers.find(t => String(t.id) === String(currentUser.linked_id)) : null;
   const teacherAssignments = currentTeacher ? getTeacherAssignments(Number(currentTeacher.id)) : [];
 
     
@@ -116,9 +126,16 @@ export function ScoreEntryPage() {
   // Get students for selected class
   const classStudents = useMemo(() => {
     if (!selectedClassId) return [];
-    return students
-      .filter(s => String(s.class_id) === selectedClassId && s.status === 'Active')
-      .sort((a, b) => {
+    const filtered = students
+      .filter(s => String(s.class_id) === selectedClassId && s.status === 'Active');
+    const byId = new Map<number, any>();
+    for (const s of filtered) {
+      const idNum = Number((s as any)?.id);
+      if (Number.isFinite(idNum)) {
+        byId.set(idNum, s);
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) => {
         const firstNameA = (a.firstName || '').toLowerCase();
         const firstNameB = (b.firstName || '').toLowerCase();
         if (firstNameA !== firstNameB) {
@@ -224,7 +241,11 @@ export function ScoreEntryPage() {
           const existingScore = existingScores.find((s: any) => s.student_id === studentIdNum);
           
           // Calculate totals and statistics
-          const allValidScores = Object.values(scoresData).filter(d => d.ca1 || d.ca2 || d.exam);
+          const allValidScores = Object.values(scoresData).filter(d =>
+            (d.ca1 !== '' && d.ca1 != null) ||
+            (d.ca2 !== '' && d.ca2 != null) ||
+            (d.exam !== '' && d.exam != null)
+          );
           const allTotals = allValidScores.map(scoreData => {
             if (isCrecheClass) {
               return parseFloat(scoreData.exam) || 0;
@@ -495,6 +516,7 @@ export function ScoreEntryPage() {
   }, [currentUser, currentTerm, currentAcademicYear]);
 
   const handleScoreChange = (studentId: number, field: 'ca1' | 'ca2' | 'exam', value: string) => {
+    if (isLocked) return;
     // Allow empty values and intermediate typing
     if (value === '') {
       setScoresData(prev => ({
@@ -530,6 +552,13 @@ export function ScoreEntryPage() {
         toast.error(`${field.toUpperCase()} cannot be negative`);
         return;
       }
+
+      // For Creche exam-only, enforce strict 0–100 (no typing tolerance above 100)
+      if (isCrecheClass && field === 'exam' && numValue > 100) {
+        toast.error(`${field.toUpperCase()} cannot exceed 100`);
+        return;
+      }
+
       // Allow values up to 2x the max limit to accommodate typing
       if (numValue > maxValue * 2) {
         toast.error(`${field.toUpperCase()} cannot exceed ${maxValue}`);
@@ -561,37 +590,21 @@ export function ScoreEntryPage() {
 
   const getGrade = useCallback((total: string | number) => {
     const score = parseFloat(total.toString()) || 0;
-    if (isCrecheClass) {
-      if (score >= 80) return 'A';
-      if (score >= 70) return 'B';
-      if (score >= 60) return 'C';
-      if (score >= 50) return 'D';
-      if (score >= 40) return 'E';
-      return 'F';
-    }
-    if (score >= 70) return 'A';
-    if (score >= 60) return 'B';
-    if (score >= 50) return 'C';
-    if (score >= 40) return 'D';
-    if (score >= 30) return 'E';
+    if (score >= 90) return 'A';
+    if (score >= 80) return 'B';
+    if (score >= 70) return 'C';
+    if (score >= 60) return 'D';
+    if (score >= 50) return 'E';
     return 'F';
   }, [isCrecheClass]);
 
   const getRemark = useCallback((total: string | number) => {
     const score = parseFloat(total.toString()) || 0;
-    if (isCrecheClass) {
-      if (score >= 80) return 'Outstanding';
-      if (score >= 70) return 'Excellent';
-      if (score >= 60) return 'Very Good';
-      if (score >= 50) return 'Good';
-      if (score >= 40) return 'Fair';
-      return 'Needs Improvement';
-    }
-    if (score >= 70) return 'Excellent';
-    if (score >= 60) return 'Very Good';
-    if (score >= 50) return 'Good';
-    if (score >= 40) return 'Pass';
-    if (score >= 30) return 'Fair';
+    if (score >= 90) return 'Excellent';
+    if (score >= 80) return 'Very Good';
+    if (score >= 70) return 'Good';
+    if (score >= 60) return 'Satisfactory';
+    if (score >= 50) return 'Fair';
     return 'Fail';
   }, [isCrecheClass]);
 
@@ -650,10 +663,15 @@ export function ScoreEntryPage() {
     
     const hasAnyScores = classStudents.some(student => {
       const data = scoresData[student.id];
+      if (!data) return false;
       if (isCrecheClass) {
-        return data && data.exam;
+        return data.exam !== '' && data.exam != null;
       }
-      return data && (data.ca1 || data.ca2 || data.exam);
+      return (
+        (data.ca1 !== '' && data.ca1 != null) ||
+        (data.ca2 !== '' && data.ca2 != null) ||
+        (data.exam !== '' && data.exam != null)
+      );
     });
 
     if (!hasAnyScores) {
@@ -663,10 +681,15 @@ export function ScoreEntryPage() {
 
     const participatingStudents = classStudents.filter(student => {
       const data = scoresData[student.id];
+      if (!data) return false;
       if (isCrecheClass) {
-        return data && data.exam;
+        return data.exam !== '' && data.exam != null;
       }
-      return data && (data.ca1 || data.ca2 || data.exam);
+      return (
+        (data.ca1 !== '' && data.ca1 != null) ||
+        (data.ca2 !== '' && data.ca2 != null) ||
+        (data.exam !== '' && data.exam != null)
+      );
     });
 
     if (participatingStudents.length === 0) {
@@ -782,8 +805,12 @@ export function ScoreEntryPage() {
     
     classStudents.forEach((student, index) => {
       const data = scoresData[student.id] || { ca1: '', ca2: '', exam: '' };
-      const total = data.ca1 && data.ca2 && data.exam ? calculateScore(data.ca1, data.ca2, data.exam).total : 
-                   data.exam ? calculateScore('', '', data.exam).total : '';
+      const hasCA1 = data.ca1 !== '' && data.ca1 != null;
+      const hasCA2 = data.ca2 !== '' && data.ca2 != null;
+      const hasExam = data.exam !== '' && data.exam != null;
+      const total = (hasCA1 && hasCA2 && hasExam)
+        ? calculateScore(data.ca1, data.ca2, data.exam).total
+        : (hasExam ? calculateScore('', '', data.exam).total : '');
       
       if (isCrecheClass) {
         csv += `${index + 1},${student.admissionNumber},"${student.firstName} ${student.lastName}",${data.exam || ''},${total}\n`;
@@ -1142,7 +1169,11 @@ export function ScoreEntryPage() {
             <Button
               onClick={() => {
                 toast.success("Refreshing scores from database");
-                loadScoresFromAPI();
+                if (!selectedTerm || !selectedYear) {
+                  toast.error('Current term and academic year are required');
+                  return;
+                }
+                loadScoresFromAPI(selectedTerm, selectedYear);
               }}
               className="bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-lg px-3 sm:px-4 h-9 sm:h-auto flex items-center justify-center gap-2 w-full sm:w-auto"
               disabled={!selectedClassId || !selectedSubjectId}
@@ -1466,7 +1497,10 @@ export function ScoreEntryPage() {
                     };
                     
                     const { total } = calculateScore(displayData.ca1, displayData.ca2, displayData.exam);
-                    const hasScore = displayData.ca1 || displayData.ca2 || displayData.exam;
+                    const hasScore =
+                      (displayData.ca1 !== '' && displayData.ca1 != null) ||
+                      (displayData.ca2 !== '' && displayData.ca2 != null) ||
+                      (displayData.exam !== '' && displayData.exam != null);
                     
                     // Debug logging for first few students (disabled in production)
                     if (index < 3 && process.env.NODE_ENV !== 'production') {
@@ -1510,6 +1544,7 @@ export function ScoreEntryPage() {
                           <Input
                             type="number"
                             min="0"
+                            max={isCrecheClass ? 100 : 60}
                             value={displayData.exam}
                             onChange={(e) => handleScoreChange(student.id, 'exam', e.target.value)}
                             className="w-16 mx-auto text-center rounded-lg border-[#E5E7EB] text-xs"

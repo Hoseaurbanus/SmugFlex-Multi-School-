@@ -93,7 +93,6 @@ export function TermSettingsPage() {
       
       toast.success("Term and attendance settings updated successfully!");
     } catch (error) {
-      console.error('Error saving term settings:', error);
       toast.error("Failed to save term and attendance settings");
     } finally {
       setIsLoading(false);

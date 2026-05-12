@@ -1,4 +1,4 @@
-import { LogOut, BarChart, Building, LayoutDashboard, BarChart3, Building2, DollarSign, Receipt, FileText, Clock, MessageSquare, Settings } from 'lucide-react';
+import { LogOut, BarChart, LayoutDashboard, BarChart3, Building2, DollarSign, Receipt, Clock } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
@@ -12,9 +12,7 @@ import { VerifyReceiptsPage } from "./accountant/VerifyReceiptsPage";
 import { SetFeesPage } from "./accountant/SetFeesPage";
 import { PaymentReportsPage } from "./accountant/PaymentReportsPage";
 import { BankAccountSettingsPage } from "./accountant/BankAccountSettingsPage";
-import { ManualPaymentEntryPage } from "./admin/ManualPaymentEntryPage";
 import { ChangePasswordPage } from "./ChangePasswordPage";
-import { AccountantMessagePage } from "./accountant/MessageParentsPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { useSchool } from "../contexts/SchoolContext";
@@ -58,7 +56,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
           }
         }).catch(error => {
           if (isMounted) {
-            console.error('Connection reconnection failed:', error);
+            // Silent fail for security
           }
         });
       }
@@ -81,13 +79,10 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
     { icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard", id: "dashboard" },
     { icon: <DollarSign className="w-5 h-5" />, label: "Set Fees", id: "set-fees" },
     { icon: <Receipt className="w-5 h-5" />, label: "Record Payments", id: "record-payments" },
-    { icon: <FileText className="w-5 h-5" />, label: "Manual Payment Entry", id: "manual-payment-entry" },
     { icon: <Clock className="w-5 h-5" />, label: "Verify Receipts", id: "verify-receipts" },
     { icon: <BarChart3 className="w-5 h-5" />, label: "Payment Reports", id: "payment-reports" },
     { icon: <BarChart className="w-5 h-5" />, label: "Payment History", id: "payment-history" },
     { icon: <Building2 className="w-5 h-5" />, label: "Bank Settings", id: "bank-settings" },
-    { icon: <MessageSquare className="w-5 h-5" />, label: "Message Parents", id: "message-parents" },
-    { icon: <Settings className="w-5 h-5" />, label: "Change Password", id: "change-password" },
     { icon: <LogOut className="w-5 h-5" />, label: "Logout", id: "logout" },
   ];
 
@@ -101,13 +96,10 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
         "dashboard": "Opening Dashboard",
         "set-fees": "Opening Fee Settings",
         "record-payments": "Opening Payment Recording",
-        "manual-payment-entry": "Opening Manual Payment Entry",
         "verify-receipts": "Opening Receipt Verification",
         "payment-reports": "Opening Payment Reports",
         "payment-history": "Opening Payment History",
-        "bank-settings": "Opening Bank Settings",
-        "message-parents": "Opening Parent Messaging",
-        "change-password": "Opening Password Change"
+        "bank-settings": "Opening Bank Settings"
       };
       
       if (toastMessages[id]) {
@@ -157,6 +149,10 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
           notificationCount={unreadNotifications.length}
           onLogout={onLogout}
           onNotificationClick={() => setNotificationDialogOpen(true)}
+          onChangePasswordClick={() => {
+            toast.success('Opening Password Change');
+            setActiveItem('change-password');
+          }}
         />
 
         <main className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -405,11 +401,9 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
           <main className="p-4 md:p-6 max-w-7xl mx-auto">
             {activeItem === "set-fees" && <SetFeesPage />}
             {activeItem === "record-payments" && <RecordPaymentPage />}
-            {activeItem === "manual-payment-entry" && <ManualPaymentEntryPage />}
             {activeItem === "payment-reports" && <PaymentReportsPage />}
             {activeItem === "payment-history" && <PaymentHistoryPage />}
             {activeItem === "bank-settings" && <BankAccountSettingsPage />}
-            {activeItem === "message-parents" && <AccountantMessagePage />}
             {activeItem === "change-password" && <ChangePasswordPage />}
             {activeItem === "verify-receipts" && <VerifyReceiptsPage />}
           </main>

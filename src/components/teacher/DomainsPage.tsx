@@ -8,6 +8,8 @@ import { Badge } from "../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner';
 import { useSchool } from "../../contexts/SchoolContext";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { API_CONFIG } from "../../config/api";
 
 export function DomainsPage() {
   const { 
@@ -28,7 +30,8 @@ export function DomainsPage() {
     updateCompiledResult,
     currentTerm,
     currentAcademicYear,
-    classTeacherAssignments
+    classTeacherAssignments,
+    loadClassTeacherAssignmentsFromAPI
   } = useSchool();
 
   const [selectedClassId, setSelectedClassId] = useState<number>(0);
@@ -37,10 +40,86 @@ export function DomainsPage() {
   const [expandedStudents, setExpandedStudents] = useState<{[studentId: number]: boolean}>({});
   const [activeTab, setActiveTab] = useState<'affective' | 'psychomotor'>('affective');
 
+  const getStudentPhotoCandidates = (student: any): string[] => {
+    const rawUrl =
+      student?.photoUrl ||
+      student?.photo_url ||
+      student?.photoURL ||
+      student?.passportPhoto ||
+      student?.passport_photo ||
+      student?.passport;
+
+    if (!rawUrl || typeof rawUrl !== 'string') return [];
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return [];
+
+    if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) return [trimmed];
+
+    let apiOrigin = '';
+    try {
+      const apiBase = API_CONFIG?.BASE_URL || '';
+      apiOrigin = apiBase ? new URL(apiBase).origin : '';
+    } catch {
+      apiOrigin = '';
+    }
+
+    const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
+
+    const candidates: string[] = [];
+    if (appOrigin) candidates.push(`${appOrigin}${normalizedPath}`);
+    if (apiOrigin) candidates.push(`${apiOrigin}${normalizedPath}`);
+    candidates.push(trimmed);
+
+    return Array.from(new Set(candidates)).filter(Boolean);
+  };
+
+  const handleStudentPhotoError = (e: React.SyntheticEvent<HTMLImageElement>, student: any) => {
+    const img = e.currentTarget;
+    const candidates = getStudentPhotoCandidates(student);
+    const idx = Number(img.dataset.candidateIdx || '0');
+    const nextIdx = idx + 1;
+    if (nextIdx < candidates.length) {
+      img.dataset.candidateIdx = String(nextIdx);
+      img.src = candidates[nextIdx];
+    }
+  };
+
+  const getInitials = (student: any) => {
+    const a = String(student?.firstName || '').trim();
+    const b = String(student?.lastName || '').trim();
+    return `${a[0] || ''}${b[0] || ''}`.toUpperCase() || '??';
+  };
+
+  const resolveCanonicalClassId = (classId: any): number | null => {
+    if (!classId) return null;
+    const baseClass = (classes || []).find((c: any) => String(c.id) === String(classId));
+    if (!baseClass) return Number(classId) || null;
+
+    const siblings = (classes || []).filter((c: any) =>
+      String(c.name).trim().toLowerCase() === String(baseClass.name).trim().toLowerCase() &&
+      String(c.level).trim().toLowerCase() === String(baseClass.level).trim().toLowerCase()
+    );
+
+    if (siblings.length <= 1) return Number(baseClass.id) || null;
+
+    const best = siblings
+      .map((c: any) => ({
+        id: c.id,
+        count: (students || []).filter((s: any) => String(s.class_id) === String(c.id)).length,
+      }))
+      .sort((a: any, b: any) => b.count - a.count)[0];
+
+    return best?.id ? Number(best.id) : (Number(baseClass.id) || null);
+  };
+
   // Load domains data on component mount
   useEffect(() => {
     const loadData = async () => {
       try {
+        if (currentTerm && currentAcademicYear) {
+          await loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear);
+        }
         await Promise.all([
           loadAffectiveDomainsFromAPI(),
           loadPsychomotorDomainsFromAPI()
@@ -50,7 +129,7 @@ export function DomainsPage() {
       }
     };
     loadData();
-  }, []);
+  }, [currentTerm, currentAcademicYear, loadClassTeacherAssignmentsFromAPI, loadAffectiveDomainsFromAPI, loadPsychomotorDomainsFromAPI]);
 
   // Get current teacher's classes - use same logic as ClassListPage
   const currentTeacher = teachers.find(t => t.id === currentUser?.linked_id);
@@ -85,7 +164,13 @@ export function DomainsPage() {
   }
 
   const classStudents = selectedClassId
-    ? (students || []).filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
+    ? (students || []).filter(s => {
+        const effectiveSelectedClassId = resolveCanonicalClassId(selectedClassId) ?? selectedClassId;
+        const isSameClass = String(s.class_id) === String(effectiveSelectedClassId);
+        const status = String((s as any)?.status ?? '').trim().toLowerCase();
+        const isActive = status === '' || status === 'active';
+        return isSameClass && isActive;
+      })
     : [];
 
   // Load existing data when class is selected
@@ -200,6 +285,11 @@ export function DomainsPage() {
     const addFn = domainType === 'affective' ? addAffectiveDomain : addPsychomotorDomain;
     const domains = domainType === 'affective' ? affectiveDomains : psychomotorDomains;
 
+    if (!currentTerm || !currentAcademicYear) {
+      toast.error('Current term and academic year are required');
+      return;
+    }
+
     // Update local state immediately
     setData(prev => ({
       ...prev,
@@ -267,7 +357,7 @@ export function DomainsPage() {
         await updateCompiledResult(compiledResult.id, updatePayload);
       }
     } catch (error) {
-      console.error(`Error saving ${domainType} domain data:`, error);
+      // Silent fail for security
     }
   };
 
@@ -401,7 +491,14 @@ export function DomainsPage() {
         <Card className="lg:col-span-1">
           <CardContent className="p-4">
             <Label className="text-sm font-medium text-gray-700 block mb-2">Select Class</Label>
-            <Select value={selectedClassId.toString()} onValueChange={(value) => setSelectedClassId(parseInt(value))}>
+            <Select
+              value={selectedClassId.toString()}
+              onValueChange={(value) => {
+                const rawId = parseInt(value);
+                const canonicalId = resolveCanonicalClassId(rawId) ?? rawId;
+                setSelectedClassId(canonicalId);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Choose class..." />
               </SelectTrigger>
@@ -490,9 +587,18 @@ export function DomainsPage() {
                         onClick={() => toggleStudentExpansion(student.id)}
                         className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
                       >
-                        <span className="text-xs font-medium text-gray-600">
-                          {student.firstName?.[0]}{student.lastName?.[0]}
-                        </span>
+                        <Avatar className="h-8 w-8 bg-gray-100 text-gray-600">
+                          <AvatarImage
+                            src={getStudentPhotoCandidates(student)[0] || ''}
+                            alt={`${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Student'}
+                            className="object-cover"
+                            data-candidate-idx={0}
+                            onError={(e) => handleStudentPhotoError(e, student)}
+                          />
+                          <AvatarFallback className="bg-gray-100 text-gray-600 text-xs font-medium">
+                            {getInitials(student)}
+                          </AvatarFallback>
+                        </Avatar>
                       </button>
                       <div>
                         <h4 className="text-sm font-medium text-gray-900">

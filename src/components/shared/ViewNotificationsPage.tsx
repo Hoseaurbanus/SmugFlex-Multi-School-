@@ -4,15 +4,57 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useSchool } from '../../contexts/SchoolContext';
 import { toast } from 'sonner';
+import { API_CONFIG, getAuthToken } from '../../config/api';
 
 export function ViewNotificationsPage() {
   const { notifications, currentUser, markNotificationAsRead, deleteNotification, loadNotificationsFromAPI, getAllNotifications } = useSchool();
   const [selectedNotification, setSelectedNotification] = useState<any>(null);
+  const [whatsappGroups, setWhatsappGroups] = useState<any[]>([]);
+  const [loadingWhatsappGroups, setLoadingWhatsappGroups] = useState(false);
 
   // Load notifications when component mounts
   useEffect(() => {
     loadNotificationsFromAPI();
   }, [loadNotificationsFromAPI]);
+
+  // Load all class WhatsApp groups for admin (View Messages page)
+  useEffect(() => {
+    const loadWhatsappGroups = async () => {
+      if (currentUser?.role !== 'admin') {
+        setWhatsappGroups([]);
+        return;
+      }
+
+      const token = getAuthToken();
+      if (!token) {
+        setWhatsappGroups([]);
+        return;
+      }
+
+      setLoadingWhatsappGroups(true);
+      try {
+        const res = await fetch(`${API_CONFIG.BASE_URL}/classes/whatsapp-groups`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (!res.ok) {
+          setWhatsappGroups([]);
+          return;
+        }
+
+        const json = await res.json();
+        setWhatsappGroups(Array.isArray(json?.data) ? json.data : []);
+      } catch (e) {
+        setWhatsappGroups([]);
+      } finally {
+        setLoadingWhatsappGroups(false);
+      }
+    };
+
+    loadWhatsappGroups();
+  }, [currentUser?.role]);
 
   // Use context getter to filter notifications by audience, targetUsers, and deletedBy
   const userNotifications = getAllNotifications();
@@ -34,6 +76,16 @@ export function ViewNotificationsPage() {
       toast.success('Notification marked as read');
     } catch (error) {
       toast.error('Failed to mark notification as read');
+    }
+  };
+
+  // Delete notification
+  const handleDeleteNotification = async (notificationId: number) => {
+    try {
+      await deleteNotification(notificationId);
+      toast.success(currentUser?.role === 'admin' ? 'Notification deleted' : 'Notification dismissed');
+    } catch (error) {
+      toast.error('Failed to delete notification');
     }
   };
 
@@ -82,6 +134,51 @@ export function ViewNotificationsPage() {
         </p>
       </div>
 
+      {currentUser?.role === 'admin' && (
+        <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
+          <CardHeader className="border-b border-[#E5E7EB] bg-[#F9FAFB] p-4">
+            <CardTitle className="text-[#1F2937] flex items-center gap-2">
+              <span className="w-5 h-5" />
+              Class WhatsApp Groups
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            {loadingWhatsappGroups ? (
+              <div className="text-center py-6 text-gray-500">Loading WhatsApp groups...</div>
+            ) : whatsappGroups.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">No WhatsApp groups found</div>
+            ) : (
+              <div className="space-y-3">
+                {whatsappGroups.map((g: any) => (
+                  <div key={`${g.class_id}-${g.whatsapp_group_link}`} className="p-4 rounded-lg border border-gray-200 bg-white">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{g.class_name || `Class ${g.class_id}`}</p>
+                        <p className="text-sm text-gray-600 truncate">{g.group_name || 'WhatsApp Group'}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const link = String(g.whatsapp_group_link || '').trim();
+                          if (!link) {
+                            toast.error('No WhatsApp link available');
+                            return;
+                          }
+                          window.open(link, '_blank');
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        Join Group
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Unread Notifications */}
       {unreadCount > 0 && (
         <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
@@ -126,7 +223,7 @@ export function ViewNotificationsPage() {
                     variant="destructive"
                     onClick={(e: React.MouseEvent) => {
                       e.stopPropagation();
-                      deleteNotification(notification.id);
+                      handleDeleteNotification(notification.id);
                     }}
                     className="flex-shrink-0"
                   >

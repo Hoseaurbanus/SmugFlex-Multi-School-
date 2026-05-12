@@ -14,8 +14,58 @@ import { FullPageResultView } from "../shared/FullPageResultView";
 import { ResultSheetViewerButton } from "./ResultSheetViewer";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
+import schoolLogo from "../../assets/images/school-logo.jpg";
+import { API_CONFIG } from "../../config/api";
+import { formatPositionWithSuffix } from "../../utils/position";
+import { generatePDFFromData as generateStudentResultPdf } from "../../utils/pdfGenerator";
 
 type ViewMode = "management" | "viewAll" | "viewSheets";
+
+class ResultsManagementErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
+
+  static getDerivedStateFromError(error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { hasError: true, message };
+  }
+
+  componentDidCatch(error: unknown) {
+    // Silent fail for security
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4">
+          <Card className="border-red-200">
+            <CardHeader>
+              <CardTitle className="text-red-700">Results Management Error</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-gray-700">
+                The page encountered an error and could not render.
+              </div>
+              <div className="text-xs text-gray-500 break-words">{this.state.message}</div>
+              <div>
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Reload
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export function ResultsManagementPage() {
   const {
@@ -43,37 +93,92 @@ export function ResultsManagementPage() {
     schoolSettings,
     loadSchoolSettings,
   } = useSchool();
+
+  if (!currentUser) {
+    return (
+      <div className="p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Results Management</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="text-sm text-gray-700">You must be logged in to view this page.</div>
+            <div className="text-xs text-gray-500">If you just logged in, refresh the page.</div>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Refresh
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   
   // Ref for PDF generation
   const resultCardRef = useRef<HTMLDivElement>(null);
 
+  const downloadQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const [downloadingResultIds, setDownloadingResultIds] = useState<Record<number, boolean>>({});
+
+  const [isClosingFullPageView, setIsClosingFullPageView] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  const closeFullPageView = () => {
+    setIsClosingFullPageView(true);
+    setFullPageView(null);
+    window.setTimeout(() => setIsClosingFullPageView(false), 250);
+  };
+
   // Direct PDF Download function - Generate from data instead of DOM
   const handleDownloadStudentPDF = async (student: any, result: any) => {
-    try {
-      console.log('=== DIRECT PDF DOWNLOAD STARTED ===');
-      console.log('Student:', student.firstName, student.lastName);
-      console.log('Student ID:', student.id);
-      console.log('Result ID:', result.id);
-      console.log('Student data:', student);
-      console.log('Result data:', result);
-      console.log('School settings available:', !!(window as any).schoolSettings);
-      
-      // Generate PDF directly from compiled result data (same as StudentResultSheet)
-      await generatePDFFromData(student, result);
-      
-      console.log('=== DIRECT PDF COMPLETED SUCCESSFULLY ===');
-      toast.success('PDF downloaded successfully!');
-    } catch (error) {
-      console.error('=== DIRECT PDF GENERATION FAILED ===');
-      console.error('Error:', error);
-      toast.error('Failed to generate PDF. Please try again.');
+    const resultId = Number(result?.id);
+    if (resultId && downloadingResultIds[resultId]) {
+      return;
     }
+
+    if (resultId) {
+      // Mark as queued immediately so repeated clicks for the same row don't
+      // enqueue duplicate downloads while still allowing other rows to be clicked.
+      setDownloadingResultIds(prev => ({ ...prev, [resultId]: true }));
+    }
+
+    // Queue downloads so the browser always treats each save as a deliberate
+    // user-triggered download and we don't overlap jsPDF/file operations.
+    // Overlapping downloads can cause later clicks to appear to do nothing
+    // until a hard refresh.
+    const doDownload = async () => {
+      try {
+        const context = {
+          schoolSettings,
+          teachers,
+          classes,
+          scores,
+          affectiveDomains,
+          psychomotorDomains,
+        };
+
+        await generateStudentResultPdf(student, result, context, {
+          downloadMethod: 'blob',
+        });
+        toast.success('PDF downloaded successfully!');
+      } catch (error) {
+        toast.error('Failed to generate PDF. Please try again.');
+      } finally {
+        setDownloadingResultIds(prev => {
+          const next = { ...prev };
+          delete next[resultId];
+          return next;
+        });
+      }
+    };
+
+    downloadQueueRef.current = downloadQueueRef.current.then(doDownload, doDownload);
+    await downloadQueueRef.current;
   };
 
   // Generate PDF exactly matching StudentResultSheet design - Complete rebuild using exact structure
   const generatePDFFromData = async (student: any, result: any) => {
-    console.log('=== PDF GENERATION - EXACT STUDENTRESULTSHEET MATCH ===');
-    
     const { default: jsPDF } = await import('jspdf');
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -82,7 +187,25 @@ export function ResultsManagementPage() {
       compress: false
     });
 
-    console.log('PDF instance created');
+    const resolveImageToDataUrl = async (src: string): Promise<string> => {
+      if (!src) return '';
+      if (typeof src === 'string' && src.startsWith('data:image/')) return src;
+
+      const response = await fetch(src);
+      if (!response.ok) {
+        throw new Error(`Failed to load image: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Failed to read image blob'));
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.readAsDataURL(blob);
+      });
+
+      return dataUrl;
+    };
 
     // Exact page dimensions from StudentResultSheet
     const pageWidth = 210; // A4 width in mm
@@ -131,23 +254,17 @@ export function ResultsManagementPage() {
     };
 
     // EXACT data fetching from StudentResultCard - no custom logic
-    const studentData = student || students.find((s: any) => s.id === result.student_id);
-    const studentClassData = classes.find((c: any) => c.id === result.class_id);
+    const studentData = student || students.find((s: any) => Number(s.id) === Number(result.student_id));
+    const classIdToUse = (result as any)?.class_id ?? (result as any)?.classId ?? (studentData as any)?.class_id ?? (studentData as any)?.classId;
+    const studentClassData = classes.find((c: any) => Number(c.id) === Number(classIdToUse));
     
     // Check if class should show position (not for early childhood classes)
-    const shouldShowPosition = studentClassData?.name && 
-      !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 1 (SARDIUS)', 'KG 1 (SARDONYX)', 'KG 2 (SARDIUS)', 'KG 2 (SARDONYX)'].includes(studentClassData.name.toUpperCase());
+    const classNameForPosition = (studentClassData as any)?.name || (studentClassData as any)?.className || '';
+    const shouldShowPosition = classNameForPosition &&
+      !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 1 (SARDIUS)', 'KG 1 (SARDONYX)', 'KG 2 (SARDIUS)', 'KG 2 (SARDONYX)', 'KG 2 (PEARL)'].includes(String(classNameForPosition).toUpperCase());
     
     // EXACT same detailed scores loading as StudentResultCard - line by line copy
     let detailedScoresData: any[] = [];
-    
-    console.log('=== SCORE FETCHING DEBUG ===');
-    console.log('Total scores in context:', scores.length);
-    console.log('Result student_id:', result.student_id);
-    console.log('Result academic_year:', result.academic_year);
-    console.log('Result term:', result.term);
-    console.log('Result.scores length:', result.scores ? result.scores.length : 0);
-    console.log('Sample scores from context:', scores.slice(0, 3));
     
     // EXACT StudentResultCard logic: Filter scores for this student, class, term, and academic year
     let studentScores = scores.filter((score: any) => 
@@ -155,9 +272,6 @@ export function ResultsManagementPage() {
       score.academic_year === result.academic_year &&
       score.term === result.term
     );
-
-    console.log('Filtered studentScores count:', studentScores.length);
-    console.log('Sample filtered scores:', studentScores.slice(0, 2));
 
     // EXACT StudentResultCard logic: Enhance scores with subject information and calculate class statistics
     studentScores = studentScores.map((score: any) => {
@@ -192,8 +306,6 @@ export function ResultsManagementPage() {
 
     // EXACT StudentResultCard logic: If we have result.scores, use them, otherwise use filtered scores
     if (result.scores && result.scores.length > 0) {
-      console.log('Using result.scores - StudentResultCard approach');
-      console.log('Result.scores data:', result.scores.slice(0, 2));
       // EXACT StudentResultCard logic: Enhance result scores with subject information too
       const enhancedResultScores = result.scores.map((score: any) => {
         const subjectAssignment = subjectAssignments.find((sa: any) => sa.id === score.subject_assignment_id);
@@ -226,21 +338,16 @@ export function ResultsManagementPage() {
       }).sort((a: any, b: any) => a.subject_name.localeCompare(b.subject_name));
       detailedScoresData = enhancedResultScores;
     } else {
-      console.log('Using filtered studentScores - StudentResultCard approach');
-      console.log('Final studentScores data:', studentScores.slice(0, 2));
       detailedScoresData = studentScores;
     }
 
-    console.log('Final detailedScoresData count:', detailedScoresData.length);
-    console.log('Final detailedScoresData sample:', detailedScoresData.slice(0, 2));
-
     // EXACT same grade calculation as StudentResultCard
     const getGrade = (score: number) => {
-      if (score >= 80) return { grade: 'A', remark: 'Excellent' };
-      if (score >= 70) return { grade: 'B', remark: 'Very Good' };
-      if (score >= 60) return { grade: 'C', remark: 'Good' };
-      if (score >= 50) return { grade: 'D', remark: 'Satisfactory' };
-      if (score >= 45) return { grade: 'E', remark: 'Fair' };
+      if (score >= 90) return { grade: 'A', remark: 'Excellent' };
+      if (score >= 80) return { grade: 'B', remark: 'Very Good' };
+      if (score >= 70) return { grade: 'C', remark: 'Good' };
+      if (score >= 60) return { grade: 'D', remark: 'Satisfactory' };
+      if (score >= 50) return { grade: 'E', remark: 'Fair' };
       return { grade: 'F', remark: 'Fail' };
     };
 
@@ -332,8 +439,6 @@ export function ResultsManagementPage() {
     // EXACT same teacher title logic as StudentResultCard
     const teacherTitle = studentClassData?.category === 'Primary' ? 'HEAD TEACHER' : 'PRINCIPAL';
 
-    console.log('Using exact StudentResultSheet data and design');
-
     // === PAGE BACKGROUND (Exact StudentResultCard: background: white) ===
     // Pure white background to match StudentResultCard exactly
     pdf.setFillColor(255, 255, 255); // Pure white (#ffffff) - exact match to StudentResultCard
@@ -342,76 +447,9 @@ export function ResultsManagementPage() {
     // Reset to white for content areas
     pdf.setFillColor(255, 255, 255);
 
-    // === DECORATIVE BORDER DESIGN ===
-    // Add elegant border around the entire page
-    pdf.setDrawColor(26, 37, 47); // Dark professional color (#1a252f)
-    pdf.setLineWidth(2); // 2mm thick border
-    pdf.rect(5, 5, pageWidth - 10, pageHeight - 10); // Outer border with 5mm margin
-    
-    // Add inner decorative border
-    pdf.setDrawColor(44, 60, 80); // Medium color (#2c3e50)
-    pdf.setLineWidth(0.5); // 0.5mm thin border
-    pdf.rect(7, 7, pageWidth - 14, pageHeight - 14); // Inner border
-    
-    // Add school name in the border (bottom center)
-    const schoolNameForBorder = (schoolSettings?.school_name || 'SCHOOL NAME').toUpperCase();
-    pdf.setFont('times', 'bold');
-    pdf.setFontSize(10);
-    pdf.setTextColor(26, 37, 47); // Dark professional color
-    pdf.text(schoolNameForBorder, pageWidth / 2, pageHeight - 8, { align: 'center' });
-
-    // === WATERMARK (Large size but reduced visibility - positioned in background) ===
-    const watermarkUrl = schoolSettings?.school_logo_url || "./assets/images/school-logo.jpg";
-    let watermarkLoaded = false;
-    
-    // Try to load watermark from multiple sources - large size but positioned for reduced visibility
-    if (watermarkUrl) {
-      // First try: school_settings logo_url
-      if (schoolSettings?.school_logo_url) {
-        try {
-          pdf.addImage(
-            schoolSettings.school_logo_url, 
-            'PNG', 
-            pageWidth / 2 - 70, // Centered watermark
-            pageHeight / 2 - 70, // Centered watermark
-            140, // Large size maintained at 140mm
-            140  // Large size maintained at 140mm
-          );
-          watermarkLoaded = true;
-          console.log('Watermark loaded from settings - centered position');
-        } catch (error) {
-          console.log('Settings watermark failed:', error);
-        }
-      }
-      
-      // Second try: exact StudentResultCard primary path
-      if (!watermarkLoaded) {
-        try {
-          const primaryUrl = "./assets/images/school-logo.jpg"; // Exact StudentResultCard path
-          pdf.addImage(primaryUrl, 'PNG', pageWidth / 2 - 70, pageHeight / 2 - 70, 140, 140); // Centered
-          watermarkLoaded = true;
-          console.log('Primary watermark loaded - centered position');
-        } catch (error) {
-          console.log('Primary watermark failed:', error);
-        }
-      }
-      
-      // Third try: exact StudentResultCard fallback path
-      if (!watermarkLoaded) {
-        try {
-          const fallbackUrl = "./assets/images/school-logo.png"; // Exact StudentResultCard fallback
-          pdf.addImage(fallbackUrl, 'PNG', pageWidth / 2 - 70, pageHeight / 2 - 70, 140, 140); // Centered
-          watermarkLoaded = true;
-          console.log('Fallback watermark loaded - centered position');
-        } catch (error) {
-          console.log('All watermark attempts failed:', error);
-        }
-      }
-    }
+    // NOTE: Background/watermark and page border intentionally removed (requested).
 
     // === HEADER SECTION (Exact StudentResultCard structure - what you see in view button) ===
-    console.log('Drawing header section...');
-    
     // Header container - exact StudentResultCard: centered layout
     const headerY = currentY;
     
@@ -419,87 +457,83 @@ export function ResultsManagementPage() {
     const logoSize = 18; // 18mm as in StudentResultCard
     const logoX = pageWidth / 2 - (logoSize / 2); // Centered
     
-    // Try to load logo from multiple sources with circular clipping
+    // Try to load logo from multiple sources. To avoid blur, we render a high-resolution
+    // circular PNG via canvas first, then embed that PNG into the PDF.
+    const logoStrokeColor: [number, number, number] = [0, 51, 102]; // Dark blue
+    const logoStrokeWidthMm = 0.8;
+    const logoCenterX = pageWidth / 2;
+    const logoCenterY = headerY + (logoSize / 2);
+    const logoRadius = logoSize / 2;
+
+    const createCircularPngDataUrl = async (src: string, sizePx: number): Promise<string> => {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous';
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Failed to load image'));
+        image.src = src;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = sizePx;
+      canvas.height = sizePx;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas not supported');
+
+      // Crop image to a centered square first
+      const s = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+      const sx = ((img.naturalWidth || img.width) - s) / 2;
+      const sy = ((img.naturalHeight || img.height) - s) / 2;
+
+      // Draw circular clipped image at high resolution
+      ctx.clearRect(0, 0, sizePx, sizePx);
+      ctx.beginPath();
+      ctx.arc(sizePx / 2, sizePx / 2, sizePx / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, sx, sy, s, s, 0, 0, sizePx, sizePx);
+
+      return canvas.toDataURL('image/png');
+    };
+
     let logoLoaded = false;
-    
-    // First try: school_settings logo_url
-    if (schoolSettings?.school_logo_url) {
+    const logoCandidates = [
+      // Use same asset as LoginPage first to guarantee a reliable logo.
+      schoolLogo,
+      schoolSettings?.school_logo_url,
+      './assets/images/graceland-logo.jpg',
+    ].filter(Boolean) as string[];
+
+    for (const candidate of logoCandidates) {
       try {
-        // Create circular clipping path first
-        pdf.setFillColor(255, 255, 255); // White background
-        pdf.circle(pageWidth / 2, headerY + (logoSize / 2), logoSize / 2, 'F'); // Filled circle
-        pdf.setDrawColor(44, 60, 80); // #2c3e50 border
-        pdf.setLineWidth(0.7); // 2px border = 0.7mm
-        pdf.circle(pageWidth / 2, headerY + (logoSize / 2), logoSize / 2, 'S'); // Circle border
-        pdf.setLineWidth(1); // Reset to default
-        
-        // Add image within circular bounds
-        pdf.addImage(schoolSettings.school_logo_url, 'PNG', logoX, headerY, logoSize, logoSize);
+        // 18mm in PDF is small; use a larger raster to keep it crisp.
+        const hiResPx = 512;
+        const circularLogoPng = await createCircularPngDataUrl(candidate, hiResPx);
+        pdf.addImage(circularLogoPng, 'PNG', logoX, headerY, logoSize, logoSize);
         logoLoaded = true;
-        console.log('School logo loaded from settings');
-      } catch (error) {
-        console.log('Settings logo failed to load:', error);
+        break;
+      } catch (e) {
+        // Try next candidate
       }
     }
-    
-    // Second try: exact StudentResultCard primary path
+
     if (!logoLoaded) {
-      try {
-        const publicLogoUrl = "./assets/images/school-logo.jpg"; // Exact StudentResultCard path
-        // Create circular clipping path first
-        pdf.setFillColor(255, 255, 255); // White background
-        pdf.circle(pageWidth / 2, headerY + (logoSize / 2), logoSize / 2, 'F'); // Filled circle
-        pdf.setDrawColor(44, 60, 80); // #2c3e50 border
-        pdf.setLineWidth(0.7); // 2px border = 0.7mm
-        pdf.circle(pageWidth / 2, headerY + (logoSize / 2), logoSize / 2, 'S'); // Circle border
-        pdf.setLineWidth(1); // Reset to default
-        
-        // Add image within circular bounds
-        pdf.addImage(publicLogoUrl, 'PNG', logoX, headerY, logoSize, logoSize);
-        logoLoaded = true;
-        console.log('Primary logo loaded (StudentResultCard path)');
-      } catch (error) {
-        console.log('Primary logo failed to load:', error);
-      }
-    }
-    
-    // Third try: exact StudentResultCard fallback path
-    if (!logoLoaded) {
-      try {
-        const fallbackUrl = "./assets/images/graceland-logo.jpg"; // Exact StudentResultCard fallback
-        // Create circular clipping path first
-        pdf.setFillColor(255, 255, 255); // White background
-        pdf.circle(pageWidth / 2, headerY + (logoSize / 2), logoSize / 2, 'F'); // Filled circle
-        pdf.setDrawColor(44, 60, 80); // #2c3e50 border
-        pdf.setLineWidth(0.7); // 2px border = 0.7mm
-        pdf.circle(pageWidth / 2, headerY + (logoSize / 2), logoSize / 2, 'S'); // Circle border
-        pdf.setLineWidth(1); // Reset to default
-        
-        // Add image within circular bounds
-        pdf.addImage(fallbackUrl, 'PNG', logoX, headerY, logoSize, logoSize);
-        logoLoaded = true;
-        console.log('Fallback logo loaded (StudentResultCard path)');
-      } catch (fallbackError) {
-        console.log('All logo attempts failed, using text fallback:', fallbackError);
-      }
-    }
-    
-    // If no logo loaded, show text fallback
-    if (!logoLoaded) {
-      // Logo container with circular styling - exact StudentResultCard
-      pdf.setFillColor(255, 255, 255); // White background
-      pdf.circle(pageWidth / 2, headerY + (logoSize / 2), logoSize / 2, 'F'); // Filled circle
-      pdf.setDrawColor(44, 60, 80); // #2c3e50 border
-      pdf.setLineWidth(0.5); // 2px border = 0.5mm
-      pdf.circle(pageWidth / 2, headerY + (logoSize / 2), logoSize / 2, 'S'); // Circle border
-      pdf.setLineWidth(1); // Reset to default
-      
-      // Add LOGO text
-      pdf.setTextColor(44, 60, 80);
+      // Fallback: show text inside a circle
+      pdf.setFillColor(255, 255, 255);
+      pdf.circle(logoCenterX, logoCenterY, logoRadius, 'F');
+      pdf.setTextColor(logoStrokeColor[0], logoStrokeColor[1], logoStrokeColor[2]);
       pdf.setFontSize(8);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('LOGO', pageWidth / 2, headerY + (logoSize / 2) + 2, { align: 'center' });
+      pdf.text('LOGO', logoCenterX, logoCenterY + 2, { align: 'center' });
     }
+
+    // Dark blue circular stroke (requested)
+    pdf.setDrawColor(logoStrokeColor[0], logoStrokeColor[1], logoStrokeColor[2]);
+    pdf.setLineWidth(logoStrokeWidthMm);
+    pdf.circle(logoCenterX, logoCenterY, logoRadius, 'S');
+    pdf.setLineWidth(1);
     
     // CENTERED SCHOOL NAME (enhanced visibility and fit)
     let currentTextY = headerY + logoSize + 5; // Increased spacing from 2mm to 5mm for better separation
@@ -522,6 +556,16 @@ export function ResultsManagementPage() {
     currentTextY += 5; // Increased from 3mm to 5mm for better spacing
     pdf.setFont('helvetica', 'normal');
     addText(schoolSettings?.school_email || 'school@email.com', pageWidth / 2, currentTextY, 9, 'normal', 'center');
+
+    // CENTERED SCHOOL PHONE NUMBER (under email)
+    currentTextY += 5; // Spacing consistent with address/email
+    pdf.setFont('helvetica', 'normal');
+    const schoolPhone =
+      (schoolSettings as any)?.school_phone ||
+      (schoolSettings as any)?.school_phone_number ||
+      (schoolSettings as any)?.school_contact_phone ||
+      '';
+    addText(schoolPhone || 'Phone: __________', pageWidth / 2, currentTextY, 9, 'normal', 'center');
     
     // CENTERED DIVIDER LINE (exact StudentResultCard: marginTop: 1mm, width: 80%, margin: 1mm auto 0)
     currentTextY += 3; // Increased from 1mm to 3mm for better spacing below email
@@ -535,64 +579,133 @@ export function ResultsManagementPage() {
     currentY = currentTextY + 8; // Header marginBottom: increased from 3mm to 8mm for better separation
 
     // === STUDENT INFORMATION SECTION (Exact StudentResultCard copy) ===
-    console.log('Drawing student info section...');
-    
     // Student info section container (exact StudentResultCard: marginBottom: 2mm, gap: 1mm, centered)
     const studentInfoY = currentY;
     const studentInfoTableWidth = contentWidth * 0.75; // 75% width
-    const studentPhotoWidth = contentWidth * 0.25; // 25% width
+    const studentPhotoWidth = 25; // mm
+    const studentPhotoHeight = 30; // mm
     const sectionGap = 1; // 1mm gap between table and photo
     const totalWidth = studentInfoTableWidth + sectionGap + studentPhotoWidth;
     const startX = (pageWidth - totalWidth) / 2; // Center the entire section
     
     // Student info table - exact StudentResultCard styling
     pdf.setFillColor(248, 249, 250); // #f8f9fa background
-    pdf.rect(startX, studentInfoY, studentInfoTableWidth, 22, 'F'); // Increased to 22mm height for 5 rows
-    pdf.setDrawColor(44, 60, 80); // #2c3e50 border
-    pdf.setLineWidth(0.7); // 2px border = 0.7mm
-    pdf.rect(startX, studentInfoY, studentInfoTableWidth, 22);
-    pdf.setLineWidth(1); // Reset to default
     
     // Student info table content - Better organized layout
-    const tableData = [
+    const studentDobText =
+      (studentData as any)?.date_of_birth ||
+      (studentData as any)?.dateOfBirth ||
+      (studentData as any)?.dob ||
+      '';
+
+    const resolvedStudentName = (() => {
+      const first =
+        (studentData as any)?.firstName ||
+        (studentData as any)?.first_name ||
+        '';
+      const last =
+        (studentData as any)?.lastName ||
+        (studentData as any)?.last_name ||
+        '';
+      const other =
+        (studentData as any)?.otherName ||
+        (studentData as any)?.other_name ||
+        '';
+
+      return `${String(last).trim()} ${String(first).trim()} ${String(other).trim()}`.replace(/\s+/g, ' ').trim();
+    })();
+
+    const totalStudentsInClass = students.filter((s: any) => {
+      const sClassId = (s as any)?.class_id ?? (s as any)?.classId;
+      if (classIdToUse === undefined || classIdToUse === null || classIdToUse === '') return false;
+      if (Number(sClassId) !== Number(classIdToUse)) return false;
+
+      const status = String((s as any)?.status || '').toLowerCase();
+      if (status === 'inactive') return false;
+
+      return true;
+    }).length;
+
+    const studentClassNameText =
+      (studentClassData as any)?.name ||
+      (studentClassData as any)?.className ||
+      (result as any)?.class_name ||
+      (result as any)?.className ||
+      (studentData as any)?.class_name ||
+      (studentData as any)?.className ||
+      '';
+
+    const getSignatureResumptionDate = async (academicYear: string, term: string): Promise<string> => {
+      try {
+        if (!academicYear || !term) return '';
+        const token = localStorage.getItem('jwt_token');
+        const query = new URLSearchParams({ academic_year: academicYear, term });
+        const resp = await fetch(`${API_CONFIG.BASE_URL}/signature_settings.php?${query.toString()}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        });
+        const json = await resp.json();
+        return String((json as any)?.data?.resumption_date ?? '');
+      } catch {
+        return '';
+      }
+    };
+
+    const rowHeight = 4.4;
+    const studentInfoTableHeight = rowHeight * 5;
+
+    const signatureResumptionDate = await getSignatureResumptionDate(String((result as any)?.academic_year || ''), String((result as any)?.term || ''));
+
+    const compiledNext = String((result as any)?.next_term_begin ?? '').trim();
+    const compiledNextValid = compiledNext !== '' && compiledNext !== '0000-00-00' && compiledNext !== '0000-00-00 00:00:00';
+    const nextTermBeginValue =
+      signatureResumptionDate ||
+      (compiledNextValid ? compiledNext : '') ||
+      '';
+
+    const tableData: Array<Array<{ type: 'label' | 'value'; text: string; width: number }>> = [
       [
-        // Row 1: 4 cells - Name, Name value, Session, Session value
         { type: 'label', text: 'Name:', width: 0.15 },
-        { type: 'value', text: studentData ? `${studentData.firstName} ${studentData.lastName}`.toUpperCase() : 'STUDENT NAME', width: 0.35 },
+        { type: 'value', text: String((resolvedStudentName || '').toUpperCase()), width: 0.35 },
         { type: 'label', text: 'Session:', width: 0.15 },
-        { type: 'value', text: result.academic_year || '2024/2025', width: 0.35 }
+        { type: 'value', text: String((result as any)?.academic_year || ''), width: 0.35 },
       ],
       [
-        // Row 2: 4 cells - Admission No, Admission No value, Term, Term value
         { type: 'label', text: 'Admission No:', width: 0.15 },
-        { type: 'value', text: studentData?.admissionNumber || 'GRA/XXXXX', width: 0.35 },
+        { type: 'value', text: String((studentData as any)?.admissionNumber || (studentData as any)?.admission_number || ''), width: 0.35 },
         { type: 'label', text: 'Term:', width: 0.15 },
-        { type: 'value', text: result.term || 'THIRD TERM', width: 0.35 }
+        { type: 'value', text: String((result as any)?.term || ''), width: 0.35 },
       ],
       [
-        // Row 3: 4 cells - Class, Class value, Gender, Gender value
         { type: 'label', text: 'Class:', width: 0.15 },
-        { type: 'value', text: studentClassData?.name || 'CLASS NAME', width: 0.35 },
+        { type: 'value', text: String(studentClassNameText || ''), width: 0.35 },
         { type: 'label', text: 'Gender:', width: 0.15 },
-        { type: 'value', text: studentData?.gender || 'MALE', width: 0.35 }
+        { type: 'value', text: String((studentData as any)?.gender || ''), width: 0.35 },
       ],
       [
-        // Row 4: 4 cells - Attendance, Attendance value, Position (if regular class), Position value
         { type: 'label', text: 'Attendance:', width: 0.15 },
-        { type: 'value', text: `${result.times_present || 0} / ${result.total_attendance_days || 0} days`, width: 0.35 },
-        { type: 'label', text: shouldShowPosition ? 'Position:' : '', width: shouldShowPosition ? 0.15 : 0 },
-        { type: 'value', text: shouldShowPosition ? `${result.position || '___'} / ${result.total_students || '___'}` : '', width: shouldShowPosition ? 0.35 : 0 }
+        { type: 'value', text: `${(result as any)?.times_present || 0} / ${(result as any)?.total_attendance_days || 0} days`, width: 0.35 },
+        { type: 'label', text: 'Total in Class:', width: 0.15 },
+        { type: 'value', text: String(totalStudentsInClass || 0), width: 0.35 },
       ],
       [
-        // Row 5: Next Term Begins (separate cells for label and value)
-        { type: 'label', text: 'Next Term Begins:', width: 0.2 },
-        { type: 'value', text: schoolSettings?.resumption_date || '', width: 0.8 }
-      ]
+        { type: 'label', text: 'Date of Birth:', width: 0.15 },
+        { type: 'value', text: String(studentDobText || ''), width: 0.35 },
+        { type: 'label', text: 'Next Term Begins:', width: 0.15 },
+        { type: 'value', text: String(nextTermBeginValue || ''), width: 0.35 },
+      ],
     ];
+
+    pdf.setDrawColor(44, 60, 80); // #2c3e50 border
+    pdf.setLineWidth(0.7); // 2px border = 0.7mm
+    pdf.rect(startX, studentInfoY, studentInfoTableWidth, studentInfoTableHeight);
+    pdf.setLineWidth(1); // Reset to default
     
     let studentInfoTableY = studentInfoY;
     tableData.forEach((row, rowIndex) => {
-      const rowHeight = 4.4; // 4.4mm per row (22mm / 5 rows)
       let cellX = startX;
       
       row.forEach((cell, cellIndex) => {
@@ -604,6 +717,18 @@ export function ResultsManagementPage() {
         
         // Calculate cell width based on predefined percentages
         const cellWidth = studentInfoTableWidth * cell.width;
+
+        const fitText = (text: string, maxWidth: number) => {
+          if (!text) return '';
+          if (pdf.getTextWidth(text) <= maxWidth) return text;
+          const ellipsis = '...';
+          const ellipsisWidth = pdf.getTextWidth(ellipsis);
+          let trimmed = text;
+          while (trimmed.length > 0 && pdf.getTextWidth(trimmed) + ellipsisWidth > maxWidth) {
+            trimmed = trimmed.slice(0, -1);
+          }
+          return trimmed.length > 0 ? trimmed + ellipsis : ellipsis;
+        };
         
         // Draw cell border
         pdf.setDrawColor(44, 60, 80);
@@ -616,12 +741,12 @@ export function ResultsManagementPage() {
           pdf.setTextColor(44, 60, 80);
           pdf.setFontSize(8);
           pdf.setFont('helvetica', 'bold');
-          pdf.text(cell.text, cellX + 1, studentInfoTableY + 3); // 1mm padding
+          pdf.text(fitText(cell.text, cellWidth - 2), cellX + 1, studentInfoTableY + 3); // 1mm padding
         } else {
           pdf.setTextColor(0, 0, 0);
           pdf.setFontSize(8);
           pdf.setFont('helvetica', 'normal');
-          pdf.text(cell.text, cellX + 1, studentInfoTableY + 3); // 1mm padding
+          pdf.text(fitText(cell.text, cellWidth - 2), cellX + 1, studentInfoTableY + 3); // 1mm padding
         }
         
         cellX += cellWidth;
@@ -629,39 +754,90 @@ export function ResultsManagementPage() {
       
       studentInfoTableY += rowHeight;
     });
-    
+
     // Student photo (25% width) - exact StudentResultCard with proper gap and border
     const photoX = startX + studentInfoTableWidth + sectionGap; // Use startX and proper gap
     pdf.setDrawColor(0, 0, 0); // Black border like StudentResultCard
     pdf.setLineWidth(0.35); // 1px border = 0.35mm
-    pdf.rect(photoX, studentInfoY, studentPhotoWidth, 18); // Photo container with exact dimensions
+    pdf.rect(photoX, studentInfoY, studentPhotoWidth, studentPhotoHeight); // Photo container with exact dimensions
     pdf.setLineWidth(1); // Reset to default
-    
-    if (studentData?.photo_url) {
-      try {
-        pdf.addImage(studentData.photo_url, 'PNG', photoX, studentInfoY, studentPhotoWidth, 18);
-      } catch (error) {
-        // Fallback text with exact StudentResultCard styling
-        pdf.setFillColor(245, 245, 245); // #f5f5f5 background
-        pdf.rect(photoX, studentInfoY, studentPhotoWidth, 18, 'F');
-        pdf.setTextColor(102, 102, 102); // #666
-        pdf.setFontSize(9);
-        pdf.text('No Photo', photoX + studentPhotoWidth / 2, studentInfoY + 9, { align: 'center' });
+
+    const rawPhotoUrl =
+      (studentData as any)?.photo_url ||
+      (studentData as any)?.photoUrl ||
+      (studentData as any)?.photoURL ||
+      '';
+
+    const buildStudentPhotoCandidates = (): string[] => {
+      if (!rawPhotoUrl || typeof rawPhotoUrl !== 'string') return [];
+      const trimmed = rawPhotoUrl.trim();
+      if (!trimmed) return [];
+
+      if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
+        return [trimmed];
       }
+
+      const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+      let apiOrigin = '';
+      try {
+        apiOrigin = API_CONFIG?.BASE_URL ? new URL(API_CONFIG.BASE_URL).origin : '';
+      } catch {
+        apiOrigin = '';
+      }
+
+      const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
+      const candidates = [
+        appOrigin ? `${appOrigin}${normalizedPath}` : '',
+        apiOrigin ? `${apiOrigin}${normalizedPath}` : '',
+        trimmed,
+      ].filter(Boolean);
+
+      return Array.from(new Set(candidates));
+    };
+
+    const getPhotoFormat = (src: string): 'PNG' | 'JPEG' => {
+      if (
+        typeof src === 'string' &&
+        (src.toLowerCase().includes('image/jpeg') ||
+          src.toLowerCase().includes('image/jpg') ||
+          src.toLowerCase().endsWith('.jpg') ||
+          src.toLowerCase().endsWith('.jpeg'))
+      ) {
+        return 'JPEG';
+      }
+      return 'PNG';
+    };
+
+    const photoCandidates = buildStudentPhotoCandidates();
+    let embeddedPhotoDataUrl = '';
+    let embeddedPhotoFormat: 'PNG' | 'JPEG' = 'PNG';
+
+    if (photoCandidates.length > 0) {
+      for (const candidate of photoCandidates) {
+        try {
+          embeddedPhotoDataUrl = await resolveImageToDataUrl(candidate);
+          embeddedPhotoFormat = getPhotoFormat(candidate);
+          break;
+        } catch {
+          // try next candidate
+        }
+      }
+    }
+
+    if (embeddedPhotoDataUrl) {
+      pdf.addImage(embeddedPhotoDataUrl, embeddedPhotoFormat as any, photoX, studentInfoY, studentPhotoWidth, studentPhotoHeight);
     } else {
       // Fallback with exact StudentResultCard styling
-      pdf.setFillColor(245, 245, 245); // #f5f5f5 background
-      pdf.rect(photoX, studentInfoY, studentPhotoWidth, 18, 'F');
+      pdf.setFillColor(245, 245, 245); // #f5f5f5
+      pdf.rect(photoX, studentInfoY, studentPhotoWidth, studentPhotoHeight, 'F');
       pdf.setTextColor(102, 102, 102); // #666
       pdf.setFontSize(9);
-      pdf.text('No Photo', photoX + studentPhotoWidth / 2, studentInfoY + 9, { align: 'center' });
+      pdf.text('No Photo', photoX + studentPhotoWidth / 2, studentInfoY + (studentPhotoHeight / 2), { align: 'center' });
     }
-    
+
     currentY = studentInfoY + 30; // Increased from 20 to 30 for more spacing
 
     // === RESULT TITLE (enhanced visibility and fit) ===
-    console.log('Drawing result title...');
-    
     const resultTitleY = currentY;
     const resultTitle = `${result?.term || 'THIRD TERM'} RESULT SHEET`;
     pdf.setTextColor(44, 60, 80); // #2c3e50
@@ -681,8 +857,6 @@ export function ResultsManagementPage() {
     currentY = resultTitleY + 10; // 1mm margin below title
 
     // === RESULT TABLE (Exact StudentResultCard copy) ===
-    console.log('Drawing result table...');
-    
     const resultTableY = currentY;
     const tableWidth = contentWidth * 0.95; // 95% width
     const tableX = (pageWidth - tableWidth) / 2; // Centered
@@ -724,10 +898,6 @@ export function ResultsManagementPage() {
     // Draw table rows
     let rowY = resultTableY + 8;
     const scoresList = detailedScoresData; // Use exact same data as StudentResultCard
-    
-    console.log('=== TABLE RENDERING DEBUG ===');
-    console.log('scoresList length:', scoresList.length);
-    console.log('scoresList data:', scoresList);
     
     if (scoresList.length > 0) {
       scoresList.forEach((score: any, index: number) => {
@@ -797,8 +967,6 @@ export function ResultsManagementPage() {
     currentY = rowY + 2; // 0.8mm margin below table
 
     // === SCORE SUMMARY (Exact StudentResultCard copy) ===
-    console.log('Drawing score summary...');
-    
     const summaryY = currentY;
     const summaryWidth = contentWidth * 0.95; // 95% width
     const summaryX = (pageWidth - summaryWidth) / 2; // Centered
@@ -811,29 +979,23 @@ export function ResultsManagementPage() {
     pdf.rect(summaryX, summaryY, summaryWidth, 8);
     pdf.setLineWidth(1); // Reset to default
     
-    // Summary data - using exact StudentResultCard data and position formatting
-    const getPositionWithSuffix = (position: number) => {
-      if (!position) return '___';
-      if (position === 1) return `${position}st`;
-      if (position === 2) return `${position}nd`;
-      if (position === 3) return `${position}rd`;
-      return `${position}th`;
-    };
-    
-    const summaryData = shouldShowPosition ? [
-      `TOTAL: ${result?.total_score || '0.00'}`,
-      `AVG: ${result?.average_score || '0.00'}`,
-      `CLASS AVG: ${result?.class_average || '0.00'}`,
-      `POS: ${getPositionWithSuffix(result?.position)}`
-    ] : [
-      `TOTAL: ${result?.total_score || '0.00'}`,
-      `AVG: ${result?.average_score || '0.00'}`,
-      `CLASS AVG: ${result?.class_average || '0.00'}`
-    ];
+    const summaryData = shouldShowPosition
+      ? [
+          `TOTAL: ${result?.total_score || '0.00'}`,
+          `AVG: ${result?.average_score || '0.00'}`,
+          `CLASS AVG: ${result?.class_average || '0.00'}`,
+          `POS: ${formatPositionWithSuffix(result?.position)}`
+        ]
+      : [
+          `TOTAL: ${result?.total_score || '0.00'}`,
+          `AVG: ${result?.average_score || '0.00'}`,
+          `CLASS AVG: ${result?.class_average || '0.00'}`,
+          `GRADE: ${getGrade(Number(result?.average_score || 0)).grade}`
+        ];
     
     // Draw summary cells
     let summaryCellX = summaryX;
-    const summaryCellWidth = shouldShowPosition ? summaryWidth / 4 : summaryWidth / 3;
+    const summaryCellWidth = summaryWidth / 4;
     
     summaryData.forEach((data, index) => {
       // Cell border
@@ -852,8 +1014,6 @@ export function ResultsManagementPage() {
     currentY = summaryY + 10; // 2mm margin below summary
 
     // === SIGNATURE SECTION (Exact StudentResultCard copy) ===
-    console.log('Drawing signature section...');
-    
     const signatureY = currentY;
     const signatureWidth = contentWidth * 0.47; // 47% width each
     const signatureGap = 2; // 2mm gap
@@ -862,9 +1022,12 @@ export function ResultsManagementPage() {
   
   // Class Teacher Section - Left Side (exact StudentResultCard: 25mm height)
     pdf.setFillColor(248, 249, 250); // #f8f9fa background
-    pdf.rect(signatureLeftX, signatureY, signatureWidth, 25, 'F'); // 25mm height
+    const signatureBlockHeight = 30;
+    pdf.rect(signatureLeftX, signatureY, signatureWidth, signatureBlockHeight, 'F');
     pdf.setDrawColor(44, 60, 80); // #2c3e50 border
-    pdf.rect(signatureLeftX, signatureY, signatureWidth, 25);
+    pdf.setLineWidth(0.7);
+    pdf.rect(signatureLeftX, signatureY, signatureWidth, signatureBlockHeight);
+    pdf.setLineWidth(1);
     
     // Class Teacher content with proper spacing to prevent overlap
     pdf.setTextColor(44, 60, 80); // #2c3e50
@@ -880,16 +1043,39 @@ export function ResultsManagementPage() {
     const comment = result?.class_teacher_comment || result?.comment || 'Teacher comment will appear here.';
     pdf.setFont('times', 'normal'); // Professional Times font for comments
     pdf.setFontSize(8); // Smaller font for comments
-    pdf.text(`Comment: ${comment}`, signatureLeftX + 2, signatureY + 14); // Increased from 11 to 14
+    {
+      const commentLabel = 'Comment: ';
+      const commentText = `${commentLabel}${comment}`;
+      const maxWidth = signatureWidth - 4;
+      const wrapped = pdf.splitTextToSize(commentText, maxWidth);
+      const maxLines = 2;
+      const lines = wrapped.slice(0, maxLines);
+      pdf.text(lines, signatureLeftX + 2, signatureY + 14);
+    }
     
     // Principal/Head Teacher Section - Right Side (exact StudentResultCard: 30mm height)
     pdf.setFillColor(248, 249, 250); // #f8f9fa background
-    pdf.rect(signatureRightX, signatureY, signatureWidth, 30, 'F'); // 30mm height
+    pdf.rect(signatureRightX, signatureY, signatureWidth, signatureBlockHeight, 'F');
     pdf.setDrawColor(44, 60, 80); // #2c3e50 border
-    pdf.rect(signatureRightX, signatureY, signatureWidth, 30);
+    pdf.setLineWidth(0.7);
+    pdf.rect(signatureRightX, signatureY, signatureWidth, signatureBlockHeight);
+    pdf.setLineWidth(1);
     
     // Principal/Head Teacher content with proper spacing to prevent overlap
-    const signatureTitle = studentClassData?.category === 'Primary' ? 'HEAD TEACHER' : 'PRINCIPAL';
+    const classTextForSection = String(
+      (studentClassData as any)?.level ||
+        (studentClassData as any)?.section ||
+        (studentClassData as any)?.name ||
+        studentClassNameText ||
+        ''
+    ).toLowerCase();
+
+    const isSecondarySection =
+      (studentClassData as any)?.category === 'Secondary' ||
+      classTextForSection.includes('jss') ||
+      classTextForSection.includes('ss');
+
+    const signatureTitle = isSecondarySection ? 'PRINCIPAL' : 'HEAD TEACHER';
     pdf.setTextColor(44, 60, 80); // #2c3e50
     pdf.setFontSize(7); // 7pt
     pdf.setFont('helvetica', 'bold');
@@ -897,41 +1083,67 @@ export function ResultsManagementPage() {
     
     pdf.setTextColor(0, 0, 0);
     pdf.setFont('helvetica', 'normal');
-    // Use result data for teacher name (from compiled result)
-    const teacherName = result?.principal_name || result?.class_teacher_name || 
-      (studentClassData?.category === 'Primary' 
-        ? (schoolSettings?.head_teacher_name || '_________________')
-        : (schoolSettings?.principal_name || '_________________'));
+    const teacherName = isSecondarySection
+      ? ((schoolSettings as any)?.principal_name || '_________________')
+      : ((schoolSettings as any)?.head_teacher_name || '_________________');
     pdf.text(`Name: ${teacherName}`, signatureRightX + 2, signatureY + 9); // Increased from 7 to 9
     
     // Use result data for comment (from compiled result)
-    const principalComment = result?.principal_comment || result?.head_teacher_comment ||
-      (studentClassData?.category === 'Primary'
-        ? (schoolSettings?.head_teacher_comment || 'Head teacher comment will appear here.')
-        : (schoolSettings?.principal_comment || 'Principal comment will appear here.'));
+    const firstNonEmpty = (...vals: Array<unknown>) => {
+      for (const v of vals) {
+        if (typeof v === 'string' && v.trim() !== '') return v;
+        if (v !== null && v !== undefined && typeof v !== 'string') return String(v);
+      }
+      return '';
+    };
+
+    const settingsHeadTeacherComment = firstNonEmpty(
+      (schoolSettings as any)?.head_teacher_comment,
+      (schoolSettings as any)?.headTeacherComment,
+      (schoolSettings as any)?.head_teacher_comments,
+      (schoolSettings as any)?.headTeacherComments
+    );
+
+    const settingsPrincipalComment = firstNonEmpty(
+      (schoolSettings as any)?.principal_comment,
+      (schoolSettings as any)?.principalComment,
+      (schoolSettings as any)?.principal_comments,
+      (schoolSettings as any)?.principalComments
+    );
+
+    const principalComment = firstNonEmpty(
+      isSecondarySection
+        ? (settingsPrincipalComment || 'Principal comment will appear here.')
+        : (settingsHeadTeacherComment || 'Head teacher comment will appear here.')
+    );
     pdf.setFont('times', 'normal'); // Professional Times font for comments
     pdf.setFontSize(8); // Smaller font for comments
-    pdf.text(`Comment: ${principalComment}`, signatureRightX + 2, signatureY + 14); // Increased from 11 to 14
+    {
+      const commentText = `Comment: ${principalComment}`;
+      const maxWidth = signatureWidth - 4;
+      const wrapped = pdf.splitTextToSize(commentText, maxWidth);
+      const maxLines = 2;
+      const lines = wrapped.slice(0, maxLines);
+      pdf.text(lines, signatureRightX + 2, signatureY + 14);
+    }
   
-  // Signature line with proper spacing
-  pdf.text('Signature:', signatureRightX + 2, signatureY + 19); // Increased from 15 to 19
-  pdf.setDrawColor(0, 0, 0);
-  pdf.line(signatureRightX + 2, signatureY + 22, signatureRightX + signatureWidth - 2, signatureY + 22); // Increased from 18 to 22
-  
-  // Signature image if available - using real database signature field
-  if (result?.principal_signature) {
+  // Signature image (prefer School Settings)
+  const settingsSignature = isSecondarySection
+    ? (schoolSettings as any)?.principal_signature
+    : (schoolSettings as any)?.head_teacher_signature;
+
+  const signatureImage = settingsSignature || (result as any)?.principal_signature;
+  if (signatureImage) {
     try {
-      pdf.addImage(result.principal_signature, 'PNG', signatureRightX + 2, signatureY + 18, signatureWidth - 4, 6);
+      pdf.addImage(signatureImage, 'PNG', signatureRightX + 2, signatureY + 18, signatureWidth - 4, 6);
     } catch (error) {
-      console.log('Could not add signature:', error);
+      // Silent fail for security
     }
   }
 
   currentY = signatureY + 45; // Increased from 35 to 45 for more spacing
 
   // === AFFECTIVE AND PSYCHOMOTOR DOMAINS (Exact StudentResultCard copy) ===
-  console.log('Drawing affective and psychomotor domains...');
-  
   const domainsY = currentY;
   const domainWidth = contentWidth * 0.48; // 48% width each
   const domainGap = 2; // 2mm gap
@@ -954,7 +1166,31 @@ export function ResultsManagementPage() {
   pdf.setLineWidth(1);
 
   const affectiveTableY = domainsY + 3;
-  const affectiveTableHeight = 30; // 30mm height
+  const domainHeaderHeight = 6;
+  const domainRowHeight = 4.8;
+
+  // Affective + Psychomotor data must be declared before calculating shared layout
+  const affectiveDataObj = getStudentAffectiveData();
+  const affectiveData = [
+    { quality: getDomainName('attentiveness'), score: affectiveDataObj.attentiveness || result?.affective?.attentiveness || '4' },
+    { quality: getDomainName('honesty'), score: affectiveDataObj.honesty || result?.affective?.honesty || '3' },
+    { quality: getDomainName('neatness'), score: affectiveDataObj.neatness || result?.affective?.neatness || '4' },
+    { quality: getDomainName('obedience'), score: affectiveDataObj.obedience || result?.affective?.obedience || '2' },
+    { quality: getDomainName('sense_of_responsibility'), score: affectiveDataObj.sense_of_responsibility || result?.affective?.sense_of_responsibility || '3' }
+  ];
+
+  const psychomotorDataObj = getStudentPsychomotorData();
+  const psychomotorData = [
+    { key: 'attention_to_direction', score: psychomotorDataObj.attention_to_direction || result?.psychomotor?.attention_to_direction || '4' },
+    { key: 'considerate_of_others', score: psychomotorDataObj.considerate_of_others || result?.psychomotor?.considerate_of_others || '2' },
+    { key: 'handwriting', score: psychomotorDataObj.handwriting || result?.psychomotor?.handwriting || '4' },
+    { key: 'sports', score: psychomotorDataObj.sports || result?.psychomotor?.sports || '3' },
+    { key: 'verbal_fluency', score: psychomotorDataObj.verbal_fluency || result?.psychomotor?.verbal_fluency || '4' },
+    { key: 'works_well_independently', score: psychomotorDataObj.works_well_independently || result?.psychomotor?.works_well_independently || '5' }
+  ];
+
+  const maxDomainRows = Math.max(affectiveData.length, psychomotorData.length);
+  const affectiveTableHeight = domainHeaderHeight + (maxDomainRows * domainRowHeight);
 
   // Affective table background
   pdf.setFillColor(255, 255, 255); // White background
@@ -964,7 +1200,7 @@ export function ResultsManagementPage() {
 
   // Affective table header (enhanced visibility with standard font)
   pdf.setFillColor(26, 37, 47); // Dark professional color
-  pdf.rect(affectiveX, affectiveTableY, domainWidth, 6, 'F');
+  pdf.rect(affectiveX, affectiveTableY, domainWidth, domainHeaderHeight, 'F');
   
   pdf.setTextColor(255, 255, 255); // White text for contrast
   pdf.setFontSize(8); // Increased from 6pt to 8pt for better readability
@@ -980,45 +1216,43 @@ export function ResultsManagementPage() {
     affectiveHeaderX += cellWidth;
   });
 
-  // Affective table data (using actual database data like StudentResultCard)
-  const affectiveDataObj = getStudentAffectiveData();
-  const affectiveData = [
-    { quality: getDomainName('attentiveness'), score: affectiveDataObj.attentiveness || result?.affective?.attentiveness || '4' },
-    { quality: getDomainName('honesty'), score: affectiveDataObj.honesty || result?.affective?.honesty || '3' },
-    { quality: getDomainName('neatness'), score: affectiveDataObj.neatness || result?.affective?.neatness || '4' },
-    { quality: getDomainName('obedience'), score: affectiveDataObj.obedience || result?.affective?.obedience || '2' },
-    { quality: getDomainName('sense_of_responsibility'), score: affectiveDataObj.sense_of_responsibility || result?.affective?.sense_of_responsibility || '3' }
-  ];
+  let affectiveRowY = affectiveTableY + domainHeaderHeight;
+  for (let index = 0; index < maxDomainRows; index++) {
+    const item = affectiveData[index];
 
-  let affectiveRowY = affectiveTableY + 6;
-  affectiveData.forEach((item, index) => {
     // Alternating background colors (exact StudentResultCard)
     if (index % 2 === 0) {
       pdf.setFillColor(248, 249, 250); // #f8f9fa
-      pdf.rect(affectiveX, affectiveRowY, domainWidth, 4.8, 'F');
+    } else {
+      pdf.setFillColor(255, 255, 255);
+    }
+    pdf.rect(affectiveX, affectiveRowY, domainWidth, domainRowHeight, 'F');
+    pdf.setDrawColor(0, 0, 0);
+    pdf.rect(affectiveX, affectiveRowY, domainWidth, domainRowHeight);
+
+    if (item) {
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(7); // 7pt
+      let affectiveCellX = affectiveX;
+
+      // Quality column
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(item.quality, affectiveCellX + 2, affectiveRowY + 3);
+      affectiveCellX += domainWidth * 0.5;
+
+      // Score column
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(item.score, affectiveCellX + domainWidth * 0.1, affectiveRowY + 3, { align: 'center' });
+      affectiveCellX += domainWidth * 0.2;
+
+      // Remark column
+      pdf.setFont('helvetica', 'normal');
+      const remark = getAffectiveRemark(parseInt(item.score));
+      pdf.text(remark, affectiveCellX + 2, affectiveRowY + 3);
     }
 
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFontSize(7); // 7pt
-    let affectiveCellX = affectiveX;
-
-    // Quality column with proper spacing
-    pdf.setFont('helvetica', '600'); // Semi-bold
-    pdf.text(item.quality, affectiveCellX + 2, affectiveRowY + 3); // Increased from 1 to 2
-    affectiveCellX += domainWidth * 0.5;
-
-    // Score column
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(item.score, affectiveCellX + domainWidth * 0.1, affectiveRowY + 3, { align: 'center' });
-    affectiveCellX += domainWidth * 0.2;
-
-    // Remark column with proper spacing
-    pdf.setFont('helvetica', 'normal');
-    const remark = getAffectiveRemark(parseInt(item.score));
-    pdf.text(remark, affectiveCellX + 2, affectiveRowY + 3); // Increased from 1 to 2
-
-    affectiveRowY += 4.8;
-  });
+    affectiveRowY += domainRowHeight;
+  }
 
   // Psychomotor Domains - exact StudentResultCard structure
   // Psychomotor title (enhanced visibility with standard font)
@@ -1043,7 +1277,7 @@ export function ResultsManagementPage() {
 
   // Psychomotor table headers with enhanced visibility
   pdf.setFillColor(26, 37, 47); // Dark professional color
-  pdf.rect(psychomotorX, affectiveTableY, domainWidth, 6, 'F');
+  pdf.rect(psychomotorX, affectiveTableY, domainWidth, domainHeaderHeight, 'F');
   pdf.setTextColor(255, 255, 255); // White text for contrast
   pdf.setFontSize(8); // Increased from 6pt to 8pt for better readability
   pdf.setFont('times', 'bold'); // Professional Times font
@@ -1051,46 +1285,36 @@ export function ResultsManagementPage() {
   pdf.text('SCORE', psychomotorX + (domainWidth * 0.5), affectiveTableY + 4, { align: 'center' });
   pdf.text('REMARK', psychomotorX + (domainWidth * 0.75), affectiveTableY + 4, { align: 'center' });
 
-  // Psychomotor data rows (using actual database data like StudentResultCard)
-  const psychomotorDataObj = getStudentPsychomotorData();
-  const psychomotorData = [
-    { key: 'attention_to_direction', score: psychomotorDataObj.attention_to_direction || result?.psychomotor?.attention_to_direction || '4' },
-    { key: 'considerate_of_others', score: psychomotorDataObj.considerate_of_others || result?.psychomotor?.considerate_of_others || '2' },
-    { key: 'handwriting', score: psychomotorDataObj.handwriting || result?.psychomotor?.handwriting || '4' },
-    { key: 'sports', score: psychomotorDataObj.sports || result?.psychomotor?.sports || '3' },
-    { key: 'verbal_fluency', score: psychomotorDataObj.verbal_fluency || result?.psychomotor?.verbal_fluency || '4' },
-    { key: 'works_well_independently', score: psychomotorDataObj.works_well_independently || result?.psychomotor?.works_well_independently || '5' }
-  ];
-
-  let psychomotorRowY = affectiveTableY + 6;
-  psychomotorData.forEach((item, index) => {
+  let psychomotorRowY = affectiveTableY + domainHeaderHeight;
+  for (let index = 0; index < maxDomainRows; index++) {
+    const item = psychomotorData[index];
     // Alternating colors
     if (index % 2 === 0) {
       pdf.setFillColor(248, 249, 250); // #f8f9fa
     } else {
       pdf.setFillColor(255, 255, 255); // White
     }
-    pdf.rect(psychomotorX, psychomotorRowY, domainWidth, 4.8, 'F');
+    pdf.rect(psychomotorX, psychomotorRowY, domainWidth, domainRowHeight, 'F');
     pdf.setDrawColor(0, 0, 0);
-    pdf.rect(psychomotorX, psychomotorRowY, domainWidth, 4.8);
+    pdf.rect(psychomotorX, psychomotorRowY, domainWidth, domainRowHeight);
 
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFontSize(7); // 7pt
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(getDomainName(item.key), psychomotorX + 3, psychomotorRowY + 3); // Increased from 2 to 3
+    if (item) {
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(7); // 7pt
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(getDomainName(item.key), psychomotorX + 3, psychomotorRowY + 3);
 
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(item.score, psychomotorX + (domainWidth * 0.5), psychomotorRowY + 3, { align: 'center' });
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(item.score, psychomotorX + (domainWidth * 0.5), psychomotorRowY + 3, { align: 'center' });
 
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(getAffectiveRemark(parseInt(item.score)), psychomotorX + (domainWidth * 0.75), psychomotorRowY + 3, { align: 'center' });
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(getAffectiveRemark(parseInt(item.score)), psychomotorX + (domainWidth * 0.75), psychomotorRowY + 3, { align: 'center' });
+    }
 
-    psychomotorRowY += 4.8;
-  });
+    psychomotorRowY += domainRowHeight;
+  }
 
   currentY = affectiveTableY + 35; // Move below domains section
-
-  console.log('PDF generation completed successfully');
 
   // Save the PDF
   const filename = `${student.firstName}_${student.lastName}_${result?.term}_${result?.academic_year}_Progress_Report.pdf`;
@@ -1109,8 +1333,8 @@ export function ResultsManagementPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("management");
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedClassId, setSelectedClassId] = useState<string>("all");
-  const [selectedTerm, setSelectedTerm] = useState<string>(currentTerm);
-  const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear);
+  const [selectedTerm, setSelectedTerm] = useState<string>(currentTerm ?? "");
+  const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear ?? "");
   const [academicYears, setAcademicYears] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedResult, setSelectedResult] = useState<number | null>(null);
@@ -1118,6 +1342,17 @@ export function ResultsManagementPage() {
   const [principalComment, setPrincipalComment] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
   const [historicalResults, setHistoricalResults] = useState<any[]>([]);
+
+  // Keep selected term/year in sync with system settings once they load.
+  // This prevents the page from getting stuck with empty filters on first mount.
+  useEffect(() => {
+    if (!selectedTerm && currentTerm) {
+      setSelectedTerm(currentTerm);
+    }
+    if (!selectedYear && currentAcademicYear) {
+      setSelectedYear(currentAcademicYear);
+    }
+  }, [currentTerm, currentAcademicYear, selectedTerm, selectedYear]);
 
   const resultSheetRef = useRef<HTMLDivElement>(null);
 
@@ -1129,7 +1364,7 @@ export function ResultsManagementPage() {
         setAcademicYears(years);
       }
     } catch (error) {
-      console.error('Error loading academic years:', error);
+      // Silent fail for security
     }
   }, [getAllAcademicYears]);
 
@@ -1153,13 +1388,13 @@ export function ResultsManagementPage() {
       try {
         // Load all data in parallel for better performance
         await Promise.all([
-          loadCompiledResultsFromAPI(),
+          loadCompiledResultsFromAPI(null),
           loadAcademicYears(),
           loadSchoolSettings()
         ]);
       } catch (error) {
         if (isMounted) {
-          console.error('Error loading data:', error);
+          // Silent fail for security
         }
       }
     };
@@ -1196,7 +1431,7 @@ export function ResultsManagementPage() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (selectedYear && selectedTerm) {
-        loadResultsForYearAndTerm();
+        loadResultsForYearAndTerm(false);
       }
     }, 300); // 300ms debounce
     
@@ -1204,51 +1439,76 @@ export function ResultsManagementPage() {
   }, [selectedYear, selectedTerm]);
 
   // Optimized historical results loading with caching
-  const loadResultsForYearAndTerm = async () => {
-    if (selectedYear === currentAcademicYear && selectedTerm === currentTerm) {
+  const loadResultsForYearAndTerm = async (forceRefresh: boolean) => {
+    const currentYear = currentAcademicYear ?? '';
+    const currentSelectedYear = selectedYear ?? '';
+    const currentSelectedTerm = selectedTerm ?? '';
+    const currentSystemTerm = currentTerm ?? '';
+
+    if (currentSelectedYear === currentYear && currentSelectedTerm === currentSystemTerm) {
       // Load current session results normally
-      await loadCompiledResultsFromAPI();
+      await loadCompiledResultsFromAPI(null);
     } else {
-      // Load historical results with caching
+      // Load historical results
       try {
-        const cacheKey = `historical_${selectedYear}_${selectedTerm}`;
-        const cached = localStorage.getItem(cacheKey);
-        const cacheTime = localStorage.getItem(`${cacheKey}_time`);
-        const now = Date.now();
-        
-        // Use cached data if less than 5 minutes old
-        if (cached && cacheTime && (now - parseInt(cacheTime)) < 300000) {
-          setHistoricalResults(JSON.parse(cached));
-          return;
-        }
-        
         const results = await getCompiledResultsByYearAndTerm(selectedYear, selectedTerm);
-        
-        // Cache the results
-        localStorage.setItem(cacheKey, JSON.stringify(results));
-        localStorage.setItem(`${cacheKey}_time`, now.toString());
-        
         setHistoricalResults(results);
       } catch (error) {
-        console.error('Error loading historical results:', error);
         setHistoricalResults([]);
       }
     }
   };
 
+  const handleRefresh = async () => {
+    try {
+      await Promise.all([
+        loadAcademicYears(),
+        loadSchoolSettings(),
+        loadClassesFromAPI(),
+      ]);
+
+      await loadResultsForYearAndTerm(true);
+      toast.success('Refreshed');
+    } catch (error) {
+      toast.error('Failed to refresh');
+    }
+  };
+
   // Filter results based on active tab (must be called before early returns)
   const filteredResults = useMemo(() => {
+    const normalize = (v: any) => String(v ?? '').trim().toLowerCase();
+    const toNum = (v: any) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : NaN;
+    };
+    const getResultTerm = (r: any) => r?.term ?? r?.Term;
+    const getResultYear = (r: any) => r?.academic_year ?? r?.academicYear ?? r?.session ?? r?.Session;
+    const getResultClassId = (r: any) => r?.class_id ?? r?.classId ?? r?.class ?? r?.classID;
+
     // Use historical results if not current term/year, otherwise use compiledResults
-    let allResults = (selectedYear === currentAcademicYear && selectedTerm === currentTerm) 
+    const currentYear = currentAcademicYear ?? '';
+    const currentSystemTerm = currentTerm ?? '';
+    const isCurrentSession = selectedYear === currentYear && selectedTerm === currentSystemTerm;
+
+    let allResults = isCurrentSession 
       ? compiledResults 
       : historicalResults;
 
-    let results = allResults.filter(
-      (r: any) =>
-        r.term === selectedTerm &&
-        r.academic_year === selectedYear &&
-        (selectedClassId === "all" || String(r.class_id) === selectedClassId)
-    );
+    const selectedTermNorm = normalize(selectedTerm);
+    const selectedYearNorm = normalize(selectedYear);
+
+    let results = allResults.filter((r: any) => {
+      const resultTermNorm = normalize(getResultTerm(r));
+      const resultYearNorm = normalize(getResultYear(r));
+      const resultClassId = getResultClassId(r);
+
+      const matchesTerm = resultTermNorm === selectedTermNorm;
+      const matchesYear = resultYearNorm === selectedYearNorm;
+      const matchesClass =
+        selectedClassId === 'all' || String(resultClassId ?? '') === String(selectedClassId);
+
+      return matchesTerm && matchesYear && matchesClass;
+    });
 
     // Filter by status based on tab
     if (activeTab === "pending") {
@@ -1265,7 +1525,8 @@ export function ResultsManagementPage() {
     // Search filter
     if (searchQuery) {
       results = results.filter((r: any) => {
-        const student = students.find((s: any) => s.id === r.student_id);
+        const rStudentId = toNum(r?.student_id);
+        const student = students.find((s: any) => toNum(s?.id) === rStudentId);
         if (!student) return false;
         const query = searchQuery.toLowerCase();
         return (
@@ -1279,15 +1540,58 @@ export function ResultsManagementPage() {
     return results;
   }, [compiledResults, historicalResults, selectedTerm, selectedYear, selectedClassId, activeTab, searchQuery, students, currentTerm, currentAcademicYear]);
 
+  const tabCounts = useMemo(() => {
+    const normalize = (v: any) => String(v ?? '').trim().toLowerCase();
+    const getResultTerm = (r: any) => r?.term ?? r?.Term;
+    const getResultYear = (r: any) => r?.academic_year ?? r?.academicYear ?? r?.session ?? r?.Session;
+
+    const currentYear = currentAcademicYear ?? '';
+    const currentSystemTerm = currentTerm ?? '';
+    const isCurrentSession = selectedYear === currentYear && selectedTerm === currentSystemTerm;
+    const allResults = isCurrentSession ? compiledResults : historicalResults;
+
+    const selectedTermNorm = normalize(selectedTerm);
+    const selectedYearNorm = normalize(selectedYear);
+    const base = (Array.isArray(allResults) ? allResults : []).filter((r: any) => {
+      const resultTermNorm = normalize(getResultTerm(r));
+      const resultYearNorm = normalize(getResultYear(r));
+      return resultTermNorm === selectedTermNorm && resultYearNorm === selectedYearNorm;
+    });
+
+    return {
+      pending: base.filter((r: any) => r.status === 'Submitted').length,
+      approved: base.filter((r: any) => r.status === 'Approved').length,
+      rejected: base.filter((r: any) => r.status === 'Rejected').length,
+      all: base.filter((r: any) => r.status !== 'Rejected').length,
+    };
+  }, [compiledResults, historicalResults, selectedTerm, selectedYear, currentTerm, currentAcademicYear]);
+
   // Get students with results
   const studentsWithResults = useMemo(() => {
     return filteredResults
       .map((result: any) => {
-        const student = students.find((s: any) => s.id === result.student_id);
+        const student = students.find((s: any) => Number(s.id) === Number(result.student_id));
         return student ? { ...student, result } : null;
       })
       .filter(Boolean);
   }, [filteredResults, students]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, selectedClassId, selectedTerm, selectedYear]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(studentsWithResults.length / pageSize));
+  }, [studentsWithResults.length, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const paginatedStudentsWithResults = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return studentsWithResults.slice(start, start + pageSize);
+  }, [studentsWithResults, currentPage, pageSize]);
 
   // Get selected result
   const selectedResultData = useMemo(() => {
@@ -1299,6 +1603,12 @@ export function ResultsManagementPage() {
     if (!selectedResultData) return null;
     return students.find((s: any) => s.id === selectedResultData.student_id);
   }, [selectedResultData, students]);
+
+  // Get results for current class (bulk operations)
+  const classResults = useMemo(() => {
+    if (!selectedClassId || selectedClassId === "all") return filteredResults;
+    return filteredResults.filter((r: any) => String(r.class_id ?? r.classId) === String(selectedClassId));
+  }, [filteredResults, selectedClassId]);
 
   // If viewing other pages, render them (after all hooks have been called)
   if (viewMode === "viewAll") {
@@ -1339,6 +1649,18 @@ export function ResultsManagementPage() {
     );
   }
 
+  // Match parent behavior: when full page view is open, render it as the only page.
+  // This prevents click-through / immediate re-open issues and makes Back reliable.
+  if (fullPageView) {
+    return (
+      <FullPageResultView
+        studentId={fullPageView.studentId}
+        resultId={fullPageView.resultId}
+        onClose={closeFullPageView}
+      />
+    );
+  }
+
   // Handle approve
   const handleApprove = async (resultId: number) => {
     const result = compiledResults.find((r: any) => r.id === resultId);
@@ -1355,30 +1677,25 @@ export function ResultsManagementPage() {
       await approveCompiledResult(resultId);
       
       // Refresh
-      await loadCompiledResultsFromAPI();
+      await loadCompiledResultsFromAPI(null);
       
       const student = students.find((s: any) => s.id === result.student_id);
       toast.success(`Result approved for ${student?.firstName} ${student?.lastName || 'Student'}`);
     } catch (error) {
-      console.error('Error approving result:', error);
       toast.error('Failed to approve result');
     }
   };
 
   // Handle reject
   const handleReject = async (resultId: number) => {
-    if (!rejectionReason.trim()) {
-      toast.error("Please provide a reason for rejection");
-      return;
-    }
-
+    const reason = (rejectionReason || '').trim();
     await updateCompiledResult(resultId, {
       status: "Rejected",
-      rejection_reason: rejectionReason,
+      rejection_reason: reason,
     });
 
     // Refresh data to ensure UI updates
-    await loadCompiledResultsFromAPI();
+    await loadCompiledResultsFromAPI(null);
 
     const result = compiledResults.find((r) => r.id === resultId);
     const student = students.find((s) => s.id === result?.student_id);
@@ -1386,7 +1703,7 @@ export function ResultsManagementPage() {
     if (student && result) {
       const notificationData = {
         title: "Result Rejected ⚠",
-        message: `${student.firstName} ${student.lastName}'s result for ${result.term} has been rejected. Reason: ${rejectionReason}`,
+        message: `${student.firstName} ${student.lastName}'s result for ${result.term} has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
         type: "warning" as const,
         targetAudience: "all" as const,
         sentBy: currentUser!.id,
@@ -1411,7 +1728,7 @@ export function ResultsManagementPage() {
         if (classTeacher) {
           const teacherNotification = {
             title: "Result Rejected - Action Required",
-            message: `Result for ${student.firstName} ${student.lastName} (${classInfo.name}) was rejected. Reason: ${rejectionReason}. Please review and resubmit.`,
+            message: `Result for ${student.firstName} ${student.lastName} (${classInfo.name}) was rejected.${reason ? ` Reason: ${reason}.` : ''} Please review and resubmit.`,
             type: "warning" as const,
             targetAudience: "teachers" as const,
             sentBy: currentUser!.id,
@@ -1441,9 +1758,15 @@ export function ResultsManagementPage() {
   // Handle delete
   const handleDelete = (resultId: number) => {
     if (window.confirm("Are you sure you want to delete this result? This action cannot be undone.")) {
-      deleteCompiledResult(resultId);
-      toast.success("Result deleted successfully");
-      setSelectedResult(null);
+      (async () => {
+        try {
+          await deleteCompiledResult(resultId);
+          toast.success("Result deleted successfully");
+          setSelectedResult(null);
+        } catch (error) {
+          toast.error('Failed to delete result');
+        }
+      })();
     }
   };
 
@@ -1517,7 +1840,6 @@ export function ResultsManagementPage() {
         }, 1000);
 
       } catch (error) {
-        console.error('Error printing result sheet:', error);
         toast.error("Failed to print result sheet. Please try again.");
       }
     }
@@ -1534,53 +1856,80 @@ export function ResultsManagementPage() {
   };
 
   const handleSelectAll = () => {
-    if (selectedResults.length === filteredResults.length) {
-      setSelectedResults([]);
-    } else {
-      setSelectedResults(filteredResults.map(r => r.id));
-    }
+    const selectableIds = filteredResults.map((r: any) => r.id);
+    const selectedSet = new Set(selectedResults);
+    const allSelected = selectableIds.length > 0 && selectableIds.every((id: number) => selectedSet.has(id));
+    setSelectedResults(allSelected ? [] : selectableIds);
   };
+
+  // Keep selections aligned with current filters/tab; avoid approving hidden/unrelated results.
+  useEffect(() => {
+    setSelectedResults([]);
+  }, [activeTab, selectedClassId, selectedTerm, selectedYear, searchQuery]);
 
   // Bulk approve function
   const handleBulkApprove = async () => {
     if (selectedResults.length === 0) return;
 
+    const isCurrentSession = selectedYear === currentAcademicYear && selectedTerm === currentTerm;
+    if (!isCurrentSession) {
+      toast.error('Bulk approval is only available for the current Term/Session. Switch filters back to Current.');
+      return;
+    }
+
+    // Only approve what is currently visible/filtered (safety).
+    const filteredIdSet = new Set(filteredResults.map((r: any) => r.id));
+    const idsToApprove = selectedResults.filter(id => filteredIdSet.has(id));
+    if (idsToApprove.length === 0) {
+      toast.error('No selected results match the current filters.');
+      return;
+    }
+
     try {
-      for (const resultId of selectedResults) {
-        await updateCompiledResult(resultId, {
-          status: "Approved",
-          approved_by: currentUser?.id,
-          approved_date: new Date().toISOString(),
-          print_approved: 1, // Set print approval to true
-        });
-        await approveCompiledResult(resultId);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const resultId of idsToApprove) {
+        try {
+          // Ensure print approval flag is set, then run the canonical approval flow.
+          await updateCompiledResult(resultId, {
+            principal_signature: "",
+            print_approved: 1,
+          });
+          await approveCompiledResult(resultId);
+          successCount++;
+        } catch (e) {
+          failCount++;
+        }
       }
 
-      toast.success(`Approved ${selectedResults.length} results successfully!`);
+      if (successCount > 0 && failCount === 0) {
+        toast.success(`Approved ${successCount} results successfully!`);
+      } else if (successCount > 0) {
+        toast.warning(`Approved ${successCount} results. Failed to approve ${failCount}.`);
+      } else {
+        toast.error('Failed to approve selected results');
+      }
       setSelectedResults([]);
       setBulkComment("");
       setShowBulkApproveDialog(false);
-      await loadCompiledResultsFromAPI();
+      await loadCompiledResultsFromAPI(null);
     } catch (error) {
-      console.error('Error in bulk approval:', error);
       toast.error('Failed to approve some results');
     }
   };
 
   // Bulk reject function
   const handleBulkReject = async () => {
-    if (!bulkRejectionReason.trim()) {
-      toast.error("Please provide a reason for bulk rejection");
-      return;
-    }
+    const reason = (bulkRejectionReason || '').trim();
 
     for (const resultId of selectedResults) {
       const result = compiledResults.find((r) => r.id === resultId);
       const student = students.find((s) => s.id === result?.student_id);
       
-      updateCompiledResult(resultId, {
+      await updateCompiledResult(resultId, {
         status: "Rejected",
-        rejection_reason: bulkRejectionReason,
+        rejection_reason: reason,
       });
 
       // Notify class teacher for correction
@@ -1592,7 +1941,7 @@ export function ResultsManagementPage() {
             // Create notification for teacher
             const teacherNotification = {
               title: "Result Rejected - Action Required",
-              message: `Result for ${student.firstName} ${student.lastName} (${classInfo.name}) was rejected. Reason: ${bulkRejectionReason}. Please review and resubmit.`,
+              message: `Result for ${student.firstName} ${student.lastName} (${classInfo.name}) was rejected.${reason ? ` Reason: ${reason}.` : ''} Please review and resubmit.`,
               type: "warning" as const,
               targetAudience: "teachers" as const,
               sentBy: currentUser!.id,
@@ -1621,16 +1970,12 @@ export function ResultsManagementPage() {
     setSelectedResults([]);
     setBulkRejectionReason("");
     setShowBulkRejectDialog(false);
+    await loadCompiledResultsFromAPI(null);
   };
 
-  // Get results for current class (bulk operations)
-  const classResults = useMemo(() => {
-    if (!selectedClassId || selectedClassId === "all") return filteredResults;
-    return filteredResults.filter(r => r.class_id === parseInt(selectedClassId));
-  }, [filteredResults, selectedClassId]);
-
   return (
-    <div className="p-2 sm:p-4 space-y-3 sm:space-y-4 max-w-full overflow-x-hidden">
+    <ResultsManagementErrorBoundary>
+      <div className="p-2 sm:p-4 space-y-3 sm:space-y-4 max-w-full overflow-x-hidden">
       {/* Compact Header - Mobile Responsive */}
       <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1642,42 +1987,11 @@ export function ResultsManagementPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                loadCompiledResultsFromAPI();
-                loadResultsForYearAndTerm();
-              }}
+              onClick={handleRefresh}
               className="flex items-center gap-2 h-8 text-xs"
             >
               <span className="w-3 h-3" />
               Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setViewMode("viewAll")}
-              className="border-blue-200 text-blue-700 hover:bg-blue-50 h-8 text-xs"
-            >
-              <BarChart3 className="w-3 h-3 mr-1" />
-              All Results
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const approvedResult = compiledResults.find(cr => cr.print_approved === 1);
-                if (approvedResult) {
-                  const student = students.find(s => s.id === approvedResult.student_id);
-                  if (student) {
-                    handleDownloadStudentPDF(student, approvedResult);
-                  }
-                } else {
-                  toast.error('No approved results available for download');
-                }
-              }}
-              className="border-green-200 text-green-700 hover:bg-green-50 h-8 text-xs"
-            >
-              <span className="w-3 h-3 mr-1" />
-              Download PDF
             </Button>
           </div>
         </div>
@@ -1775,22 +2089,22 @@ export function ResultsManagementPage() {
           <TabsTrigger value="pending" className="rounded-md text-xs data-[state=active]:bg-yellow-100 data-[state=active]:text-yellow-800">
             <span className="hidden sm:inline">Pending</span>
             <span className="sm:hidden">P</span>
-            ({compiledResults.filter(r => r.status === "Submitted" && r.term === selectedTerm && r.academic_year === selectedYear).length})
+            ({tabCounts.pending})
           </TabsTrigger>
           <TabsTrigger value="approved" className="rounded-md text-xs data-[state=active]:bg-green-100 data-[state=active]:text-green-800">
             <span className="hidden sm:inline">Approved</span>
             <span className="sm:hidden">A</span>
-            ({compiledResults.filter(r => r.status === "Approved" && r.term === selectedTerm && r.academic_year === selectedYear).length})
+            ({tabCounts.approved})
           </TabsTrigger>
           <TabsTrigger value="rejected" className="rounded-md text-xs data-[state=active]:bg-red-100 data-[state=active]:text-red-800">
             <span className="hidden sm:inline">Rejected</span>
             <span className="sm:hidden">R</span>
-            ({compiledResults.filter(r => r.status === "Rejected" && r.term === selectedTerm && r.academic_year === selectedYear).length})
+            ({tabCounts.rejected})
           </TabsTrigger>
           <TabsTrigger value="all" className="rounded-md text-xs data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800">
             <span className="hidden sm:inline">All</span>
             <span className="sm:hidden">All</span>
-            ({compiledResults.filter(r => r.status !== "Rejected" && r.term === selectedTerm && r.academic_year === selectedYear).length})
+            ({tabCounts.all})
           </TabsTrigger>
         </TabsList>
 
@@ -1801,12 +2115,16 @@ export function ResultsManagementPage() {
               <CardContent className="p-2 sm:p-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedResults.length === filteredResults.length && filteredResults.length > 0}
-                      onChange={handleSelectAll}
-                      className="w-4 h-4 text-blue-600 rounded border-gray-300"
-                    />
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedResults.length === filteredResults.length && filteredResults.length > 0}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                        aria-label="Select all results"
+                      />
+                      <span className="sr-only">Select all results</span>
+                    </label>
                     <span className="text-xs sm:text-sm text-gray-600">
                       {selectedResults.length} of {filteredResults.length} selected
                     </span>
@@ -1862,7 +2180,7 @@ export function ResultsManagementPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {studentsWithResults.map((studentData) => (
+                  {paginatedStudentsWithResults.map((studentData) => (
                     <div
                       key={studentData!.id}
                       className="p-2 sm:p-3 border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all"
@@ -1870,12 +2188,16 @@ export function ResultsManagementPage() {
                       <div className="flex flex-col gap-3">
                         <div className="flex items-start gap-3">
                           {activeTab === "pending" && (
-                            <input
-                              type="checkbox"
-                              checked={selectedResults.includes(studentData!.result.id)}
-                              onChange={() => handleSelectResult(studentData!.result.id)}
-                              className="w-4 h-4 text-blue-600 rounded border-gray-300 mt-1"
-                            />
+                            <label className="inline-flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedResults.includes(studentData!.result.id)}
+                                onChange={() => handleSelectResult(studentData!.result.id)}
+                                className="w-4 h-4 text-blue-600 rounded border-gray-300 mt-1"
+                                aria-label={`Select result for ${studentData!.firstName} ${studentData!.lastName}`}
+                              />
+                              <span className="sr-only">Select result for {studentData!.firstName} {studentData!.lastName}</span>
+                            </label>
                           )}
                           <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-medium flex-shrink-0">
                             {studentData!.firstName[0]}
@@ -1928,7 +2250,10 @@ export function ResultsManagementPage() {
                               size="sm"
                               variant="outline"
                               className="border-purple-200 text-purple-700 hover:bg-purple-50 h-7 sm:h-8 text-xs"
-                              onClick={() => setFullPageView({ studentId: studentData!.id, resultId: studentData!.result.id })}
+                              onClick={() => {
+                                if (isClosingFullPageView) return;
+                                setFullPageView({ studentId: studentData!.id, resultId: studentData!.result.id });
+                              }}
                             >
                               <span className="w-3 h-3 mr-1" />
                               View
@@ -1939,9 +2264,10 @@ export function ResultsManagementPage() {
                               variant="outline"
                               className={studentData!.result.status === 'Approved' ? "border-green-200 text-green-700 hover:bg-green-50 h-7 sm:h-8 text-xs" : "border-gray-200 text-gray-500 hover:bg-gray-50 h-7 sm:h-8 text-xs"}
                               onClick={() => handleDownloadStudentPDF(studentData!, studentData!.result)}
+                              disabled={!!downloadingResultIds[Number(studentData!.result.id)]}
                             >
                               <span className="w-3 h-3 mr-1" />
-                              <span className="hidden sm:inline">{studentData!.result.status === 'Approved' ? 'Download PDF' : `PDF (${studentData!.result.status})`}</span>
+                              <span className="hidden sm:inline">{!!downloadingResultIds[Number(studentData!.result.id)] ? 'Preparing…' : (studentData!.result.status === 'Approved' ? 'Download PDF' : `PDF (${studentData!.result.status})`)}</span>
                               <span className="sm:hidden">PDF</span>
                             </Button>
                             
@@ -1959,12 +2285,24 @@ export function ResultsManagementPage() {
                               </DialogTrigger>
                               <DialogContent className="max-w-full max-h-[95vh] overflow-y-auto" style={{ width: '95vw', maxWidth: '1200px' }}>
                                 <DialogHeader>
-                                  <DialogTitle>
-                                    Review Result - {studentData!.firstName} {studentData!.lastName}
-                                  </DialogTitle>
-                                  <DialogDescription>
-                                    Review and approve or reject student results
-                                  </DialogDescription>
+                                  <div className="flex items-center gap-3">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => setSelectedResult(null)}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <ArrowLeft className="w-4 h-4" />
+                                      Back to Results
+                                    </Button>
+                                    <div>
+                                      <DialogTitle>
+                                        Review Result - {studentData!.firstName} {studentData!.lastName}
+                                      </DialogTitle>
+                                      <DialogDescription>
+                                        Review and approve or reject student results
+                                      </DialogDescription>
+                                    </div>
+                                  </div>
                                 </DialogHeader>
 
                               <div className="space-y-6">
@@ -1975,38 +2313,6 @@ export function ResultsManagementPage() {
                                     currentUser={currentUser}
                                   />
                                 </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => setSelectedResult(null)}
-                                    className="border-gray-200 text-gray-700 hover:bg-gray-50"
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => {
-                                      setBulkRejectionReason("");
-                                      setShowBulkRejectDialog(true);
-                                    }}
-                                    className="bg-red-500 hover:bg-red-600 text-white"
-                                  >
-                                    Reject
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      setBulkComment("");
-                                      setShowBulkApproveDialog(true);
-                                    }}
-                                    className="bg-green-500 hover:bg-green-600 text-white"
-                                  >
-                                    Approve
-                                  </Button>
-                                </div>
                               </div>
                             </DialogContent>
                           </Dialog>
@@ -2015,6 +2321,51 @@ export function ResultsManagementPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {studentsWithResults.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4">
+                  <div className="text-sm text-gray-600">
+                    Showing {Math.min(studentsWithResults.length, (currentPage - 1) * pageSize + 1)}-{Math.min(studentsWithResults.length, currentPage * pageSize)} of {studentsWithResults.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(v) => setPageSize(Number(v) || 20)}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Rows" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10 / page</SelectItem>
+                        <SelectItem value="20">20 / page</SelectItem>
+                        <SelectItem value="50">50 / page</SelectItem>
+                        <SelectItem value="100">100 / page</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                      Page {currentPage} / {totalPages}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -2090,15 +2441,8 @@ export function ResultsManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Full Page Result View */}
-      {fullPageView && (
-        <FullPageResultView
-          studentId={fullPageView.studentId}
-          resultId={fullPageView.resultId}
-          onClose={() => setFullPageView(null)}
-        />
-      )}
-    </div>
+      </div>
+    </ResultsManagementErrorBoundary>
   );
 }
 

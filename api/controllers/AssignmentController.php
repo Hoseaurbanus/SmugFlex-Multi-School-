@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class AssignmentController {
     private $conn;
@@ -249,6 +250,14 @@ class AssignmentController {
                 'New assignment created',
                 $token_data['user_id']
             );
+
+            RealtimeEvents::publish(['assignments', 'notifications'], [
+                'action' => 'created',
+                'assignment_id' => (int)$assignment_id,
+                'class_id' => (int)$class_id,
+                'teacher_id' => (int)$teacher_id,
+                'subject_id' => (int)$subject_id,
+            ]);
             
             Response::created(['id' => $assignment_id], 'Assignment created successfully');
             
@@ -329,6 +338,14 @@ class AssignmentController {
                 'Assignment updated',
                 $token_data['user_id']
             );
+
+            RealtimeEvents::publish(['assignments', 'notifications'], [
+                'action' => 'updated',
+                'assignment_id' => (int)$assignment_id,
+                'class_id' => (int)$assignment['class_id'],
+                'teacher_id' => (int)$assignment['teacher_id'],
+                'subject_id' => (int)$assignment['subject_id'],
+            ]);
             
             Response::success(null, 'Assignment updated successfully');
             
@@ -391,6 +408,12 @@ class AssignmentController {
                 'Assignment deleted',
                 $token_data['user_id']
             );
+
+            RealtimeEvents::publish(['assignments', 'notifications'], [
+                'action' => 'deleted',
+                'assignment_id' => (int)$assignment_id,
+                'class_id' => (int)$assignment['class_id'],
+            ]);
             
             Response::success(null, 'Assignment deleted successfully');
             
@@ -563,6 +586,13 @@ class AssignmentController {
                 'Assignment submitted',
                 $token_data['user_id']
             );
+
+            RealtimeEvents::publish(['assignments', 'notifications'], [
+                'action' => 'submitted',
+                'assignment_id' => (int)$assignment_id,
+                'submission_id' => (int)$submission_id,
+                'student_id' => (int)$token_data['linked_id'],
+            ]);
             
             Response::success(['id' => $submission_id], 'Assignment submitted successfully');
             
@@ -635,6 +665,13 @@ class AssignmentController {
                 "Assignment graded with score: $score",
                 $token_data['user_id']
             );
+
+            RealtimeEvents::publish(['assignments', 'notifications'], [
+                'action' => 'graded',
+                'assignment_id' => (int)$submission['assignment_id'],
+                'submission_id' => (int)$submission_id,
+                'student_id' => (int)$submission['student_id'],
+            ]);
             
             Response::success(null, 'Assignment graded successfully');
             

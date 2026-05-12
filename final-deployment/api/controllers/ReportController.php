@@ -276,11 +276,11 @@ class ReportController {
             ];
             
             foreach ($students_performance as $student) {
-                if ($student['average_score'] >= 80) $grade_distribution['A']++;
-                elseif ($student['average_score'] >= 70) $grade_distribution['B']++;
-                elseif ($student['average_score'] >= 60) $grade_distribution['C']++;
-                elseif ($student['average_score'] >= 50) $grade_distribution['D']++;
-                elseif ($student['average_score'] >= 40) $grade_distribution['E']++;
+                if ($student['average_score'] >= 90) $grade_distribution['A']++;
+                elseif ($student['average_score'] >= 80) $grade_distribution['B']++;
+                elseif ($student['average_score'] >= 70) $grade_distribution['C']++;
+                elseif ($student['average_score'] >= 60) $grade_distribution['D']++;
+                elseif ($student['average_score'] >= 50) $grade_distribution['E']++;
                 else $grade_distribution['F']++;
             }
             

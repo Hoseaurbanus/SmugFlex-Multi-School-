@@ -19,6 +19,9 @@ class FileController {
     
     public function uploadLogo() {
         try {
+            // Only admins can upload system assets (logo/signatures)
+            Middleware::requireRole('admin');
+
             // Check if file was uploaded
             if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
                 Response::error('No file uploaded or upload error', 400);
@@ -31,7 +34,7 @@ class FileController {
             $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $mimeType = finfo_file($finfo, $file['tmp_name']);
-            finfo_close($finfo);
+            unset($finfo);
             
             if (!in_array($mimeType, $allowedTypes)) {
                 Response::error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed', 400);
@@ -77,6 +80,9 @@ class FileController {
     
     public function deleteFile($filename) {
         try {
+            // CRITICAL SECURITY FIX: Require admin authentication
+            Middleware::requireRole('admin');
+            
             $filepath = $this->uploadDir . $filename;
             
             if (file_exists($filepath)) {

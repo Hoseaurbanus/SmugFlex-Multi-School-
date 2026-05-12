@@ -72,11 +72,21 @@ class ApiService {
     const url = buildUrl(endpoint);
     const token = getAuthToken();
 
+    const method = String(options.method || 'GET').toUpperCase();
+    const isIdempotentMethod = method === 'GET' || method === 'HEAD';
+
     // Default headers
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+
+    // Prevent browsers/proxies from caching GET/HEAD responses (fixes stale data until cache clear)
+    if (isIdempotentMethod) {
+      (headers as any)['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      (headers as any)['Pragma'] = 'no-cache';
+      (headers as any)['Expires'] = '0';
+    }
 
     // Add authorization header if token exists
     if (token) {
@@ -93,11 +103,17 @@ class ApiService {
     }
 
     // Retry logic for network/server/auth errors
-    for (let attempt = 0; attempt < retries; attempt++) {
+    const maxAttempts = isIdempotentMethod ? retries : 1;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
-        const config: RequestInit = { ...options, headers, signal: controller.signal };
+        const config: RequestInit = {
+          ...options,
+          headers,
+          signal: controller.signal,
+          ...(isIdempotentMethod ? { cache: 'no-store' as RequestCache } : {}),
+        };
         const response = await fetch(url, config);
         clearTimeout(timeoutId);
         
@@ -142,7 +158,7 @@ class ApiService {
         }
 
         if (!response.ok) {
-          if (response.status >= 500 && attempt < retries - 1) {
+          if (isIdempotentMethod && response.status >= 500 && attempt < maxAttempts - 1) {
             const baseDelay = this.connectionStatus.isSlow ? 2000 : 1000;
             await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
             continue;
@@ -179,7 +195,7 @@ class ApiService {
         // timeoutId cleared above in try block; safe to continue
         
         if (error.name === 'AbortError') {
-          if (attempt < retries - 1) {
+          if (isIdempotentMethod && attempt < maxAttempts - 1) {
             const baseDelay = this.connectionStatus.isSlow ? 2000 : 1000;
             await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
             continue;
@@ -188,7 +204,7 @@ class ApiService {
         }
         
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          if (attempt < retries - 1) {
+          if (isIdempotentMethod && attempt < maxAttempts - 1) {
             const baseDelay = this.connectionStatus.isSlow ? 4000 : 2000;
             await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
             continue;

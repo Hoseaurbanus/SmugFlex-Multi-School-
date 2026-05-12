@@ -5,8 +5,10 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Alert, AlertDescription } from "../ui/alert";
 import { useSchool } from "../../contexts/SchoolContext";
+import { API_CONFIG } from '../../config/api';
 import { toast } from "sonner";
 import { ImageIcon } from "lucide-react";
+import { tokenManager } from "../../utils/tokenManager";
 
 interface AddStudentFormProps {
   onClose: () => void;
@@ -14,19 +16,15 @@ interface AddStudentFormProps {
 }
 
 function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
-  const { classes, parents, currentAcademicYear, createStudentAPI } = useSchool();
+  const { classes, parents, currentAcademicYear, createStudentAPI, currentUser } = useSchool();
   const [isLoading, setIsLoading] = useState(false);
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const passportInputRef = useRef<HTMLInputElement>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>('');
   
-  // Debug: Log classes data when component loads
+  // Monitor classes data when component loads
   useEffect(() => {
-    console.log('AddStudentForm - Classes available:', classes.map(c => ({ 
-      id: c.id, 
-      idType: typeof c.id, 
-      name: c.name, 
-      status: c.status 
-    })));
+    // Silent for security
   }, [classes]);
   
   const [addFormData, setAddFormData] = useState({
@@ -62,7 +60,7 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
     const reader = new FileReader();
     reader.onloadend = () => {
       const photoDataUrl = reader.result as string;
-      setAddFormData({ ...addFormData, photo_url: photoDataUrl });
+      setPhotoPreview(photoDataUrl);
       toast.success("Photo uploaded successfully");
     };
     reader.readAsDataURL(passportFile);
@@ -76,21 +74,8 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
       return;
     }
 
-    // Enhanced debugging and validation
-    console.log('=== CLASS VALIDATION DEBUG ===');
-    console.log('Form data:', addFormData);
-    console.log('Selected class_id:', addFormData.class_id, 'Type:', typeof addFormData.class_id);
-    console.log('Available classes:', classes.map(c => ({ 
-      id: c.id, 
-      idType: typeof c.id, 
-      name: c.name, 
-      status: c.status 
-    })));
-    console.log('Classes length:', classes.length);
-
     // Check if classes are loaded
     if (!classes || classes.length === 0) {
-      console.error('No classes available');
       toast.error('No classes available. Please refresh the page and try again.');
       return;
     }
@@ -100,14 +85,12 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
     
     // Try string comparison first
     selectedClass = classes.find((c) => String(c.id) === addFormData.class_id);
-    console.log('String comparison result:', selectedClass);
     
     // If not found, try number comparison
     if (!selectedClass) {
       const classIdNum = parseInt(addFormData.class_id);
       if (!isNaN(classIdNum)) {
         selectedClass = classes.find((c) => c.id === classIdNum);
-        console.log('Number comparison result:', selectedClass);
       }
     }
     
@@ -117,22 +100,14 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
         const classIdStr = String(c.id);
         return classIdStr === addFormData.class_id || classIdStr === String(addFormData.class_id);
       });
-      console.log('Alternative comparison result:', selectedClass);
     }
     
     if (!selectedClass) {
-      console.error('Class validation failed - all attempts failed:', {
-        classId: addFormData.class_id,
-        classIdType: typeof addFormData.class_id,
-        availableClasses: classes.map(c => ({ id: c.id, idType: typeof c.id, name: c.name }))
-      });
-      
       const availableClassInfo = classes.map(c => `ID: ${c.id} (${typeof c.id}) - ${c.name}`).join('\n');
       toast.error(`Invalid class selected. Available classes:\n${availableClassInfo}\nPlease refresh the page and try again.`);
       return;
     }
 
-    console.log('Found class:', selectedClass);
     setIsLoading(true);
 
     // Create student data with API-compatible field names
@@ -146,8 +121,6 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
       parent_id: addFormData.parent_id && addFormData.parent_id !== 'none' ? parseInt(addFormData.parent_id) : null,
       date_of_birth: addFormData.date_of_birth,
       gender: addFormData.gender || 'Male',
-      photo_url: addFormData.photo_url || undefined,
-      passport_photo: addFormData.photo_url || undefined,
       status: 'Active',
       academic_year: currentAcademicYear,
       admission_date: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
@@ -155,6 +128,32 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
     
     // Call API directly with converted field names
     const result = await createStudentAPI(studentData);
+
+    if (result?.id && passportFile) {
+      try {
+        await tokenManager.ensureToken(currentUser);
+        const token = tokenManager.getToken();
+
+        const formData = new FormData();
+        formData.append('passport', passportFile);
+        formData.append('student_id', String(result.id));
+
+        const uploadUrl = `${new URL(API_CONFIG.BASE_URL).origin}${new URL(API_CONFIG.BASE_URL).pathname.replace(/\/?api\/?$/, '')}/api/upload-student-photo.php`;
+        const photoResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: formData
+        });
+
+        if (!photoResponse.ok) {
+          throw new Error('Failed to upload student photo');
+        }
+
+        await photoResponse.json();
+      } catch (e: any) {
+        toast.error(e?.message || 'Student created but photo upload failed');
+      }
+    }
     
     if (result) {
       toast.success('Student registered successfully!');
@@ -169,6 +168,7 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
         photo_url: '',
       });
       setPassportFile(null);
+      setPhotoPreview('');
       setAddFormErrors({});
       onSuccess();
     }
@@ -309,7 +309,6 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
                 <Select
                   value={addFormData.class_id}
                   onValueChange={(value: string) => {
-                    console.log('Class selected:', { value, valueType: typeof value });
                     setAddFormData({ ...addFormData, class_id: value });
                   }}
                 >
@@ -340,7 +339,7 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
               <div className="space-y-2">
                 <Label className="text-gray-700">Academic Year</Label>
                 <Input
-                  value={currentAcademicYear}
+                  value={currentAcademicYear || ''}
                   disabled
                   className="h-12 rounded-xl border border-gray-300 bg-gray-100 text-gray-900"
                 />
@@ -407,10 +406,10 @@ function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
               {passportFile && (
                 <p className="text-sm text-gray-600">Selected: {passportFile.name}</p>
               )}
-              {addFormData.photo_url && (
+              {photoPreview && (
                 <div className="flex items-center gap-3">
                   <img 
-                    src={addFormData.photo_url} 
+                    src={photoPreview} 
                     alt="Student passport" 
                     className="w-16 h-16 rounded-lg object-cover border border-gray-300"
                   />

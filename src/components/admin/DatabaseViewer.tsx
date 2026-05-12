@@ -27,22 +27,16 @@ export function DatabaseViewer() {
         "SELECT * FROM compiled_results ORDER BY student_id, class_id"
       );
       
-      console.log("All compiled results:", allResults);
-      
       // Query parent-student links
       const parentLinks = await sqlDatabase.executeQuery(
         "SELECT * FROM parent_student_links WHERE parent_id = ?",
         [currentUser?.linked_id]
       );
       
-      console.log("Parent links:", parentLinks);
-      
       // Query approved results specifically
       const approvedResults = await sqlDatabase.executeQuery(
         "SELECT * FROM compiled_results WHERE status = 'Approved'"
       );
-      
-      console.log("Approved results:", approvedResults);
       
       // Query results for this parent's children
       if (parentLinks && parentLinks.length > 0) {
@@ -53,7 +47,6 @@ export function DatabaseViewer() {
           studentIds
         );
         
-        console.log("Parent's children results:", parentResults);
         setResults(parentResults.data || []);
       } else {
         setResults([]);
@@ -63,7 +56,6 @@ export function DatabaseViewer() {
       setResults(allResults.data || []);
       
     } catch (err: any) {
-      console.error("Database query error:", err);
       setError(err.message || "Unknown error occurred");
     } finally {
       setLoading(false);
@@ -84,11 +76,9 @@ export function DatabaseViewer() {
         "SELECT * FROM parent_student_links"
       );
       
-      console.log("All parent-student links:", links);
       setResults(links.data || []);
       
     } catch (err: any) {
-      console.error("Database query error:", err);
       setError(err.message || "Unknown error occurred");
     } finally {
       setLoading(false);
@@ -109,11 +99,9 @@ export function DatabaseViewer() {
         "SELECT id, firstName, lastName, admissionNumber, className FROM students LIMIT 20"
       );
       
-      console.log("Students:", students);
       setResults(students.data || []);
       
     } catch (err: any) {
-      console.error("Database query error:", err);
       setError(err.message || "Unknown error occurred");
     } finally {
       setLoading(false);

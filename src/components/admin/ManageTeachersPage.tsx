@@ -265,7 +265,6 @@ export function ManageTeachersPage() {
       toast.success("Staff list copied to clipboard!");
     }).catch(error => {
       toast.error("Failed to copy to clipboard");
-      console.error('Clipboard error:', error);
     });
   };
 

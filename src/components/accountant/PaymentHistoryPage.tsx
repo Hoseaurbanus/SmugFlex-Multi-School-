@@ -6,25 +6,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { useSchool } from '../../contexts/SchoolContext';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { toast } from 'sonner';
 
 const NAIRA = "\u20A6";
 
 export function PaymentHistoryPage() {
-  const { payments, students } = useSchool();
+  const { payments, students, reversePayment, currentTerm, currentAcademicYear } = useSchool();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [feeTypeFilter, setFeeTypeFilter] = useState('all');
+  const [termFilter, setTermFilter] = useState('all');
+  const [isReversing, setIsReversing] = useState(false);
+
+  const [isReverseDialogOpen, setIsReverseDialogOpen] = useState(false);
+  const [reverseReason, setReverseReason] = useState('');
+  const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
 
   const filteredPayments = payments.filter(payment => {
     const matchesSearch = 
       (payment.student_name && payment.student_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (payment.reference && payment.reference.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (payment.transaction_reference && payment.transaction_reference.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (payment.receipt_number && payment.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
     const matchesFeeType = feeTypeFilter === 'all' || payment.payment_type === feeTypeFilter;
+    const matchesTerm = termFilter === 'all' || payment.term === termFilter;
     
-    return matchesSearch && matchesStatus && matchesFeeType;
+    return matchesSearch && matchesStatus && matchesFeeType && matchesTerm;
   });
 
   const totalRevenue = payments.filter(p => p.status === 'Verified').reduce((sum, p) => sum + p.amount, 0);
@@ -39,24 +48,77 @@ export function PaymentHistoryPage() {
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300"><span className="w-3 h-3 mr-1" />Pending</Badge>;
       case 'Rejected':
         return <Badge className="bg-red-100 text-red-800 border-red-300"><span className="w-3 h-3 mr-1" />Rejected</Badge>;
+      case 'Reversed':
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300"><span className="w-3 h-3 mr-1" />Reversed</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
     }
   };
 
+  const openReverseDialog = (paymentId: number) => {
+    setSelectedPaymentId(paymentId);
+    setReverseReason('');
+    setIsReverseDialogOpen(true);
+  };
+
+  const handleConfirmReverse = async () => {
+    if (!selectedPaymentId) {
+      toast.error('No payment selected');
+      return;
+    }
+    if (!reverseReason.trim()) {
+      toast.error('Reversal reason is required');
+      return;
+    }
+
+    setIsReversing(true);
+    try {
+      await reversePayment(selectedPaymentId, reverseReason.trim());
+      toast.success('Payment reversed successfully');
+      setIsReverseDialogOpen(false);
+      setSelectedPaymentId(null);
+      setReverseReason('');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to reverse payment');
+    } finally {
+      setIsReversing(false);
+    }
+  };
+
   const exportToCSV = () => {
-    const headers = ['Payment ID', 'Student Name', 'Receipt No', 'Fee Type', 'Amount', 'Payment Method', 'Transaction Ref', 'Status', 'Date'];
+    const escapeCSV = (value: any) => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      // Escape quotes and wrap in quotes if contains comma, quote, or newline
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const headers = ['Payment ID', 'Student Name', 'Receipt No', 'Fee Type', 'Amount', 'Payment Method', 'Transaction Ref', 'Status', 'Date', 'Term', 'Academic Year'];
     const rows = filteredPayments.map(p => [
-      p.id, p.student_name, p.receipt_number, p.payment_type, p.amount, p.payment_method, p.reference, p.status, new Date(p.recorded_date).toLocaleDateString()
+      escapeCSV(p.id),
+      escapeCSV(p.student_name),
+      escapeCSV(p.receipt_number),
+      escapeCSV(p.payment_type),
+      escapeCSV(p.amount),
+      escapeCSV(p.payment_method),
+      escapeCSV(p.transaction_reference || p.reference),
+      escapeCSV(p.status),
+      escapeCSV(new Date(p.recorded_date).toLocaleDateString()),
+      escapeCSV(p.term),
+      escapeCSV(p.academic_year)
     ]);
     
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `payment-history-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -115,7 +177,7 @@ export function PaymentHistoryPage() {
       {/* Filters and Search */}
       <Card className="border-[#0A2540]/10">
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Search */}
             <div className="relative">
               <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -138,6 +200,7 @@ export function PaymentHistoryPage() {
                 <SelectItem value="Verified">Verified</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
                 <SelectItem value="Rejected">Rejected</SelectItem>
+                <SelectItem value="Reversed">Reversed</SelectItem>
               </SelectContent>
             </Select>
 
@@ -148,8 +211,25 @@ export function PaymentHistoryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Fee Types</SelectItem>
-                <SelectItem value="Full Payment">Full Payment</SelectItem>
-                <SelectItem value="Partial Payment">Partial Payment</SelectItem>
+                <SelectItem value="School Fees">School Fees</SelectItem>
+                <SelectItem value="Examination Fees">Examination Fees</SelectItem>
+                <SelectItem value="Books">Books</SelectItem>
+                <SelectItem value="Uniform">Uniform</SelectItem>
+                <SelectItem value="Transport">Transport</SelectItem>
+                <SelectItem value="Others">Others</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Term Filter */}
+            <Select value={termFilter} onValueChange={setTermFilter}>
+              <SelectTrigger className="border-[#0A2540]/20 rounded-xl">
+                <SelectValue placeholder="Term" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Terms</SelectItem>
+                <SelectItem value="First Term">First Term</SelectItem>
+                <SelectItem value="Second Term">Second Term</SelectItem>
+                <SelectItem value="Third Term">Third Term</SelectItem>
               </SelectContent>
             </Select>
 
@@ -181,18 +261,20 @@ export function PaymentHistoryPage() {
                   <TableHead className="text-[#0A2540]">Transaction Ref</TableHead>
                   <TableHead className="text-[#0A2540]">Status</TableHead>
                   <TableHead className="text-[#0A2540]">Date</TableHead>
+                  <TableHead className="text-[#0A2540] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredPayments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                       No payment records found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredPayments.map((payment) => {
                     const student = students.find(s => s.id === payment.student_id);
+                    const canReverse = payment.status === 'Verified' && payment.payment_method !== 'Reversal';
                     return (
                       <TableRow key={payment.id} className="hover:bg-[#0A2540]/5">
                         <TableCell className="text-[#0A2540]">PAY{String(payment.id).padStart(3, '0')}</TableCell>
@@ -206,9 +288,23 @@ export function PaymentHistoryPage() {
                         <TableCell>{payment.payment_type}</TableCell>
                         <TableCell className="text-[#0A2540]">{NAIRA}{payment.amount.toLocaleString()}</TableCell>
                         <TableCell>{payment.payment_method}</TableCell>
-                        <TableCell className="text-sm text-gray-600 font-mono">{payment.reference}</TableCell>
+                        <TableCell className="text-sm text-gray-600 font-mono">{payment.transaction_reference || payment.reference}</TableCell>
                         <TableCell>{getStatusBadge(payment.status)}</TableCell>
                         <TableCell>{new Date(payment.recorded_date).toLocaleDateString('en-GB')}</TableCell>
+                        <TableCell className="text-right">
+                          {canReverse ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="rounded-xl"
+                              onClick={() => openReverseDialog(payment.id)}
+                            >
+                              Reverse
+                            </Button>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     );
                   })
@@ -218,6 +314,48 @@ export function PaymentHistoryPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={isReverseDialogOpen} onOpenChange={setIsReverseDialogOpen}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>Reverse Payment</DialogTitle>
+          <DialogDescription>Provide a reason for reversing this payment.</DialogDescription>
+        </DialogHeader>
+        <DialogContent className="max-w-md">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-[#0A2540]">Reverse Payment</h3>
+              <p className="text-sm text-gray-600">This will create a reversal entry and mark the original payment as reversed.</p>
+            </div>
+
+            <Input
+              type="text"
+              placeholder="Reason for reversal"
+              value={reverseReason}
+              onChange={(e) => setReverseReason(e.target.value)}
+              className="border-[#0A2540]/20 focus:border-[#FFD700] rounded-xl"
+            />
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => setIsReverseDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl"
+                onClick={handleConfirmReverse}
+                disabled={isReversing}
+              >
+                {isReversing ? 'Reversing...' : 'Confirm Reversal'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

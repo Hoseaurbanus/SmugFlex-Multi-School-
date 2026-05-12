@@ -71,7 +71,6 @@ export class AuthService {
 
       return user;
     } catch (error) {
-      console.error('Login error:', error);
       throw error;
     }
   }
@@ -93,11 +92,11 @@ export class AuthService {
             },
           });
         } catch (error) {
-          console.warn('Logout endpoint failed:', error);
+          // Silent fail for security
         }
       }
     } catch (error) {
-      console.warn('Logout error:', error);
+      // Silent fail for security
     } finally {
       // Always clear local data
       this.clearAuthData();
@@ -209,7 +208,6 @@ export class AuthService {
 
       return false;
     } catch (error) {
-      console.error('Token refresh error:', error);
       return false;
     }
   }
@@ -229,12 +227,10 @@ export class AuthService {
         const refreshed = await this.refreshToken();
         
         if (!refreshed) {
-          console.warn('Token refresh failed, logging out...');
           this.clearAuthData();
           window.location.href = '/login';
         }
       } catch (error) {
-        console.error('Auto token refresh error:', error);
         this.clearAuthData();
         window.location.href = '/login';
       }
@@ -286,7 +282,6 @@ export class AuthService {
 
       return true;
     } catch (error) {
-      console.error('Token validation error:', error);
       return false;
     }
   }
@@ -309,7 +304,6 @@ export class AuthService {
 
       return null;
     } catch (error) {
-      console.error('Get token expiration error:', error);
       return null;
     }
   }

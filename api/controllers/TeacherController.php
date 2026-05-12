@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class TeacherController {
     private $conn;
@@ -20,8 +21,7 @@ class TeacherController {
      * Get All Teachers (without pagination for frontend compatibility)
      */
     public function getAllTeachers() {
-        // Temporarily remove authentication for debugging
-        // Middleware::requireAnyRole(['admin', 'teacher', 'accountant']);
+        Middleware::requireAnyRole(['admin', 'teacher', 'accountant']);
         
         $search_params = Middleware::getSearchParams();
         
@@ -243,6 +243,11 @@ class TeacherController {
                 'New teacher registered',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['teachers', 'users', 'classes', 'subject_assignments'], [
+                'action' => 'created',
+                'teacher_id' => (int)$teacher_id,
+            ]);
             
             Response::created(['id' => $teacher_id, 'employee_id' => $employee_id], 'Teacher created successfully');
             
@@ -330,6 +335,11 @@ class TeacherController {
                 'Teacher information updated',
                 $token_data['user_id']
             );
+
+            RealtimeEvents::publish(['teachers', 'users', 'classes', 'subject_assignments'], [
+                'action' => 'updated',
+                'teacher_id' => (int)$teacher_id,
+            ]);
             
             Response::success(null, 'Teacher updated successfully');
             
@@ -384,6 +394,11 @@ class TeacherController {
                 'Teacher record deleted',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['teachers', 'users', 'classes', 'subject_assignments'], [
+                'action' => 'deleted',
+                'teacher_id' => (int)$teacher_id,
+            ]);
             
             Response::success(null, 'Teacher deleted successfully');
             

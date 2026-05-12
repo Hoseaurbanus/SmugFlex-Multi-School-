@@ -97,7 +97,6 @@ export function ProfileSettingsPage() {
       toast.success('Profile updated successfully');
       setIsEditing(false);
     } catch (error) {
-      console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
     } finally {
       setIsLoading(false);
@@ -124,7 +123,6 @@ export function ProfileSettingsPage() {
         toast.error('Current password is incorrect');
       }
     } catch (error) {
-      console.error('Error changing password:', error);
       toast.error('Failed to change password');
     } finally {
       setIsLoading(false);

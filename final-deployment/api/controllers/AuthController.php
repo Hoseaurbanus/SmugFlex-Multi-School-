@@ -8,6 +8,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/JWT.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RateLimiter.php';
 
 class AuthController {
     private $conn;
@@ -24,9 +25,6 @@ class AuthController {
         // Get request data
         $data = json_decode(file_get_contents('php://input'), true);
         
-        // DEBUG: Log login attempt
-        error_log("LOGIN DEBUG: Attempting login - Username: " . ($data['username'] ?? 'NULL') . ", Role: " . ($data['role'] ?? 'NULL') . ", Data: " . json_encode($data));
-        
         // Validate required fields
         Middleware::validateRequired($data, ['username', 'password', 'role']);
         
@@ -34,8 +32,11 @@ class AuthController {
         $password = $data['password'];
         $role = Middleware::validateEnum($data['role'], ['admin', 'teacher', 'accountant', 'parent'], 'role');
         
-        // DEBUG: Log sanitized data
-        error_log("LOGIN DEBUG: Sanitized data - Username: " . $username . ", Role: " . $role);
+        // Rate limiting: Check if user has exceeded login attempts (max 5 per 15 minutes)
+        if (RateLimiter::isLimited($username, 'login_attempt')) {
+            error_log("SECURITY: Login rate limit exceeded for username: {$username} from IP: {$_SERVER['REMOTE_ADDR']}");
+            RateLimiter::throttled($username, 'login_attempt');
+        }
         
         try {
             // Find user
@@ -64,14 +65,41 @@ class AuthController {
             $stmt->execute();
             
             $user = $stmt->fetch();
-            
-            if (!$user || !password_verify($password, $user['password_hash'])) {
-                if (!$user) {
-                    error_log("LOGIN DEBUG: User not found for username: " . $username);
-                } else {
-                    error_log("LOGIN DEBUG: Password verification failed for username: " . $username);
+
+            $password_ok = false;
+            if ($user) {
+                $password_ok = password_verify($password, (string)$user['password_hash']);
+
+                // Parent accounts in the exported DB include many legacy plaintext passwords (e.g. 'parent123').
+                // Allow those to login ONLY for parent role, then upgrade to bcrypt hash.
+                if (!$password_ok && $role === 'parent') {
+                    $stored = (string)($user['password_hash'] ?? '');
+                    if ($stored !== '' && hash_equals($stored, (string)$password)) {
+                        $password_ok = true;
+
+                        try {
+                            $new_hash = password_hash((string)$password, PASSWORD_DEFAULT);
+                            if ($new_hash) {
+                                $upgrade_stmt = $this->conn->prepare("UPDATE users SET password_hash = :hash, updated_at = NOW() WHERE id = :id");
+                                $upgrade_stmt->bindParam(':hash', $new_hash);
+                                $upgrade_stmt->bindParam(':id', $user['id']);
+                                $upgrade_stmt->execute();
+                            }
+                        } catch (PDOException $e) {
+                            // Do not fail login if hash upgrade fails; just log and continue.
+                        }
+                    }
                 }
-                Middleware::logActivity($username, ucfirst($role), 'LOGIN_FAILED', 'Authentication', 'Failed', 'Invalid credentials');
+            }
+
+            if (!$user || !$password_ok) {
+                // Log failed attempt but do NOT include username (prevents enumeration attacks)
+                error_log("AUTH_FAILED: role={$role}, ip={$_SERVER['REMOTE_ADDR']}");
+                
+                // Record in activity log without sensitive details
+                Middleware::logActivity('Unknown', ucfirst($role), 'LOGIN_FAILED', 'Authentication', 'Failed', 'Invalid credentials');
+                
+                // Respond with generic message (don't reveal if user exists or password wrong)
                 Response::unauthorized('Invalid username or password');
             }
             
@@ -208,8 +236,27 @@ class AuthController {
      */
     public function refreshToken() {
         error_log("AuthController: refreshToken called");
-        $token_data = Middleware::requireAuth();
-        error_log("AuthController: Current token data: " . json_encode($token_data));
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        $auth_header = $headers['Authorization'] ?? ($headers['authorization'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '')));
+        if (!$auth_header || !preg_match('/Bearer\s(\S+)/', (string)$auth_header, $matches)) {
+            Response::unauthorized('Missing Authorization Bearer token');
+            return;
+        }
+
+        $old_token = $matches[1];
+        $new_token = JWT::refreshToken($old_token);
+        if (!$new_token) {
+            Response::unauthorized('Invalid or expired token');
+            return;
+        }
+
+        $token_data = JWT::decode($new_token);
+        if (!$token_data) {
+            Response::unauthorized('Invalid refreshed token');
+            return;
+        }
+
+        error_log("AuthController: Refreshed token data: " . json_encode($token_data));
 
         try {
             // Get updated user data
@@ -222,9 +269,8 @@ class AuthController {
             }
 
             // Generate new token
-            $token = JWT::generateUserToken($user_data);
-            error_log("AuthController: Generated new token, length: " . strlen($token));
-            $user_data['token'] = $token;
+            $user_data['token'] = $new_token;
+            error_log("AuthController: Generated refreshed token, length: " . strlen($new_token));
 
             error_log("AuthController: Token refresh successful for user: " . ($user_data['username'] ?? 'unknown'));
             Response::success($user_data, 'Token refreshed successfully');

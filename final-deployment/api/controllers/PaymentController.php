@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class PaymentController {
     private $conn;
@@ -14,6 +15,94 @@ class PaymentController {
     public function __construct() {
         $database = new Database();
         $this->conn = $database->getConnection();
+        $this->ensureSchema();
+    }
+
+    private function ensureSchema() {
+        try {
+            $col_stmt = $this->conn->prepare("SHOW COLUMNS FROM payments LIKE 'invoice_id'");
+            $col_stmt->execute();
+            $col = $col_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$col) {
+                $this->conn->exec("ALTER TABLE payments ADD COLUMN invoice_id INT NULL AFTER student_id");
+                $this->conn->exec("CREATE INDEX idx_payments_invoice_id ON payments(invoice_id)");
+            }
+
+            // Reversal tracking columns
+            $col_stmt = $this->conn->prepare("SHOW COLUMNS FROM payments LIKE 'reversed_from_payment_id'");
+            $col_stmt->execute();
+            $col = $col_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$col) {
+                $this->conn->exec("ALTER TABLE payments ADD COLUMN reversed_from_payment_id INT NULL AFTER invoice_id");
+                $this->conn->exec("CREATE INDEX idx_payments_reversed_from ON payments(reversed_from_payment_id)");
+            }
+
+            $col_stmt = $this->conn->prepare("SHOW COLUMNS FROM payments LIKE 'reversed_by'");
+            $col_stmt->execute();
+            $col = $col_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$col) {
+                $this->conn->exec("ALTER TABLE payments ADD COLUMN reversed_by INT NULL AFTER verified_by");
+            }
+
+            $col_stmt = $this->conn->prepare("SHOW COLUMNS FROM payments LIKE 'reversed_date'");
+            $col_stmt->execute();
+            $col = $col_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$col) {
+                $this->conn->exec("ALTER TABLE payments ADD COLUMN reversed_date DATETIME NULL AFTER reversed_by");
+            }
+
+            // Idempotency + integrity indexes (safe to re-run)
+            $idx_stmt = $this->conn->prepare("SHOW INDEX FROM payments WHERE Key_name = :key_name");
+
+            $idx_stmt->execute([':key_name' => 'uq_payments_receipt_number']);
+            $has_receipt_unique = (bool)$idx_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$has_receipt_unique) {
+                $this->conn->exec("ALTER TABLE payments ADD UNIQUE KEY uq_payments_receipt_number (receipt_number)");
+            }
+
+            // MySQL allows multiple NULL values in a UNIQUE index (good for optional references)
+            $idx_stmt->execute([':key_name' => 'uq_payments_transaction_reference']);
+            $has_ref_unique = (bool)$idx_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$has_ref_unique) {
+                $this->conn->exec("ALTER TABLE payments ADD UNIQUE KEY uq_payments_transaction_reference (transaction_reference)");
+            }
+        } catch (PDOException $e) {
+            error_log('PaymentController schema ensure failed: ' . $e->getMessage());
+        }
+    }
+
+    private function findPaymentByTransactionReference($transaction_reference) {
+        if (empty($transaction_reference)) {
+            return null;
+        }
+        try {
+            $q = "SELECT id, receipt_number, status FROM payments WHERE transaction_reference = :ref LIMIT 1";
+            $s = $this->conn->prepare($q);
+            $s->bindParam(':ref', $transaction_reference);
+            $s->execute();
+            $row = $s->fetch(PDO::FETCH_ASSOC);
+            return $row ?: null;
+        } catch (PDOException $e) {
+            return null;
+        }
+    }
+
+    private function getActiveInvoiceIdForStudent($student_id, $term, $academic_year) {
+        try {
+            $query = "SELECT id FROM student_term_invoices
+                      WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND status = 'Active'
+                      ORDER BY version DESC, id DESC
+                      LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':student_id', $student_id);
+            $stmt->bindParam(':term', $term);
+            $stmt->bindParam(':academic_year', $academic_year);
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $row ? intval($row['id']) : null;
+        } catch (PDOException $e) {
+            return null;
+        }
     }
     
     /**
@@ -63,7 +152,7 @@ class PaymentController {
             // Filter by status
             if (isset($_GET['status'])) {
                 $conditions[] = "p.status = :status";
-                $params[':status'] = Middleware::validateEnum($_GET['status'], ['Pending', 'Verified', 'Rejected'], 'status');
+                $params[':status'] = Middleware::validateEnum($_GET['status'], ['Pending', 'Verified', 'Rejected', 'Reversed'], 'status');
             }
             
             // Filter by date range
@@ -180,8 +269,21 @@ class PaymentController {
             
             $term = isset($data['term']) ? Middleware::sanitizeString($data['term']) : 'First Term';
             $academic_year = isset($data['academic_year']) ? Middleware::sanitizeString($data['academic_year']) : '2024/2025';
+            $invoice_id = isset($data['invoice_id']) ? Middleware::validateInteger($data['invoice_id'], 'invoice_id') : null;
             $transaction_reference = isset($data['transaction_reference']) ? Middleware::sanitizeString($data['transaction_reference']) : null;
             $notes = isset($data['notes']) ? Middleware::sanitizeString($data['notes']) : null;
+
+            // Idempotency: prevent duplicate references (returns the original payment)
+            if (!empty($transaction_reference)) {
+                $existing = $this->findPaymentByTransactionReference($transaction_reference);
+                if ($existing) {
+                    Response::success([
+                        'id' => intval($existing['id']),
+                        'receipt_number' => $existing['receipt_number'],
+                        'status' => $existing['status']
+                    ], 'Payment reference already exists');
+                }
+            }
             
             // Check if student exists
             $student_query = "SELECT first_name, last_name FROM students WHERE id = :student_id";
@@ -195,32 +297,75 @@ class PaymentController {
             }
             
             // Generate receipt number
-            $receipt_number = $this->generateReceiptNumber();
+            $receipt_number = null;
+
+            if (empty($invoice_id)) {
+                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year);
+            }
+
+            $status = ($payment_method === 'Cash') ? 'Verified' : 'Pending';
             
-            // Insert payment
-            $query = "INSERT INTO payments (student_id, amount, payment_type, term, academic_year, payment_method, 
-                                          transaction_reference, receipt_number, recorded_by, notes, status)
-                      VALUES (:student_id, :amount, :payment_type, :term, :academic_year, :payment_method,
-                              :transaction_reference, :receipt_number, :recorded_by, :notes, 'Pending')";
-            
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':student_id', $student_id);
-            $stmt->bindParam(':amount', $amount);
-            $stmt->bindParam(':payment_type', $payment_type);
-            $stmt->bindParam(':term', $term);
-            $stmt->bindParam(':academic_year', $academic_year);
-            $stmt->bindParam(':payment_method', $payment_method);
-            $stmt->bindParam(':transaction_reference', $transaction_reference);
-            $stmt->bindParam(':receipt_number', $receipt_number);
+            // Insert payment (retry on receipt_number collision)
+            $query = "INSERT INTO payments (student_id, invoice_id, amount, payment_type, term, academic_year, payment_method, 
+                                          transaction_reference, receipt_number, recorded_by, notes, status, verified_by, verified_date)
+                      VALUES (:student_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method,
+                              :transaction_reference, :receipt_number, :recorded_by, :notes, :status, :verified_by, :verified_date)";
+
             $recorded_by = $_SESSION['user_id'] ?? 1;
-            $stmt->bindParam(':recorded_by', $recorded_by);
-            $stmt->bindParam(':notes', $notes);
+            $verified_by = ($status === 'Verified') ? $recorded_by : null;
+            $verified_date = ($status === 'Verified') ? date('Y-m-d H:i:s') : null;
+
+            $attempts = 0;
+            while (true) {
+                $attempts++;
+                $receipt_number = $this->generateReceiptNumber();
+
+                try {
+                    $stmt = $this->conn->prepare($query);
+                    $stmt->bindParam(':student_id', $student_id);
+                    $stmt->bindParam(':invoice_id', $invoice_id);
+                    $stmt->bindParam(':amount', $amount);
+                    $stmt->bindParam(':payment_type', $payment_type);
+                    $stmt->bindParam(':term', $term);
+                    $stmt->bindParam(':academic_year', $academic_year);
+                    $stmt->bindParam(':payment_method', $payment_method);
+                    $stmt->bindParam(':transaction_reference', $transaction_reference);
+                    $stmt->bindParam(':receipt_number', $receipt_number);
+                    $stmt->bindParam(':recorded_by', $recorded_by);
+                    $stmt->bindParam(':notes', $notes);
+                    $stmt->bindParam(':status', $status);
+                    $stmt->bindParam(':verified_by', $verified_by);
+                    $stmt->bindParam(':verified_date', $verified_date);
+
+                    $stmt->execute();
+                    $payment_id = $this->conn->lastInsertId();
+                    break;
+                } catch (PDOException $e) {
+                    // 23000: integrity constraint violation (duplicate receipt or reference)
+                    if ($e->getCode() === '23000') {
+                        // If duplicate transaction reference slipped through, return existing
+                        if (!empty($transaction_reference)) {
+                            $existing = $this->findPaymentByTransactionReference($transaction_reference);
+                            if ($existing) {
+                                Response::success([
+                                    'id' => intval($existing['id']),
+                                    'receipt_number' => $existing['receipt_number'],
+                                    'status' => $existing['status']
+                                ], 'Payment reference already exists');
+                            }
+                        }
+                        if ($attempts < 3) {
+                            continue;
+                        }
+                    }
+                    throw $e;
+                }
+            }
             
-            $stmt->execute();
-            $payment_id = $this->conn->lastInsertId();
-            
-            // Update student fee balance
-            $this->updateStudentFeeBalance($student_id, $amount, $term, $academic_year);
+            // Update student fee balance only when payment is Verified
+            if ($status === 'Verified') {
+                $this->updateStudentFeeBalance($student_id, $amount, $term, $academic_year);
+            }
             
             // Log activity
             Middleware::logActivity(
@@ -233,6 +378,15 @@ class PaymentController {
                 $_SESSION['user_id'] ?? null
             );
             
+            RealtimeEvents::publish(['payments', 'students', 'notifications'], [
+                'action' => 'created',
+                'payment_id' => (int)$payment_id,
+                'student_id' => (int)$student_id,
+                'status' => (string)$status,
+                'academic_year' => (string)$academic_year,
+                'term' => (string)$term,
+            ]);
+
             Response::created(['id' => $payment_id, 'receipt_number' => $receipt_number], 'Payment recorded successfully');
             
         } catch (PDOException $e) {
@@ -266,28 +420,78 @@ class PaymentController {
             if ($action === 'verify') {
                 $status = 'Verified';
                 $message = 'Payment verified successfully';
-                
+
+                $amount_to_apply = floatval($payment['amount']);
+                $notes_append = null;
+
+                // Optional accountant adjustment for manual bank transfers
+                $has_adjusted_amount = isset($data['adjusted_amount']) && $data['adjusted_amount'] !== null && $data['adjusted_amount'] !== '';
+                if ($has_adjusted_amount) {
+                    if (($payment['payment_method'] ?? '') !== 'Bank Transfer') {
+                        Response::badRequest('Amount adjustment is only allowed for Bank Transfer payments');
+                    }
+
+                    $adjusted_amount = Middleware::validatePositive($data['adjusted_amount'], 'adjusted_amount');
+                    $adjustment_reason = isset($data['adjustment_reason']) ? Middleware::sanitizeString($data['adjustment_reason']) : '';
+                    if (empty($adjustment_reason)) {
+                        Response::badRequest('Adjustment reason is required when changing the amount');
+                    }
+
+                    if (abs(floatval($adjusted_amount) - floatval($payment['amount'])) > 0.00001) {
+                        $amount_to_apply = floatval($adjusted_amount);
+                        $notes_append = "\nAmount adjusted from {$payment['amount']} to {$adjusted_amount}. Reason: {$adjustment_reason}";
+                    }
+                }
+
                 // Update student fee balance for verified payments
-                $this->updateStudentFeeBalance($payment['student_id'], $payment['amount'], $payment['term'], $payment['academic_year']);
+                $this->updateStudentFeeBalance($payment['student_id'], $amount_to_apply, $payment['term'], $payment['academic_year']);
             } else {
                 $status = 'Rejected';
                 $rejection_reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : 'Payment rejected';
                 $message = 'Payment rejected';
                 
-                // Update fee balance to reverse the payment
-                $this->reverseStudentFeeBalance($payment['student_id'], $payment['amount'], $payment['term'], $payment['academic_year']);
+                // IMPORTANT: Do NOT reverse balances for rejected Pending payments.
+                // Pending payments no longer affect balances at creation time.
+                // Reversals should only happen when a previously Verified payment is being reversed.
             }
             
-            // Update payment status
-            $update_query = "UPDATE payments SET status = :status, verified_by = :verified_by, verified_date = NOW() 
-                            WHERE id = :id";
+            // Update payment status (and optionally the amount if adjustment was applied)
+            $update_query = "UPDATE payments
+                            SET status = :status,
+                                verified_by = :verified_by,
+                                verified_date = NOW()";
+
+            if ($action === 'verify' && isset($amount_to_apply) && abs(floatval($amount_to_apply) - floatval($payment['amount'])) > 0.00001) {
+                $update_query .= ", amount = :amount";
+            }
+
+            if ($action === 'verify' && isset($notes_append) && !empty($notes_append)) {
+                $update_query .= ", notes = CONCAT(IFNULL(notes, ''), :notes_append)";
+            }
+
+            $update_query .= " WHERE id = :id";
             
             $update_stmt = $this->conn->prepare($update_query);
             $update_stmt->bindParam(':status', $status);
             $verified_by = $_SESSION['user_id'] ?? 1;
             $update_stmt->bindParam(':verified_by', $verified_by);
+            if ($action === 'verify' && isset($amount_to_apply) && abs(floatval($amount_to_apply) - floatval($payment['amount'])) > 0.00001) {
+                $update_stmt->bindParam(':amount', $amount_to_apply);
+            }
+            if ($action === 'verify' && isset($notes_append) && !empty($notes_append)) {
+                $update_stmt->bindParam(':notes_append', $notes_append);
+            }
             $update_stmt->bindParam(':id', $payment_id);
             $update_stmt->execute();
+
+            RealtimeEvents::publish(['payments', 'students', 'notifications'], [
+                'action' => 'status_changed',
+                'payment_id' => (int)$payment_id,
+                'student_id' => (int)$payment['student_id'],
+                'status' => (string)$status,
+                'academic_year' => (string)$payment['academic_year'],
+                'term' => (string)$payment['term'],
+            ]);
             
             // Add rejection reason if rejected
             if ($action === 'reject') {
@@ -313,6 +517,126 @@ class PaymentController {
             
         } catch (PDOException $e) {
             Response::serverError('Database error updating payment');
+        }
+    }
+
+    /**
+     * Reverse a Verified Payment (Accountant/Admin)
+     * Creates a new Verified negative payment linked to the original.
+     * Marks the original payment as Reversed.
+     */
+    public function reversePayment($id) {
+        Middleware::requireAnyRole(['accountant', 'admin']);
+
+        $payment_id = Middleware::validateInteger($id, 'payment_id');
+        $data = json_decode(file_get_contents('php://input'), true);
+
+        try {
+            $reason = isset($data['reason']) ? Middleware::sanitizeString($data['reason']) : '';
+            if (empty($reason)) {
+                Response::badRequest('Reversal reason is required');
+            }
+
+            // Only reverse Verified payments, and only once
+            $q = "SELECT * FROM payments WHERE id = :id LIMIT 1";
+            $s = $this->conn->prepare($q);
+            $s->bindParam(':id', $payment_id);
+            $s->execute();
+            $payment = $s->fetch(PDO::FETCH_ASSOC);
+
+            if (!$payment) {
+                Response::notFound('Payment not found');
+            }
+
+            if ($payment['status'] === 'Reversed') {
+                Response::badRequest('Payment is already reversed');
+            }
+
+            if ($payment['status'] !== 'Verified') {
+                Response::badRequest('Only Verified payments can be reversed');
+            }
+
+            $student_id = intval($payment['student_id']);
+            $amount = floatval($payment['amount']);
+            $invoice_id = $payment['invoice_id'] !== null ? intval($payment['invoice_id']) : null;
+            $term = $payment['term'];
+            $academic_year = $payment['academic_year'];
+            $payment_type = $payment['payment_type'];
+
+            $reversed_by = $_SESSION['user_id'] ?? 1;
+
+            // Create reversal entry (negative, Verified)
+            $receipt_number = null;
+            $attempts = 0;
+            $insert_q = "INSERT INTO payments (student_id, invoice_id, reversed_from_payment_id, amount, payment_type, term, academic_year, payment_method,
+                                              transaction_reference, receipt_number, recorded_by, notes, status, verified_by, verified_date)
+                        VALUES (:student_id, :invoice_id, :reversed_from_payment_id, :amount, :payment_type, :term, :academic_year, :payment_method,
+                                NULL, :receipt_number, :recorded_by, :notes, 'Verified', :verified_by, NOW())";
+
+            $reversal_notes = "Reversal of payment ID {$payment_id}. Reason: {$reason}";
+            $payment_method = 'Reversal';
+            $neg_amount = 0 - abs($amount);
+
+            while (true) {
+                $attempts++;
+                $receipt_number = $this->generateReceiptNumber();
+                try {
+                    $ins = $this->conn->prepare($insert_q);
+                    $ins->bindParam(':student_id', $student_id);
+                    $ins->bindParam(':invoice_id', $invoice_id);
+                    $ins->bindParam(':reversed_from_payment_id', $payment_id);
+                    $ins->bindParam(':amount', $neg_amount);
+                    $ins->bindParam(':payment_type', $payment_type);
+                    $ins->bindParam(':term', $term);
+                    $ins->bindParam(':academic_year', $academic_year);
+                    $ins->bindParam(':payment_method', $payment_method);
+                    $ins->bindParam(':receipt_number', $receipt_number);
+                    $ins->bindParam(':recorded_by', $reversed_by);
+                    $ins->bindParam(':notes', $reversal_notes);
+                    $ins->bindParam(':verified_by', $reversed_by);
+                    $ins->execute();
+                    $reversal_payment_id = $this->conn->lastInsertId();
+                    break;
+                } catch (PDOException $e) {
+                    if ($e->getCode() === '23000' && $attempts < 3) {
+                        continue;
+                    }
+                    throw $e;
+                }
+            }
+
+            // Mark original payment as Reversed and record reversal metadata
+            $upd = $this->conn->prepare("UPDATE payments
+                                        SET status = 'Reversed', reversed_by = :reversed_by, reversed_date = NOW(),
+                                            notes = CONCAT(IFNULL(notes, ''), '\nReversed: ', :reason)
+                                        WHERE id = :id");
+            $upd->bindParam(':reversed_by', $reversed_by);
+            $upd->bindParam(':reason', $reason);
+            $upd->bindParam(':id', $payment_id);
+            $upd->execute();
+
+            // Reverse the legacy balance cache (if present)
+            $this->reverseStudentFeeBalance($student_id, abs($amount), $term, $academic_year);
+
+            Middleware::logActivity(
+                $_SESSION['username'] ?? 'Accountant',
+                'Accountant',
+                'REVERSE_PAYMENT',
+                "Payment ID: {$payment_id}",
+                'Success',
+                "Reversed payment {$payment_id} with reversal entry {$reversal_payment_id}. Reason: {$reason}",
+                $reversed_by
+            );
+
+            Response::success([
+                'original_payment_id' => $payment_id,
+                'reversal_payment_id' => intval($reversal_payment_id),
+                'reversal_receipt_number' => $receipt_number,
+                'amount_reversed' => abs($amount),
+                'invoice_id' => $invoice_id
+            ], 'Payment reversed successfully');
+        } catch (PDOException $e) {
+            Response::serverError('Database error reversing payment');
         }
     }
     
@@ -420,9 +744,22 @@ class PaymentController {
             $payment_type = Middleware::validateEnum($data['payment_type'], ['School Fees', 'Examination Fees', 'Books', 'Uniform', 'Transport', 'Others'], 'payment_type');
             $term = isset($data['term']) ? Middleware::sanitizeString($data['term']) : 'First Term';
             $academic_year = isset($data['academic_year']) ? Middleware::sanitizeString($data['academic_year']) : '2024/2025';
+            $invoice_id = isset($data['invoice_id']) ? Middleware::validateInteger($data['invoice_id'], 'invoice_id') : null;
             $notes = isset($data['notes']) ? Middleware::sanitizeString($data['notes']) : null;
             $proof_url = Middleware::sanitizeString($data['proof_url']);
             $transaction_reference = isset($data['transaction_reference']) ? Middleware::sanitizeString($data['transaction_reference']) : null;
+
+            // Idempotency: prevent duplicate references (returns the original payment)
+            if (!empty($transaction_reference)) {
+                $existing = $this->findPaymentByTransactionReference($transaction_reference);
+                if ($existing) {
+                    Response::success([
+                        'id' => intval($existing['id']),
+                        'receipt_number' => $existing['receipt_number'],
+                        'status' => $existing['status']
+                    ], 'Payment reference already exists');
+                }
+            }
             // Get parent ID from token or database
             $parent_id = $token_data['linked_id'] ?? null;
             if (empty($parent_id)) {
@@ -454,27 +791,56 @@ class PaymentController {
             if (!$student) {
                 Response::notFound('Student not found');
             }
-            // Generate receipt number
-            $receipt_number = $this->generateReceiptNumber();
+            $receipt_number = null;
+            if (empty($invoice_id)) {
+                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year);
+            }
             // Combine notes with proof URL
             $combined_notes = $notes ? ($notes . "\n") : '';
             $combined_notes .= 'Bank transfer receipt: ' . $proof_url;
-            // Insert pending bank transfer payment
-            $query = "INSERT INTO payments (student_id, amount, payment_type, term, academic_year, payment_method, transaction_reference, receipt_number, recorded_by, notes, status) VALUES (:student_id, :amount, :payment_type, :term, :academic_year, :payment_method, :transaction_reference, :receipt_number, :recorded_by, :notes, 'Pending')";
-            $stmt = $this->conn->prepare($query);
+            // Insert pending bank transfer payment (retry on receipt_number collision)
+            $query = "INSERT INTO payments (student_id, invoice_id, amount, payment_type, term, academic_year, payment_method, transaction_reference, receipt_number, recorded_by, notes, status) VALUES (:student_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method, :transaction_reference, :receipt_number, :recorded_by, :notes, 'Pending')";
             $payment_method = 'Bank Transfer';
-            $stmt->bindParam(':student_id', $student_id);
-            $stmt->bindParam(':amount', $amount);
-            $stmt->bindParam(':payment_type', $payment_type);
-            $stmt->bindParam(':term', $term);
-            $stmt->bindParam(':academic_year', $academic_year);
-            $stmt->bindParam(':payment_method', $payment_method);
-            $stmt->bindParam(':transaction_reference', $transaction_reference);
-            $stmt->bindParam(':receipt_number', $receipt_number);
-            $stmt->bindParam(':recorded_by', $parent_id);
-            $stmt->bindParam(':notes', $combined_notes);
-            $stmt->execute();
-            $payment_id = $this->conn->lastInsertId();
+
+            $attempts = 0;
+            while (true) {
+                $attempts++;
+                $receipt_number = $this->generateReceiptNumber();
+                try {
+                    $stmt = $this->conn->prepare($query);
+                    $stmt->bindParam(':student_id', $student_id);
+                    $stmt->bindParam(':invoice_id', $invoice_id);
+                    $stmt->bindParam(':amount', $amount);
+                    $stmt->bindParam(':payment_type', $payment_type);
+                    $stmt->bindParam(':term', $term);
+                    $stmt->bindParam(':academic_year', $academic_year);
+                    $stmt->bindParam(':payment_method', $payment_method);
+                    $stmt->bindParam(':transaction_reference', $transaction_reference);
+                    $stmt->bindParam(':receipt_number', $receipt_number);
+                    $stmt->bindParam(':recorded_by', $parent_id);
+                    $stmt->bindParam(':notes', $combined_notes);
+                    $stmt->execute();
+                    $payment_id = $this->conn->lastInsertId();
+                    break;
+                } catch (PDOException $e) {
+                    if ($e->getCode() === '23000') {
+                        if (!empty($transaction_reference)) {
+                            $existing = $this->findPaymentByTransactionReference($transaction_reference);
+                            if ($existing) {
+                                Response::success([
+                                    'id' => intval($existing['id']),
+                                    'receipt_number' => $existing['receipt_number'],
+                                    'status' => $existing['status']
+                                ], 'Payment reference already exists');
+                            }
+                        }
+                        if ($attempts < 3) {
+                            continue;
+                        }
+                    }
+                    throw $e;
+                }
+            }
             // Log activity
             Middleware::logActivity(
                 $token_data['username'],
@@ -634,6 +1000,91 @@ class PaymentController {
             Response::serverError('Database error generating payment reports');
         }
     }
+
+    /**
+     * Reconciliation Summary (Accountant/Admin)
+     * Provides method/status totals for a period for daily/weekly reconciliation.
+     */
+    public function getReconciliationSummary() {
+        Middleware::requireAnyRole(['admin', 'accountant']);
+
+        try {
+            $date_from = isset($_GET['date_from']) ? Middleware::validateDate($_GET['date_from']) : date('Y-m-d');
+            $date_to = isset($_GET['date_to']) ? Middleware::validateDate($_GET['date_to']) : date('Y-m-d');
+
+            $summary_query = "SELECT
+                                status,
+                                payment_method,
+                                COUNT(*) as count,
+                                COALESCE(SUM(amount),0) as total
+                              FROM payments
+                              WHERE DATE(recorded_date) BETWEEN :date_from AND :date_to
+                              GROUP BY status, payment_method
+                              ORDER BY status, payment_method";
+
+            $stmt = $this->conn->prepare($summary_query);
+            $stmt->bindParam(':date_from', $date_from);
+            $stmt->bindParam(':date_to', $date_to);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            Response::success([
+                'period' => ['date_from' => $date_from, 'date_to' => $date_to],
+                'items' => $rows
+            ], 'Reconciliation summary retrieved successfully');
+        } catch (PDOException $e) {
+            Response::serverError('Database error generating reconciliation summary');
+        }
+    }
+
+    /**
+     * Payment Exceptions (Accountant/Admin)
+     * Flags payments that require attention: pending too long.
+     */
+    public function getPaymentExceptions() {
+        Middleware::requireAnyRole(['admin', 'accountant']);
+
+        try {
+            $pending_online_minutes = isset($_GET['pending_online_minutes']) ? intval($_GET['pending_online_minutes']) : 60;
+            $pending_bank_hours = isset($_GET['pending_bank_hours']) ? intval($_GET['pending_bank_hours']) : 48;
+
+            $online_cutoff = date('Y-m-d H:i:s', time() - ($pending_online_minutes * 60));
+            $bank_cutoff = date('Y-m-d H:i:s', time() - ($pending_bank_hours * 3600));
+
+            $online_query = "SELECT p.*, s.first_name, s.last_name, s.admission_number
+                             FROM payments p
+                             JOIN students s ON p.student_id = s.id
+                             WHERE p.status = 'Pending'
+                               AND p.payment_method = 'Online Payment'
+                               AND p.recorded_date <= :cutoff
+                             ORDER BY p.recorded_date ASC";
+            $online_stmt = $this->conn->prepare($online_query);
+            $online_stmt->bindParam(':cutoff', $online_cutoff);
+            $online_stmt->execute();
+
+            $bank_query = "SELECT p.*, s.first_name, s.last_name, s.admission_number
+                           FROM payments p
+                           JOIN students s ON p.student_id = s.id
+                           WHERE p.status = 'Pending'
+                             AND p.payment_method = 'Bank Transfer'
+                             AND p.recorded_date <= :cutoff
+                           ORDER BY p.recorded_date ASC";
+            $bank_stmt = $this->conn->prepare($bank_query);
+            $bank_stmt->bindParam(':cutoff', $bank_cutoff);
+            $bank_stmt->execute();
+
+            Response::success([
+                'thresholds' => [
+                    'pending_online_minutes' => $pending_online_minutes,
+                    'pending_bank_hours' => $pending_bank_hours
+                ],
+                'pending_online' => $online_stmt->fetchAll(PDO::FETCH_ASSOC),
+                'pending_bank_transfers' => $bank_stmt->fetchAll(PDO::FETCH_ASSOC)
+            ], 'Payment exceptions retrieved successfully');
+        } catch (PDOException $e) {
+            Response::serverError('Database error retrieving payment exceptions');
+        }
+    }
     
     /**
      * Initialize Online Payment (Paystack) for Parent
@@ -654,6 +1105,7 @@ class PaymentController {
             
             $term = isset($data['term']) ? Middleware::sanitizeString($data['term']) : 'First Term';
             $academic_year = isset($data['academic_year']) ? Middleware::sanitizeString($data['academic_year']) : '2024/2025';
+            $invoice_id = isset($data['invoice_id']) ? Middleware::validateInteger($data['invoice_id'], 'invoice_id') : null;
             $notes = isset($data['notes']) ? Middleware::sanitizeString($data['notes']) : null;
             
             // Get parent ID from token
@@ -761,7 +1213,7 @@ class PaymentController {
             
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            // curl_close() removed - deprecated in PHP 8.5, handles auto-close
             
             if ($response === false || $http_code !== 200) {
                 Response::serverError('Failed to initialize payment with Paystack');
@@ -776,30 +1228,62 @@ class PaymentController {
             $paystack_data = $paystack_response['data'];
             $reference = $paystack_data['reference'];
             $authorization_url = $paystack_data['authorization_url'];
+
+            $receipt_number = null;
+
+            if (empty($invoice_id)) {
+                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year);
+            }
             
-            // Generate receipt number
-            $receipt_number = $this->generateReceiptNumber();
-            
-            // Insert pending payment record
-            $query = "INSERT INTO payments (student_id, amount, payment_type, term, academic_year, payment_method, 
+            // Insert pending payment record (retry on receipt_number collision)
+            $query = "INSERT INTO payments (student_id, invoice_id, amount, payment_type, term, academic_year, payment_method, 
                                           transaction_reference, receipt_number, recorded_by, notes, status)
-                      VALUES (:student_id, :amount, :payment_type, :term, :academic_year, :payment_method,
+                      VALUES (:student_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method,
                               :transaction_reference, :receipt_number, :recorded_by, :notes, 'Pending')";
-            
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':student_id', $student_id);
-            $stmt->bindParam(':amount', $amount);
-            $stmt->bindParam(':payment_type', $payment_type);
-            $stmt->bindParam(':term', $term);
-            $stmt->bindParam(':academic_year', $academic_year);
-            $stmt->bindParam(':payment_method', $payment_method = 'Online Payment');
-            $stmt->bindParam(':transaction_reference', $reference);
-            $stmt->bindParam(':receipt_number', $receipt_number);
-            $stmt->bindParam(':recorded_by', $parent_id);
-            $stmt->bindParam(':notes', $notes);
-            
-            $stmt->execute();
-            $payment_id = $this->conn->lastInsertId();
+
+            $payment_method = 'Online Payment';
+
+            $attempts = 0;
+            while (true) {
+                $attempts++;
+                $receipt_number = $this->generateReceiptNumber();
+                try {
+                    $stmt = $this->conn->prepare($query);
+                    $stmt->bindParam(':student_id', $student_id);
+                    $stmt->bindParam(':invoice_id', $invoice_id);
+                    $stmt->bindParam(':amount', $amount);
+                    $stmt->bindParam(':payment_type', $payment_type);
+                    $stmt->bindParam(':term', $term);
+                    $stmt->bindParam(':academic_year', $academic_year);
+                    $stmt->bindParam(':payment_method', $payment_method);
+                    $stmt->bindParam(':transaction_reference', $reference);
+                    $stmt->bindParam(':receipt_number', $receipt_number);
+                    $stmt->bindParam(':recorded_by', $parent_id);
+                    $stmt->bindParam(':notes', $notes);
+                    $stmt->execute();
+                    $payment_id = $this->conn->lastInsertId();
+                    break;
+                } catch (PDOException $e) {
+                    if ($e->getCode() === '23000') {
+                        // Duplicate gateway reference should return existing payment (retry-safe)
+                        $existing = $this->findPaymentByTransactionReference($reference);
+                        if ($existing) {
+                            Response::success([
+                                'payment_id' => intval($existing['id']),
+                                'reference' => $reference,
+                                'authorization_url' => $authorization_url,
+                                'receipt_number' => $existing['receipt_number'],
+                                'amount' => $amount,
+                                'student_name' => $student['first_name'] . ' ' . $student['last_name']
+                            ], 'Online payment already initialized');
+                        }
+                        if ($attempts < 3) {
+                            continue;
+                        }
+                    }
+                    throw $e;
+                }
+            }
             
             // Log activity
             Middleware::logActivity(
@@ -840,11 +1324,11 @@ class PaymentController {
         }
         
         try {
-            // Find payment with this reference
+            // Find payment with this reference (idempotent: allow returning already processed payments)
             $payment_query = "SELECT p.*, s.first_name, s.last_name, s.admission_number
                               FROM payments p
                               JOIN students s ON p.student_id = s.id
-                              WHERE p.transaction_reference = :reference AND p.status = 'Pending'";
+                              WHERE p.transaction_reference = :reference";
             $payment_stmt = $this->conn->prepare($payment_query);
             $payment_stmt->bindParam(':reference', $reference);
             $payment_stmt->execute();
@@ -853,6 +1337,26 @@ class PaymentController {
             
             if (!$payment) {
                 Response::notFound('Payment not found or already processed');
+            }
+
+            // Idempotent behavior: allow safe retries by returning current status
+            if ($payment['status'] === 'Verified') {
+                Response::success([
+                    'payment_id' => $payment['id'],
+                    'receipt_number' => $payment['receipt_number'],
+                    'amount' => $payment['amount'],
+                    'status' => 'Verified',
+                    'verified_date' => $payment['verified_date'] ?? null,
+                    'student_name' => $payment['first_name'] . ' ' . $payment['last_name']
+                ], 'Payment already verified');
+            }
+
+            if ($payment['status'] === 'Rejected') {
+                Response::badRequest('Payment was not successful. Status: Rejected');
+            }
+
+            if ($payment['status'] !== 'Pending') {
+                Response::badRequest('Payment is not pending verification');
             }
             
             // Check access permissions for parents
@@ -901,7 +1405,7 @@ class PaymentController {
             
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            // curl_close() removed - deprecated in PHP 8.5, handles auto-close
             
             if ($response === false || $http_code !== 200) {
                 Response::serverError('Failed to verify payment with Paystack');
@@ -932,7 +1436,8 @@ class PaymentController {
                                 WHERE id = :id";
                 
                 $update_stmt = $this->conn->prepare($update_query);
-                $update_stmt->bindParam(':verified_by', $verified_by = $token_data['role'] === 'parent' ? $payment['recorded_by'] : ($token_data['linked_id'] ?? $token_data['user_id']));
+                $verified_by = $token_data['role'] === 'parent' ? $payment['recorded_by'] : ($token_data['linked_id'] ?? $token_data['user_id']);
+                $update_stmt->bindParam(':verified_by', $verified_by);
                 $update_stmt->bindParam(':id', $payment['id']);
                 $update_stmt->execute();
                 
@@ -962,7 +1467,7 @@ class PaymentController {
                 
             } else {
                 // Payment failed or abandoned
-                $update_query = "UPDATE payments SET status = 'Failed', notes = CONCAT(IFNULL(notes, ''), '\nPaystack status: ', :paystack_status) 
+                $update_query = "UPDATE payments SET status = 'Rejected', notes = CONCAT(IFNULL(notes, ''), '\nPaystack status: ', :paystack_status) 
                                 WHERE id = :id";
                 
                 $update_stmt = $this->conn->prepare($update_query);

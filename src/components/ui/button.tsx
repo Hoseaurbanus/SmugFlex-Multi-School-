@@ -26,6 +26,7 @@ function Button({
   className,
   variant = 'default',
   size = 'default',
+  type,
   ...props
 }: ButtonProps) {
   return (
@@ -36,6 +37,7 @@ function Button({
         buttonSizes[size],
         className
       )}
+      type={type ?? "button"}
       {...props}
     />
   );

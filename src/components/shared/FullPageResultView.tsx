@@ -5,7 +5,7 @@ import { Badge } from "../ui/badge";
 import { StudentResultCard } from "./StudentResultCard";
 import { useSchool } from "../../contexts/SchoolContext";
 import { StudentData, ClassData, CompiledResultData } from "./types/resultCard";
-import { ArrowLeft, Printer, Download } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 interface FullPageResultViewProps {
   studentId: number;
@@ -19,6 +19,17 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
   const [result, setResult] = useState<any>(null);
   const [studentClass, setStudentClass] = useState<any>(null);
 
+  const resolvedStudentName =
+    (student as any)?.fullName ||
+    [
+      (student as any)?.firstName,
+      (student as any)?.otherName,
+      (student as any)?.lastName
+    ]
+      .filter((p: any) => String(p || '').trim() !== '')
+      .join(' ')
+      .trim();
+
   useEffect(() => {
     // Ensure arrays before using .find()
     const safeStudents = Array.isArray(students) ? students : [];
@@ -26,26 +37,33 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
     const safeClasses = Array.isArray(classes) ? classes : [];
     
     // Find student, result, and class data
-    const foundStudent = safeStudents.find(s => s.id === studentId);
-    const foundResult = safeCompiledResults.find(cr => cr.id === resultId);
-    const foundClass = safeClasses.find(c => c.id === foundResult?.class_id);
+    const foundResult = safeCompiledResults.find(cr => String(cr.id) === String(resultId));
 
-    setStudent(foundStudent);
+    const foundStudent = safeStudents.find(s => String((s as any).id) === String(studentId));
+    const fallbackStudent = foundResult
+      ? {
+          id: (foundResult as any)?.student_id ?? studentId,
+          firstName: (foundResult as any)?.first_name ?? (foundResult as any)?.student_first_name ?? '',
+          otherName: '',
+          lastName: (foundResult as any)?.last_name ?? (foundResult as any)?.student_last_name ?? '',
+          admissionNumber: (foundResult as any)?.admission_number ?? '',
+          class_id: (foundResult as any)?.class_id,
+        }
+      : null;
+
+    const resolvedClassId =
+      (foundResult as any)?.class_id ??
+      (foundResult as any)?.classId ??
+      (foundStudent as any)?.class_id ??
+      (foundStudent as any)?.classId ??
+      (fallbackStudent as any)?.class_id;
+
+    const foundClass = safeClasses.find(c => String((c as any).id) === String(resolvedClassId));
+
+    setStudent(foundStudent || fallbackStudent);
     setResult(foundResult);
     setStudentClass(foundClass);
   }, [studentId, resultId, students, compiledResults, classes]);
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleDownload = () => {
-    // Trigger download from the StudentResultCard component
-    const downloadButton = document.querySelector('[data-download-pdf]') as HTMLButtonElement;
-    if (downloadButton) {
-      downloadButton.click();
-    }
-  };
 
   if (!student || !result) {
     return (
@@ -68,6 +86,13 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
             overflow-x: auto;
             background: #f3f4f6;
           }
+
+          .full-page-root {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            overflow: auto;
+          }
           
           .full-page-container {
             background: #f3f4f6;
@@ -89,6 +114,13 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
             margin: 0;
             padding: 0;
             background: white !important;
+            overflow: visible !important;
+          }
+
+          .full-page-root {
+            position: static !important;
+            inset: auto !important;
+            z-index: auto !important;
             overflow: visible !important;
           }
           
@@ -120,23 +152,27 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
         }
       `}</style>
 
-      <div className="min-h-screen bg-gray-100">
+      <div className="full-page-root min-h-screen bg-gray-100">
         {/* Header Controls - No Print */}
-        <div className="no-print bg-white shadow-md border-b border-gray-200 sticky top-0 z-50">
+        <div className="no-print bg-white shadow-md border-b border-gray-200 sticky top-0 z-[9999] pointer-events-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-4">
               <div className="flex items-center gap-4">
                 <Button
                   variant="outline"
-                  onClick={onClose}
-                  className="flex items-center gap-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className="flex items-center gap-2 pointer-events-auto"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to Results
                 </Button>
                 <div>
                   <h1 className="text-xl font-semibold text-gray-900">
-                    {student.firstName} {student.lastName} - Result Sheet
+                    {resolvedStudentName} - Result Sheet
                   </h1>
                   <p className="text-sm text-gray-600">
                     {studentClass?.name} • {result.term} • {result.academic_year}
@@ -144,25 +180,6 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
                 </div>
               </div>
               
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handlePrint}
-                  className="flex items-center gap-2"
-                >
-                  <Printer className="w-4 h-4" />
-                  Print
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDownload}
-                  className="flex items-center gap-2"
-                  data-download-pdf
-                >
-                  <Download className="w-4 h-4" />
-                  Download PDF
-                </Button>
-              </div>
             </div>
           </div>
         </div>
@@ -194,16 +211,6 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
                   currentUser={{ role: 'admin' }}
                 />
               </div>
-            </div>
-
-            {/* Instructions for screen viewing - No Print */}
-            <div className="no-print mt-8 text-center text-gray-600">
-              <p className="text-sm">
-                This is displayed in A4 format. Use the Print button to print or Download PDF to save.
-              </p>
-              <p className="text-xs mt-2">
-                The result sheet is optimized for A4 paper size (210mm × 297mm).
-              </p>
             </div>
           </div>
         </div>

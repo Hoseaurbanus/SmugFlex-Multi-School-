@@ -5,7 +5,19 @@
 
 export const API_CONFIG = {
   // Base URL - change this to match your server
-  BASE_URL: (import.meta as any).env?.VITE_API_BASE_URL || 'https://gracelandroyalacademy.com.ng/api',
+  BASE_URL: (() => {
+    if (typeof window === 'undefined') {
+      return (import.meta as any).env?.VITE_API_BASE_URL || 'https://gracelandroyalacademy.com.ng/api';
+    }
+
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    if (isLocal) {
+      return `${window.location.origin}/api`;
+    }
+
+    return (import.meta as any).env?.VITE_API_BASE_URL || `${window.location.origin}/api`;
+  })(),
   
   // API Version
   VERSION: 'v1',
@@ -190,7 +202,6 @@ export const getAuthToken = (): string | null => {
   try {
     return localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
   } catch (error) {
-    console.error('Error getting auth token:', error);
     return null;
   }
 };
@@ -200,7 +211,7 @@ export const setAuthToken = (token: string): void => {
   try {
     localStorage.setItem(API_CONFIG.AUTH.TOKEN_KEY, token);
   } catch (error) {
-    console.error('Error storing auth token:', error);
+    // Silent fail for security
   }
 };
 
@@ -210,8 +221,10 @@ export const removeAuthToken = (): void => {
     localStorage.removeItem(API_CONFIG.AUTH.TOKEN_KEY);
     localStorage.removeItem(API_CONFIG.AUTH.REFRESH_TOKEN_KEY);
     localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
+    // Legacy key cleanup
+    localStorage.removeItem('currentUser');
   } catch (error) {
-    console.error('Error removing auth token:', error);
+    // Silent fail for security
   }
 };
 
@@ -219,11 +232,15 @@ export const removeAuthToken = (): void => {
 export const getCurrentUser = (): any | null => {
   try {
     const userStr = localStorage.getItem(API_CONFIG.AUTH.USER_KEY);
-    return userStr ? JSON.parse(userStr) : null;
+    if (userStr) return JSON.parse(userStr);
+
+    // Legacy fallback (older builds stored current user under a different key)
+    const legacyUserStr = localStorage.getItem('currentUser');
+    return legacyUserStr ? JSON.parse(legacyUserStr) : null;
   } catch (error) {
-    console.error('Error getting current user:', error);
     // Clear corrupted data
     localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
+    localStorage.removeItem('currentUser');
     return null;
   }
 };
@@ -232,8 +249,10 @@ export const getCurrentUser = (): any | null => {
 export const setCurrentUser = (user: any): void => {
   try {
     localStorage.setItem(API_CONFIG.AUTH.USER_KEY, JSON.stringify(user));
+    // Keep legacy key in sync so older codepaths don't see stale roles
+    localStorage.setItem('currentUser', JSON.stringify(user));
   } catch (error) {
-    console.error('Error setting current user:', error);
+    // Silent fail for security
   }
 };
 

@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../ui/badge';
 import { Textarea } from '../ui/textarea';
 import { toast } from 'sonner';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { API_CONFIG } from '../../config/api';
 import { 
   Calendar, 
   Users, 
@@ -48,7 +50,8 @@ export function MarkAttendancePage() {
     loadCompiledResultsFromAPI,
     updateAttendance,
     updateCompiledResult,
-    attendances
+    attendances,
+    loadClassTeacherAssignmentsFromAPI
   } = useSchool();
 
   const { broadcast } = useNotificationService();
@@ -62,10 +65,64 @@ export function MarkAttendancePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
 
+  const getStudentPhotoCandidates = (student: any): string[] => {
+    const rawUrl =
+      student?.photoUrl ||
+      student?.photo_url ||
+      student?.photoURL ||
+      student?.passportPhoto ||
+      student?.passport_photo ||
+      student?.passport;
+
+    if (!rawUrl || typeof rawUrl !== 'string') return [];
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return [];
+
+    if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) return [trimmed];
+
+    let apiOrigin = '';
+    try {
+      const apiBase = API_CONFIG?.BASE_URL || '';
+      apiOrigin = apiBase ? new URL(apiBase).origin : '';
+    } catch {
+      apiOrigin = '';
+    }
+
+    const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
+
+    const candidates: string[] = [];
+    if (appOrigin) candidates.push(`${appOrigin}${normalizedPath}`);
+    if (apiOrigin) candidates.push(`${apiOrigin}${normalizedPath}`);
+    candidates.push(trimmed);
+
+    return Array.from(new Set(candidates)).filter(Boolean);
+  };
+
+  const handleStudentPhotoError = (e: React.SyntheticEvent<HTMLImageElement>, student: any) => {
+    const img = e.currentTarget;
+    const candidates = getStudentPhotoCandidates(student);
+    const idx = Number(img.dataset.candidateIdx || '0');
+    const nextIdx = idx + 1;
+    if (nextIdx < candidates.length) {
+      img.dataset.candidateIdx = String(nextIdx);
+      img.src = candidates[nextIdx];
+    }
+  };
+
+  const getInitials = (student: any) => {
+    const a = String(student?.firstName || '').trim();
+    const b = String(student?.lastName || '').trim();
+    return `${a[0] || ''}${b[0] || ''}`.toUpperCase() || '??';
+  };
+
   // Load attendance requirements on component mount
   useEffect(() => {
     const loadData = async () => {
       try {
+        if (currentTerm && currentAcademicYear) {
+          await loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear);
+        }
         await loadAttendanceRequirements();
         await loadAttendancesFromAPI();
         await loadCompiledResultsFromAPI();
@@ -74,7 +131,7 @@ export function MarkAttendancePage() {
       }
     };
     loadData();
-  }, []);
+  }, [currentTerm, currentAcademicYear, loadClassTeacherAssignmentsFromAPI, loadAttendanceRequirements, loadAttendancesFromAPI, loadCompiledResultsFromAPI]);
 
   // Get current teacher's classes - ONLY as class teacher
   const currentTeacher = teachers.find(t => t.id === currentUser?.linked_id);
@@ -89,7 +146,47 @@ export function MarkAttendancePage() {
     return !!assignment;
   });
 
+  const resolveCanonicalClassId = (classId: any): number | null => {
+    if (!classId) return null;
+    const baseClass = (classes || []).find((c: any) => String(c.id) === String(classId));
+    if (!baseClass) return Number(classId) || null;
+
+    const siblings = (classes || []).filter((c: any) =>
+      String(c.name).trim().toLowerCase() === String(baseClass.name).trim().toLowerCase() &&
+      String(c.level).trim().toLowerCase() === String(baseClass.level).trim().toLowerCase()
+    );
+
+    if (siblings.length <= 1) return Number(baseClass.id) || null;
+
+    const best = siblings
+      .map((c: any) => ({
+        id: c.id,
+        count: (students || []).filter((s: any) => String(s.class_id) === String(c.id)).length,
+      }))
+      .sort((a: any, b: any) => b.count - a.count)[0];
+
+    return best?.id ? Number(best.id) : (Number(baseClass.id) || null);
+  };
+
+  const effectiveSelectedClassId = resolveCanonicalClassId(selectedClassId) ?? selectedClassId;
+
   // Enhanced validation - teacher must be assigned as class teacher
+  if (!currentTerm || !currentAcademicYear) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-3 sm:p-4">
+        <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+          <div className="text-center py-8">
+            <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
+            <h3 className="text-sm font-medium text-gray-900 mb-2">Term/Session Not Set</h3>
+            <p className="text-xs text-gray-600 mb-4">
+              Current term or academic session is not set. Please contact the administrator to set it in System Settings.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (teacherClasses.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 p-3 sm:p-4">
@@ -109,8 +206,13 @@ export function MarkAttendancePage() {
     );
   }
 
-  const classStudents = selectedClassId
-    ? (students || []).filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
+  const classStudents = effectiveSelectedClassId
+    ? (students || []).filter(s => {
+        const isSameClass = String(s.class_id) === String(effectiveSelectedClassId);
+        const status = String((s as any)?.status ?? '').trim().toLowerCase();
+        const isActive = status === '' || status === 'active';
+        return isSameClass && isActive;
+      })
     : [];
 
   // Load existing attendance data when class is selected
@@ -152,9 +254,6 @@ export function MarkAttendancePage() {
               if (daysMatch) {
                 existingAttendanceData[student.id] = parseInt(daysMatch[1]) || 0;
                 existingRemarks[student.id] = remarksText;
-              } else if (latestAttendance.attended_days) {
-                existingAttendanceData[student.id] = latestAttendance.attended_days;
-                existingRemarks[student.id] = `${latestAttendance.attended_days} out of ${latestAttendance.required_days || 0} days`;
               }
             }
           }
@@ -178,11 +277,15 @@ export function MarkAttendancePage() {
   const handleAttendanceDaysChange = async (studentId: number, days: string) => {
     const daysNum = parseInt(days) || 0;
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
+    const requiredDays = attendanceRequirements[currentTerm as any] || 0;
+
+    if (!currentTerm || !currentAcademicYear) {
+      toast.error('Current term or academic session is not set. Please contact the admin to set it in System Settings.');
+      return;
+    }
     
     // Check if attendance requirements are set
     if (requiredDays === 0) {
-      console.warn('Attendance requirements not set for current term');
       return;
     }
     
@@ -212,20 +315,18 @@ export function MarkAttendancePage() {
     // Save to database immediately
     try {
       // First save to attendance table
+      // IMPORTANT: The live `attendance` table schema only supports:
+      // id, student_id, class_id, date, status, marked_by, marked_date, term, academic_year, remarks
+      // Any extra fields will cause a 500 from /api/database/query.
       const attendancePayload = {
         student_id: studentId,
         class_id: Number(selectedClassId),
-        term: currentTerm || 'First Term',
-        academic_year: currentAcademicYear || '2025/2026',
-        attended_days: daysNum,
-        required_days: requiredDays,
-        times_absent: requiredDays - daysNum,
-        attendance_rate: requiredDays > 0 ? Math.round((daysNum / requiredDays) * 100) : 0,
         date: new Date().toISOString().split('T')[0],
         status: (daysNum === requiredDays ? 'Present' : daysNum > 0 ? 'Late' : 'Absent') as 'Present' | 'Absent' | 'Late' | 'Excused',
         marked_by: currentUser?.id || 1,
         marked_date: new Date().toISOString(),
-        entered_by: currentUser?.id,
+        term: currentTerm,
+        academic_year: currentAcademicYear,
         remarks: `${daysNum} out of ${requiredDays} days`
       };
       
@@ -270,7 +371,7 @@ export function MarkAttendancePage() {
       }
       
     } catch (error) {
-      console.error('Error saving attendance:', error);
+      // Silent fail for security
     }
   };
 
@@ -518,7 +619,9 @@ export function MarkAttendancePage() {
               <Select
                 value={selectedClassId.toString()}
                 onValueChange={(value) => {
-                  setSelectedClassId(Number(value));
+                  const rawId = Number(value);
+                  const canonicalId = resolveCanonicalClassId(rawId) ?? rawId;
+                  setSelectedClassId(canonicalId);
                   setStudentAttendanceInput({});
                   setRemarks({});
                 }}
@@ -617,11 +720,18 @@ export function MarkAttendancePage() {
                   <div key={student.id} className="bg-gray-50 rounded-lg p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-xs font-medium text-blue-600">
-                            {student.firstName?.[0]}{student.lastName?.[0]}
-                          </span>
-                        </div>
+                        <Avatar className="h-8 w-8 bg-blue-100 text-blue-600">
+                          <AvatarImage
+                            src={getStudentPhotoCandidates(student)[0] || ''}
+                            alt={`${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Student'}
+                            className="object-cover"
+                            data-candidate-idx={0}
+                            onError={(e) => handleStudentPhotoError(e, student)}
+                          />
+                          <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
+                            {getInitials(student)}
+                          </AvatarFallback>
+                        </Avatar>
                         <div>
                           <h4 className="text-sm font-medium text-gray-900">
                             {student.firstName} {student.lastName}

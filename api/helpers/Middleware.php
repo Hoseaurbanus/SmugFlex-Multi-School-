@@ -27,8 +27,11 @@ class Middleware {
      */
     public static function requireRole($required_role) {
         $token_data = self::requireAuth();
-        
-        if ($token_data['role'] !== $required_role) {
+
+        $actual_role = strtolower(trim((string)($token_data['role'] ?? '')));
+        $required = strtolower(trim((string)$required_role));
+
+        if ($actual_role !== $required) {
             Response::forbidden('Access denied. Required role: ' . $required_role);
         }
         
@@ -40,8 +43,13 @@ class Middleware {
      */
     public static function requireAnyRole($allowed_roles) {
         $token_data = self::requireAuth();
-        
-        if (!in_array($token_data['role'], $allowed_roles)) {
+
+        $actual_role = strtolower(trim((string)($token_data['role'] ?? '')));
+        $allowed = array_map(function ($r) {
+            return strtolower(trim((string)$r));
+        }, is_array($allowed_roles) ? $allowed_roles : []);
+
+        if (!in_array($actual_role, $allowed, true)) {
             Response::forbidden('Access denied. Insufficient permissions');
         }
         
@@ -283,8 +291,7 @@ class Middleware {
             
             $stmt->execute();
         } catch (Exception $e) {
-            // Log error but don't break the application
-            error_log("Activity log error: " . $e->getMessage());
+            // Silent fail for security
         }
     }
     

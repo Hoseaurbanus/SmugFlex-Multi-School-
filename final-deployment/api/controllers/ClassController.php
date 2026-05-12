@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class ClassController {
     private $conn;
@@ -231,6 +232,11 @@ class ClassController {
                 'New class created',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['classes', 'students', 'subject_assignments'], [
+                'action' => 'created',
+                'class_id' => (int)$class_id,
+            ]);
             
             Response::created(['id' => $class_id], 'Class created successfully');
             
@@ -333,6 +339,11 @@ class ClassController {
                 'Class information updated',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['classes', 'students', 'subject_assignments'], [
+                'action' => 'updated',
+                'class_id' => (int)$class_id,
+            ]);
             
             Response::success(null, 'Class updated successfully');
             
@@ -397,6 +408,11 @@ class ClassController {
                 'Class deleted',
                 $_SESSION['user_id'] ?? null
             );
+
+            RealtimeEvents::publish(['classes', 'students', 'subject_assignments'], [
+                'action' => 'deleted',
+                'class_id' => (int)$class_id,
+            ]);
             
             Response::success(null, 'Class deleted successfully');
             
@@ -552,6 +568,106 @@ class ClassController {
             
         } catch (PDOException $e) {
             Response::serverError('Database error retrieving classes by level');
+        }
+    }
+
+    /**
+     * Get WhatsApp Groups for Parent's Children Classes
+     */
+    public function getClassWhatsappGroups() {
+        $token_data = Middleware::requireAuth();
+
+        // Parents: only groups for their linked children's classes.
+        // Admin: all active class WhatsApp groups.
+        if ($token_data['role'] !== 'parent' && $token_data['role'] !== 'admin') {
+            Response::forbidden('Access denied.');
+        }
+
+        $parent_id = $token_data['linked_id'];
+
+        try {
+            if ($token_data['role'] === 'admin') {
+                $whatsapp_query = "SELECT wg.*, c.name as class_name, c.level, c.section
+                                  FROM class_whatsapp_groups wg
+                                  JOIN classes c ON wg.class_id = c.id
+                                  WHERE wg.is_active = 1
+                                  ORDER BY c.level, c.name";
+
+                $whatsapp_stmt = $this->conn->prepare($whatsapp_query);
+                $whatsapp_stmt->execute();
+
+                $whatsapp_groups = $whatsapp_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $mapped_groups = array_map(function($group) {
+                    return [
+                        'class_id' => (int)$group['class_id'],
+                        'class_name' => $group['class_name'],
+                        'level' => $group['level'],
+                        'section' => $group['section'],
+                        'whatsapp_group_link' => $group['whatsapp_group_link'],
+                        'group_name' => $group['group_name'] ?: ($group['class_name'] . ' Parents Group'),
+                        'is_active' => (bool)$group['is_active']
+                    ];
+                }, $whatsapp_groups);
+
+                Response::success($mapped_groups, 'WhatsApp groups retrieved successfully');
+                return;
+            }
+
+            // Get all class IDs that the parent's children belong to
+            $class_query = "SELECT DISTINCT s.class_id, c.name as class_name
+                           FROM students s
+                           JOIN classes c ON s.class_id = c.id
+                           JOIN parent_student_links psl ON s.id = psl.student_id
+                           WHERE psl.parent_id = :parent_id
+                           AND s.status = 'Active'
+                           AND c.status = 'Active'";
+
+            $class_stmt = $this->conn->prepare($class_query);
+            $class_stmt->bindParam(':parent_id', $parent_id);
+            $class_stmt->execute();
+
+            $parent_classes = $class_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($parent_classes)) {
+                Response::success([], 'No WhatsApp groups found for your children\'s classes');
+                return;
+            }
+
+            // Get class IDs
+            $class_ids = array_column($parent_classes, 'class_id');
+
+            // Query WhatsApp groups for these classes
+            $placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
+            $whatsapp_query = "SELECT wg.*, c.name as class_name, c.level, c.section
+                              FROM class_whatsapp_groups wg
+                              JOIN classes c ON wg.class_id = c.id
+                              WHERE wg.class_id IN ($placeholders)
+                              AND wg.is_active = 1
+                              ORDER BY c.level, c.name";
+
+            $whatsapp_stmt = $this->conn->prepare($whatsapp_query);
+            $whatsapp_stmt->execute($class_ids);
+
+            $whatsapp_groups = $whatsapp_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Map to expected format
+            $mapped_groups = array_map(function($group) {
+                return [
+                    'class_id' => (int)$group['class_id'],
+                    'class_name' => $group['class_name'],
+                    'level' => $group['level'],
+                    'section' => $group['section'],
+                    'whatsapp_group_link' => $group['whatsapp_group_link'],
+                    'group_name' => $group['group_name'] ?: ($group['class_name'] . ' Parents Group'),
+                    'is_active' => (bool)$group['is_active']
+                ];
+            }, $whatsapp_groups);
+
+            Response::success($mapped_groups, 'WhatsApp groups retrieved successfully');
+
+        } catch (PDOException $e) {
+            Response::serverError('Database error retrieving WhatsApp groups');
         }
     }
 }

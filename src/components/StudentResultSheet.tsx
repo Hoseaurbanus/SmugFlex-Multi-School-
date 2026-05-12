@@ -1,5 +1,7 @@
-import { forwardRef, useEffect } from "react";
+import { forwardRef, useEffect, useMemo, useState } from "react";
 import { useSchool } from "../contexts/SchoolContext";
+import { API_CONFIG } from "../config/api";
+import { formatPositionWithSuffix } from "../utils/position";
 
 interface StudentResultSheetProps {
   studentId: number;
@@ -25,16 +27,89 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
       loadSchoolSettings,
     } = useSchool();
 
-    // Ensure school settings are loaded
+    const [signatureResumptionDate, setSignatureResumptionDate] = useState<string>('');
+
+    // Load school settings for branding (logo/name/motto/signatures). This is unrelated to Next Term Begins.
     useEffect(() => {
-      if (!schoolSettings?.resumption_date) {
+      if (!schoolSettings || Object.keys(schoolSettings).length === 0) {
         loadSchoolSettings();
       }
-    }, [schoolSettings?.resumption_date, loadSchoolSettings]);
+    }, [schoolSettings, loadSchoolSettings]);
+
+    useEffect(() => {
+      let isMounted = true;
+      const loadSignatureResumptionDate = async () => {
+        try {
+          if (!academicYear || !term) return;
+
+          const token = localStorage.getItem('jwt_token');
+          const query = new URLSearchParams({ academic_year: academicYear, term });
+          const resp = await fetch(`${API_CONFIG.BASE_URL}/signature_settings.php?${query.toString()}`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+          });
+
+          const json = await resp.json();
+          const date = String((json as any)?.data?.resumption_date ?? '').trim();
+          if (!date || date === '0000-00-00' || date === '0000-00-00 00:00:00') {
+            if (isMounted) setSignatureResumptionDate('');
+            return;
+          }
+          const normalized = /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : date;
+          if (isMounted) setSignatureResumptionDate(normalized);
+        } catch {
+          if (isMounted) setSignatureResumptionDate('');
+        }
+      };
+
+      loadSignatureResumptionDate();
+      return () => {
+        isMounted = false;
+      };
+    }, [academicYear, term]);
 
     // Get student
     const student = students.find((s) => s.id === studentId);
     if (!student) return null;
+
+    const studentPhotoCandidates = useMemo(() => {
+      const raw =
+        (student as any)?.photo_url ||
+        (student as any)?.photoUrl ||
+        (student as any)?.photoURL ||
+        (student as any)?.passport_photo ||
+        (student as any)?.passportPhoto ||
+        '';
+
+      if (typeof raw !== 'string') return [];
+      const trimmed = raw.trim();
+      if (!trimmed) return [];
+
+      if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
+        return [trimmed];
+      }
+
+      let apiOrigin = '';
+      try {
+        apiOrigin = API_CONFIG?.BASE_URL ? new URL(API_CONFIG.BASE_URL).origin : '';
+      } catch {
+        apiOrigin = '';
+      }
+
+      const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+      const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
+
+      const candidates = [
+        appOrigin ? `${appOrigin}${normalizedPath}` : '',
+        apiOrigin ? `${apiOrigin}${normalizedPath}` : '',
+        trimmed,
+      ].filter(Boolean);
+
+      return Array.from(new Set(candidates));
+    }, [student]);
 
     // Get compiled result
     const compiledResult = compiledResults.find(
@@ -58,7 +133,7 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
 
     // Check if class should show position (not for early childhood classes)
     const shouldShowPosition = studentClass?.name && 
-      !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 1 (SARDIUS)', 'KG 1 (SARDONYX)', 'KG 2 (SARDIUS)', 'KG 2 (SARDONYX)'].includes(studentClass.name.toUpperCase());
+      !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 1 (SARDIUS)', 'KG 1 (SARDONYX)', 'KG 2 (SARDIUS)', 'KG 2 (SARDONYX)', 'KG 2 (PEARL)'].includes(studentClass.name.toUpperCase());
 
     // Get all registered subjects for this student's class and term
     const registeredSubjects = subjectRegistrations.filter(
@@ -126,7 +201,13 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
 
     // Get next term date from compiled result or school settings
     const getNextTermBegin = () => {
-      return compiledResult?.next_term_begin || schoolSettings?.resumption_date || '';
+      const compiledNext = String((compiledResult as any)?.next_term_begin ?? '').trim();
+      const compiledNextValid = compiledNext !== '' && compiledNext !== '0000-00-00' && compiledNext !== '0000-00-00 00:00:00';
+      return (
+        signatureResumptionDate ||
+        (compiledNextValid ? compiledNext : '') ||
+        ''
+      );
     };
 
     return (
@@ -426,13 +507,12 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
                 src={schoolSettings?.school_logo_url || "/assets/school-logo.svg"} 
                 alt="School Logo" 
                 style={{ 
-                  width: '60px', 
-                  height: '60px', 
+                  maxHeight: '70px',
+                  maxWidth: '70px',
                   objectFit: 'contain',
                   backgroundColor: 'transparent'
                 }} 
                 onError={(e) => {
-                  console.error('Logo load error:', e);
                   const target = e.target as HTMLImageElement;
                   // Remove error state and show fallback
                   target.style.display = 'none';
@@ -452,9 +532,6 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
                     parent.appendChild(fallback);
                   }
                 }}
-                onLoad={() => {
-                  console.log('Logo loaded successfully from:', schoolSettings?.school_logo_url || "/assets/school-logo.svg");
-                }}
               />
             </div>
             <div>
@@ -472,7 +549,21 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
         <section style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
           <div style={{ display: 'flex' }}>
             <div style={{ width: '80px', height: '100px', border: '2px solid #ddd', borderRadius: '8px', overflow: 'hidden', marginRight: '8px' }}>
-              <img src={student.photo_url || ''} alt="Student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img
+                src={studentPhotoCandidates[0] || ''}
+                alt="Student"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                data-candidate-idx={0}
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  const idx = Number(target.getAttribute('data-candidate-idx') || '0');
+                  const nextIdx = idx + 1;
+                  if (nextIdx < studentPhotoCandidates.length) {
+                    target.setAttribute('data-candidate-idx', String(nextIdx));
+                    target.src = studentPhotoCandidates[nextIdx];
+                  }
+                }}
+              />
             </div>
             <div style={{ fontSize: '11px', color: '#333' }}>
               <p style={{ margin: '0 0 3px' }}><strong>Name:</strong> {student.firstName} {student.lastName}</p>
@@ -543,7 +634,7 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
             <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Student Average:</span> <strong>{studentAverage.toFixed(1)}%</strong></p>
             <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Class Average:</span> <strong>{compiledResult.class_average.toFixed(1)}%</strong></p>
             {shouldShowPosition && (
-              <p style={{ margin: 0, display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Position in Class:</span> <strong>{compiledResult.position} / {compiledResult.total_students}</strong></p>
+              <p style={{ margin: 0, display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Position in Class:</span> <strong>{formatPositionWithSuffix(compiledResult.position)}</strong></p>
             )}
           </div>
         </section>

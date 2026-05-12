@@ -114,10 +114,10 @@ export function SendNotificationPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-6 max-w-full overflow-x-hidden">
       <div className="mb-6">
-        <h1 className="text-2xl text-gray-900 mb-2">Send Notification</h1>
-        <p className="text-gray-600">
+        <h1 className="text-xl sm:text-2xl text-gray-900 mb-2">Send Notification</h1>
+        <p className="text-sm sm:text-base text-gray-600">
           Send announcements and notifications to users
         </p>
       </div>
@@ -139,13 +139,13 @@ export function SendNotificationPage() {
 
       <form onSubmit={handleSubmit}>
         <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
-          <CardHeader className="p-5 border-b border-gray-200">
+          <CardHeader className="p-4 sm:p-5 border-b border-gray-200">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 text-[#2563EB]" />
-              <h3 className="text-lg text-gray-900">Notification Details</h3>
+              <h3 className="text-base sm:text-lg text-gray-900">Notification Details</h3>
             </div>
           </CardHeader>
-          <CardContent className="p-6 space-y-6">
+          <CardContent className="p-4 sm:p-6 space-y-6">
             {/* Title */}
             <div className="space-y-2">
               <Label className="text-gray-700">
@@ -300,7 +300,7 @@ export function SendNotificationPage() {
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
               <Button
                 type="button"
                 onClick={handleReset}
@@ -322,9 +322,9 @@ export function SendNotificationPage() {
       </form>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
-          <CardContent className="p-5">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Teachers</p>
               <span className="w-5 h-5 text-[#3B82F6]" />
@@ -336,7 +336,7 @@ export function SendNotificationPage() {
         </Card>
 
         <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
-          <CardContent className="p-5">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Parents</p>
               <span className="w-5 h-5 text-[#10B981]" />
@@ -348,7 +348,7 @@ export function SendNotificationPage() {
         </Card>
 
         <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
-          <CardContent className="p-5">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Accountants</p>
               <span className="w-5 h-5 text-[#F59E0B]" />
@@ -360,7 +360,7 @@ export function SendNotificationPage() {
         </Card>
 
         <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
-          <CardContent className="p-5">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Total Users</p>
               <span className="w-5 h-5 text-[#EF4444]" />

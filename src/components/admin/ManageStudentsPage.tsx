@@ -11,9 +11,11 @@ import { Label } from "../ui/label";
 import { Alert, AlertDescription } from "../ui/alert";
 import { toast } from "sonner";
 import { useSchool, Student } from "../../contexts/SchoolContext";
+import { API_CONFIG } from '../../config/api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 import { exportStudentsToCSV } from "../../utils/csvExporter";
 import { importStudentsFromCSV, generateStudentTemplate } from "../../utils/csvImporter";
+import { tokenManager } from "../../utils/tokenManager";
 
 const AddStudentForm = lazy(() => import('./AddStudentFormSimple'));
 
@@ -44,13 +46,53 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     currentUser,
     updateUser,
     resetUserPasswordAPI,
-    linkStudentToParent
+    linkStudentToParent,
+    unlinkStudentFromParent
   } = useSchool();
+
+  const getStudentPhotoCandidates = (s: any): string[] => {
+    const raw = s?.photo_url || s?.photoUrl || s?.photoURL || s?.passport_photo || s?.passportPhoto;
+    if (!raw || typeof raw !== 'string') return [];
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) return [trimmed];
+
+    const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    let apiOrigin = '';
+    try {
+      apiOrigin = API_CONFIG?.BASE_URL ? new URL(API_CONFIG.BASE_URL).origin : '';
+    } catch {
+      apiOrigin = '';
+    }
+    const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
+
+    const candidates = [
+      appOrigin ? `${appOrigin}${normalizedPath}` : '',
+      apiOrigin ? `${apiOrigin}${normalizedPath}` : '',
+      trimmed,
+    ].filter(Boolean);
+
+    return Array.from(new Set(candidates));
+  };
+
+  const handleStudentPhotoError = (e: React.SyntheticEvent<HTMLImageElement>, s: any) => {
+    const img = e.currentTarget;
+    const candidates = getStudentPhotoCandidates(s);
+    const idx = Number(img.dataset.candidateIdx || '0');
+    const nextIdx = idx + 1;
+    if (nextIdx < candidates.length) {
+      img.dataset.candidateIdx = String(nextIdx);
+      img.src = candidates[nextIdx];
+    }
+  };
 
   // Mobile-first state management
   const [searchTerm, setSearchTerm] = useState("");
   const [filterClass, setFilterClass] = useState("All");
   const [filterLevel, setFilterLevel] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -101,7 +143,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     
     if (!data.first_name?.trim()) errors.push("First name is required");
     if (!data.last_name?.trim()) errors.push("Last name is required");
-    if (!data.admission_number?.trim()) errors.push("Admission number is required");
     if (!data.gender) errors.push("Gender is required");
     
     return { isValid: errors.length === 0, errors };
@@ -123,7 +164,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
       localStorage.setItem('students_backup', JSON.stringify(backup));
       return true;
     } catch (error) {
-      console.error('Backup failed:', error);
       return false;
     }
   };
@@ -150,6 +190,31 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
 
     return students.filter(student => filterFn(student, searchTerm));
   }, [students, searchTerm, filterClass, filterLevel, classes]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterClass, filterLevel]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredStudents.length / pageSize));
+  }, [filteredStudents.length, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredStudents.slice(start, start + pageSize);
+  }, [filteredStudents, currentPage, pageSize]);
+
+  useEffect(() => {
+    const filteredIdSet = new Set(filteredStudents.map(s => s.id));
+    setSelectedStudents(prev => {
+      if (isSelectAll) return filteredStudents.map(s => s.id);
+      return prev.filter(id => filteredIdSet.has(id));
+    });
+  }, [filteredStudents, isSelectAll]);
 
   // Mobile-friendly statistics
   const stats = useMemo(() => {
@@ -191,7 +256,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
         setIsLoading(true);
         await refreshStudents();
       } catch (error) {
-        console.error('Failed to load students data:', error);
         toast.error('Failed to load students data');
         
         // Try to restore from backup if available
@@ -201,7 +265,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             const parsedBackup = JSON.parse(backup);
             toast.info('Restored from backup');
           } catch (e) {
-            console.error('Backup restoration failed:', e);
+            // Silent fail for security
           }
         }
       } finally {
@@ -262,8 +326,11 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
       setSelectedStudent(null);
       await refreshStudents();
     } catch (error) {
-      console.error('Error deleting student:', error);
-      toast.error('Failed to delete student. Data backup was created for safety.');
+      if (error instanceof Error && error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to delete student. Data backup was created for safety.');
+      }
     } finally {
       setActionLoading(null);
     }
@@ -273,6 +340,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
   const StudentCard = ({ student }: { student: Student }) => {
     const parentInfo = getParentInfo(student);
     const isSelected = selectedStudents.includes(student.id);
+    const hasRecords = scores.some(s => s.student_id === student.id) || 
+                      attendances.some(a => a.student_id === student.id) || 
+                      compiledResults.some(cr => cr.student_id === student.id);
     
     return (
       <Card className="mb-4 border-gray-200 hover:shadow-md transition-shadow">
@@ -312,10 +382,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               
               {/* Records indicator */}
               {(() => {
-                const hasRecords = scores.some(s => s.student_id === student.id) || 
-                                  attendances.some(a => a.student_id === student.id) || 
-                                  compiledResults.some(cr => cr.student_id === student.id);
-                
                 if (hasRecords && student.status === 'Active') {
                   return (
                     <div className="flex items-center gap-1 text-xs text-amber-600">
@@ -378,6 +444,22 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               <Edit className="w-3 h-3 mr-1" />
               Edit
             </Button>
+
+            <Button
+              onClick={() => handleToggleStatus(student)}
+              size="sm"
+              variant="outline"
+              disabled={student.status === 'Active' && hasRecords}
+              title={student.status === 'Active' && hasRecords ? 'Cannot deactivate: student has records' : undefined}
+              className="flex-1 min-w-[90px] text-xs px-2 py-1.5 h-7"
+            >
+              {student.status === 'Active' ? (
+                <Lock className={`w-3 h-3 mr-1 ${hasRecords ? 'text-amber-500' : ''}`} />
+              ) : (
+                <Unlock className="w-3 h-3 mr-1" />
+              )}
+              {student.status === 'Active' ? 'Deactivate' : 'Activate'}
+            </Button>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -403,26 +485,26 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 
                 <DropdownMenuSeparator />
                 
-                <DropdownMenuItem onClick={() => handleToggleStatus(student)}>
-                  {(() => {
-                    const hasRecords = scores.some(s => s.student_id === student.id) || 
-                                      attendances.some(a => a.student_id === student.id) || 
-                                      compiledResults.some(cr => cr.student_id === student.id);
-                    
-                    return student.status === 'Active' ? (
-                      <>
-                        <Lock className={`w-3 h-3 mr-2 ${hasRecords ? 'text-amber-500' : ''}`} />
-                        <span className={hasRecords ? 'text-amber-600' : ''}>
-                          {hasRecords ? 'Cannot Deactivate (Has Records)' : 'Deactivate'}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Unlock className="w-3 h-3 mr-2" />
-                        Activate
-                      </>
-                    );
-                  })()}
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (student.status === 'Active' && hasRecords) return;
+                    handleToggleStatus(student);
+                  }}
+                  disabled={student.status === 'Active' && hasRecords}
+                >
+                  {student.status === 'Active' ? (
+                    <>
+                      <Lock className={`w-3 h-3 mr-2 ${hasRecords ? 'text-amber-500' : ''}`} />
+                      <span className={hasRecords ? 'text-amber-600' : ''}>
+                        {hasRecords ? 'Cannot Deactivate (Has Records)' : 'Deactivate'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="w-3 h-3 mr-2" />
+                      Activate
+                    </>
+                  )}
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem onClick={() => {
@@ -464,7 +546,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     setViewDialogOpen(true);
   };
 
-  const handleEdit = (student: Student) => {
+  const handleEdit = (student: any) => {
     setSelectedStudent(student);
     setEditFormData({
       first_name: student.firstName,
@@ -522,8 +604,11 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
       toast.success(`Student ${student.firstName} ${student.lastName} ${newStatus === 'Active' ? 'activated' : 'deactivated'}`);
       await refreshStudents();
     } catch (error) {
-      console.error('Error toggling student status:', error);
-      toast.error('Failed to update student status');
+      if (error instanceof Error && error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to update student status');
+      }
     } finally {
       setActionLoading(null);
     }
@@ -537,11 +622,24 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
         return;
       }
 
-      // Implementation would go here
+      const link = Array.isArray(parentStudentLinks)
+        ? parentStudentLinks.find((l: any) => String(l.student_id) === String(student.id))
+        : null;
+
+      if (!link?.parent_id) {
+        toast.error('This student is not linked to any parent');
+        return;
+      }
+
+      const ok = await unlinkStudentFromParent(Number(link.parent_id), Number(student.id));
+      if (!ok) {
+        toast.error('Failed to unlink guardian');
+        return;
+      }
+
       toast.success(`Successfully unlinked ${student.firstName} ${student.lastName} from parent`);
       await refreshStudents();
     } catch (error) {
-      console.error('Error unlinking student:', error);
       toast.error('Failed to unlink student');
     } finally {
       setUnlinkingStudentId(null);
@@ -554,7 +652,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
       await refreshStudents();
       toast.success("Student list refreshed successfully");
     } catch (error) {
-      console.error('Error refreshing students:', error);
       toast.error('Failed to refresh student list');
     } finally {
       setIsRefreshing(false);
@@ -571,6 +668,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
 
     try {
       setActionLoading('upload-photo');
+
+      await tokenManager.ensureToken(currentUser);
+      const token = tokenManager.getToken();
       
       // Create FormData for file upload
       const formData = new FormData();
@@ -578,8 +678,10 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
       formData.append('student_id', selectedStudent.id.toString());
 
       // Upload photo via API
-      const response = await fetch('/api/upload-student-photo.php', {
+      const uploadUrl = `${new URL(API_CONFIG.BASE_URL).origin}${new URL(API_CONFIG.BASE_URL).pathname.replace(/\/?api\/?$/, '')}/api/upload-student-photo.php`;
+      const response = await fetch(uploadUrl, {
         method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData
       });
 
@@ -594,7 +696,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
       setUploadPassportDialogOpen(false);
       await refreshStudents();
     } catch (error) {
-      console.error('Error uploading photo:', error);
       toast.error('Failed to upload photo');
     } finally {
       setActionLoading(null);
@@ -872,7 +973,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                       setIsSelectAll(false);
                       await refreshStudents();
                     } catch (error) {
-                      console.error('Error bulk deleting students:', error);
                       toast.error('Failed to delete selected students');
                     } finally {
                       setActionLoading(null);
@@ -947,9 +1047,51 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                     </div>
                     
                     {/* Student Cards */}
-                    {filteredStudents.map((student) => (
+                    {paginatedStudents.map((student) => (
                       <StudentCard key={student.id} student={student} />
                     ))}
+
+                    {filteredStudents.length > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border border-gray-200 rounded-lg mt-4 bg-white">
+                        <div className="text-sm text-gray-600">
+                          Showing {Math.min(filteredStudents.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredStudents.length, currentPage * pageSize)} of {filteredStudents.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
+                            <SelectTrigger className="w-[140px]">
+                              <SelectValue placeholder="Rows" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="10">10 / page</SelectItem>
+                              <SelectItem value="20">20 / page</SelectItem>
+                              <SelectItem value="50">50 / page</SelectItem>
+                              <SelectItem value="100">100 / page</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={currentPage <= 1}
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          >
+                            Previous
+                          </Button>
+                          <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                            Page {currentPage} / {totalPages}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={currentPage >= totalPages}
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -971,7 +1113,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredStudents.map((student) => (
+                        {paginatedStudents.map((student) => (
                           <tr key={student.id} className="border-b hover:bg-gray-50">
                             <td className="p-3">
                               <input
@@ -1017,6 +1159,26 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                                 }} className="h-8 w-8 p-0">
                                   <Edit className="w-3 h-3" />
                                 </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleToggleStatus(student)}
+                                  disabled={
+                                    student.status === 'Active' && (
+                                      scores.some(s => s.student_id === student.id) ||
+                                      attendances.some(a => a.student_id === student.id) ||
+                                      compiledResults.some(cr => cr.student_id === student.id)
+                                    )
+                                  }
+                                  title={student.status === 'Active' ? 'Deactivate' : 'Activate'}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  {student.status === 'Active' ? (
+                                    <Lock className="w-3 h-3" />
+                                  ) : (
+                                    <Unlock className="w-3 h-3" />
+                                  )}
+                                </Button>
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   openDeleteDialog(student);
                                 }} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
@@ -1029,6 +1191,48 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                       </tbody>
                     </table>
                   </div>
+
+                  {filteredStudents.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200">
+                      <div className="text-sm text-gray-600">
+                        Showing {Math.min(filteredStudents.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredStudents.length, currentPage * pageSize)} of {filteredStudents.length}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
+                          <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="Rows" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10 / page</SelectItem>
+                            <SelectItem value="20">20 / page</SelectItem>
+                            <SelectItem value="50">50 / page</SelectItem>
+                            <SelectItem value="100">100 / page</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage <= 1}
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        >
+                          Previous
+                        </Button>
+                        <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                          Page {currentPage} / {totalPages}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage >= totalPages}
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </Card>
               </div>
             )}
@@ -1141,14 +1345,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               />
             </div>
             <div>
-              <Label>Admission Number</Label>
-              <Input
-                value={editFormData.admission_number}
-                onChange={(e) => setEditFormData({...editFormData, admission_number: e.target.value})}
-                placeholder="Enter admission number"
-              />
-            </div>
-            <div>
               <Label>Gender</Label>
               <Select value={editFormData.gender} onValueChange={(value: string) => setEditFormData({...editFormData, gender: value as "Male" | "Female"})}>
                 <SelectTrigger>
@@ -1166,9 +1362,11 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 {selectedStudent?.photo_url && (
                   <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200">
                     <img 
-                      src={selectedStudent.photo_url} 
+                      src={getStudentPhotoCandidates(selectedStudent)[0] || ''} 
                       alt={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
                       className="w-full h-full object-cover"
+                      data-candidate-idx={0}
+                      onError={(e) => handleStudentPhotoError(e, selectedStudent)}
                     />
                   </div>
                 )}
@@ -1181,7 +1379,11 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                     className="hidden"
                   />
                   <Button
-                    onClick={() => editPassportInputRef.current?.click()}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      editPassportInputRef.current?.click();
+                    }}
                     variant="outline"
                     size="sm"
                     className="w-full"
@@ -1209,12 +1411,17 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   
                   // Upload photo first if selected
                   if (editPassportFile) {
+                    await tokenManager.ensureToken(currentUser);
+                    const token = tokenManager.getToken();
+
                     const formData = new FormData();
                     formData.append('passport', editPassportFile);
                     formData.append('student_id', selectedStudent.id.toString());
 
-                    const photoResponse = await fetch('/api/upload-student-photo.php', {
+                    const uploadUrl = `${new URL(API_CONFIG.BASE_URL).origin}${new URL(API_CONFIG.BASE_URL).pathname.replace(/\/?api\/?$/, '')}/api/upload-student-photo.php`;
+                    const photoResponse = await fetch(uploadUrl, {
                       method: 'POST',
+                      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
                       body: formData
                     });
 
@@ -1228,7 +1435,6 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                     firstName: editFormData.first_name,
                     lastName: editFormData.last_name,
                     otherName: editFormData.other_name,
-                    admissionNumber: editFormData.admission_number,
                     gender: editFormData.gender
                   });
                   
@@ -1237,8 +1443,11 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   setEditPassportFile(null);
                   await refreshStudents();
                 } catch (error) {
-                  console.error('Error updating student:', error);
-                  toast.error('Failed to update student');
+                  if (error instanceof Error && error.message) {
+                    toast.error(error.message);
+                  } else {
+                    toast.error('Failed to update student');
+                  }
                 } finally {
                   setActionLoading(null);
                 }
@@ -1288,13 +1497,12 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 
                 try {
                   setActionLoading('link-guardian');
-                  await linkStudentToParent(selectedStudent.id, parseInt(selectedParentId));
+                  await linkStudentToParent(parseInt(selectedParentId), selectedStudent.id);
                   toast.success('Student linked to guardian successfully');
                   setLinkGuardianDialogOpen(false);
                   setSelectedParentId(null);
                   await refreshStudents();
                 } catch (error) {
-                  console.error('Error linking guardian:', error);
                   toast.error('Failed to link guardian');
                 } finally {
                   setActionLoading(null);

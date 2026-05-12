@@ -11,7 +11,6 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { 
   exportDataAsJSON, 
   importDataFromJSON, 
-  clearLocalStorage, 
   getStorageSize,
   type StorageData 
 } from "../../utils/storageManager";
@@ -31,6 +30,7 @@ import {
 
 export function DataBackupPage() {
   const {
+    currentUser,
     students,
     teachers,
     parents,
@@ -72,9 +72,30 @@ export function DataBackupPage() {
     loadNotificationsFromAPI,
   } = useSchool();
 
+  const hasAccess = currentUser && currentUser.role === 'admin';
+
+  if (!hasAccess) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="max-w-md w-full">
+          <CardContent className="text-center py-12">
+            <span className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+            <p className="text-gray-600 mb-6">
+              You do not have permission to access Data Backup.
+              This page requires administrator-level privileges.
+            </p>
+            <Button onClick={() => window.history.back()}>
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupProgress, setBackupProgress] = useState(0);
-  const [showClearDialog, setShowClearDialog] = useState(false);
   const [storageSize, setStorageSize] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -86,23 +107,22 @@ export function DataBackupPage() {
       try {
         // Load all data in parallel for better performance
         await Promise.all([
-          loadStudentsFromAPI().catch((e: Error) => console.error('Students load failed:', e)),
-          loadTeachersFromAPI().catch((e: Error) => console.error('Teachers load failed:', e)),
-          loadParentsFromAPI().catch((e: Error) => console.error('Parents load failed:', e)),
-          loadClassesFromAPI().catch((e: Error) => console.error('Classes load failed:', e)),
-          loadSubjectsFromAPI().catch((e: Error) => console.error('Subjects load failed:', e)),
-          loadScoresFromAPI().catch((e: Error) => console.error('Scores load failed:', e)),
-          loadCompiledResultsFromAPI().catch((e: Error) => console.error('Results load failed:', e)),
-          loadPaymentsFromAPI().catch((e: Error) => console.error('Payments load failed:', e)),
-          loadFeeStructuresFromAPI().catch((e: Error) => console.error('Fee structures load failed:', e)),
-          loadAttendancesFromAPI().catch((e: Error) => console.error('Attendance load failed:', e)),
-          loadUsersFromAPI().catch((e: Error) => console.error('Users load failed:', e)),
-          loadNotificationsFromAPI().catch((e: Error) => console.error('Notifications load failed:', e)),
+          loadStudentsFromAPI().catch(() => {}),
+          loadTeachersFromAPI().catch(() => {}),
+          loadParentsFromAPI().catch(() => {}),
+          loadClassesFromAPI().catch(() => {}),
+          loadSubjectsFromAPI().catch(() => {}),
+          loadScoresFromAPI().catch(() => {}),
+          loadCompiledResultsFromAPI().catch(() => {}),
+          loadPaymentsFromAPI().catch(() => {}),
+          loadFeeStructuresFromAPI().catch(() => {}),
+          loadAttendancesFromAPI().catch(() => {}),
+          loadUsersFromAPI().catch(() => {}),
+          loadNotificationsFromAPI().catch(() => {}),
         ]);
         
         toast.success('All data loaded successfully!');
       } catch (error) {
-        console.error('Error loading data:', error);
         toast.error('Some data failed to load. Please try refreshing.');
       } finally {
         setIsLoading(false);
@@ -117,23 +137,22 @@ export function DataBackupPage() {
     setIsLoading(true);
     try {
       await Promise.all([
-        loadStudentsFromAPI().catch((e: Error) => console.error('Students load failed:', e)),
-        loadTeachersFromAPI().catch((e: Error) => console.error('Teachers load failed:', e)),
-        loadParentsFromAPI().catch((e: Error) => console.error('Parents load failed:', e)),
-        loadClassesFromAPI().catch((e: Error) => console.error('Classes load failed:', e)),
-        loadSubjectsFromAPI().catch((e: Error) => console.error('Subjects load failed:', e)),
-        loadScoresFromAPI().catch((e: Error) => console.error('Scores load failed:', e)),
-        loadCompiledResultsFromAPI().catch((e: Error) => console.error('Results load failed:', e)),
-        loadPaymentsFromAPI().catch((e: Error) => console.error('Payments load failed:', e)),
-        loadFeeStructuresFromAPI().catch((e: Error) => console.error('Fee structures load failed:', e)),
-        loadAttendancesFromAPI().catch((e: Error) => console.error('Attendance load failed:', e)),
-        loadUsersFromAPI().catch((e: Error) => console.error('Users load failed:', e)),
-        loadNotificationsFromAPI().catch((e: Error) => console.error('Notifications load failed:', e)),
+        loadStudentsFromAPI().catch(() => {}),
+        loadTeachersFromAPI().catch(() => {}),
+        loadParentsFromAPI().catch(() => {}),
+        loadClassesFromAPI().catch(() => {}),
+        loadSubjectsFromAPI().catch(() => {}),
+        loadScoresFromAPI().catch(() => {}),
+        loadCompiledResultsFromAPI().catch(() => {}),
+        loadPaymentsFromAPI().catch(() => {}),
+        loadFeeStructuresFromAPI().catch(() => {}),
+        loadAttendancesFromAPI().catch(() => {}),
+        loadUsersFromAPI().catch(() => {}),
+        loadNotificationsFromAPI().catch(() => {}),
       ]);
       
       toast.success('Data refreshed successfully!');
     } catch (error) {
-      console.error('Error refreshing data:', error);
       toast.error('Some data failed to refresh. Please try again.');
     } finally {
       setIsLoading(false);
@@ -246,8 +265,8 @@ export function DataBackupPage() {
     const dataToExport: StorageData = {
       version: '1.0.0',
       lastUpdated: new Date().toISOString(),
-      currentTerm,
-      currentAcademicYear,
+      currentTerm: currentTerm ?? '',
+      currentAcademicYear: currentAcademicYear ?? '',
       schoolSettings,
       bankAccountSettings,
       classes,
@@ -293,16 +312,6 @@ export function DataBackupPage() {
     } catch (error) {
       toast.error('Failed to import data. Please check the file format.');
     }
-  };
-
-  // Clear all localStorage data
-  const handleClearStorage = () => {
-    clearLocalStorage();
-    toast.success('Local storage cleared successfully!');
-    setShowClearDialog(false);
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
   };
 
   // Export Students
@@ -569,6 +578,25 @@ export function DataBackupPage() {
         </div>
       </div>
 
+      {isBackingUp && (
+        <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[#1F2937] font-medium">Preparing backup…</p>
+                <p className="text-[#6B7280] text-sm">Please wait while the file is generated</p>
+              </div>
+              <Badge variant="outline" className="text-sm">
+                {backupProgress}%
+              </Badge>
+            </div>
+            <div className="mt-3">
+              <Progress value={backupProgress} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Loading Indicator */}
       {isLoading && (
         <Card className="rounded-xl bg-blue-50 border border-blue-200">
@@ -605,9 +633,10 @@ export function DataBackupPage() {
           </div>
         </CardHeader>
         <CardContent className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
-              onClick={handleCompleteBackup}
+              onClick={exportCompleteBackup}
+              disabled={isBackingUp}
               className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl h-auto py-4 flex-col gap-2"
             >
               <span className="w-6 h-6" />
@@ -635,18 +664,6 @@ export function DataBackupPage() {
               onChange={handleImportData}
               className="hidden"
             />
-
-            <Button
-              onClick={() => setShowClearDialog(true)}
-              variant="outline"
-              className="rounded-xl h-auto py-4 flex-col gap-2 border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-            >
-              <span className="w-6 h-6" />
-              <div className="text-center">
-                <div className="font-medium">Clear Storage</div>
-                <div className="text-xs opacity-70">Reset all data</div>
-              </div>
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -710,7 +727,17 @@ export function DataBackupPage() {
                     <p className="font-semibold text-lg">{item.count.toLocaleString()} records</p>
                   </div>
                   <Button
-                    onClick={item.export}
+                    onClick={item.name === 'Students'
+                      ? exportStudents
+                      : item.name === 'Teachers'
+                        ? exportTeachers
+                        : item.name === 'Parents'
+                          ? exportParents
+                          : item.name === 'Classes'
+                            ? exportClasses
+                            : item.name === 'Subjects'
+                              ? exportSubjects
+                              : item.export}
                     size="sm"
                     variant="ghost"
                     className="hover:bg-white/50 rounded-lg"
@@ -745,39 +772,6 @@ export function DataBackupPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Clear Storage Confirmation Dialog */}
-      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
-        <DialogContent className="rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <span className="w-5 h-5" />
-              Clear Local Storage?
-            </DialogTitle>
-            <DialogDescription>
-              This will permanently delete all data stored in your browser. This action cannot be undone.
-              Make sure you have downloaded a backup before proceeding.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowClearDialog(false)}
-              className="rounded-xl"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleClearStorage}
-              className="rounded-xl bg-red-600 hover:bg-red-700"
-            >
-              <span className="w-4 h-4 mr-2" />
-              Clear All Data
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -27,8 +27,9 @@ AddDefaultCharset UTF-8
 
 # Enable CORS headers
 <IfModule mod_headers.c>
-    # Allow from any origin
-    Header always set Access-Control-Allow-Origin "*"
+    # SECURITY FIX: Use specific origin matching instead of wildcard
+    SetEnvIf Origin "http(s)?://(www\.)?(gracelandroyalacademy\.com\.ng|localhost:[0-9]+)$" AccessControlAllowOrigin=$0
+    Header always set Access-Control-Allow-Origin %{AccessControlAllowOrigin}e env=AccessControlAllowOrigin
 
     # Allow specific methods
     Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"

@@ -169,7 +169,7 @@ export function AffectiveDomainsPage() {
         await addAffectiveDomain(payload);
       }
     } catch (error) {
-      console.error('Error saving affective domain data:', error);
+      // Silent fail for security
     }
   };
 

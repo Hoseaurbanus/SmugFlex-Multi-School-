@@ -116,7 +116,6 @@ export function ResultSheetViewer({
         setStudentResultData(defaultResult);
       }
     } catch (error) {
-      console.error('Error fetching student result data:', error);
       setStudentResultData(null);
     } finally {
       setIsLoading(false);
@@ -125,7 +124,6 @@ export function ResultSheetViewer({
 
   const handlePrint = () => {
     // Print functionality removed - only use ResultsManagementPage PDF generation
-    console.log('Print functionality available in ResultsManagementPage');
   };
 
 
@@ -370,7 +368,6 @@ export function ResultSheetViewerButton({ studentId, classId, term, academicYear
         setStudentResultData(defaultResult);
       }
     } catch (error) {
-      console.error('Error fetching student result data:', error);
       setStudentResultData(null);
     } finally {
       setIsLoading(false);
@@ -379,12 +376,10 @@ export function ResultSheetViewerButton({ studentId, classId, term, academicYear
 
   const handlePrint = () => {
     // Print functionality removed - only use ResultsManagementPage PDF generation
-    console.log('Print functionality available in ResultsManagementPage');
   };
 
   const handleDownloadPDF = () => {
     // PDF generation removed - only use ResultsManagementPage PDF generation
-    console.log('PDF generation available in ResultsManagementPage');
   };
 
 
@@ -398,7 +393,7 @@ export function ResultSheetViewerButton({ studentId, classId, term, academicYear
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
         <div className="w-full h-full flex items-center justify-center">
-          <div className="bg-white" style={{ width: '210mm', height: '297mm', overflow: 'hidden' }}>
+          <div className="bg-white w-[210mm] h-[297mm] overflow-hidden">
             {isLoading ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />

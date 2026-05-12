@@ -5,7 +5,6 @@
 
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { API_CONFIG, getAuthToken } from '../config/api';
 
 interface TermChangeDetectorProps {
   currentTerm: string;
@@ -27,15 +26,9 @@ export function useTermChangeDetector({
   useEffect(() => {
     // Check if term or academic year has changed
     const termChanged = previousTermRef.current !== currentTerm;
-    const yearChanged = previousYearRef.current !== currentAcademicYear;
+    const yearChanged = previousTermRef.current !== currentAcademicYear;
 
     if ((termChanged || yearChanged) && !isRefreshingRef.current) {
-      //console.log('🔄 Term/Year change detected:', {
-        previous: { term: previousTermRef.current, year: previousYearRef.current },
-        current: { term: currentTerm, year: currentAcademicYear },
-        changes: { termChanged, yearChanged }
-      });
-
       // Prevent multiple refreshes
       isRefreshingRef.current = true;
 
@@ -61,7 +54,6 @@ export function useTermChangeDetector({
           // Notify parent component
           onTermChange(currentTerm, currentAcademicYear);
         } catch (error) {
-          //console.error('Error refreshing data after term change:', error);
           toast.error('Failed to refresh data', {
             description: 'Please refresh the page manually'
           });
@@ -105,7 +97,6 @@ export function useTermSync({
     const checkTermSync = async () => {
       try {
         // DISABLED: School settings API is timing out
-        //console.log('Term sync check disabled to prevent API timeout errors');
         return;
         
         // Original code (disabled):

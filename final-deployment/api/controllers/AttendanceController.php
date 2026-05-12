@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class AttendanceController {
     private $conn;
@@ -41,12 +42,12 @@ class AttendanceController {
             // ============ END: GET CURRENT SETTINGS ============
             
             $query = "SELECT a.*, s.first_name, s.last_name, s.admission_number,
-                             c.name as class_name, c.level,
+                             c.name as class_name,
                              CONCAT(t.first_name, ' ', t.last_name) as recorded_by_name
                       FROM attendance a
                       JOIN students s ON a.student_id = s.id
                       JOIN classes c ON s.class_id = c.id
-                      LEFT JOIN users u ON a.recorded_by = u.id
+                      LEFT JOIN users u ON a.marked_by = u.id
                       LEFT JOIN teachers t ON u.linked_id = t.id AND u.role = 'teacher'";
             
             $count_query = "SELECT COUNT(*) as total FROM attendance a
@@ -373,6 +374,12 @@ class AttendanceController {
                 count($validated_records) . ' attendance records marked',
                 $token_data['user_id']
             );
+
+            RealtimeEvents::publish(['attendance', 'compiled_results', 'notifications'], [
+                'action' => 'marked',
+                'class_id' => (int)$class_id,
+                'date' => (string)$date,
+            ]);
             
             Response::success(null, 'Attendance marked successfully');
             

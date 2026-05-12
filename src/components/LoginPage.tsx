@@ -113,9 +113,9 @@ export function LoginPage() {
               <Select value={role} onValueChange={setRole}>
                 <SelectTrigger 
                   id="role"
-                  className="h-12 rounded-xl border-2 border-gray-200 focus:border-[#FFD700] transition-colors"
+                  className="h-12 w-full max-w-full min-w-0 rounded-xl border-2 border-gray-200 text-left focus:border-[#FFD700] transition-colors"
                 >
-                  <SelectValue placeholder="Choose your role" />
+                  <SelectValue className="w-full min-w-0" placeholder="Choose your role" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
                   <SelectItem value="admin" className="rounded-lg">Admin</SelectItem>

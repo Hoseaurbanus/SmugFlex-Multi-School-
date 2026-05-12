@@ -6,38 +6,59 @@ import { NotificationServiceProvider } from "./contexts/NotificationService";
 import App from "./App.tsx";
 import "./index.css";
 
+if (import.meta.env.PROD) {
+  const noop = () => {};
+  console.log = noop;
+  console.info = noop;
+  console.debug = noop;
+  console.warn = noop;
+  console.error = noop;
+}
+
 // Global error handler to catch ALL unhandled promise rejections
-window.addEventListener('unhandledrejection', (event) => {
+const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
   const reason = event.reason;
   
-  // Prevent ALL unhandled promise rejections from appearing in console
-  if (reason && typeof reason === 'object') {
-    const code = reason?.code;
-    const status = reason?.status;
-    const message = reason?.message;
-    
-    // Handle 403/401 errors gracefully
-    if (code === 403 || status === 403 || (typeof message === 'string' && message.includes('403'))) {
-      console.warn('Permission denied (403) - handled globally:', { code, status, message });
-      event.preventDefault();
-      return;
-    }
-    
-    if (code === 401 || status === 401 || (typeof message === 'string' && message.includes('401'))) {
-      console.warn('Authentication error (401) - handled globally:', { code, status, message });
-      event.preventDefault();
-      return;
-    }
+  const message =
+    typeof reason === 'string'
+      ? reason
+      : (reason && typeof reason === 'object' && 'message' in reason)
+        ? String((reason as any).message)
+        : '';
+
+  const rawCode = reason && typeof reason === 'object' ? (reason as any).code : undefined;
+  const rawStatus = reason && typeof reason === 'object' ? (reason as any).status : undefined;
+  const rawHttpStatus = reason && typeof reason === 'object' ? (reason as any).httpStatus : undefined;
+
+  const code = Number(rawCode);
+  const status = Number(rawStatus);
+  const httpStatus = Number(rawHttpStatus);
+
+  // Handle 403/401 errors gracefully (covers object payloads and string errors)
+  const is403 = code === 403 || status === 403 || httpStatus === 403 || message.includes('403');
+  const is401 = code === 401 || status === 401 || httpStatus === 401 || message.includes('401');
+
+  if (is403) {
+    event.preventDefault();
+    return;
+  }
+
+  if (is401) {
+    event.preventDefault();
+    return;
   }
   
   // Catch everything else
-  console.warn('Unhandled promise rejection (global catch):', reason);
   event.preventDefault();
-});
+};
+
+window.addEventListener('unhandledrejection', handleUnhandledRejection);
+// Some browsers/environments surface unhandled rejections via this legacy handler.
+// Assigning it ensures our suppression logic runs as early and as broadly as possible.
+window.onunhandledrejection = handleUnhandledRejection;
 
 // Also catch uncaught errors
 window.addEventListener('error', (event) => {
-  console.warn('Uncaught error (global catch):', event.error);
   event.preventDefault();
 });
 

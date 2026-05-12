@@ -46,9 +46,6 @@ try {
     $database = new Database();
     $pdo = $database->getConnection();
     
-    // Debug: Log the input values
-    error_log("Login attempt - Username: '$username', Role: '$role', Password: '$password'");
-    
     // Find user with linked record data
     if ($role === 'admin') {
         $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND role = ? AND status = 'Active'");

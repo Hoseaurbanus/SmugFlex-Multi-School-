@@ -36,11 +36,9 @@ function ManageClassesPageDesktop() {
     loadClassesFromAPI
   } = useSchool();
   
-  // Debug: Monitor classes data changes
+  // Monitor classes data changes
   useEffect(() => {
-    console.log('=== MANAGE CLASSES PAGE DEBUG ===');
-    console.log('Classes data changed:', classes.length, 'classes');
-    console.log('Classes data:', classes);
+    // Silent for security
   }, [classes]);
   
   // Get active teachers from context
@@ -59,6 +57,8 @@ function ManageClassesPageDesktop() {
   const [registrationPreview, setRegistrationPreview] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Get students for selected class (coerce IDs to numbers to avoid string/number mismatches)
   const classStudents = selectedClass
@@ -77,14 +77,7 @@ function ManageClassesPageDesktop() {
   // Debug: Log subject registration filtering
   useEffect(() => {
     if (selectedClass) {
-      console.log('=== SUBJECT REGISTRATION DEBUG ===');
-      console.log('Selected class:', selectedClass.name, 'ID:', selectedClass.id);
-      console.log('Current term:', currentTerm);
-      console.log('Current academic year:', currentAcademicYear);
-      console.log('Total subject registrations:', subjectRegistrations.length);
-      console.log('Subject registrations for this class:', subjectRegistrations.filter(sr => sr.class_id === selectedClass.id));
-      console.log('Filtered registrations for current term/year:', classRegisteredSubjects);
-      console.log('Filtered registrations count:', classRegisteredSubjects.length);
+      // Silent for security
     }
   }, [selectedClass, subjectRegistrations, currentTerm, currentAcademicYear]);
   
@@ -110,6 +103,11 @@ function ManageClassesPageDesktop() {
   const handleRegisterSubjects = async () => {
     if (!selectedClass || selectedSubjects.length === 0) {
       toast.error('Please select at least one subject');
+      return;
+    }
+
+    if (!currentAcademicYear || !currentTerm) {
+      toast.error('Please set the current academic year and term in Settings before registering subjects');
       return;
     }
     
@@ -191,6 +189,11 @@ function ManageClassesPageDesktop() {
   // Handle subject removal
   const handleRemoveSubject = async (subjectId: number) => {
     if (!selectedClass) return;
+
+    if (!currentAcademicYear || !currentTerm) {
+      toast.error('Please set the current academic year and term in Settings before removing subjects');
+      return;
+    }
     
     setActionLoading(`remove-${subjectId}`);
     
@@ -247,21 +250,26 @@ function ManageClassesPageDesktop() {
     const matchesCategory = filterCategory === "All" || classCategory === filterCategory;
     const matchesStatus = filterStatus === "All" || cls.status === filterStatus;
     
-    // Debug logging
-    console.log('=== CLASS FILTER DEBUG ===');
-    console.log('Class:', cls.name, 'Level:', cls.level, 'Status:', cls.status);
-    console.log('Filters - Search:', searchQuery, 'Level:', filterLevel, 'Category:', filterCategory, 'Status:', filterStatus);
-    console.log('Matches - Search:', matchesSearch, 'Level:', matchesLevel, 'Category:', matchesCategory, 'Status:', matchesStatus);
-    console.log('Class Category:', classCategory);
-    
     return matchesSearch && matchesLevel && matchesCategory && matchesStatus;
   });
-  
-  console.log('=== FILTERED CLASSES DEBUG ===');
-  console.log('Total classes:', classes.length);
-  console.log('Filtered classes:', filteredClasses.length);
-  console.log('Classes array:', classes);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterLevel, filterCategory, filterStatus]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredClasses.length / pageSize));
+  }, [filteredClasses.length, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const paginatedClasses = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredClasses.slice(start, start + pageSize);
+  }, [filteredClasses, currentPage, pageSize]);
+  
   // Statistics
   const stats = {
     totalClasses: (classes || []).length,
@@ -280,9 +288,6 @@ function ManageClassesPageDesktop() {
   };
 
   const handleDeleteClass = async () => {
-    console.log('=== DELETE CLASS DEBUG ===');
-    console.log('Selected class:', selectedClass);
-    
     if (selectedClass) {
       if (selectedClass.currentStudents > 0) {
         toast.error("Cannot delete class with enrolled students. Please move students first.");
@@ -293,9 +298,7 @@ function ManageClassesPageDesktop() {
       setActionLoading("delete");
 
       try {
-        console.log('Calling deleteClass for ID:', selectedClass.id);
         const success = await deleteClass(selectedClass.id);
-        console.log('deleteClass result:', success);
         
         if (success) {
           toast.success(`Class "${selectedClass.name}" deleted successfully!`);
@@ -308,8 +311,11 @@ function ManageClassesPageDesktop() {
         // Always refresh classes to ensure UI matches backend
         await loadClassesFromAPI(true);
       } catch (error) {
-        console.error('Delete class error:', error);
-        toast.error('Failed to delete class');
+        if (error instanceof Error && error.message) {
+          toast.error(error.message);
+        } else {
+          toast.error('Failed to delete class');
+        }
       } finally {
         setActionLoading(null);
       }
@@ -386,7 +392,6 @@ function ManageClassesPageDesktop() {
               </Button>
               <Button 
                 onClick={() => {
-                  console.log('=== CREATE BUTTON CLICKED ===');
                   setShowClassForm(true);
                 }}
                 className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
@@ -546,7 +551,7 @@ function ManageClassesPageDesktop() {
 
           {/* Classes Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredClasses.map((cls: Class) => (
+            {paginatedClasses.map((cls: Class) => (
               <Card 
                 key={cls.id} 
                 className="border-[#0A2540]/10 shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
@@ -577,6 +582,48 @@ function ManageClassesPageDesktop() {
               </Card>
             ))}
           </div>
+
+          {filteredClasses.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-6">
+              <div className="text-sm text-gray-600">
+                Showing {Math.min(filteredClasses.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredClasses.length, currentPage * pageSize)} of {filteredClasses.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Rows" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / page</SelectItem>
+                    <SelectItem value="20">20 / page</SelectItem>
+                    <SelectItem value="50">50 / page</SelectItem>
+                    <SelectItem value="100">100 / page</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                  Page {currentPage} / {totalPages}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
 
           {filteredClasses.length === 0 && (
             <Card className="border-[#0A2540]/10 shadow-lg">

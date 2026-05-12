@@ -43,14 +43,9 @@ export function SettingsPage() {
     parents, 
     updateParent,
     loadParentsFromAPI,
-    loadParentStudentLinksFromAPI,
-    loadStudentsFromAPI,
-    loadCompiledResultsFromAPI,
-    loadScoresFromAPI,
     loadSchoolSettings,
     getParentChildren,
-    parentStudentLinks,
-    students,
+    getParentChildrenFromAPI,
     feeStructures,
     loadFeeStructuresFromAPI,
     loadStudentFeeBalancesFromAPI
@@ -64,7 +59,6 @@ export function SettingsPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [retryScheduled, setRetryScheduled] = useState(false); // Prevent multiple retries
   
   const [profileData, setProfileData] = useState<ParentProfile>({
     id: 0,
@@ -107,17 +101,10 @@ export function SettingsPage() {
           // Load ALL required data like MyChildrenPage
           await Promise.all([
             loadParentsFromAPI(),
-            loadParentStudentLinksFromAPI(),
-            loadStudentsFromAPI(),
-            loadCompiledResultsFromAPI(),
-            loadScoresFromAPI(),
             loadSchoolSettings(),
             loadFeeStructuresFromAPI(), // ← IMPORTANT: Load fee structures for fee calculations
             loadStudentFeeBalancesFromAPI() // ← IMPORTANT: Load fee balances for fee calculations
           ]);
-          
-          // Wait a moment for state to update after API calls
-          await new Promise(resolve => setTimeout(resolve, 500));
           
           const parentId = currentUser?.linked_id;
           
@@ -128,89 +115,40 @@ export function SettingsPage() {
           //console.log('Parent ID exists:', !!parentId);
           
           if (parentId) {
+            // Load children via the parent-safe endpoint so we don't depend on /students or link lists.
+            await getParentChildrenFromAPI(Number(parentId));
             //console.log('Settings Page - Fetching children for parent ID:', parentId);
             //console.log('Settings Page - Available parent-student links:', parentStudentLinks);
             //console.log('Settings Page - Available students:', students);
             //console.log('Settings Page - Data loaded check - links length:', parentStudentLinks.length, 'students length:', students.length);
             
-            // Only proceed if data is actually loaded
-            if (parentStudentLinks.length > 0 && students.length > 0) {
-              const parent = parents.find(p => p.id === currentUser.linked_id);
-              if (parent) {
-                setProfileData({
-                  id: parent.id,
-                  firstName: parent.firstName || '',
-                  lastName: parent.lastName || '',
-                  email: parent.email || '',
-                  phone: parent.phone || '',
-                  address: parent.address || '',
-                  occupation: parent.occupation || '',
-                  workplace: '',
-                  relationship: '',
-                  emergencyContact: '',
-                  emergencyPhone: '',
-                  profilePicture: '',
-                  communicationPreferences: {
-                    email: true,
-                    sms: true,
-                    push: true,
-                    whatsapp: false
-                  },
-                  privacySettings: {
-                    shareContactInfo: true,
-                    shareEmergencyInfo: true,
-                    allowPhotoSharing: false
-                  }
-                });
-              }
-            } else {
-              //console.log('Settings Page - Data not loaded yet - links:', parentStudentLinks.length, 'students:', students.length);
-              //console.log('Settings Page - Retrying in 1 second...');
-              
-              // Only schedule retry if not already scheduled
-              if (!retryScheduled) {
-                setRetryScheduled(true);
-                
-                // Retry once more after 1 second
-                setTimeout(async () => {
-                  //console.log('Settings Page - Retry - Available parent-student links:', parentStudentLinks.length);
-                  //console.log('Settings Page - Retry - Available students:', students.length);
-                  
-                  if (parentStudentLinks.length > 0 && students.length > 0) {
-                    const parent = parents.find(p => p.id === currentUser.linked_id);
-                    if (parent) {
-                      setProfileData({
-                        id: parent.id,
-                        firstName: parent.firstName || '',
-                        lastName: parent.lastName || '',
-                        email: parent.email || '',
-                        phone: parent.phone || '',
-                        address: parent.address || '',
-                        occupation: parent.occupation || '',
-                        workplace: '',
-                        relationship: '',
-                        emergencyContact: '',
-                        emergencyPhone: '',
-                        profilePicture: '',
-                        communicationPreferences: {
-                          email: true,
-                          sms: true,
-                          push: true,
-                          whatsapp: false
-                        },
-                        privacySettings: {
-                          shareContactInfo: true,
-                          shareEmergencyInfo: true,
-                          allowPhotoSharing: false
-                        }
-                      });
-                    }
-                  } else {
-                    //console.log('Settings Page - Retry failed - Data still not loaded');
-                  }
-                  setRetryScheduled(false); // Reset retry flag
-                }, 1000);
-              }
+            const parent = parents.find(p => p.id === currentUser.linked_id);
+            if (parent) {
+              setProfileData({
+                id: parent.id,
+                firstName: parent.firstName || '',
+                lastName: parent.lastName || '',
+                email: parent.email || '',
+                phone: parent.phone || '',
+                address: parent.address || '',
+                occupation: parent.occupation || '',
+                workplace: '',
+                relationship: '',
+                emergencyContact: '',
+                emergencyPhone: '',
+                profilePicture: '',
+                communicationPreferences: {
+                  email: true,
+                  sms: true,
+                  push: true,
+                  whatsapp: false
+                },
+                privacySettings: {
+                  shareContactInfo: true,
+                  shareEmergencyInfo: true,
+                  allowPhotoSharing: false
+                }
+              });
             }
           } else {
             //console.log('=== SETTINGS PAGE - NO PARENT ID FOUND ===');

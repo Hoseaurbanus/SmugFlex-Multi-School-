@@ -13,6 +13,52 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Save } from "lucide-react";
 import { useSchool, Score, Subject, SubjectAssignment } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
+import { api } from "../../services/api";
+import { API_CONFIG } from "../../config/api";
+
+const getStudentPhotoCandidates = (s: any): string[] => {
+  const raw =
+    s?.photoUrl ||
+    s?.photo_url ||
+    s?.photoURL ||
+    s?.passportPhoto ||
+    s?.passport_photo ||
+    s?.passport;
+
+  if (!raw || typeof raw !== 'string') return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) return [trimmed];
+
+  let apiOrigin = '';
+  try {
+    apiOrigin = API_CONFIG?.BASE_URL ? new URL(API_CONFIG.BASE_URL).origin : '';
+  } catch {
+    apiOrigin = '';
+  }
+  const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
+
+  const candidates = [
+    appOrigin ? `${appOrigin}${normalizedPath}` : '',
+    apiOrigin ? `${apiOrigin}${normalizedPath}` : '',
+    trimmed,
+  ].filter(Boolean);
+
+  return Array.from(new Set(candidates));
+};
+
+const handleStudentPhotoError = (e: React.SyntheticEvent<HTMLImageElement>, s: any) => {
+  const img = e.currentTarget;
+  const candidates = getStudentPhotoCandidates(s);
+  const idx = Number(img.dataset.candidateIdx || '0');
+  const nextIdx = idx + 1;
+  if (nextIdx < candidates.length) {
+    img.dataset.candidateIdx = String(nextIdx);
+    img.src = candidates[nextIdx];
+  }
+};
 
 // Auto-comment generation system
 const commentTemplates = {
@@ -191,10 +237,32 @@ function generateAutoComment(averageScore: number, position: number, totalStuden
   } else if (averageScore >= 50 && averageScore < 60) {
     return 'A Fair result you have it in you to do better.';
   } else if (averageScore >= 0 && averageScore < 50) {
-    return 'It is well';
+    return 'Fail';
   } else {
-    return 'It is well';
+    return 'Fail';
   }
+}
+
+function parseAttendedDaysFromRemarks(remarks: unknown): number {
+  if (typeof remarks !== 'string') return 0;
+  const match = remarks.match(/(\d+)\s*out\s*of\s*(\d+)\s*days/i);
+  if (!match) return 0;
+  const attended = parseInt(match[1], 10);
+  return Number.isFinite(attended) ? attended : 0;
+}
+
+function parseAttendanceFromRemarks(remarks: unknown): { attendedDays: number; requiredDays: number } {
+  if (typeof remarks !== 'string') return { attendedDays: 0, requiredDays: 0 };
+  const match = remarks.match(/(\d+)\s*out\s*of\s*(\d+)\s*days/i);
+  if (!match) return { attendedDays: 0, requiredDays: 0 };
+
+  const attended = parseInt(match[1], 10);
+  const required = parseInt(match[2], 10);
+
+  return {
+    attendedDays: Number.isFinite(attended) ? attended : 0,
+    requiredDays: Number.isFinite(required) ? required : 0,
+  };
 }
 
 function generateMultipleCommentOptions(averageScore: number, position: number, totalStudents: number): string[] {
@@ -220,8 +288,8 @@ function generateMultipleCommentOptions(averageScore: number, position: number, 
     options.push('A fair result, significant improvement needed');
     options.push('A fair result, must work harder');
   } else {
-    options.push('it is well, but serious improvement required');
-    options.push('it is well, needs dedicated effort');
+    options.push('Fail, but serious improvement required');
+    options.push('Fail, needs dedicated effort');
   }
   
   return options.slice(0, 5);
@@ -252,7 +320,6 @@ export function CompileResultsPage() {
     psychomotorDomains,
     compiledResults,
     subjects,
-    addCompiledResult,
     updateCompiledResult,
     currentTerm,
     currentAcademicYear,
@@ -278,13 +345,57 @@ export function CompileResultsPage() {
     loadAttendanceRequirements,
     addNotification,
     classTeacherAssignments,
-    getTermDates
+    getTermDates,
+    loadClassTeacherAssignmentsFromAPI,
+    loadSubjectAssignmentsFromAPI
   } = useSchool();
+
+  useEffect(() => {
+    const loadAssignments = async () => {
+      if (!currentTerm || !currentAcademicYear) return;
+      try {
+        await Promise.all([
+          loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+          loadSubjectAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
+        ]);
+      } catch (error) {
+        // Silent fail for security
+      }
+    };
+
+    loadAssignments();
+  }, [currentTerm, currentAcademicYear, loadClassTeacherAssignmentsFromAPI, loadSubjectAssignmentsFromAPI]);
 
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [customComment, setCustomComment] = useState<string>("");
   const [showCommentOptions, setShowCommentOptions] = useState<boolean>(false);
+
+  const resolveCanonicalClassId = (classId: any): string | null => {
+    if (!classId) return null;
+    const baseClass = (classes || []).find((c: any) => String(c.id) === String(classId));
+    if (!baseClass) return String(classId);
+
+    const siblings = (classes || []).filter((c: any) =>
+      String(c.name).trim().toLowerCase() === String(baseClass.name).trim().toLowerCase() &&
+      String(c.level).trim().toLowerCase() === String(baseClass.level).trim().toLowerCase()
+    );
+
+    if (siblings.length <= 1) return String(baseClass.id);
+
+    const best = siblings
+      .map((c: any) => ({
+        id: c.id,
+        count: (students || []).filter((s: any) => String(s.class_id) === String(c.id)).length,
+      }))
+      .sort((a: any, b: any) => b.count - a.count)[0];
+
+    return best?.id ? String(best.id) : String(baseClass.id);
+  };
+
+  const effectiveSelectedClassId = useMemo(() => {
+    return resolveCanonicalClassId(selectedClassId) ?? selectedClassId;
+  }, [selectedClassId, classes, students]);
   const [commentOptions, setCommentOptions] = useState<string[]>([]);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [resultsGenerated, setResultsGenerated] = useState<boolean>(false);
@@ -322,40 +433,71 @@ export function CompileResultsPage() {
 
   // Refresh data function with optimized class-specific refresh
   const refreshData = useCallback(async () => {
+    if (!selectedClassId || !currentTerm || !currentAcademicYear) {
+      return;
+    }
+
     try {
-      // Always load scores to get the latest submitted scores
-      await loadScoresFromAPI();
+      
+      await loadAttendanceRequirements();
+
+      await refreshClassData(Number(selectedClassId));
+      
+      // Load scores data
+      await loadScoresFromAPI(currentTerm, currentAcademicYear);
+      await loadPsychomotorDomainsFromAPI(currentTerm, currentAcademicYear);
       
       // Load attendance data
       await loadAttendancesFromAPI();
       
       // Load compiled results to get latest rejection status
-      await loadCompiledResultsFromAPI();
-      
-      if (selectedClassId) {
-        await refreshClassData(Number(selectedClassId));
-      }
+      await loadCompiledResultsFromAPI(null);
       
       setLastRefresh(new Date());
       toast.success('Data refreshed successfully');
     } catch (error) {
-      console.error('Error refreshing data:', error);
       toast.error('Failed to refresh data');
     }
   }, [selectedClassId, refreshClassData, loadScoresFromAPI, loadAttendancesFromAPI, loadCompiledResultsFromAPI]);
 
+  // Ensure domains are loaded for the selected term/session
+  useEffect(() => {
+    if (!selectedClassId) return;
+    loadAffectiveDomainsFromAPI(currentTerm, currentAcademicYear);
+    loadPsychomotorDomainsFromAPI(currentTerm, currentAcademicYear);
+  }, [selectedClassId, currentTerm, currentAcademicYear]);
+
   // Auto-refresh compiled results to check for admin rejections and new scores
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        await loadCompiledResultsFromAPI();
-      } catch (error) {
-        console.error('Error auto-refreshing compiled results:', error);
-      }
-    }, 5000); // Check every 5 seconds for real-time updates
+    if (!selectedClassId || !currentTerm || !currentAcademicYear) return;
 
-    return () => clearInterval(interval);
-  }, [loadCompiledResultsFromAPI]);
+    let isActive = true;
+    let timeoutId: number | null = null;
+    let errorCount = 0;
+
+    const tick = async () => {
+      if (!isActive) return;
+      try {
+        const ok = await loadCompiledResultsFromAPI(null);
+        errorCount = ok ? 0 : Math.min(errorCount + 1, 6);
+      } catch (error) {
+        errorCount = Math.min(errorCount + 1, 6);
+      } finally {
+        if (!isActive) return;
+        const base = 30000; // 30s normal refresh
+        const delay = base * Math.pow(2, errorCount); // backoff up to ~32min
+        timeoutId = window.setTimeout(tick, delay);
+      }
+    };
+
+    // Start after a short delay to avoid stampeding on mount
+    timeoutId = window.setTimeout(tick, 2000);
+
+    return () => {
+      isActive = false;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [selectedClassId, currentTerm, currentAcademicYear, loadCompiledResultsFromAPI]);
 
   // Attendance requirements monitoring (disabled to prevent console spam)
   // useEffect(() => {
@@ -385,9 +527,9 @@ export function CompileResultsPage() {
   useEffect(() => {
     const handleFocus = async () => {
       try {
-        await loadCompiledResultsFromAPI();
+        await loadCompiledResultsFromAPI(null);
       } catch (error) {
-        console.error('Error refreshing on focus:', error);
+        // Silent fail for security
       }
     };
 
@@ -395,15 +537,29 @@ export function CompileResultsPage() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [loadCompiledResultsFromAPI]);
 
+  // Refresh when tab becomes visible (helps reflect admin reject/approve in real time)
+  useEffect(() => {
+    const onVisibility = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        await loadCompiledResultsFromAPI(null);
+      } catch (error) {
+        // Silent fail for security
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [loadCompiledResultsFromAPI]);
+
   // Manual refresh function for testing
   const handleManualRefresh = async () => {
     try {
       toast.info('Refreshing data...');
-      await loadCompiledResultsFromAPI();
+      await loadCompiledResultsFromAPI(null);
       await loadScoresFromAPI();
       toast.success('Data refreshed successfully');
     } catch (error) {
-      console.error('Error refreshing data:', error);
       toast.error('Failed to refresh data');
     }
   };
@@ -421,7 +577,12 @@ export function CompileResultsPage() {
       }
 
       const attendanceRequirements = getAttendanceRequirements();
-      const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
+      if (!currentTerm || !currentAcademicYear) {
+        toast.error('Current term or academic session is not set. Please contact the admin to set it in System Settings.', { id: "generate-results" });
+        return;
+      }
+
+      const requiredDays = attendanceRequirements[currentTerm] || 0;
       
       if (requiredDays === 0) {
         toast.error('Attendance requirements not set for current term. Please configure attendance settings.', { id: "generate-results" });
@@ -437,7 +598,7 @@ export function CompileResultsPage() {
       await loadPsychomotorDomainsFromAPI();
       
       // 4. COMPILED RESULTS: Refresh to get latest data
-      await loadCompiledResultsFromAPI();
+      await loadCompiledResultsFromAPI(null);
       
       // 5. FORCE RECALCULATION: Update resultsGenerated flag to trigger position recalculation
       setResultsGenerated(true);
@@ -456,7 +617,6 @@ export function CompileResultsPage() {
       );
       
     } catch (error) {
-      console.error('Error generating results:', error);
       toast.error('Failed to generate results. Please try again.', { id: "generate-results" });
     } finally {
       setIsGenerating(false);
@@ -479,7 +639,7 @@ export function CompileResultsPage() {
         await loadScoresFromAPI();
         // Scores refreshed automatically
       } catch (error) {
-        console.error('Auto refresh scores failed:', error);
+        // Silent fail for security
       }
     }, 30000); // Refresh every 30 seconds
 
@@ -511,7 +671,7 @@ export function CompileResultsPage() {
   }, [currentUser, canViewResults, canManageScores]); // Remove loadAttendanceRequirements from dependencies
 
   // Get current teacher
-  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+  const currentTeacher = currentUser ? teachers.find(t => String(t.id) === String(currentUser.linked_id)) : null;
   // Check if teacher has class teacher assignments
   const hasClassTeacherAssignments = useMemo(() => {
     if (!currentTeacher) return false;
@@ -547,11 +707,23 @@ export function CompileResultsPage() {
 
   // Get students in selected class
   const classStudents = useMemo(() => {
-    if (!selectedClassId) return [];
-    return students
-      .filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
-      .sort((a, b) => a.lastName.localeCompare(b.lastName));
-  }, [selectedClassId, students]);
+    if (!effectiveSelectedClassId) return [];
+    const filtered = students
+      .filter(s => {
+        const isSameClass = String(s.class_id) === String(effectiveSelectedClassId);
+        const status = String((s as any)?.status ?? '').trim().toLowerCase();
+        const isActive = status === '' || status === 'active';
+        return isSameClass && isActive;
+      });
+    const byId = new Map<number, any>();
+    for (const s of filtered) {
+      const idNum = Number((s as any)?.id);
+      if (Number.isFinite(idNum)) {
+        byId.set(idNum, s);
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) => (a.lastName || '').localeCompare(b.lastName || ''));
+  }, [effectiveSelectedClassId, students]);
 
   // Check if generate results should be enabled
   const canGenerateResults = useMemo(() => {
@@ -560,7 +732,7 @@ export function CompileResultsPage() {
     }
     
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
+    const requiredDays = currentTerm ? (attendanceRequirements[currentTerm] || 0) : 0;
     
     // Check if attendance requirements are set
     if (requiredDays === 0) {
@@ -577,11 +749,11 @@ export function CompileResultsPage() {
 
   // Get all registered subjects for the class (these are the subjects that should appear in results)
   const classSubjects = useMemo(() => {
-    if (!selectedClassId) return [];
+    if (!effectiveSelectedClassId) return [];
     
     // Get subject assignments directly for this class, term, and academic year
     const subjectAssignmentsForClass = subjectAssignments.filter(
-      sa => String(sa.class_id) === String(selectedClassId) &&
+      sa => String(sa.class_id) === String(effectiveSelectedClassId) &&
             sa.term === currentTerm &&
             sa.academic_year === currentAcademicYear &&
             sa.status === 'Active'
@@ -599,9 +771,48 @@ export function CompileResultsPage() {
         class_name: assignment.class_name || ''
       };
     });
-    
-    return mappedSubjects;
-  }, [selectedClassId, subjectAssignments, currentTerm, currentAcademicYear]);
+
+    // De-dupe subjects by subject_id for correct subject count display.
+    // If the backend has duplicate subject assignments for the same subject in the same class/session,
+    // we should still treat it as ONE subject for compilation completeness.
+    const bySubjectId = new Map<string, any>();
+    for (const s of mappedSubjects) {
+      const key = String((s as any)?.subject_id ?? (s as any)?.id);
+      if (!bySubjectId.has(key)) {
+        bySubjectId.set(key, s);
+      }
+    }
+
+    return Array.from(bySubjectId.values());
+  }, [effectiveSelectedClassId, subjectAssignments, currentTerm, currentAcademicYear]);
+
+  // Build a stable mapping of assignment_id -> subject_id for this class/session.
+  // This lets us count completed subjects by unique subject_id even if there are duplicate score rows.
+  const assignmentIdToSubjectId = useMemo(() => {
+    if (!effectiveSelectedClassId) return new Map<number, string>();
+    const rows = subjectAssignments.filter(
+      sa => String(sa.class_id) === String(effectiveSelectedClassId) &&
+            sa.term === currentTerm &&
+            sa.academic_year === currentAcademicYear &&
+            sa.status === 'Active'
+    );
+    const m = new Map<number, string>();
+    for (const sa of rows) {
+      const idNum = Number((sa as any)?.id);
+      if (Number.isFinite(idNum)) {
+        m.set(idNum, String((sa as any)?.subject_id ?? ''));
+      }
+    }
+    return m;
+  }, [effectiveSelectedClassId, subjectAssignments, currentTerm, currentAcademicYear]);
+
+  const classAssignmentIdSet = useMemo(() => {
+    return new Set<number>(Array.from(assignmentIdToSubjectId.keys()));
+  }, [assignmentIdToSubjectId]);
+
+  const classSubjectIdSet = useMemo(() => {
+    return new Set<string>(Array.from(assignmentIdToSubjectId.values()).filter(Boolean));
+  }, [assignmentIdToSubjectId]);
 
   const selectedStudent = useMemo(() => {
     if (!selectedStudentId) return null;
@@ -616,34 +827,36 @@ export function CompileResultsPage() {
     const attendance = Array.isArray(attendances) ? attendances.find((a: any) => 
       a.student_id === selectedStudent.id && 
       String(a.class_id) === String(selectedClassId) &&
-      a.term === currentTerm && 
+      a.term === currentTerm &&
       a.academic_year === currentAcademicYear
-    ) : null;
+    ) : undefined;
     
     if (attendance) {
       const attendanceRequirements = getAttendanceRequirements();
-      const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
-      const attendedDays = Number(attendance.attended_days) || 0;
+      const requiredDaysFromSettings = currentTerm ? (attendanceRequirements[currentTerm] || 0) : 0;
+      const parsed = parseAttendanceFromRemarks((attendance as any)?.remarks);
+      const attendedDays = parsed.attendedDays;
+      const requiredDays = requiredDaysFromSettings || parsed.requiredDays || 0;
       
       return {
         requiredDays,
         attendedDays,
         attendanceRate: requiredDays > 0 ? (attendedDays / requiredDays) * 100 : 0,
         ratio: `${attendedDays}/${requiredDays}`,
-        timesAbsent: Number(attendance.times_absent) || 0
+        timesAbsent: requiredDays - attendedDays,
       };
     }
     
     // Fallback if no attendance found
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
+    const requiredDays = currentTerm ? (attendanceRequirements[currentTerm] || 0) : 0;
     
     return {
       requiredDays,
       attendedDays: 0,
       attendanceRate: 0,
       ratio: `0/${requiredDays}`,
-      timesAbsent: 0
+      timesAbsent: requiredDays,
     };
   }, [selectedStudent, selectedClassId, currentTerm, currentAcademicYear, attendances, getAttendanceRequirements]);
 
@@ -772,17 +985,74 @@ export function CompileResultsPage() {
       return [];
     }
 
+    const attendanceRequirements = getAttendanceRequirements();
+    const requiredDaysFromSettings = currentTerm ? (attendanceRequirements[currentTerm] || 0) : 0;
+    const safeAttendances = Array.isArray(attendances) ? attendances : [];
+
+    const getAttendanceInfoForStudent = (studentId: number) => {
+      if (!effectiveSelectedClassId || !currentTerm || !currentAcademicYear) {
+        return { attendedDays: 0, requiredDays: 0 };
+      }
+      const attendanceRow = safeAttendances.find((a: any) =>
+        String((a as any)?.student_id) === String(studentId) &&
+        String((a as any)?.class_id) === String(effectiveSelectedClassId) &&
+        String((a as any)?.term) === String(currentTerm) &&
+        String((a as any)?.academic_year) === String(currentAcademicYear)
+      );
+
+      if (attendanceRow) {
+        const parsed = parseAttendanceFromRemarks((attendanceRow as any)?.remarks);
+        const attendedDays = parsed.attendedDays;
+        const requiredDays = requiredDaysFromSettings || parsed.requiredDays || 0;
+        return { attendedDays, requiredDays };
+      }
+
+      return { attendedDays: 0, requiredDays: requiredDaysFromSettings || 0 };
+    };
+
     
     const studentsData = classStudents.map(student => {
       // Get all scores for this student
-      const studentScores = scores.filter(s => s.student_id === student.id);
+      const studentScores = scores.filter(s => String((s as any)?.student_id) === String(student.id));
       
       // Filter for relevant scores that match current class subjects
       // This prevents mixing scores from other classes
-      const relevantScores = studentScores.filter(s => 
-        (s.status === 'Submitted' || s.status === 'Draft') && 
-        classSubjects.some((cs: any) => cs && String(cs.id) === String(s.subject_assignment_id))
+      const relevantScoresRaw = studentScores.filter(s =>
+        (s.status === 'Submitted' || s.status === 'Approved' || s.status === 'Draft') &&
+        s.term === currentTerm &&
+        s.academic_year === currentAcademicYear &&
+        classAssignmentIdSet.has(Number((s as any)?.subject_assignment_id))
       );
+
+      // Collapse potential duplicate assignment rows into 1 score per subject_id.
+      // If duplicates exist, prefer a Submitted score; otherwise Draft; tie-breaker by highest total.
+      const bySubject = new Map<string, any>();
+      for (const sc of relevantScoresRaw) {
+        const subId = assignmentIdToSubjectId.get(Number((sc as any)?.subject_assignment_id));
+        if (!subId) continue;
+        const key = String(subId);
+        const prev = bySubject.get(key);
+        if (!prev) {
+          bySubject.set(key, sc);
+          continue;
+        }
+        const prevStatus = String((prev as any)?.status || '');
+        const nextStatus = String((sc as any)?.status || '');
+        const prevIsSubmitted = prevStatus === 'Submitted';
+        const nextIsSubmitted = nextStatus === 'Submitted';
+        if (nextIsSubmitted && !prevIsSubmitted) {
+          bySubject.set(key, sc);
+          continue;
+        }
+        if (nextIsSubmitted === prevIsSubmitted) {
+          const prevTotal = Number((prev as any)?.total) || 0;
+          const nextTotal = Number((sc as any)?.total) || 0;
+          if (nextTotal > prevTotal) {
+            bySubject.set(key, sc);
+          }
+        }
+      }
+      const relevantScores = Array.from(bySubject.values());
       
       const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
         a.student_id === student.id &&
@@ -801,17 +1071,28 @@ export function CompileResultsPage() {
       const existingResult = Array.isArray(compiledResults) ? compiledResults.find(r =>
         r.student_id === student.id &&
         r.class_id === Number(selectedClassId) &&
-        r.term === currentTerm
+        r.term === currentTerm &&
+        r.academic_year === currentAcademicYear
       ) : undefined;
 
-      // Count completed subjects from relevant scores
-      const completedSubjects = relevantScores.length;
-      const totalSubjects = classSubjects.length > 0 ? classSubjects.length : relevantScores.length;
+      // Count completed subjects by UNIQUE subject_id.
+      const submittedSubjectIds = new Set<string>();
+      for (const rs of relevantScores) {
+        const st = String((rs as any)?.status);
+        if (st !== 'Submitted' && st !== 'Approved') continue;
+        const subId = assignmentIdToSubjectId.get(Number((rs as any)?.subject_assignment_id));
+        if (subId) {
+          submittedSubjectIds.add(String(subId));
+        }
+      }
+      const completedSubjects = submittedSubjectIds.size;
+      const totalSubjects = classSubjectIdSet.size;
       const hasAffective = affective !== undefined;
       const hasPsychomotor = psychomotor !== undefined;
-      // Check attendance from compiled results (primary source) or attendance table
-      const hasAttendance = (existingResult && existingResult.times_present > 0) || 
-                          (studentAttendance && studentAttendance.attendedDays > 0);
+      // Check attendance from compiled results (primary source) or attendance table (per student)
+      const attendanceInfo = getAttendanceInfoForStudent(Number((student as any)?.id));
+      const hasAttendance = (existingResult && Number((existingResult as any)?.times_present) > 0) ||
+        (attendanceInfo.attendedDays > 0);
       const isSubmitted = existingResult?.status === 'Submitted' || existingResult?.status === 'Approved';
       const isRejected = existingResult?.status === 'Rejected';
 
@@ -879,7 +1160,23 @@ export function CompileResultsPage() {
     const finalResult = [...positionedStudents, ...studentsWithoutScores];
     
     return finalResult;
-  }, [classStudents, scores, classSubjects, affectiveDomains, psychomotorDomains, compiledResults, selectedClassId, currentTerm, resultsGenerated]);
+  }, [
+    classStudents,
+    scores,
+    affectiveDomains,
+    psychomotorDomains,
+    compiledResults,
+    effectiveSelectedClassId,
+    selectedClassId,
+    currentTerm,
+    currentAcademicYear,
+    resultsGenerated,
+    classAssignmentIdSet,
+    classSubjectIdSet,
+    assignmentIdToSubjectId,
+    attendances,
+    getAttendanceRequirements,
+  ]);
 
   // Calculate submit button state
   const eligibleForSubmission = (studentsCompletion || []).filter(s => s.isComplete && (!s.isSubmitted || s.isRejected));
@@ -894,10 +1191,42 @@ export function CompileResultsPage() {
     const studentScores = scores.filter(s => s.student_id === selectedStudent.id);
     
     // Filter for relevant scores that match current class subjects
-    const relevantScores = studentScores.filter(s => 
-      (s.status === 'Submitted' || s.status === 'Draft') &&
-      classSubjects.some((cs: any) => cs && String(cs.id) === String(s.subject_assignment_id))
+    const relevantScoresRaw = studentScores.filter(s => 
+      (s.status === 'Submitted' || s.status === 'Approved' || s.status === 'Draft') &&
+      s.term === currentTerm &&
+      s.academic_year === currentAcademicYear &&
+      classAssignmentIdSet.has(Number((s as any)?.subject_assignment_id))
     );
+
+    // Collapse potential duplicate assignment rows into 1 score per subject_id.
+    const bySubject = new Map<string, any>();
+    for (const sc of relevantScoresRaw) {
+      const subId = assignmentIdToSubjectId.get(Number((sc as any)?.subject_assignment_id));
+      if (!subId) continue;
+      const key = String(subId);
+      const prev = bySubject.get(key);
+      if (!prev) {
+        bySubject.set(key, sc);
+        continue;
+      }
+      const prevStatus = String((prev as any)?.status || '');
+      const nextStatus = String((sc as any)?.status || '');
+      const prevIsSubmitted = prevStatus === 'Submitted';
+      const nextIsSubmitted = nextStatus === 'Submitted';
+      if (nextIsSubmitted && !prevIsSubmitted) {
+        bySubject.set(key, sc);
+        continue;
+      }
+      if (nextIsSubmitted === prevIsSubmitted) {
+        const prevTotal = Number((prev as any)?.total) || 0;
+        const nextTotal = Number((sc as any)?.total) || 0;
+        if (nextTotal > prevTotal) {
+          bySubject.set(key, sc);
+        }
+      }
+    }
+
+    const relevantScores = Array.from(bySubject.values());
 
     const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
       a.student_id === selectedStudent.id &&
@@ -939,13 +1268,24 @@ export function CompileResultsPage() {
     const totalStudents = studentCompletionData?.totalStudents || 0;
 
     // Check completion - use individual student validation
+    const completedSubjectIds = new Set<string>();
+    for (const rs of relevantScores) {
+      const st = String((rs as any)?.status);
+      if (st !== 'Submitted' && st !== 'Approved') continue;
+      const subId = assignmentIdToSubjectId.get(Number((rs as any)?.subject_assignment_id));
+      if (subId) {
+        completedSubjectIds.add(String(subId));
+      }
+    }
+
     const isComplete = 
-      relevantScores.length === (classSubjects || []).length &&
-      relevantScores.every(s => s.status === 'Submitted') &&
+      completedSubjectIds.size === classSubjectIdSet.size &&
       affective !== undefined &&
       psychomotor !== undefined &&
-      (studentAttendance && studentAttendance.attendedDays > 0) || 
-      (existingResult && existingResult.times_present > 0); // Add attendance requirement
+      (
+        (studentAttendance && studentAttendance.attendedDays > 0) || 
+        (existingResult && existingResult.times_present > 0)
+      ); // Add attendance requirement
 
     // Debug logging
     // Individual student validation processed
@@ -960,8 +1300,8 @@ export function CompileResultsPage() {
       averageScore,
       position,
       totalStudents,
-      subjectsCompleted: relevantScores.filter(s => s.status === 'Submitted').length,
-      totalSubjects: (classSubjects || []).length,
+      subjectsCompleted: completedSubjectIds.size,
+      totalSubjects: classSubjectIdSet.size,
       isComplete,
       existingResult,
       isSubmitted,
@@ -1005,15 +1345,20 @@ export function CompileResultsPage() {
       toast.info("Submitting result... Please wait.", { id: "submit-result" });
       
       // 1. COMPREHENSIVE VALIDATION
-      if (!selectedStudent || !currentTeacher || !selectedClassId) {
+      if (!selectedStudent || !currentTeacher || !effectiveSelectedClassId) {
         toast.error('Missing required data', { id: "submit-result" });
+        return;
+      }
+
+      if (!currentTerm || !currentAcademicYear) {
+        toast.error('Current term or academic session is not set. Please contact the admin to set it in System Settings.', { id: "submit-result" });
         return;
       }
 
       // Check if result is already approved
       const existingApprovedResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
         cr.student_id === selectedStudent.id &&
-        cr.class_id === Number(selectedClassId) &&
+        cr.class_id === Number(effectiveSelectedClassId) &&
         cr.term === currentTerm &&
         cr.academic_year === currentAcademicYear &&
         cr.status === 'Approved'
@@ -1025,19 +1370,78 @@ export function CompileResultsPage() {
       }
 
       // 2. VALIDATE STUDENT SCORES
-      const studentScores = scores.filter(s => 
-        s.student_id === selectedStudent.id && 
-        (s.status === 'Submitted' || s.status === 'Draft')
-      );
+      const studentScoresRaw = scores.filter(s => {
+        if (String((s as any)?.student_id) !== String((selectedStudent as any)?.id)) return false;
+        if (String((s as any)?.term) !== String(currentTerm)) return false;
+        if (String((s as any)?.academic_year) !== String(currentAcademicYear)) return false;
+        const st = String((s as any)?.status);
+        return st === 'Submitted' || st === 'Approved' || st === 'Draft';
+      });
       
-      if (studentScores.length === 0) {
+      if (studentScoresRaw.length === 0) {
         toast.error('No scores found for this student', { id: "submit-result" });
         return;
       }
 
+      // Collapse potential duplicate assignment rows into 1 score per subject_id.
+      // Prefer Submitted/Approved over Draft; tie-breaker by highest total.
+      const bySubject = new Map<string, any>();
+      for (const sc of studentScoresRaw) {
+        const subId = assignmentIdToSubjectId.get(Number((sc as any)?.subject_assignment_id));
+        if (!subId) continue;
+        const key = String(subId);
+        const prev = bySubject.get(key);
+        if (!prev) {
+          bySubject.set(key, sc);
+          continue;
+        }
+        const prevStatus = String((prev as any)?.status || '');
+        const nextStatus = String((sc as any)?.status || '');
+        const prevIsFinal = prevStatus === 'Submitted' || prevStatus === 'Approved';
+        const nextIsFinal = nextStatus === 'Submitted' || nextStatus === 'Approved';
+        if (nextIsFinal && !prevIsFinal) {
+          bySubject.set(key, sc);
+          continue;
+        }
+        if (nextIsFinal === prevIsFinal) {
+          const prevTotal = Number((prev as any)?.total) || 0;
+          const nextTotal = Number((sc as any)?.total) || 0;
+          if (nextTotal > prevTotal) {
+            bySubject.set(key, sc);
+          }
+        }
+      }
+
+      const studentScores = Array.from(bySubject.values());
+
       // Check if student has submitted scores for all class subjects
-      const requiredSubjects = classSubjects.length;
-      const submittedScores = studentScores.filter(s => s.status === 'Submitted').length;
+      const registeredSubjectIds = new Set<string>();
+      if (Array.isArray(subjectRegistrations)) {
+        for (const sr of subjectRegistrations) {
+          if (String((sr as any)?.status) !== 'Active') continue;
+          if (String((sr as any)?.class_id) !== String(effectiveSelectedClassId)) continue;
+          if (String((sr as any)?.term) !== String(currentTerm)) continue;
+          if (String((sr as any)?.academic_year) !== String(currentAcademicYear)) continue;
+          const sid = (sr as any)?.subject_id;
+          if (sid !== undefined && sid !== null && String(sid) !== '') {
+            registeredSubjectIds.add(String(sid));
+          }
+        }
+      }
+
+      const requiredSubjectIds = registeredSubjectIds.size > 0
+        ? registeredSubjectIds
+        : classSubjectIdSet;
+
+      const requiredSubjects = requiredSubjectIds.size;
+      const submittedSubjectIds = new Set<string>();
+      for (const s of studentScores.filter(s => s.status === 'Submitted' || s.status === 'Approved')) {
+        const subId = assignmentIdToSubjectId.get(Number((s as any)?.subject_assignment_id));
+        if (subId && requiredSubjectIds.has(String(subId))) {
+          submittedSubjectIds.add(String(subId));
+        }
+      }
+      const submittedScores = submittedSubjectIds.size;
 
       if (submittedScores < requiredSubjects) {
         toast.error(`Student has submitted scores for ${submittedScores}/${requiredSubjects} subjects. All subjects must be submitted before compiling results. Please ensure all scores are entered and submitted in the Score Entry page.`, { id: "submit-result" });
@@ -1047,14 +1451,14 @@ export function CompileResultsPage() {
       // 3. VALIDATE AFFECTIVE AND PSYCHOMOTOR DATA
       const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
         a.student_id === selectedStudent.id &&
-        String(a.class_id) === String(selectedClassId) &&
+        String(a.class_id) === String(effectiveSelectedClassId) &&
         a.term === currentTerm &&
         a.academic_year === currentAcademicYear
       ) : undefined;
 
       const psychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
         p.student_id === selectedStudent.id &&
-        String(p.class_id) === String(selectedClassId) &&
+        String(p.class_id) === String(effectiveSelectedClassId) &&
         p.term === currentTerm &&
         p.academic_year === currentAcademicYear
       ) : undefined;
@@ -1071,21 +1475,22 @@ export function CompileResultsPage() {
 
       // 4. VALIDATE ATTENDANCE DATA
       const attendanceRequirementsForValidation = getAttendanceRequirements();
-      const requiredDaysForValidation = attendanceRequirementsForValidation[currentTerm || 'First Term'] || 0;
+      const requiredDaysForValidation = attendanceRequirementsForValidation[currentTerm] || 0;
       
       if (requiredDaysForValidation === 0) {
         toast.error('Attendance requirements not set for this term. Please configure attendance settings first.', { id: "submit-result" });
         return;
       }
-      
-      const existingResultForValidation = Array.isArray(compiledResults) ? compiledResults.find(cr => 
-        cr.student_id === selectedStudent.id &&
-        cr.class_id === Number(selectedClassId) &&
-        cr.term === currentTerm &&
-        cr.academic_year === currentAcademicYear
-      ) : undefined;
-      
-      const attendedDaysForValidation = Number(existingResultForValidation?.times_present) || 0;
+
+      const attendanceRows = getAttendanceByStudent(selectedStudent.id, currentAcademicYear, currentTerm);
+      const relevantAttendance = Array.isArray(attendanceRows)
+        ? attendanceRows.filter(a => String(a.class_id) === String(effectiveSelectedClassId))
+        : [];
+
+      const attendedDaysForValidation = relevantAttendance.reduce((max, row) => {
+        const parsed = parseAttendedDaysFromRemarks((row as any)?.remarks);
+        return parsed > max ? parsed : max;
+      }, 0);
       
       if (attendedDaysForValidation === 0) {
         toast.error('Attendance data is required. Please mark attendance for this student in the Mark Attendance page before compiling results.', { id: "submit-result" });
@@ -1114,16 +1519,16 @@ export function CompileResultsPage() {
         : 0;
 
       // 6. POSITION CALCULATION
-      const completeStudents = studentsCompletion.filter(s => s.isComplete && s.averageScore > 0);
-      const allStudentAverages = completeStudents.map(s => s.averageScore);
-      const sortedStudents = [...allStudentAverages].sort((a, b) => b - a);
-      const actualPosition = sortedStudents.indexOf(averageScore) + 1;
-      const totalStudents = completeStudents.length;
+      // Use the precomputed class ranking (based on total score) so the position is generated
+      // before submission and matches what the teacher sees on the Compile page.
+      const completionRow = (studentsCompletion || []).find(s => s.studentId === selectedStudent.id);
+      const actualPosition = completionRow?.position || 0;
+      const totalStudents = completionRow?.totalStudents || classStudents.length;
 
       // 7. ATTENDANCE DATA INTEGRATION
       // Note: attendance data already validated above, just integrate it
       const attendanceRequirements = getAttendanceRequirements();
-      const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
+      const requiredDays = attendanceRequirements[currentTerm] || 0;
       const attendedDays = attendedDaysForValidation;
       const timesAbsent = requiredDays - attendedDays;
       const attendanceRate = requiredDays > 0 ? Math.round((attendedDays / requiredDays) * 100) : 0;
@@ -1131,9 +1536,9 @@ export function CompileResultsPage() {
       // 8. COMPILE COMPLETE RESULT DATA
       const compiledData = {
         student_id: selectedStudent.id,
-        class_id: Number(selectedClassId),
-        term: currentTerm || 'First Term',
-        academic_year: currentAcademicYear || '2025/2026',
+        class_id: Number(effectiveSelectedClassId),
+        term: currentTerm,
+        academic_year: currentAcademicYear,
         scores: enhancedScores,
         affective: affective || null,
         psychomotor: psychomotor || null,
@@ -1162,8 +1567,13 @@ export function CompileResultsPage() {
         print_approved: 0
       };
 
-      // 9. SUBMIT TO DATABASE
-      await addCompiledResult(compiledData);
+      // 9. SUBMIT TO BACKEND (authoritative validation + persistence)
+      await api.post(API_CONFIG.ENDPOINTS.RESULTS.COMPILE, {
+        class_id: Number(effectiveSelectedClassId),
+        term: currentTerm,
+        academic_year: currentAcademicYear,
+        student_results: [compiledData]
+      });
       
       // 10. SUCCESS FEEDBACK
       toast.success(
@@ -1181,10 +1591,9 @@ export function CompileResultsPage() {
       setSelectedStudentId(null);
       
       // 12. REFRESH DATA
-      await loadCompiledResultsFromAPI();
+      await loadCompiledResultsFromAPI(null);
       
     } catch (error) {
-      console.error('Error submitting result:', error);
       toast.error('Failed to submit result. Please try again.', { id: "submit-result" });
     } finally {
       setIsSubmitting(false);
@@ -1192,13 +1601,21 @@ export function CompileResultsPage() {
   };
 
   const handleSubmitAllResults = async () => {
-    if (!selectedClassId || !currentTeacher) {
+    if (!effectiveSelectedClassId || !currentTeacher) {
       toast.error("Please select a class");
       return;
     }
 
+    const term = currentTerm;
+    const academicYear = currentAcademicYear;
+
+    if (!term || !academicYear) {
+      toast.error('Current term or academic session is not set. Please contact the admin to set it in System Settings.');
+      return;
+    }
+
     // Check if current teacher is the class teacher for this class
-    const selectedClass = Array.isArray(classes) ? classes.find(c => c.id === Number(selectedClassId)) : undefined;
+    const selectedClass = Array.isArray(classes) ? classes.find(c => c.id === Number(effectiveSelectedClassId)) : undefined;
     if (!selectedClass || selectedClass.classTeacherId !== currentTeacher.id) {
       toast.error("Only the class teacher can compile results for this class");
       return;
@@ -1224,29 +1641,40 @@ export function CompileResultsPage() {
         // Get existing result for this student
         const existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
           cr.student_id === student.id &&
-          cr.class_id === Number(selectedClassId) &&
-          cr.term === currentTerm &&
-          cr.academic_year === currentAcademicYear
+          cr.class_id === Number(effectiveSelectedClassId) &&
+          cr.term === term &&
+          cr.academic_year === academicYear
         ) : undefined;
 
+        const bulkAttendanceRows = getAttendanceByStudent(student.id, academicYear, term);
+        const bulkRelevantAttendance = Array.isArray(bulkAttendanceRows)
+          ? bulkAttendanceRows.filter(a => String(a.class_id) === String(effectiveSelectedClassId))
+          : [];
+
+        const attendedDaysForBulk = bulkRelevantAttendance.reduce((max, row) => {
+          const parsed = parseAttendedDaysFromRemarks((row as any)?.remarks);
+          return parsed > max ? parsed : max;
+        }, 0);
+
         // Save attendance data to attendance table
+        const bulkRequiredDays = getAttendanceRequirements()[term] || 0;
         const attendancePayload = {
           student_id: student.id,
-          class_id: Number(selectedClassId),
-          term: currentTerm || 'First Term',
-          academic_year: currentAcademicYear || '2025/2026',
+          class_id: Number(effectiveSelectedClassId),
+          term,
+          academic_year: academicYear,
           date: new Date().toISOString().split('T')[0], // Current date
           status: 'Present' as const,
           marked_by: currentUser?.id || 1,
           marked_date: new Date().toISOString(),
-          remarks: `Attended ${existingResult?.times_present || 0} out of ${getAttendanceRequirements()[currentTerm || 'First Term'] || 0} days`
+          remarks: `Attended ${attendedDaysForBulk || 0} out of ${bulkRequiredDays} days`
         };
         
         const existingAttendance = Array.isArray(attendances) ? attendances.find(a => 
           a.student_id === student.id &&
-          a.class_id === Number(selectedClassId) &&
-          a.term === currentTerm &&
-          a.academic_year === currentAcademicYear
+          a.class_id === Number(effectiveSelectedClassId) &&
+          a.term === term &&
+          a.academic_year === academicYear
         ) : undefined;
         
         if (existingAttendance) {
@@ -1258,18 +1686,18 @@ export function CompileResultsPage() {
         // Save affective data if it has been modified
         const affectivePayload = {
           student_id: student.id,
-          class_id: Number(selectedClassId),
-          term: currentTerm || 'First Term',
-          academic_year: currentAcademicYear || '2025/2026',
+          class_id: Number(effectiveSelectedClassId),
+          term,
+          academic_year: academicYear,
           ...affectiveData,
           entered_by: currentUser?.id
         };
         
         const existingAffective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
           a.student_id === student.id &&
-          a.class_id === Number(selectedClassId) &&
-          a.term === currentTerm &&
-          a.academic_year === currentAcademicYear
+          a.class_id === Number(effectiveSelectedClassId) &&
+          a.term === term &&
+          a.academic_year === academicYear
         ) : undefined;
         
         if (existingAffective) {
@@ -1281,16 +1709,16 @@ export function CompileResultsPage() {
         // Save psychomotor data if it has been modified
         const psychomotorPayload = {
           student_id: student.id,
-          class_id: Number(selectedClassId),
-          term: currentTerm || 'First Term',
-          academic_year: currentAcademicYear || '2025/2026',
+          class_id: Number(effectiveSelectedClassId),
+          term: currentTerm,
+          academic_year: currentAcademicYear,
           ...psychomotorData,
           entered_by: currentUser?.id
         };
         
         const existingPsychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
           p.student_id === student.id &&
-          p.class_id === Number(selectedClassId) &&
+          p.class_id === Number(effectiveSelectedClassId) &&
           p.term === currentTerm &&
           p.academic_year === currentAcademicYear
         ) : undefined;
@@ -1311,6 +1739,8 @@ export function CompileResultsPage() {
       
       // Now proceed with generating and submitting results
       let submittedCount = 0;
+
+      const bulkCompiledRows: any[] = [];
       
       for (const studentComp of studentsCompletion || []) {
         if (!studentComp.isComplete) continue;
@@ -1321,27 +1751,31 @@ export function CompileResultsPage() {
         // Get existing result for this student
         const existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
           cr.student_id === student.id &&
-          cr.class_id === Number(selectedClassId) &&
+          cr.class_id === Number(effectiveSelectedClassId) &&
           cr.term === currentTerm &&
           cr.academic_year === currentAcademicYear
         ) : undefined;
 
-        const studentScores = scores.filter(s => 
-          s.student_id === student.id &&
-          classSubjects.some((cs: any) => cs && Number(cs.id) === Number(s.subject_assignment_id))
-        );
+        const studentScores = scores.filter(s => {
+          if (s.student_id !== student.id) return false;
+          if (s.term !== term) return false;
+          if (s.academic_year !== academicYear) return false;
+          return classSubjects.some((cs: any) => cs && Number(cs.id) === Number(s.subject_assignment_id));
+        });
 
         // Get the freshly saved affective and psychomotor data
         const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
           a.student_id === student.id &&
-          a.class_id === Number(selectedClassId) &&
-          a.term === currentTerm
+          a.class_id === Number(effectiveSelectedClassId) &&
+          a.term === term &&
+          a.academic_year === academicYear
         ) : undefined;
 
         const psychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
           p.student_id === student.id &&
-          p.class_id === Number(selectedClassId) &&
-          p.term === currentTerm
+          p.class_id === Number(effectiveSelectedClassId) &&
+          p.term === term &&
+          p.academic_year === academicYear
         ) : undefined;
 
         const totalScore = studentScores.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
@@ -1369,14 +1803,24 @@ export function CompileResultsPage() {
         } else if (averageScore >= 50) {
           autoComment = 'A fair result';
         } else {
-          autoComment = 'it is well';
+          autoComment = 'Fail';
         }
+
+        const submitAttendanceRows = getAttendanceByStudent(student.id, academicYear, term);
+        const submitRelevantAttendance = Array.isArray(submitAttendanceRows)
+          ? submitAttendanceRows.filter(a => String(a.class_id) === String(effectiveSelectedClassId))
+          : [];
+
+        const attendedDaysForSubmit = submitRelevantAttendance.reduce((max, row) => {
+          const parsed = parseAttendedDaysFromRemarks((row as any)?.remarks);
+          return parsed > max ? parsed : max;
+        }, 0);
 
         const compiledData = {
           student_id: student.id,
-          class_id: Number(selectedClassId),
-          term: currentTerm || 'First Term',
-          academic_year: currentAcademicYear || '2025/2026',
+          class_id: Number(effectiveSelectedClassId),
+          term,
+          academic_year: academicYear,
           scores: studentScores,
           affective: affective || null,
           psychomotor: psychomotor || null,
@@ -1385,9 +1829,9 @@ export function CompileResultsPage() {
           class_average: classAverage,
           position: position,
           total_students: classStudents.length,
-          times_present: existingResult?.times_present || 0,
+          times_present: attendedDaysForSubmit,
           times_absent: 0, // Will be calculated as required - present
-          total_attendance_days: getAttendanceRequirements()[currentTerm || 'First Term'] || 0,
+          total_attendance_days: getAttendanceRequirements()[term] || 0,
           term_begin: getTermDates().termStartDate || '',
           term_end: getTermDates().termEndDate || '',
           next_term_begin: getTermDates().nextTermStarts || '',
@@ -1396,7 +1840,7 @@ export function CompileResultsPage() {
           principal_name: 'Dr. Ibrahim Musa',
           principal_comment: '',
           principal_signature: '',
-          compiled_by: 1, // Use admin user ID (1) to satisfy foreign key constraint
+          compiled_by: currentUser?.id || 0,
           compiled_date: new Date().toISOString(),
           status: 'Submitted' as const,
           approved_by: null,
@@ -1405,23 +1849,31 @@ export function CompileResultsPage() {
           print_approved: 0
         };
 
-        // Use compileResult directly which handles duplicate checking in the database
-        const resultId = await addCompiledResult(compiledData);
+        bulkCompiledRows.push(compiledData);
         submittedCount++;
-        
-        // Immediately update compiled results to reflect the submitted status
-        await loadCompiledResultsFromAPI();
-        
-        // Also refresh scores to ensure latest data
-        await loadScoresFromAPI();
       }
+
+      if (bulkCompiledRows.length === 0) {
+        toast.info('No eligible results to submit');
+        return;
+      }
+
+      // Submit all compiled rows in a single backend request
+      await api.post(API_CONFIG.ENDPOINTS.RESULTS.COMPILE, {
+        class_id: Number(effectiveSelectedClassId),
+        term,
+        academic_year: academicYear,
+        student_results: bulkCompiledRows
+      });
+
+      await loadCompiledResultsFromAPI(null);
+      await loadScoresFromAPI();
 
       // Notify admin
       toast.success(`Successfully submitted ${submittedCount} results for approval`);
       toast.success(`${submittedCount} results submitted to admin for approval!`);
       
     } catch (error) {
-      console.error('Error submitting all results:', error);
       toast.error('Failed to submit results. Please try again.', { id: "submit-all-results" });
     }
   };
@@ -1549,7 +2001,13 @@ export function CompileResultsPage() {
             <div className="grid md:grid-cols-2 gap-3">
               <div>
                 <Label className="text-[#0A2540] mb-1 block text-sm">Class</Label>
-                <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+                <Select
+                  value={selectedClassId}
+                  onValueChange={(value) => {
+                    const canonical = resolveCanonicalClassId(value) ?? value;
+                    setSelectedClassId(canonical);
+                  }}
+                >
                   <SelectTrigger className="h-9 rounded-lg border-[#0A2540]/20">
                     <SelectValue placeholder="Select class" />
                   </SelectTrigger>
@@ -1571,10 +2029,10 @@ export function CompileResultsPage() {
               </div>
             </div>
 
-            {selectedClassId && classSubjects.length > 0 && (
+            {selectedClassId && classSubjectIdSet.size > 0 && (
               <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-xs text-blue-900">
-                  <strong>{classSubjects.length} subjects</strong> assigned to this class for {currentTerm} {currentAcademicYear}
+                  <strong>{classSubjectIdSet.size} subjects</strong> assigned to this class for {currentTerm} {currentAcademicYear}
                 </p>
               </div>
             )}
@@ -1642,18 +2100,19 @@ export function CompileResultsPage() {
                           <Avatar className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#1E40AF] shadow-sm">
                             {student.photo_url ? (
                               <img 
-                                src={student.photo_url} 
+                                src={getStudentPhotoCandidates(student)[0] || ''} 
                                 alt={`${student.firstName} ${student.lastName}`}
                                 className="w-full h-full object-cover rounded-full"
+                                data-candidate-idx={0}
                                 onError={(e) => {
-                                  // Fallback to initials if image fails to load
-                                  e.currentTarget.style.display = 'none';
-                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                  handleStudentPhotoError(e, student);
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
                                 }}
                               />
                             ) : null}
-                            <AvatarFallback className="bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] text-white text-xs sm:text-sm font-semibold">
-                              {student.firstName[0]}{student.lastName[0]}
+                            <AvatarFallback className="bg-[#1E40AF] text-white font-bold">
+                              {student.firstName.charAt(0)}{student.lastName.charAt(0)}
                             </AvatarFallback>
                           </Avatar>
                           
@@ -1753,19 +2212,21 @@ export function CompileResultsPage() {
                 <Avatar className="w-12 h-12 border-2 border-[#1E40AF] shadow-lg">
                   {selectedStudent.photo_url ? (
                     <img 
-                      src={selectedStudent.photo_url} 
+                      src={getStudentPhotoCandidates(selectedStudent)[0] || ''} 
                       alt={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
                       className="w-full h-full object-cover rounded-full"
+                      data-candidate-idx={0}
                       onError={(e) => {
-                        // Fallback to initials if image fails to load
-                        e.currentTarget.style.display = 'none';
-                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        handleStudentPhotoError(e, selectedStudent);
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
                       }}
                     />
-                  ) : null}
-                  <AvatarFallback className="bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] text-white text-sm font-bold">
-                    {selectedStudent.firstName[0]}{selectedStudent.lastName[0]}
-                  </AvatarFallback>
+                  ) : (
+                    <AvatarFallback className="bg-[#1E40AF] text-white font-bold text-lg">
+                      {selectedStudent.firstName.charAt(0)}{selectedStudent.lastName.charAt(0)}
+                    </AvatarFallback>
+                  )}
                 </Avatar>
                 <div>
                   <p className="text-lg font-bold text-[#0A2540]">{selectedStudent.firstName} {selectedStudent.lastName}</p>
@@ -1862,50 +2323,46 @@ export function CompileResultsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 sm:p-4">
-              {classSubjects.length === 0 ? (
-                <div className="text-center py-8">
-                  <Book className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 font-semibold text-base">No subjects assigned to this class</p>
-                  <p className="text-gray-400 text-xs sm:text-sm">Subjects will appear here once they are assigned</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {classSubjects.map((subject: any) => {
-                    const score = Array.isArray(studentResultData.scores) ? studentResultData.scores.find(s => s.subject_assignment_id === subject.id) : undefined;
-                    return (
-                      <div key={subject.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 hover:shadow-md transition-all gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-sm">
-                            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                          </div>
-                          <div>
-                            <p className="text-sm sm:text-base font-bold text-[#0A2540]">{subject.name || 'Unknown Subject'}</p>
-                            <p className="text-xs text-[#64748B] font-mono">{subject.subject_code || ''}</p>
-                          </div>
+              <div className="space-y-3">
+                {(classSubjects || []).map((subject: any) => {
+                  const score = (studentResultData?.scores || []).find((s: any) => {
+                    const subId = assignmentIdToSubjectId.get(Number((s as any)?.subject_assignment_id));
+                    return String(subId || '') === String(subject?.subject_id || '');
+                  });
+
+                  return (
+                    <div key={subject.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 hover:shadow-md transition-all gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-sm">
+                          <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                         </div>
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
-                            <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">CA1</p>
-                            <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.ca1 || 0}</p>
-                          </div>
-                          <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
-                            <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">CA2</p>
-                            <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.ca2 || 0}</p>
-                          </div>
-                          <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
-                            <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Exam</p>
-                            <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.exam || 0}</p>
-                          </div>
-                          <div className="text-center bg-gradient-to-r from-green-100 to-green-200 p-2 rounded-xl border border-green-300 min-w-[60px]">
-                            <p className="text-xs font-bold text-green-800 uppercase tracking-wider mb-1">Total</p>
-                            <p className="text-sm sm:text-base font-bold text-green-600">{score?.total || 0}</p>
-                          </div>
+                        <div>
+                          <p className="text-sm sm:text-base font-bold text-[#0A2540]">{subject.name || 'Unknown Subject'}</p>
+                          <p className="text-xs text-[#64748B] font-mono">{subject.subject_code || ''}</p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
+                          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">CA1</p>
+                          <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.ca1 || 0}</p>
+                        </div>
+                        <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
+                          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">CA2</p>
+                          <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.ca2 || 0}</p>
+                        </div>
+                        <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
+                          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Exam</p>
+                          <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.exam || 0}</p>
+                        </div>
+                        <div className="text-center bg-gradient-to-r from-green-100 to-green-200 p-2 rounded-xl border border-green-300 min-w-[60px]">
+                          <p className="text-xs font-bold text-green-800 uppercase tracking-wider mb-1">Total</p>
+                          <p className="text-sm sm:text-base font-bold text-green-600">{score?.total || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
 

@@ -161,7 +161,7 @@ export function PsychomotorDomainsPage() {
         await addPsychomotorDomain(payload);
       }
     } catch (error) {
-      console.error('Error saving psychomotor domain data:', error);
+      // Silent fail for security
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -19,8 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useSchool, Student as SchoolStudent } from '../../contexts/SchoolContext';
+import { API_CONFIG } from '../../config/api';
 import { Users, User, Phone, Mail, Download, Search, Trophy, Target, TrendingUp } from 'lucide-react';
 
 interface ExtendedStudent extends SchoolStudent {
@@ -47,12 +48,13 @@ export function ClassListPage() {
     loadStudentsFromAPI,
     loadParentsFromAPI,
     loadCompiledResultsFromAPI,
-    loadClassesFromAPI
+    loadClassesFromAPI,
+    loadClassTeacherAssignmentsFromAPI
   } = useSchool();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClassId, setSelectedClassId] = useState<number>(() => {
-    const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+    const currentTeacher = currentUser ? teachers.find(t => String(t.id) === String(currentUser.linked_id)) : null;
     const classTeacherClasses = classes.filter((c: any) => {
       const assignment = classTeacherAssignments.find((cta: any) => 
         String(cta.teacher_id) === String(currentTeacher?.id) && 
@@ -72,22 +74,54 @@ export function ClassListPage() {
   const [selectedStudent, setSelectedStudent] = useState<ExtendedStudent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const lastLoadKeyRef = useRef<string>('');
+  const didNormalizeSelectedClassRef = useRef<boolean>(false);
+
+  const resolveCanonicalClassId = (classId: any): number | null => {
+    if (!classId) return null;
+    const baseClass = (classes || []).find((c: any) => String(c.id) === String(classId));
+    if (!baseClass) return Number(classId) || null;
+
+    const siblings = (classes || []).filter((c: any) =>
+      String(c.name).trim().toLowerCase() === String(baseClass.name).trim().toLowerCase() &&
+      String(c.level).trim().toLowerCase() === String(baseClass.level).trim().toLowerCase()
+    );
+
+    if (siblings.length <= 1) return Number(baseClass.id) || null;
+
+    const best = siblings
+      .map((c: any) => ({
+        id: c.id,
+        count: (allStudents || []).filter((s: any) => String(s.class_id) === String(c.id)).length,
+      }))
+      .sort((a: any, b: any) => b.count - a.count)[0];
+
+    return best?.id ? Number(best.id) : (Number(baseClass.id) || null);
+  };
 
   // Load data when component mounts
   useEffect(() => {
     const loadData = async () => {
+      const loadKey = `${String(currentTerm ?? '')}__${String(currentAcademicYear ?? '')}`;
+      if (lastLoadKeyRef.current === loadKey && (classes?.length || 0) > 0 && (allStudents?.length || 0) > 0) {
+        return;
+      }
+      lastLoadKeyRef.current = loadKey;
+
       setIsLoading(true);
       setError(null);
       try {
         // Load all necessary data in parallel
         await Promise.all([
+          currentTerm && currentAcademicYear
+            ? loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear)
+            : Promise.resolve(true),
           loadStudentsFromAPI(),
           loadParentsFromAPI(),
           loadCompiledResultsFromAPI(),
           loadClassesFromAPI()
         ]);
       } catch (error) {
-        console.error('Error loading class list data:', error);
         setError('Failed to load class data. Please try again.');
       } finally {
         setIsLoading(false);
@@ -95,7 +129,7 @@ export function ClassListPage() {
     };
 
     loadData();
-  }, []); // Empty dependency array - only load once on mount
+  }, [currentTerm, currentAcademicYear, loadClassTeacherAssignmentsFromAPI, loadStudentsFromAPI, loadParentsFromAPI, loadCompiledResultsFromAPI, loadClassesFromAPI]);
 
   // Refresh data when class changes (optional)
   useEffect(() => {
@@ -107,7 +141,7 @@ export function ClassListPage() {
             loadCompiledResultsFromAPI()
           ]);
         } catch (error) {
-          console.error('Error refreshing class data:', error);
+          // Silent fail for security
         }
       };
 
@@ -115,11 +149,23 @@ export function ClassListPage() {
     }
   }, [selectedClassId, isLoading]);
 
+  useEffect(() => {
+    if (isLoading) return;
+    if (didNormalizeSelectedClassRef.current) return;
+    const canonical = resolveCanonicalClassId(selectedClassId);
+    if (canonical && canonical !== selectedClassId) {
+      didNormalizeSelectedClassRef.current = true;
+      setSelectedClassId(canonical);
+      return;
+    }
+    didNormalizeSelectedClassRef.current = true;
+  }, [isLoading, selectedClassId, classes, allStudents]);
+
   // Get teacher's classes based on class teacher assignment only
-  const currentTeacher = currentUser ? teachers.find(t => t.id === String(currentUser.linked_id)) : null;
+  const currentTeacher = currentUser ? teachers.find(t => String(t.id) === String(currentUser.linked_id)) : null;
   const teacherClasses = classes.filter((c: any) => {
     const assignment = classTeacherAssignments.find((cta: any) => 
-      String(cta.teacher_id) === String(currentUser?.linked_id) && 
+      String(cta.teacher_id) === String(currentTeacher?.id) && 
       String(cta.class_id) === String(c.id) &&
       cta.academic_year === currentAcademicYear && 
       cta.term === currentTerm &&
@@ -128,13 +174,31 @@ export function ClassListPage() {
     return !!assignment;
   });
 
+  const effectiveTeacherClasses = useMemo(() => {
+    const seen = new Set<string>();
+    return (teacherClasses || []).map((c: any) => {
+      const canonicalId = resolveCanonicalClassId(c.id);
+      const canonicalClass = (classes || []).find((cc: any) => String(cc.id) === String(canonicalId)) || c;
+      return canonicalClass;
+    }).filter((c: any) => {
+      const key = String(c.id);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [teacherClasses, classes, allStudents]);
+
   // Fallback: If teacher has no class teacher assignments, show all classes
-  const availableClasses = teacherClasses.length > 0 ? teacherClasses : classes;
+  const availableClasses = effectiveTeacherClasses.length > 0 ? effectiveTeacherClasses : classes;
 
   // Get current class - from available classes, but prefer one with students
-  const selectedClass = availableClasses.find(c => c.id === selectedClassId) || 
-    availableClasses.find(c => allStudents.some(s => s.class_id === c.id && s.status === 'Active')) || 
-    availableClasses.find(c => allStudents.some(s => s.class_id === c.id)) || 
+  const effectiveSelectedClassId = useMemo(() => {
+    const canonical = resolveCanonicalClassId(selectedClassId);
+    return canonical ?? selectedClassId;
+  }, [selectedClassId, classes, allStudents]);
+
+  const selectedClass = availableClasses.find((c: any) => String(c.id) === String(effectiveSelectedClassId)) ||
+    availableClasses.find((c: any) => allStudents.some((s: any) => String(s.class_id) === String(c.id))) ||
     availableClasses[0];
 
   // Get students from selected class with extended data
@@ -142,7 +206,12 @@ export function ClassListPage() {
     if (!selectedClass) return []; // Return empty if no class is selected
     
     return allStudents
-      .filter(s => String(s.class_id) === String(selectedClassId) && s.status === 'Active')
+      .filter(s => {
+        const isSameClass = String(s.class_id) === String(effectiveSelectedClassId);
+        const status = String((s as any)?.status ?? '').trim().toLowerCase();
+        const isActive = status === '' || status === 'active';
+        return isSameClass && isActive;
+      })
       .map((student, index) => {
         const parent = parents.find(p => p.id === student.parent_id);
         // Filter compiled results for current student, term, academic year, and approved status
@@ -161,14 +230,20 @@ export function ClassListPage() {
           parentName: parent ? `${parent.firstName} ${parent.lastName}` : 'N/A',
           parentPhone: parent?.phone || 'N/A',
           parentEmail: parent?.email || 'N/A',
-          attendance: studentResults.length > 0 ? (studentResults[0].attendance_rate || 0) : 0, // Use attendance from compiled results
+          attendance: studentResults.length > 0 ? (() => {
+            const r: any = studentResults[0];
+            const timesPresent = Number(r?.times_present ?? r?.timesPresent ?? 0);
+            const totalDays = Number(r?.total_attendance_days ?? r?.totalAttendanceDays ?? 0);
+            if (!Number.isFinite(timesPresent) || !Number.isFinite(totalDays) || totalDays <= 0) return 0;
+            return Math.round((timesPresent / totalDays) * 100);
+          })() : 0,
           averageScore: averageScore || 0,
           position: index + 1, // Will be recalculated based on scores
         };
       })
       .sort((a, b) => b.averageScore - a.averageScore)
       .map((student, index) => ({ ...student, position: index + 1 }));
-  }, [allStudents, selectedClassId, parents, compiledResults, selectedClass, currentTerm, currentAcademicYear]);
+  }, [allStudents, effectiveSelectedClassId, parents, compiledResults, selectedClass, currentTerm, currentAcademicYear]);
 
   const handleViewDetails = (student: any) => {
     setSelectedStudent(student);
@@ -208,6 +283,72 @@ export function ClassListPage() {
     const lastName = student?.lastName || '';
     const fullName = `${firstName} ${lastName}`.trim() || 'Unknown Student';
     return fullName;
+  };
+
+  const getStudentAvatarSrc = (student: any): string | undefined => {
+    const rawUrl =
+      student?.photoUrl ||
+      student?.photo_url ||
+      student?.photoURL ||
+      student?.passportPhoto ||
+      student?.passport_photo ||
+      student?.passport;
+
+    if (!rawUrl) return undefined;
+    if (typeof rawUrl !== 'string') return undefined;
+
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return undefined;
+
+    if (/^data:image\//i.test(trimmed)) return trimmed;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+
+    if (/^[A-Za-z0-9+/=]+$/.test(trimmed) && trimmed.length > 200) {
+      return `data:image/jpeg;base64,${trimmed}`;
+    }
+
+    return trimmed;
+  };
+
+  const getStudentAvatarCandidates = (student: any): string[] => {
+    const base = getStudentAvatarSrc(student);
+    if (!base) return [];
+
+    if (/^data:image\//i.test(base) || /^https?:\/\//i.test(base)) {
+      return [base];
+    }
+
+    let apiOrigin = '';
+    try {
+      const apiBase = API_CONFIG?.BASE_URL || '';
+      apiOrigin = apiBase ? new URL(apiBase).origin : '';
+    } catch {
+      apiOrigin = '';
+    }
+
+    const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const path = String(base || '').trim();
+    const normalizedPath = path.startsWith('/') ? path : `/${path.replace(/^\/+/, '')}`;
+
+    const candidates: string[] = [];
+
+    if (appOrigin) candidates.push(`${appOrigin}${normalizedPath}`);
+    if (apiOrigin) candidates.push(`${apiOrigin}${normalizedPath}`);
+
+    candidates.push(path);
+
+    return Array.from(new Set(candidates)).filter(Boolean);
+  };
+
+  const handleAvatarImageError = (e: React.SyntheticEvent<HTMLImageElement>, student: any) => {
+    const img = e.currentTarget;
+    const candidates = getStudentAvatarCandidates(student);
+    const idx = Number(img.dataset.candidateIdx || '0');
+    const nextIdx = idx + 1;
+    if (nextIdx < candidates.length) {
+      img.dataset.candidateIdx = String(nextIdx);
+      img.src = candidates[nextIdx];
+    }
   };
 
   const exportToCSV = () => {
@@ -262,12 +403,19 @@ export function ClassListPage() {
           <p className="text-gray-600">Manage and view your class students</p>
         </div>
         {teacherClasses.length > 0 && (
-          <Select value={selectedClassId.toString()} onValueChange={(value: string) => setSelectedClassId(Number(value))}>
+          <Select
+            value={selectedClassId.toString()}
+            onValueChange={(value: string) => {
+              const rawId = Number(value);
+              const canonicalId = resolveCanonicalClassId(rawId) ?? rawId;
+              setSelectedClassId(canonicalId);
+            }}
+          >
             <SelectTrigger className="w-48 border-[#0A2540]/20 rounded-xl">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {teacherClasses.map(cls => (
+              {effectiveTeacherClasses.map(cls => (
                 <SelectItem key={cls.id} value={cls.id.toString()}>{cls.name}</SelectItem>
               ))}
             </SelectContent>
@@ -445,6 +593,12 @@ export function ClassListPage() {
                           {student.position}
                         </div>
                         <Avatar className="h-10 w-10 bg-gradient-to-br from-[#0A2540] to-[#1E40AF] text-white font-semibold">
+                          <AvatarImage
+                            src={getStudentAvatarCandidates(student)[0]}
+                            alt={getStudentFullName(student)}
+                            className="object-cover"
+                            onError={(e) => handleAvatarImageError(e, student)}
+                          />
                           <AvatarFallback className="bg-transparent text-sm">
                             {getInitials(getStudentFullName(student))}
                           </AvatarFallback>
@@ -585,6 +739,12 @@ export function ClassListPage() {
                       <TableCell className="py-4">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-12 w-12 bg-gradient-to-br from-[#0A2540] to-[#1E40AF] text-white font-semibold">
+                            <AvatarImage
+                              src={getStudentAvatarCandidates(student)[0]}
+                              alt={getStudentFullName(student)}
+                              className="object-cover"
+                              onError={(e) => handleAvatarImageError(e, student)}
+                            />
                             <AvatarFallback className="bg-transparent">
                               {getInitials(getStudentFullName(student))}
                             </AvatarFallback>
@@ -697,6 +857,12 @@ export function ClassListPage() {
             {/* Student Info */}
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20 bg-[#0A2540] text-white text-xl">
+                <AvatarImage
+                  src={selectedStudent ? getStudentAvatarCandidates(selectedStudent)[0] : undefined}
+                  alt={selectedStudent ? getStudentFullName(selectedStudent) : 'Student'}
+                  className="object-cover"
+                  onError={(e) => selectedStudent && handleAvatarImageError(e, selectedStudent)}
+                />
                 <AvatarFallback className="bg-[#0A2540] text-white">
                   {selectedStudent && getInitials(getStudentFullName(selectedStudent))}
                 </AvatarFallback>
