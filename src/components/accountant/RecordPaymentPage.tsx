@@ -54,7 +54,6 @@ export function RecordPaymentPage() {
   const [showRecentPayments, setShowRecentPayments] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [recordedPayment, setRecordedPayment] = useState<any>(null);
-  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -124,7 +123,6 @@ export function RecordPaymentPage() {
 
     if (student) {
       setSelectedStudentId(student.id);
-      setShowStudentDropdown(false);
     } else {
       setSelectedStudentId(null);
       toast.error("Student not found");
@@ -137,7 +135,6 @@ export function RecordPaymentPage() {
     if (student) {
       setSearchTerm(`${student.firstName} ${student.lastName}`);
     }
-    setShowStudentDropdown(false);
   };
 
   // Quick amount presets

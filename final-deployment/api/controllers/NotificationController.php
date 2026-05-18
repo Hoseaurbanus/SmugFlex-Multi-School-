@@ -549,29 +549,54 @@ class NotificationController {
     public function getUserNotifications() {
         $token_data = Middleware::requireAuth();
         
-        // FIX: Allow up to 1000 notifications as requested by frontend
+        // FIX: Remove limit restriction to allow unlimited notifications
         $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
         if ($page < 1) $page = 1;
-        if ($limit < 1 || $limit > 1000) $limit = 20; // Increased max to 1000
+        if ($limit < 1) $limit = 20;
         $offset = ($page - 1) * $limit;
         
         try {
-            // FIX: Check MySQL version and column existence
-            $version_query = $this->conn->query("SELECT VERSION()");
-            $version = $version_query->fetchColumn();
-            $supports_json = version_compare($version, '5.7.8', '>=') || 
-                            (stripos($version, 'MariaDB') !== false && version_compare($version, '10.2.3', '>='));
+            // FIX: Check MySQL version and column existence with error handling
+            $version = '5.7.0'; // Default fallback
+            $supports_json = false;
+            try {
+                $version_query = $this->conn->query("SELECT VERSION()");
+                if ($version_query) {
+                    $version = $version_query->fetchColumn();
+                    $supports_json = version_compare($version, '5.7.8', '>=') || 
+                                    (stripos($version, 'MariaDB') !== false && version_compare($version, '10.2.3', '>='));
+                }
+            } catch (PDOException $e) {
+                error_log("Warning: Could not check MySQL version: " . $e->getMessage());
+                // Continue with default values
+            }
 
-            // FIX: Check if deleted_by column exists
-            $col_check = $this->conn->prepare("SHOW COLUMNS FROM notifications LIKE 'deleted_by'");
-            $col_check->execute();
-            $has_deleted_by = $col_check->fetch(PDO::FETCH_ASSOC) !== false;
+            // FIX: Check if deleted_by column exists with error handling
+            $has_deleted_by = false;
+            try {
+                $col_check = $this->conn->prepare("SHOW COLUMNS FROM notifications LIKE 'deleted_by'");
+                if ($col_check) {
+                    $col_check->execute();
+                    $has_deleted_by = $col_check->fetch(PDO::FETCH_ASSOC) !== false;
+                }
+            } catch (PDOException $e) {
+                error_log("Warning: Could not check deleted_by column: " . $e->getMessage());
+                // Continue assuming column doesn't exist
+            }
 
-            // FIX: Check if user_notifications table exists
-            $table_check = $this->conn->prepare("SHOW TABLES LIKE 'user_notifications'");
-            $table_check->execute();
-            $has_user_notifications = $table_check->fetch(PDO::FETCH_ASSOC) !== false;
+            // FIX: Check if user_notifications table exists with error handling
+            $has_user_notifications = false;
+            try {
+                $table_check = $this->conn->prepare("SHOW TABLES LIKE 'user_notifications'");
+                if ($table_check) {
+                    $table_check->execute();
+                    $has_user_notifications = $table_check->fetch(PDO::FETCH_ASSOC) !== false;
+                }
+            } catch (PDOException $e) {
+                error_log("Warning: Could not check user_notifications table: " . $e->getMessage());
+                // Continue assuming table doesn't exist
+            }
 
             // Build query dynamically based on schema
             $select_cols = "n.*, CONCAT(u.first_name, ' ', u.last_name) as created_by_name";
@@ -633,7 +658,13 @@ class NotificationController {
             Response::success($notifications, 'User notifications retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("Database error in getUserNotifications: " . $e->getMessage());
+            error_log("Error details: " . $e->getTraceAsString());
             Response::serverError('Database error retrieving user notifications');
+        } catch (Exception $e) {
+            error_log("General error in getUserNotifications: " . $e->getMessage());
+            error_log("Error details: " . $e->getTraceAsString());
+            Response::serverError('Error retrieving user notifications');
         }
     }
     

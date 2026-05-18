@@ -40,6 +40,7 @@ export const API_CONFIG = {
     // Authentication
     AUTH: {
       LOGIN: '/auth/login',
+      STUDENT_LOGIN: '/auth/student-login',
       LOGOUT: '/auth/logout',
       PROFILE: '/auth/profile',
       CHANGE_PASSWORD: '/auth/change-password',
@@ -188,6 +189,38 @@ export const API_CONFIG = {
       CLASS_PERFORMANCE: '/reports/class',
       FINANCIAL: '/reports/financial',
       ATTENDANCE: '/reports/attendance'
+    },
+
+    // CBT/Exam
+    CBT: {
+      EXAMS: '/cbt/exams',
+      EXAM_DETAIL: (id: number) => `/cbt/exams/${id}`,
+      CREATE_EXAM: '/cbt/exams',
+      UPDATE_EXAM: (id: number) => `/cbt/exams/${id}`,
+      DELETE_EXAM: (id: number) => `/cbt/exams/${id}`,
+      PUBLISH_EXAM: (id: number) => `/cbt/exams/publish/${id}`,
+      QUESTIONS: (examId: number) => `/cbt/questions/${examId}`,
+      QUESTION_DETAIL: (examId: number, questionId: number) => `/cbt/questions/${examId}/${questionId}`,
+      UPDATE_QUESTION: (examId: number, questionId: number) => `/cbt/questions/${examId}/${questionId}`,
+      DELETE_QUESTION: (examId: number, questionId: number) => `/cbt/questions/${examId}/${questionId}`,
+      REORDER: (examId: number) => `/cbt/questions-reorder/${examId}`,
+      QUESTION_BANK: '/cbt/question-bank',
+      QUESTION_BANK_ITEM: (id: number) => `/cbt/question-bank/${id}`,
+      IMPORT_BANK: (examId: number) => `/cbt/import-bank/${examId}`,
+      START_ATTEMPT: (examId: number) => `/cbt/start/${examId}`,
+      SAVE_ANSWER: (attemptId: number) => `/cbt/save-answer/${attemptId}`,
+      SUBMIT_ATTEMPT: (attemptId: number) => `/cbt/submit/${attemptId}`,
+      ATTEMPTS: '/cbt/attempts',
+      MY_ATTEMPTS: '/cbt/attempts/mine',
+      ATTEMPT_DETAIL: (attemptId: number) => `/cbt/attempts/${attemptId}`,
+      STUDENT_EXAMS: '/cbt/student-exams',
+      RESULTS: (examId: number) => `/cbt/results/${examId}`,
+      FEED_SCORES: (examId: number) => `/cbt/feed-scores/${examId}`,
+      DELETE_SCORES: (examId: number) => `/cbt/scores/${examId}`,
+      // Question extensions
+      BULK_IMPORT: (examId: number) => `/cbt/bulk-import/${examId}`,
+      UPLOAD_IMAGE: '/cbt/upload-image',
+      GENERATE_QUESTIONS: '/cbt/generate-questions'
     }
   }
 };

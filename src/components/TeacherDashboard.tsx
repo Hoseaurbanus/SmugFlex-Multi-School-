@@ -1,4 +1,4 @@
-import { LogOut, Book, LayoutDashboard, BookOpen, FileSpreadsheet, Users, MessageSquare, Calendar, PenTool, Award, Heart, Activity } from 'lucide-react';
+import { LogOut, Book, LayoutDashboard, BookOpen, FileSpreadsheet, Users, MessageSquare, Calendar, PenTool, Award, Heart, Activity, Monitor } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
@@ -15,6 +15,7 @@ import { ScoreApprovalPage } from "./teacher/ScoreApprovalPage";
 import { ViewExamTimetablePage } from "./shared/ViewExamTimetablePage";
 import { ChangePasswordPage } from "./ChangePasswordPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
+import { CbtExamListPage } from "./cbt/CbtExamListPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { useSchool } from "../contexts/SchoolContext";
 import { useNotificationListener } from "../contexts/NotificationService";
@@ -306,6 +307,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     { icon: <MessageSquare className="w-5 h-5" />, label: "Message Parents", id: "message-parents" },
     { icon: <Calendar className="w-5 h-5" />, label: "Change Password", id: "change-password" },
     { icon: <Calendar className="w-5 h-5" />, label: "Exam Timetable", id: "exam-timetable" },
+    { icon: <Monitor className="w-5 h-5" />, label: "CBT Exams", id: "cbt-exams" },
     { icon: <Calendar className="w-5 h-5" />, label: "Mark Attendance", id: "mark-attendance", classTeacherOnly: true },
     { icon: <Heart className="w-5 h-5" />, label: "Student Domains", id: "domains", classTeacherOnly: true },
     { icon: <LogOut className="w-5 h-5" />, label: "Logout", id: "logout" },
@@ -516,10 +518,10 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {activeItem === "message-parents" && <MessageParentsPage />}
           {activeItem === "change-password" && <ChangePasswordPage />}
           {activeItem === "exam-timetable" && <ViewExamTimetablePage userRole="teacher" />}
+          {activeItem === "cbt-exams" && <CbtExamListPage />}
           {activeItem === "mark-attendance" && <MarkAttendancePage />}
-          {activeItem === "domains" && <DomainsPage />}
           
-          {!["dashboard", "class-list", "enter-scores", "compile-results", "approve-scores", "message-parents", "change-password", "mark-attendance", "domains", "exam-timetable"].includes(activeItem) && (
+          {!["dashboard", "class-list", "enter-scores", "compile-results", "approve-scores", "message-parents", "change-password", "mark-attendance", "domains", "exam-timetable", "cbt-exams"].includes(activeItem) && (
             <div className="space-y-6">
               <div className="flex items-center justify-center min-h-[400px]">
                 <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical max-w-md w-full">

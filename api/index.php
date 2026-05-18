@@ -51,6 +51,7 @@ require_once 'controllers/FileController.php';
 require_once 'controllers/UserController.php';
 require_once 'controllers/ProgressionController.php';
 require_once 'controllers/RealtimeController.php';
+require_once 'controllers/CbtController.php';
 
 // Get request method and path
 $method = $_SERVER['REQUEST_METHOD'];
@@ -116,6 +117,8 @@ try {
 
             if ($method === 'POST' && $path_parts[1] === 'login') {
                 $authController->login();
+            } elseif ($method === 'POST' && $path_parts[1] === 'student-login') {
+                $authController->studentLogin();
             } elseif ($method === 'POST' && $path_parts[1] === 'logout') {
                 $authController->logout();
             } elseif ($method === 'GET' && $path_parts[1] === 'profile') {
@@ -299,6 +302,8 @@ try {
                         $classController->getClassesByLevel($path_parts[2]);
                     } elseif ($path_parts[1] === 'whatsapp-groups') {
                         $classController->getClassWhatsappGroups();
+                    } elseif ($path_parts[1] === 'public-list') {
+                        $classController->getPublicClassList();
                     } else {
                         $classController->getClassById($path_parts[1]);
                     }
@@ -683,6 +688,105 @@ try {
         // Academic Years routes
         case 'academic_years':
             require_once 'academic_years.php';
+            break;
+
+        // CBT routes
+        case 'cbt':
+            $cbtController = new CbtController();
+
+            if ($method === 'GET') {
+                if (isset($path_parts[1])) {
+                    if ($path_parts[1] === 'exams' && !isset($path_parts[2])) {
+                        $cbtController->getAllExams();
+                    } elseif ($path_parts[1] === 'exams' && isset($path_parts[2])) {
+                        $cbtController->getExamById($path_parts[2]);
+                    } elseif ($path_parts[1] === 'questions' && isset($path_parts[2])) {
+                        $cbtController->getExamQuestions($path_parts[2]);
+                    } elseif ($path_parts[1] === 'question-bank') {
+                        $cbtController->getQuestionBank();
+                    } elseif ($path_parts[1] === 'attempts' && isset($path_parts[2]) && $path_parts[2] === 'mine') {
+                        $cbtController->getMyAttempts();
+                    } elseif ($path_parts[1] === 'attempts' && isset($path_parts[2])) {
+                        $cbtController->getAttemptById($path_parts[2]);
+                    } elseif ($path_parts[1] === 'attempts') {
+                        $cbtController->getStudentAttempts();
+                    } elseif ($path_parts[1] === 'results' && isset($path_parts[2])) {
+                        $cbtController->getExamResults($path_parts[2]);
+                    } elseif ($path_parts[1] === 'student-exams') {
+                        $cbtController->getStudentAvailableExams();
+                    } else {
+                        Response::notFound('CBT endpoint not found');
+                    }
+                } else {
+                    Response::notFound('CBT endpoint not found');
+                }
+            } elseif ($method === 'POST') {
+                if (isset($path_parts[1])) {
+                    if ($path_parts[1] === 'exams' && !isset($path_parts[2])) {
+                        $cbtController->createExam();
+                    } elseif ($path_parts[1] === 'exams' && isset($path_parts[2]) && $path_parts[2] === 'publish' && isset($path_parts[3])) {
+                        $cbtController->publishExam($path_parts[3]);
+                    } elseif ($path_parts[1] === 'questions' && isset($path_parts[2])) {
+                        $cbtController->addQuestion($path_parts[2]);
+                    } elseif ($path_parts[1] === 'questions-reorder' && isset($path_parts[2])) {
+                        $cbtController->reorderQuestions($path_parts[2]);
+                    } elseif ($path_parts[1] === 'import-bank' && isset($path_parts[2])) {
+                        $cbtController->importFromBank($path_parts[2]);
+                    } elseif ($path_parts[1] === 'question-bank') {
+                        $cbtController->addToQuestionBank();
+                    } elseif ($path_parts[1] === 'start' && isset($path_parts[2])) {
+                        $cbtController->startAttempt($path_parts[2]);
+                    } elseif ($path_parts[1] === 'save-answer' && isset($path_parts[2])) {
+                        $cbtController->saveAnswer($path_parts[2]);
+                    } elseif ($path_parts[1] === 'submit' && isset($path_parts[2])) {
+                        $cbtController->submitAttempt($path_parts[2]);
+                    } elseif ($path_parts[1] === 'feed-scores' && isset($path_parts[2])) {
+                        $cbtController->feedExamScores($path_parts[2]);
+                    } elseif ($path_parts[1] === 'bulk-import' && isset($path_parts[2])) {
+                        $cbtController->bulkImportQuestions($path_parts[2]);
+                    } elseif ($path_parts[1] === 'upload-image') {
+                        $cbtController->uploadQuestionImage();
+                    } elseif ($path_parts[1] === 'generate-questions') {
+                        $cbtController->generateQuestionsFromMaterial();
+                    } else {
+                        Response::notFound('CBT endpoint not found');
+                    }
+                } else {
+                    Response::notFound('CBT endpoint not found');
+                }
+            } elseif ($method === 'PUT') {
+                if (isset($path_parts[1])) {
+                    if ($path_parts[1] === 'exams' && isset($path_parts[2])) {
+                        $cbtController->updateExam($path_parts[2]);
+                    } elseif ($path_parts[1] === 'questions' && isset($path_parts[2]) && isset($path_parts[3])) {
+                        $cbtController->updateQuestion($path_parts[2], $path_parts[3]);
+                    } else {
+                        Response::notFound('CBT endpoint not found');
+                    }
+                } else {
+                    Response::notFound('CBT endpoint not found');
+                }
+            } elseif ($method === 'DELETE') {
+                if (isset($path_parts[1])) {
+                    if ($path_parts[1] === 'exams' && isset($path_parts[2])) {
+                        $cbtController->deleteExam($path_parts[2]);
+                    } elseif ($path_parts[1] === 'questions' && isset($path_parts[2]) && isset($path_parts[3])) {
+                        $cbtController->deleteQuestion($path_parts[2], $path_parts[3]);
+                    } elseif ($path_parts[1] === 'question-bank' && isset($path_parts[2])) {
+                        $cbtController->deleteFromQuestionBank($path_parts[2]);
+                    } elseif ($path_parts[1] === 'scores' && isset($path_parts[2])) {
+                        $cbtController->deleteExamScores($path_parts[2]);
+                    } elseif ($path_parts[1] === 'attempts' && isset($path_parts[2])) {
+                        $cbtController->deleteAttempt($path_parts[2]);
+                    } else {
+                        Response::notFound('CBT endpoint not found');
+                    }
+                } else {
+                    Response::notFound('CBT endpoint not found');
+                }
+            } else {
+                Response::notFound('CBT endpoint not found');
+            }
             break;
 
         // Default route

@@ -28,7 +28,11 @@ export function ScoreEntryPage() {
     currentAcademicYear,
     subjectAssignments,
     addNotification,
-    compiledResults
+    compiledResults,
+    cbtAttempts,
+    loadCbtAttemptsFromAPI,
+    cbtExams,
+    loadCbtExamsFromAPI
   } = useSchool();
 
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -41,6 +45,37 @@ export function ScoreEntryPage() {
   const [lastManualSave, setLastManualSave] = useState<number>(0);
   const [selectedTerm, setSelectedTerm] = useState<string>(currentTerm || '');
   const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear || '');
+  const [cbtOverride, setCbtOverride] = useState<Record<number, boolean>>({});
+
+  const cbtScoresByStudent = useMemo(() => {
+    if (!selectedSubjectId || !selectedTerm || !selectedYear) return {} as Record<number, { slot: string; score: number; max: number; percentage: number }>;
+    const relevantExams = cbtExams.filter((e: any) =>
+      String(e.subject_id) === String(selectedSubjectId) &&
+      e.feed_into_scores && e.status === 'Active' && e.published
+    );
+    const examIds = new Set(relevantExams.map((e: any) => e.id));
+    const result: Record<number, { slot: string; score: number; max: number; percentage: number }> = {};
+    cbtAttempts.forEach((a: any) => {
+      if (examIds.has(a.exam_id) && (a.status === 'submitted' || a.status === 'scored')) {
+        if (!result[a.student_id]) {
+          result[a.student_id] = {
+            slot: relevantExams.find((e: any) => e.id === a.exam_id)?.score_slot || 'first_test',
+            score: a.score,
+            max: a.max_score,
+            percentage: a.percentage
+          };
+        }
+      }
+    });
+    return result;
+  }, [selectedSubjectId, selectedTerm, selectedYear, cbtExams, cbtAttempts]);
+
+  useEffect(() => {
+    if (selectedClassId && selectedSubjectId) {
+      loadCbtExamsFromAPI();
+      loadCbtAttemptsFromAPI();
+    }
+  }, [selectedClassId, selectedSubjectId]);
 
   // Check if selected class is CRECHE (dynamic detection)
   const isCrecheClass = useMemo(() => {
@@ -1517,26 +1552,84 @@ export function ScoreEntryPage() {
                         {!isCrecheClass && (
                           <>
                             <td className="p-1 text-center">
-                              <Input
-                                type="number"
-                                min="0"
-                                value={displayData.ca1}
-                                onChange={(e) => handleScoreChange(student.id, 'ca1', e.target.value)}
-                                className="w-16 mx-auto text-center rounded-lg border-[#E5E7EB] text-xs"
-                                disabled={isStudentLocked}
-                                placeholder="0"
-                              />
+                              <div className="flex items-center justify-center gap-1">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={displayData.ca1}
+                                  onChange={(e) => handleScoreChange(student.id, 'ca1', e.target.value)}
+                                  className="w-16 mx-auto text-center rounded-lg border-[#E5E7EB] text-xs"
+                                  disabled={isStudentLocked}
+                                  placeholder="0"
+                                />
+                                {(() => {
+                                  const cbt = cbtScoresByStudent[student.id];
+                                  if (cbt && cbt.slot === 'first_test' && !cbtOverride[student.id]) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => setCbtOverride(prev => ({ ...prev, [student.id]: true }))}
+                                        className="text-[10px] px-1.5 py-0.5 rounded bg-[#10B981] text-white whitespace-nowrap hover:bg-[#059669]"
+                                        title={`CBT score: ${cbt.score}/${cbt.max} (${cbt.percentage}%). Click to override`}
+                                      >
+                                        CBT
+                                      </button>
+                                    );
+                                  }
+                                  if (cbt && cbt.slot === 'first_test' && cbtOverride[student.id]) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => setCbtOverride(prev => ({ ...prev, [student.id]: false }))}
+                                        className="text-[10px] px-1.5 py-0.5 rounded bg-[#F59E0B] text-white whitespace-nowrap hover:bg-[#D97706]"
+                                      >
+                                        Override
+                                      </button>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
                             </td>
                             <td className="p-1 text-center">
-                              <Input
-                                type="number"
-                                min="0"
-                                value={displayData.ca2}
-                                onChange={(e) => handleScoreChange(student.id, 'ca2', e.target.value)}
-                                className="w-16 mx-auto text-center rounded-lg border-[#E5E7EB] text-xs"
-                                disabled={isStudentLocked}
-                                placeholder="0"
-                              />
+                              <div className="flex items-center justify-center gap-1">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={displayData.ca2}
+                                  onChange={(e) => handleScoreChange(student.id, 'ca2', e.target.value)}
+                                  className="w-16 mx-auto text-center rounded-lg border-[#E5E7EB] text-xs"
+                                  disabled={isStudentLocked}
+                                  placeholder="0"
+                                />
+                                {(() => {
+                                  const cbt = cbtScoresByStudent[student.id];
+                                  if (cbt && cbt.slot === 'second_test' && !cbtOverride[student.id]) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => setCbtOverride(prev => ({ ...prev, [student.id]: true }))}
+                                        className="text-[10px] px-1.5 py-0.5 rounded bg-[#10B981] text-white whitespace-nowrap hover:bg-[#059669]"
+                                        title={`CBT score: ${cbt.score}/${cbt.max} (${cbt.percentage}%). Click to override`}
+                                      >
+                                        CBT
+                                      </button>
+                                    );
+                                  }
+                                  if (cbt && cbt.slot === 'second_test' && cbtOverride[student.id]) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => setCbtOverride(prev => ({ ...prev, [student.id]: false }))}
+                                        className="text-[10px] px-1.5 py-0.5 rounded bg-[#F59E0B] text-white whitespace-nowrap hover:bg-[#D97706]"
+                                      >
+                                        Override
+                                      </button>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
                             </td>
                           </>
                         )}

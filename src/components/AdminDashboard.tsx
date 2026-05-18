@@ -1,4 +1,4 @@
-import { Settings, BarChart, Book, Database, LayoutDashboard, Link, BookOpen, BarChart3, GraduationCap, Plus, FileText, Users, Calendar, Bell, MessageSquare } from 'lucide-react';
+import { Settings, BarChart, Book, Database, LayoutDashboard, Link, BookOpen, BarChart3, GraduationCap, Plus, FileText, Users, Calendar, Bell, MessageSquare, Monitor } from 'lucide-react';
 import React, { useState, useEffect, memo } from 'react';
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
@@ -24,6 +24,7 @@ import { NotificationSystemPage } from "./admin/NotificationSystemPage";
 import { NotificationArchivesPage } from "./admin/NotificationArchivesPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
 import { SystemSettingsPage } from "./admin/SystemSettingsPage";
+import { CbtExamListPage } from "./cbt/CbtExamListPage";
 import { useSchool } from "../contexts/SchoolContext";
 import { useNotificationListener } from "../contexts/NotificationService";
 import { toast } from "sonner";
@@ -52,6 +53,9 @@ const sidebarItems = [
       
   // Timetable
   { icon: <Calendar className="w-5 h-5" />, label: "Exam Timetable", id: "exam-timetable" },
+  
+  // CBT Exams
+  { icon: <Monitor className="w-5 h-5" />, label: "CBT Exams", id: "cbt-exams" },
   
   // Communication & Settings
   { icon: <Bell className="w-5 h-5" />, label: "Send Notifications", id: "send-notifications" },
@@ -415,11 +419,15 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <ExamTimetablePage />
           )}
 
+          {activeItem === "cbt-exams" && (
+            <CbtExamListPage />
+          )}
+
           {activeItem === "results-management" && (
             <ResultsManagementPage />
           )}
 
-          {!(["dashboard", "register-user", "manage-students", "manage-users", "manage-classes", "manage-subjects", "teacher-assignments", "promotion-system", "link-student-parent", "send-notifications", "view-messages", "activity-logs", "data-backup", "settings", "attendance-reports", "exam-timetable", "results-management"].includes(activeItem)) && (
+          {!(["dashboard", "register-user", "manage-students", "manage-users", "manage-classes", "manage-subjects", "teacher-assignments", "promotion-system", "link-student-parent", "send-notifications", "view-messages", "activity-logs", "data-backup", "settings", "attendance-reports", "exam-timetable", "cbt-exams", "results-management"].includes(activeItem)) && (
             <div className="space-y-6">
               <div className="flex items-center justify-center min-h-[400px]">
                 <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical max-w-md w-full">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
@@ -327,12 +328,11 @@ export function PaymentHistoryPage() {
               <p className="text-sm text-gray-600">This will create a reversal entry and mark the original payment as reversed.</p>
             </div>
 
-            <Input
-              type="text"
+            <Textarea
               placeholder="Reason for reversal"
               value={reverseReason}
               onChange={(e) => setReverseReason(e.target.value)}
-              className="border-[#0A2540]/20 focus:border-[#FFD700] rounded-xl"
+              className="border-[#0A2540]/20 focus:border-[#FFD700] rounded-xl min-h-[100px]"
             />
 
             <div className="flex justify-end gap-2">

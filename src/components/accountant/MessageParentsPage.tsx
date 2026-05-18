@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 
-export function AccountantMessagePage() {
+export function MessageParentsPage() {
   const { currentUser, students, parents, notifications, addNotification, markNotificationAsRead } = useSchool();
   const [messageData, setMessageData] = useState({
     recipientType: "all_parents", // all_parents, specific_parent
@@ -40,7 +40,7 @@ export function AccountantMessagePage() {
       await addNotification({
         title: `Accountant Message: ${messageData.subject}`,
         message: `From: School Accountant\nTo: ${recipientText}\nSubject: ${messageData.subject}\n\n${messageData.message}`,
-        type: 'info' as any,
+        type: 'info',
         targetAudience: targetAudience as any,
         sentBy: currentUser?.id || 0,
         sentDate: new Date().toISOString(),
@@ -74,8 +74,9 @@ export function AccountantMessagePage() {
       await addNotification({
         title: `Re: ${replyingTo.title}`,
         message: `Accountant Reply:\n\n${replyMessage}\n\n---\nOriginal Message:\n${replyingTo.message}`,
-        type: 'info' as any, // Using 'info' type for reply messages
-        targetAudience: 'parents', // Send to all parents (in a real app, you'd send to specific parent)
+        type: 'info',
+        targetAudience: 'parents',
+        targetUsers: replyingTo.sentBy ? [replyingTo.sentBy] : undefined,
         sentBy: currentUser?.id || 0,
         sentDate: new Date().toISOString(),
         isRead: false,
@@ -106,7 +107,7 @@ export function AccountantMessagePage() {
 
   // Filter parent messages sent to accountants
   const parentMessages = notifications.filter(n => {
-    const isParentMessage = (n.type as any) === 'message' && (n.targetAudience as any) === 'accountants';
+    const isParentMessage = n.type === 'info' && n.targetAudience === 'accountants';
     return isParentMessage;
   }).sort((a, b) => new Date(b.sentDate).getTime() - new Date(a.sentDate).getTime());
 

@@ -18,6 +18,21 @@ class ClassController {
     }
     
     /**
+     * Public class list for student login (no auth required)
+     */
+    public function getPublicClassList() {
+        try {
+            $query = "SELECT id, name, level, section FROM classes WHERE status = 'Active' ORDER BY name ASC";
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            Response::success($classes, 'Class list retrieved');
+        } catch (PDOException $e) {
+            Response::serverError('Database error retrieving class list');
+        }
+    }
+
+    /**
      * Get All Classes
      */
     public function getAllClasses() {

@@ -391,7 +391,7 @@ export interface Teacher {
 export interface User {
   id: number;
   username: string;
-  role: 'admin' | 'teacher' | 'accountant' | 'parent';
+  role: 'admin' | 'teacher' | 'student' | 'accountant' | 'parent';
   linked_id: number; // links to teacher/parent/accountant id - matches database
   email: string;
   display_name?: string;
@@ -540,36 +540,84 @@ export interface Department {
   status: 'Active' | 'Inactive';
 }
 
-export interface Scholarship {
-  id: number;
-  name: string;
-  type: 'Percentage' | 'Fixed Amount';
-  value: number;
-  description: string;
-  eligibility_criteria: string;
-  beneficiaries: number;
-  total_budget: number;
-  status: 'Active' | 'Inactive';
-  academic_year: string;
-}
-
-export interface Assignment {
+export interface CbtExam {
   id: number;
   title: string;
-  description: string;
+  instructions?: string;
   class_id: number;
-  class_name: string;
+  class_name?: string;
   subject_id: number;
-  subject_name: string;
+  subject_name?: string;
   teacher_id: number;
-  teacher_name: string;
-  due_date: string;
-  total_marks: number;
-  assigned_date: string;
-  term: string;
   academic_year: string;
-  status: 'Active' | 'Completed' | 'Overdue';
-  attachment_url?: string;
+  term: string;
+  duration_minutes: number;
+  total_marks: number;
+  score_slot?: 'first_test' | 'second_test' | null;
+  feed_into_scores: number;
+  shuffle_questions: number;
+  published: number;
+  published_at?: string;
+  starts_at?: string;
+  ends_at?: string;
+  allow_review: number;
+  status: 'Active' | 'Archived';
+  created_at?: string;
+  attempt?: CbtAttempt | null;
+}
+
+export interface CbtQuestion {
+  id: number;
+  exam_id: number;
+  question_type: 'single_choice' | 'true_false' | 'multi_select';
+  question_text: string;
+  options?: string[];
+  correct_answer?: any;
+  marks: number;
+  sort_order: number;
+  student_answer?: any;
+  is_correct?: boolean | null;
+  marks_awarded?: number;
+}
+
+export interface CbtAttempt {
+  id: number;
+  exam_id: number;
+  student_id: number;
+  academic_year: string;
+  term: string;
+  status: 'in_progress' | 'submitted' | 'scored';
+  started_at: string;
+  submitted_at?: string;
+  score: number;
+  max_score: number;
+  percentage: number;
+  remark?: string;
+  tab_switch_count?: number;
+  metadata?: string;
+  exam_title?: string;
+  subject_name?: string;
+  student_name?: string;
+  admission_number?: string;
+  answers?: CbtQuestion[];
+  duration_minutes?: number;
+}
+
+export interface CbtQuestionBank {
+  id: number;
+  teacher_id: number;
+  subject_id: number;
+  subject_name?: string;
+  class_id?: number;
+  question_type: 'single_choice' | 'true_false' | 'multi_select';
+  question_text: string;
+  options?: string[];
+  correct_answer?: any;
+  marks: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+  topic?: string;
+  tags?: string[];
+  status: 'Active' | 'Archived';
 }
 
 export interface SchoolSettings {
@@ -635,6 +683,10 @@ export interface SchoolContextType {
   departments: Department[];
   scholarships: Scholarship[];
   assignments: Assignment[];
+  cbtExams: CbtExam[];
+  cbtQuestions: CbtQuestion[];
+  cbtAttempts: CbtAttempt[];
+  cbtQuestionBank: CbtQuestionBank[];
   parentStudentLinks: any[];
   attendanceRequirements: Record<string, number>;
   sqlDatabase: any;
@@ -660,6 +712,10 @@ export interface SchoolContextType {
   setNotifications: (notifications: Notification[]) => void;
   setActivityLogs: (logs: ActivityLog[]) => void;
   setAttendances: (attendances: Attendance[]) => void;
+  setCbtExams: (exams: CbtExam[]) => void;
+  setCbtQuestions: (questions: CbtQuestion[]) => void;
+  setCbtAttempts: (attempts: CbtAttempt[]) => void;
+  setCbtQuestionBank: (bank: CbtQuestionBank[]) => void;
 
   // Settings
   currentTerm: string | null;
@@ -926,6 +982,7 @@ export interface SchoolContextType {
 
   // User Management Methods
   login: (username: string, password: string, role: string) => Promise<User | null>;
+  studentLogin: (admissionNumber: string, classId: number) => Promise<User | null>;
   logout: () => void;
   setCurrentUser: (user: User | null) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
@@ -1003,6 +1060,35 @@ export interface SchoolContextType {
   addAssignment: (assignment: Omit<Assignment, 'id'>) => void;
   updateAssignment: (id: number, assignment: Partial<Assignment>) => void;
   deleteAssignment: (id: number) => void;
+
+  // CBT Methods
+  loadCbtExamsFromAPI: () => Promise<boolean>;
+  loadCbtQuestionsFromAPI: (examId: number) => Promise<boolean>;
+  loadCbtAttemptsFromAPI: (examId?: number) => Promise<boolean>;
+  loadCbtQuestionBankFromAPI: (params?: Record<string, any>) => Promise<boolean>;
+  loadCbtStudentExamsFromAPI: () => Promise<boolean>;
+  loadCbtMyAttemptsFromAPI: () => Promise<boolean>;
+  createCbtExam: (exam: Omit<CbtExam, 'id' | 'total_marks' | 'published' | 'status' | 'created_at'>) => Promise<number>;
+  updateCbtExam: (id: number, exam: Partial<CbtExam>) => Promise<void>;
+  deleteCbtExam: (id: number) => Promise<void>;
+  publishCbtExam: (id: number) => Promise<void>;
+  addCbtQuestion: (examId: number, question: any) => Promise<number>;
+  updateCbtQuestion: (examId: number, questionId: number, question: any) => Promise<void>;
+  deleteCbtQuestion: (examId: number, questionId: number) => Promise<void>;
+  reorderCbtQuestions: (examId: number, order: {question_id: number; sort_order: number}[]) => Promise<void>;
+  addToCbtQuestionBank: (question: any) => Promise<number>;
+  deleteFromCbtQuestionBank: (id: number) => Promise<void>;
+  importFromCbtBank: (examId: number, questionIds: number[]) => Promise<any>;
+  startCbtAttempt: (examId: number) => Promise<any>;
+  saveCbtAnswer: (attemptId: number, questionId: number, answer: any) => Promise<void>;
+  submitCbtAttempt: (attemptId: number, tabSwitchCount?: number) => Promise<any>;
+  getCbtAttemptDetail: (attemptId: number) => Promise<any>;
+  getCbtExamResults: (examId: number) => Promise<any>;
+  feedCbtExamScores: (examId: number, scoreSlot: string) => Promise<any>;
+  deleteCbtExamScores: (examId: number) => Promise<any>;
+  bulkImportQuestions: (examId: number, questions: any[]) => Promise<any>;
+  uploadQuestionImage: (file: File) => Promise<any>;
+  generateQuestionsFromMaterial: (materialText: string, questionType: string, count: number) => Promise<any>;
 
   // Data Loading Methods
   loadUsersFromAPI: () => Promise<boolean>;
@@ -1499,6 +1585,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [parentStudentLinksData, setParentStudentLinksData] = useState<any[]>([]);
   const [parentChildrenData, setParentChildrenData] = useState<any[]>([]);
+
+  const [cbtExams, setCbtExams] = useState<CbtExam[]>([]);
+  const [cbtQuestions, setCbtQuestions] = useState<CbtQuestion[]>([]);
+  const [cbtAttempts, setCbtAttempts] = useState<CbtAttempt[]>([]);
+  const [cbtQuestionBank, setCbtQuestionBank] = useState<CbtQuestionBank[]>([]);
 
   const normalizeParentStudentLink = (link: any) => {
     if (!link || typeof link !== 'object') return link;
@@ -2925,6 +3016,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           loadWithRetry(() => loadAffectiveDomainsFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
           loadWithRetry(() => loadPsychomotorDomainsFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
           loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadCbtExamsFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadCbtQuestionBankFromAPI()).catch(e => { return null; }),
         ];
       } else if (user.role === 'teacher') {
         roleSpecificLoads = [
@@ -2937,11 +3030,20 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           loadWithRetry(() => loadScoresFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
           loadWithRetry(() => loadAffectiveDomainsFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
           loadWithRetry(() => loadPsychomotorDomainsFromAPI(loadedTerm, loadedYear)).catch(e => { return null; }),
+          loadWithRetry(() => loadCbtExamsFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadCbtQuestionBankFromAPI()).catch(e => { return null; }),
+        ];
+      } else if (user.role === 'student') {
+        roleSpecificLoads = [
+          loadWithRetry(() => loadCbtStudentExamsFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadCbtMyAttemptsFromAPI()).catch(e => { return null; }),
         ];
       } else if (user.role === 'accountant') {
         roleSpecificLoads = [
           loadWithRetry(() => loadPaymentsFromAPI()).catch(e => { return null; }),
           loadWithRetry(() => loadFeeStructuresFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadBankAccountSettingsFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadScholarshipsFromAPI()).catch(e => { return null; }),
         ];
       } else if (user.role === 'parent') {
         roleSpecificLoads = [
@@ -3021,6 +3123,58 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       return null;
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
+      setIsLoading(false);
+      return null;
+    }
+  };
+
+  // Student passwordless login (admission number + class)
+  const studentLogin = async (admissionNumber: string, classId: number): Promise<User | null> => {
+    try {
+      removeAuthToken();
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.STUDENT_LOGIN}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          admission_number: admissionNumber,
+          class_id: classId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Student login failed');
+      }
+
+      const data = await response.json();
+      const user = data.data;
+
+      if (user) {
+        setCurrentUser(user);
+        setApiCurrentUser(user);
+
+        const token = user.token || '';
+        setAuthToken(token);
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const dataLoaded = await loadDataForUser(user);
+
+        if (!dataLoaded) {
+          // Some data failed to load, but login will proceed
+        }
+        setIsLoading(false);
+        toast.success(`Welcome, ${user.first_name || user.username}!`);
+        return user;
+      }
+
+      return null;
+    } catch (error: any) {
+      toast.error(error.message || 'Student login failed');
       setIsLoading(false);
       return null;
     }
@@ -3696,7 +3850,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
 
       const result = await sqlDatabase.executeQuery(
-        "SELECT DISTINCT academic_year FROM compiled_results ORDER BY academic_year DESC"
+        "SELECT DISTINCT academic_year FROM fee_structures ORDER BY academic_year DESC"
       );
       // Handle database response format: {success: true, data: [...]}
       let dataArray = [];
@@ -4146,37 +4300,84 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   // Bank Account Settings Methods
-  const updateBankAccountSettings = (settings: Omit<BankAccountSettings, 'id' | 'updated_date'>) => {
-    const newSettings: BankAccountSettings = {
-      ...settings,
-      id: 1,
-      updated_date: new Date().toISOString(),
-    };
-    setBankAccountSettings(newSettings);
-    
-    if (currentUser) {
-      // Convert role from lowercase to capitalized format for ActivityLog
-      const getCapitalizedRole = (role: string): 'Admin' | 'Teacher' | 'Accountant' | 'Parent' | 'System' => {
-        const roleMap: { [key: string]: 'Admin' | 'Teacher' | 'Accountant' | 'Parent' | 'System' } = {
-          'admin': 'Admin',
-          'teacher': 'Teacher',
-          'accountant': 'Accountant',
-          'parent': 'Parent'
+  const loadBankAccountSettingsFromAPI = async (): Promise<boolean> => {
+    try {
+      const result = await sqlDatabase.executeQuery('SELECT * FROM bank_account_settings LIMIT 1');
+      if (result && result.data && result.data.length > 0) {
+        const row = result.data[0];
+        const settings: BankAccountSettings = {
+          id: row.id,
+          bank_name: row.bank_name,
+          account_name: row.account_name,
+          account_number: row.account_number,
+          payment_methods: {
+            bank_transfer: Boolean(row.bank_transfer_enabled),
+            online_payment: Boolean(row.online_payment_enabled),
+            cash: Boolean(row.cash_payment_enabled),
+          },
+          updated_by: row.updated_by,
+          updated_date: row.updated_at || new Date().toISOString(),
         };
-        return roleMap[role] || 'System';
+        setBankAccountSettings(settings);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const updateBankAccountSettings = async (settings: Omit<BankAccountSettings, 'id' | 'updated_date'>) => {
+    try {
+      const dbPayload: any = {
+        bank_name: settings.bank_name,
+        account_name: settings.account_name,
+        account_number: settings.account_number,
+        bank_transfer_enabled: settings.payment_methods.bank_transfer ? 1 : 0,
+        online_payment_enabled: settings.payment_methods.online_payment ? 1 : 0,
+        cash_payment_enabled: settings.payment_methods.cash ? 1 : 0,
+        updated_by: settings.updated_by,
       };
-      
-      addActivityLog({
-        id: 0, // Will be generated by database
-        actor: currentUser.username,
-        actor_role: getCapitalizedRole(currentUser.role),
-        action: 'update_bank_account',
-        target: settings.bank_name,
-        ip_address: '127.0.0.1',
-        status: 'Success',
-        timestamp: new Date().toISOString(),
-        details: `Updated bank account to ${settings.account_number}`,
-      });
+
+      const existing = await sqlDatabase.executeQuery('SELECT id FROM bank_account_settings LIMIT 1');
+      if (existing && existing.data && existing.data.length > 0) {
+        await sqlDatabase.updateRecord('bank_account_settings', existing.data[0].id, dbPayload);
+      } else {
+        await sqlDatabase.insertRecord('bank_account_settings', dbPayload);
+      }
+
+      const newSettings: BankAccountSettings = {
+        ...settings,
+        id: existing?.data?.[0]?.id || 1,
+        updated_date: new Date().toISOString(),
+      };
+      setBankAccountSettings(newSettings);
+
+      if (currentUser) {
+        const getCapitalizedRole = (role: string): 'Admin' | 'Teacher' | 'Accountant' | 'Parent' | 'System' => {
+          const roleMap: { [key: string]: 'Admin' | 'Teacher' | 'Accountant' | 'Parent' | 'System' } = {
+            'admin': 'Admin',
+            'teacher': 'Teacher',
+            'accountant': 'Accountant',
+            'parent': 'Parent'
+          };
+          return roleMap[role] || 'System';
+        };
+
+        addActivityLog({
+          id: 0,
+          actor: currentUser.username,
+          actor_role: getCapitalizedRole(currentUser.role),
+          action: 'update_bank_account',
+          target: settings.bank_name,
+          ip_address: '127.0.0.1',
+          status: 'Success',
+          timestamp: new Date().toISOString(),
+          details: `Updated bank account to ${settings.account_number}`,
+        });
+      }
+    } catch (error) {
+      // Silent fail
     }
   };
 
@@ -4786,8 +4987,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const response = await api.post<any>('/payments', payload);
       
       if (response.success) {
-        // Refresh payments list
+        // Refresh payments list and fee balances
         await loadPaymentsFromAPI();
+        await loadStudentFeeBalancesFromAPI();
         toast.success('Payment recorded successfully');
       } else {
         throw new Error(response.message || 'Failed to record payment');
@@ -4832,6 +5034,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
               ? `${p.notes || ''}\nAmount adjusted from ${p.amount} to ${data.adjusted_amount}. Reason: ${data.adjustment_reason}`
             : p.notes
         } : p)));
+        
+        // Refresh fee balances since verification/rejection affects amounts
+        await loadStudentFeeBalancesFromAPI();
         
         if (data?.action === 'reject') {
           toast.error('Payment rejected');
@@ -6609,6 +6814,98 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loadCbtExamsFromAPI = async (): Promise<boolean> => {
+    try {
+      await tokenManager.ensureToken(currentUser);
+      const response = await api.get('/cbt/exams');
+      if (response && response.success) {
+        const items = (response.data as any)?.items || response.data || [];
+        setCbtExams(Array.isArray(items) ? items : []);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const loadCbtQuestionsFromAPI = async (examId: number): Promise<boolean> => {
+    try {
+      await tokenManager.ensureToken(currentUser);
+      const response = await api.get(`/cbt/questions/${examId}`);
+      if (response && response.success) {
+        const items = response.data || [];
+        setCbtQuestions(Array.isArray(items) ? items : []);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const loadCbtAttemptsFromAPI = async (examId?: number): Promise<boolean> => {
+    try {
+      await tokenManager.ensureToken(currentUser);
+      const params: Record<string, any> = {};
+      if (examId) params.exam_id = examId;
+      const response = await api.get('/cbt/attempts', params);
+      if (response && response.success) {
+        const items = response.data || [];
+        setCbtAttempts(Array.isArray(items) ? items : []);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const loadCbtQuestionBankFromAPI = async (params?: Record<string, any>): Promise<boolean> => {
+    try {
+      await tokenManager.ensureToken(currentUser);
+      const response = await api.get('/cbt/question-bank', params);
+      if (response && response.success) {
+        const items = (response.data as any)?.items || response.data || [];
+        setCbtQuestionBank(Array.isArray(items) ? items : []);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const loadCbtStudentExamsFromAPI = async (): Promise<boolean> => {
+    try {
+      await tokenManager.ensureToken(currentUser);
+      const response = await api.get('/cbt/student-exams');
+      if (response && response.success) {
+        const items = response.data || [];
+        setCbtExams(Array.isArray(items) ? items : []);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const loadCbtMyAttemptsFromAPI = async (): Promise<boolean> => {
+    try {
+      await tokenManager.ensureToken(currentUser);
+      const response = await api.get('/cbt/attempts/mine');
+      if (response && response.success) {
+        const items = response.data || [];
+        setCbtAttempts(Array.isArray(items) ? items : []);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const getFeeStructures = (classId: number, academicYear: string): FeeStructure[] => {
     return feeStructures.filter(fs => fs.class_id === classId && fs.academic_year === academicYear);
   };
@@ -6700,6 +6997,252 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  // ─── CBT Exam CRUD ──────────────────────────────────────
+
+  const createCbtExam = async (exam: Omit<CbtExam, 'id' | 'total_marks' | 'published' | 'status' | 'created_at'>): Promise<number> => {
+    try {
+      const payload = { ...exam, academic_year: currentAcademicYear, term: currentTerm };
+      const response = await api.post('/cbt/exams', payload);
+      if (response && response.success && response.data?.id) {
+        await loadCbtExamsFromAPI();
+        return response.data.id;
+      }
+      return -1;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const updateCbtExam = async (id: number, exam: Partial<CbtExam>): Promise<void> => {
+    try {
+      await api.put(`/cbt/exams/${id}`, exam);
+      await loadCbtExamsFromAPI();
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const deleteCbtExam = async (id: number): Promise<void> => {
+    try {
+      await api.delete(`/cbt/exams/${id}`);
+      await loadCbtExamsFromAPI();
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const publishCbtExam = async (id: number): Promise<void> => {
+    try {
+      await api.post(`/cbt/exams/publish/${id}`);
+      await loadCbtExamsFromAPI();
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const addCbtQuestion = async (examId: number, question: any): Promise<number> => {
+    try {
+      const response = await api.post(`/cbt/questions/${examId}`, question);
+      if (response && response.success && response.data?.id) {
+        await loadCbtQuestionsFromAPI(examId);
+        return response.data.id;
+      }
+      return -1;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const updateCbtQuestion = async (examId: number, questionId: number, question: any): Promise<void> => {
+    try {
+      await api.put(`/cbt/questions/${examId}/${questionId}`, question);
+      await loadCbtQuestionsFromAPI(examId);
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const deleteCbtQuestion = async (examId: number, questionId: number): Promise<void> => {
+    try {
+      await api.delete(`/cbt/questions/${examId}/${questionId}`);
+      await loadCbtQuestionsFromAPI(examId);
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const reorderCbtQuestions = async (examId: number, order: {question_id: number; sort_order: number}[]): Promise<void> => {
+    try {
+      await api.post(`/cbt/questions-reorder/${examId}`, { order });
+      await loadCbtQuestionsFromAPI(examId);
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const addToCbtQuestionBank = async (question: any): Promise<number> => {
+    try {
+      const response = await api.post('/cbt/question-bank', question);
+      if (response && response.success && response.data?.id) {
+        return response.data.id;
+      }
+      return -1;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const deleteFromCbtQuestionBank = async (id: number): Promise<void> => {
+    try {
+      await api.delete(`/cbt/question-bank/${id}`);
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const importFromCbtBank = async (examId: number, questionIds: number[]): Promise<any> => {
+    try {
+      const response = await api.post(`/cbt/import-bank/${examId}`, { question_ids: questionIds });
+      if (response && response.success) {
+        await loadCbtQuestionsFromAPI(examId);
+        return response.data;
+      }
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const startCbtAttempt = async (examId: number): Promise<any> => {
+    try {
+      const response = await api.post(`/cbt/start/${examId}`);
+      if (response && response.success) {
+        return response.data;
+      }
+      // Surface backend message as an error so callers can display it
+      const msg = response?.message || response?.error || 'Failed to start exam';
+      throw new Error(msg);
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const saveCbtAnswer = async (attemptId: number, questionId: number, answer: any): Promise<void> => {
+    try {
+      await api.post(`/cbt/save-answer/${attemptId}`, { question_id: questionId, answer });
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const submitCbtAttempt = async (attemptId: number, tabSwitchCount?: number): Promise<any> => {
+    try {
+      const response = await api.post(`/cbt/submit/${attemptId}`, { tab_switch_count: tabSwitchCount || 0 });
+      if (response && response.success) {
+        return response.data;
+      }
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const getCbtAttemptDetail = async (attemptId: number): Promise<any> => {
+    try {
+      const response = await api.get(`/cbt/attempts/${attemptId}`);
+      if (response && response.success) {
+        return response.data;
+      }
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const getCbtExamResults = async (examId: number): Promise<any> => {
+    try {
+      const response = await api.get(`/cbt/results/${examId}`);
+      if (response && response.success) {
+        return response.data;
+      }
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const feedCbtExamScores = async (examId: number, scoreSlot: string): Promise<any> => {
+    try {
+      const response = await api.post(`/cbt/feed-scores/${examId}`, { score_slot: scoreSlot });
+      if (response && response.success) {
+        return response.data;
+      }
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const deleteCbtExamScores = async (examId: number): Promise<any> => {
+    try {
+      const response = await api.delete(`/cbt/scores/${examId}`);
+      if (response && response.success) {
+        return response.data;
+      }
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const bulkImportQuestions = async (examId: number, questions: any[]): Promise<any> => {
+    try {
+      await tokenManager.ensureToken(currentUser);
+      const response = await api.post(`/cbt/bulk-import/${examId}`, { questions });
+      if (response && response.success) {
+        await loadCbtQuestionsFromAPI(examId);
+        return response.data;
+      }
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const uploadQuestionImage = async (file: File): Promise<any> => {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = tokenManager.getToken();
+      const response = await fetch(`${API_CONFIG.BASE_URL}/cbt/upload-image`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.success) return data.data;
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  const generateQuestionsFromMaterial = async (materialText: string, questionType: string, count: number): Promise<any> => {
+    try {
+      const response = await api.post('/cbt/generate-questions', {
+        material_text: materialText,
+        question_type: questionType,
+        count,
+      });
+      if (response && response.success) {
+        return response.data;
+      }
+      return null;
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
   // Class Timetable Methods
   const addClassTimetable = async (timetable: Omit<ClassTimetable, 'id'>): Promise<number> => {
     const newId = classTimetables.length > 0 ? Math.max(...classTimetables.map((t: ClassTimetable) => t.id)) + 1 : 1;
@@ -6752,18 +7295,44 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   // Scholarship Methods
   const addScholarship = async (scholarship: Omit<Scholarship, 'id'>): Promise<number> => {
-    const newId = scholarships.length > 0 ? Math.max(...scholarships.map((s: Scholarship) => s.id)) + 1 : 1;
-    const newScholarship = { ...scholarship, id: newId };
-    setScholarships([...scholarships, newScholarship]);
-    return newId;
+    try {
+      const dbPayload: any = {
+        ...scholarship,
+        current_beneficiaries: scholarship.beneficiaries,
+        created_by: currentUser?.id || 0,
+      };
+      delete dbPayload.beneficiaries;
+
+      const insertId = await sqlDatabase.insertRecord('scholarships', dbPayload);
+      await loadScholarshipsFromAPI();
+      return Number(insertId) || 0;
+    } catch (error) {
+      return 0;
+    }
   };
 
   const updateScholarship = async (id: number, scholarship: Partial<Scholarship>): Promise<void> => {
-    setScholarships(scholarships.map((s: Scholarship) => (s.id === id ? { ...s, ...scholarship } : s)));
+    try {
+      const dbPayload: any = { ...scholarship };
+      if (dbPayload.beneficiaries !== undefined) {
+        dbPayload.current_beneficiaries = dbPayload.beneficiaries;
+        delete dbPayload.beneficiaries;
+      }
+
+      await sqlDatabase.updateRecord('scholarships', id, dbPayload);
+      await loadScholarshipsFromAPI();
+    } catch (error) {
+      // Silent fail
+    }
   };
 
   const deleteScholarship = async (id: number): Promise<void> => {
-    setScholarships(scholarships.filter((s: Scholarship) => s.id !== id));
+    try {
+      await sqlDatabase.deleteRecord('scholarships', id);
+      await loadScholarshipsFromAPI();
+    } catch (error) {
+      // Silent fail
+    }
   };
 
   // Assignment Methods
@@ -7597,11 +8166,19 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     setNotifications,
     setActivityLogs,
     setAttendances,
+    setCbtExams,
+    setCbtQuestions,
+    setCbtAttempts,
+    setCbtQuestionBank,
     examTimetables,
     classTimetables,
     departments,
     scholarships,
     assignments,
+    cbtExams,
+    cbtQuestions,
+    cbtAttempts,
+    cbtQuestionBank,
     parentStudentLinks: parentStudentLinksData,
 
     // Settings
@@ -7823,6 +8400,36 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     addAssignment,
     updateAssignment,
     deleteAssignment,
+
+    // CBT Methods
+    loadCbtExamsFromAPI,
+    loadCbtQuestionsFromAPI,
+    loadCbtAttemptsFromAPI,
+    loadCbtQuestionBankFromAPI,
+    loadCbtStudentExamsFromAPI,
+    loadCbtMyAttemptsFromAPI,
+    createCbtExam,
+    updateCbtExam,
+    deleteCbtExam,
+    publishCbtExam,
+    addCbtQuestion,
+    updateCbtQuestion,
+    deleteCbtQuestion,
+    reorderCbtQuestions,
+    addToCbtQuestionBank,
+    deleteFromCbtQuestionBank,
+    importFromCbtBank,
+    startCbtAttempt,
+    saveCbtAnswer,
+    submitCbtAttempt,
+    getCbtAttemptDetail,
+    getCbtExamResults,
+    feedCbtExamScores,
+    deleteCbtExamScores,
+    bulkImportQuestions,
+    uploadQuestionImage,
+    generateQuestionsFromMaterial,
+
     createAffectiveDomain: async (affectiveData: any) => {
       try {
         await tokenManager.ensureToken(currentUser);
@@ -7913,6 +8520,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     deleteUserAPI,
     setCurrentUser,
     login,
+    studentLogin,
     logout: () => {
       
       

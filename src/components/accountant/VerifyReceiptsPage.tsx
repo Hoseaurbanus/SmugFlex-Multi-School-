@@ -9,8 +9,7 @@ import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
 import { toast } from 'sonner';
 import { useSchool } from '../../contexts/SchoolContext';
-import { API_CONFIG } from '../../config/api';
-import { tokenManager } from '../../utils/tokenManager';
+import { api } from '../../services/api';
 import { Eye, Download, FileText, Printer, RefreshCw, CheckCircle, XCircle, Clock, AlertCircle, User, Calendar, DollarSign } from 'lucide-react';
 import { PaymentReceipt } from '../ui/PaymentReceipt';
 
@@ -112,12 +111,7 @@ export function VerifyReceiptsPage() {
   const loadInvoiceForStudent = async (studentId: number, term: string, academicYear: string) => {
     try {
       setLoadingInvoice(true);
-      const response = await fetch(`${API_CONFIG.BASE_URL}/invoices/student/${studentId}?term=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(academicYear)}`, {
-        headers: {
-          'Authorization': `Bearer ${tokenManager.getToken()}`
-        }
-      });
-      const result = await response.json();
+      const result = await api.get(`/invoices/student/${studentId}`, { term, academic_year: academicYear });
       if (result.success && result.data) {
         setInvoiceData(result.data);
       } else {
@@ -446,12 +440,13 @@ export function VerifyReceiptsPage() {
                     <TableHead>Student</TableHead>
                     <TableHead>Reference</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pendingOnlineExceptions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-sm text-[#6B7280] py-6">No stuck online payments</TableCell>
+                      <TableCell colSpan={5} className="text-center text-sm text-[#6B7280] py-6">No stuck online payments</TableCell>
                     </TableRow>
                   ) : (
                     pendingOnlineExceptions.map((p: any) => (
@@ -460,6 +455,27 @@ export function VerifyReceiptsPage() {
                         <TableCell className="text-[#1F2937]">{p.first_name} {p.last_name}</TableCell>
                         <TableCell className="text-[#6B7280] font-mono text-xs">{p.transaction_reference || p.reference || '-'}</TableCell>
                         <TableCell className="text-right text-[#1F2937]">{NAIRA}{Number(p.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              onClick={() => handleVerify(p.id)}
+                              size="sm"
+                              className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg h-7 px-2 text-xs"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Verify
+                            </Button>
+                            <Button
+                              onClick={() => openRejectDialog(p)}
+                              size="sm"
+                              variant="outline"
+                              className="border-[#EF4444] text-[#EF4444] hover:bg-[#FEF2F2] rounded-lg h-7 px-2 text-xs"
+                            >
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -481,12 +497,13 @@ export function VerifyReceiptsPage() {
                     <TableHead>Student</TableHead>
                     <TableHead>Receipt</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pendingBankExceptions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-sm text-[#6B7280] py-6">No stuck bank transfers</TableCell>
+                      <TableCell colSpan={5} className="text-center text-sm text-[#6B7280] py-6">No stuck bank transfers</TableCell>
                     </TableRow>
                   ) : (
                     pendingBankExceptions.map((p: any) => (
@@ -495,6 +512,27 @@ export function VerifyReceiptsPage() {
                         <TableCell className="text-[#1F2937]">{p.first_name} {p.last_name}</TableCell>
                         <TableCell className="text-[#6B7280] font-mono text-xs">{p.receipt_number || '-'}</TableCell>
                         <TableCell className="text-right text-[#1F2937]">{NAIRA}{Number(p.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              onClick={() => handleVerify(p.id)}
+                              size="sm"
+                              className="bg-[#10B981] hover:bg-[#059669] text-white rounded-lg h-7 px-2 text-xs"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Verify
+                            </Button>
+                            <Button
+                              onClick={() => openRejectDialog(p)}
+                              size="sm"
+                              variant="outline"
+                              className="border-[#EF4444] text-[#EF4444] hover:bg-[#FEF2F2] rounded-lg h-7 px-2 text-xs"
+                            >
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}

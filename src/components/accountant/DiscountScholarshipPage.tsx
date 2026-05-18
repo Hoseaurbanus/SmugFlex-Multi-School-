@@ -57,7 +57,7 @@ export function DiscountScholarshipPage() {
         total_budget: Number(formData.total_budget) || 0,
         beneficiaries: 0,
         status: formData.status,
-        academic_year: currentAcademicYear,
+        academic_year: currentAcademicYear || '',
       });
       toast.success("Scholarship created successfully!");
     }

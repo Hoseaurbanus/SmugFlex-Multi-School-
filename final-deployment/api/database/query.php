@@ -19,14 +19,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     Response::error('Method not allowed', 405);
 }
 
-// SECURITY FIX: Restrict to admin-only - too dangerous for other roles
+// SECURITY FIX: Restrict to admin/teacher/accountant only - parents cannot use raw SQL
 try {
     $token_data = Middleware::requireAuth();
     $role = strtolower(trim((string)($token_data['role'] ?? '')));
-    // SECURITY FIX: Only admin can execute raw SQL - teacher/accountant removed
-    if ($role !== 'admin') {
+    // SECURITY FIX: Allow admin, teacher, and accountant - but not parents
+    if ($role !== 'admin' && $role !== 'teacher' && $role !== 'accountant') {
         error_log("SECURITY: Access denied: User " . ($token_data['username'] ?? 'unknown') . " with role " . ($token_data['role'] ?? 'none') . " attempted to access database query endpoint.");
-        Response::forbidden('Access denied: Only administrators can execute database queries');
+        Response::forbidden('Access denied: Only administrators, teachers, and accountants can execute database queries');
     }
 } catch (Exception $e) {
     error_log("Authentication failed for database query: " . $e->getMessage());

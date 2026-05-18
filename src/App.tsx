@@ -14,6 +14,7 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(mod
 const TeacherDashboard = lazy(() => import('./components/TeacherDashboard').then(module => ({ default: module.TeacherDashboard })));
 const AccountantDashboard = lazy(() => import('./components/AccountantDashboard').then(module => ({ default: module.AccountantDashboard })));
 const UniversalParentDashboardFixed = lazy(() => import('./components/UniversalParentDashboardFixed').then(module => ({ default: module.UniversalParentDashboardFixed })));
+const StudentDashboard = lazy(() => import('./components/student/StudentDashboard').then(module => ({ default: module.StudentDashboard })));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -54,6 +55,7 @@ function AppContent({ navigate }: { navigate: any }) {
       <Route path="/teacher" element={<ProtectedRoute requiredRole="teacher"><Suspense fallback={<LoadingSpinner />}><TeacherDashboard onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
       <Route path="/accountant" element={<ProtectedRoute requiredRole="accountant"><Suspense fallback={<LoadingSpinner />}><AccountantDashboard onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
       <Route path="/parent" element={<ProtectedRoute requiredRole="parent"><Suspense fallback={<LoadingSpinner />}><UniversalParentDashboardFixed onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
+      <Route path="/student" element={<ProtectedRoute requiredRole="student"><Suspense fallback={<LoadingSpinner />}><StudentDashboard onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

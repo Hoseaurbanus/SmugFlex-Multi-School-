@@ -5,9 +5,12 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Card, CardContent, CardHeader } from "./ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Alert, AlertDescription } from "./ui/alert";
 import { useSchool } from "../contexts/SchoolContext";
+import { API_CONFIG } from "../config/api";
 import { toast } from "sonner";
+import { GraduationCap } from "lucide-react";
 import schoolLogo from "../assets/images/school-logo.jpg";
 
 export function LoginPage() {
@@ -16,13 +19,23 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login, currentUser, isLoading: isAuthLoading } = useSchool();
+  const { login, studentLogin, currentUser, isLoading: isAuthLoading } = useSchool();
+
+  // Public class list for student login (fetched without auth)
+  const [publicClasses, setPublicClasses] = useState<{ id: number; name: string; level?: string }[]>([]);
   const navigate = useNavigate();
+
+  // Student login dialog state
+  const [studentDialogOpen, setStudentDialogOpen] = useState(false);
+  const [studentClassId, setStudentClassId] = useState("");
+  const [studentAdmissionNo, setStudentAdmissionNo] = useState("");
+  const [studentLoading, setStudentLoading] = useState(false);
+  const [studentError, setStudentError] = useState("");
 
   // Redirect if already logged in
   React.useEffect(() => {
     if (currentUser && !isAuthLoading) {
-      const target = ["admin", "teacher", "accountant", "parent"].includes(currentUser.role) ? `/${currentUser.role}` : "/";
+      const target = ["admin", "teacher", "student", "accountant", "parent"].includes(currentUser.role) ? `/${currentUser.role}` : "/";
       navigate(target);
     }
   }, [currentUser, isAuthLoading, navigate]);
@@ -52,7 +65,7 @@ export function LoginPage() {
       
       if (user) {
         toast.success(`Welcome back! Logged in as ${role}`);
-        const target = ["admin", "teacher", "accountant", "parent"].includes(role) ? `/${role}` : "/";
+        const target = ["admin", "teacher", "student", "accountant", "parent"].includes(role) ? `/${role}` : "/";
         navigate(target);
       } else {
         toast.error("Invalid username, password, or role");
@@ -63,6 +76,31 @@ export function LoginPage() {
       setError("Login failed. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleStudentLogin = async () => {
+    if (!studentClassId || !studentAdmissionNo.trim()) {
+      setStudentError("Please select your class and enter your admission number");
+      return;
+    }
+
+    setStudentLoading(true);
+    setStudentError("");
+
+    try {
+      const user = await studentLogin(studentAdmissionNo.trim(), parseInt(studentClassId));
+      if (user) {
+        setStudentDialogOpen(false);
+        toast.success("Welcome, student!");
+        navigate("/student");
+      } else {
+        setStudentError("Invalid admission number or class does not match");
+      }
+    } catch (error) {
+      setStudentError("Login failed. Please try again.");
+    } finally {
+      setStudentLoading(false);
     }
   };
 
@@ -95,7 +133,7 @@ export function LoginPage() {
         <Card className="rounded-2xl shadow-2xl border-0 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
           <CardHeader className="bg-white pb-6 pt-8">
             <h2 className="text-center text-[#0A2540]">Portal Login</h2>
-            <p className="text-center text-gray-600 text-sm">Select your role and enter credentials</p>
+            <p className="text-center text-gray-600 text-sm">Staff and parent login</p>
           </CardHeader>
           
           <CardContent className="bg-white p-8 space-y-6" onKeyPress={handleKeyPress}>
@@ -178,6 +216,77 @@ export function LoginPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Student Login Button */}
+        <div className="mt-4">
+          <Dialog open={studentDialogOpen} onOpenChange={(open) => {
+            setStudentDialogOpen(open);
+            if (open && publicClasses.length === 0) {
+              fetch(`${API_CONFIG.BASE_URL}/classes/public-list`)
+                .then(r => r.json())
+                .then(d => { if (d.success) setPublicClasses(d.data); })
+                .catch(() => {});
+            }
+          }}>
+            <DialogTrigger asChild>
+              <button className="w-full py-3 px-4 rounded-xl border-2 border-[#FFD700]/40 text-[#FFD700] hover:bg-[#FFD700]/10 hover:border-[#FFD700] transition-all text-center cursor-pointer flex items-center justify-center gap-2">
+                <GraduationCap className="w-5 h-5" />
+                <span className="font-medium">Student Login</span>
+              </button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md rounded-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-center text-[#0A2540]">Student Login</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 p-2">
+                {studentError && (
+                  <Alert className="border-red-200 bg-red-50">
+                    <AlertDescription className="text-red-700 text-sm">{studentError}</AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Class Selection */}
+                <div className="space-y-2">
+                  <Label className="text-[#0A2540]">Select Your Class</Label>
+                  <Select value={studentClassId} onValueChange={setStudentClassId}>
+                    <SelectTrigger className="h-12 rounded-xl border-2 border-gray-200">
+                      <SelectValue placeholder="Choose your class" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {publicClasses.map((cls) => (
+                        <SelectItem key={cls.id} value={String(cls.id)} className="rounded-lg">
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Admission Number */}
+                <div className="space-y-2">
+                  <Label htmlFor="admission" className="text-[#0A2540]">Admission Number</Label>
+                  <Input
+                    id="admission"
+                    type="text"
+                    placeholder="e.g. GRA/2026/0001"
+                    value={studentAdmissionNo}
+                    onChange={(e) => setStudentAdmissionNo(e.target.value)}
+                    className="h-12 rounded-xl border-2 border-gray-200"
+                  />
+                </div>
+
+                {/* Submit */}
+                <Button
+                  onClick={handleStudentLogin}
+                  disabled={!studentClassId || !studentAdmissionNo.trim() || studentLoading}
+                  className="w-full h-12 bg-[#FFD700] text-[#0A2540] hover:bg-[#FFD700]/90 rounded-xl disabled:opacity-50 transition-all"
+                >
+                  {studentLoading ? "Verifying..." : "Access Student Portal"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
 
         {/* Footer Note */}
         <p className="text-center text-white/60 text-sm mt-6">

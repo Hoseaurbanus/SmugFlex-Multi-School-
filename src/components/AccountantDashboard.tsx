@@ -1,4 +1,4 @@
-import { LogOut, BarChart, LayoutDashboard, BarChart3, Building2, DollarSign, Receipt, Clock } from 'lucide-react';
+import { LogOut, BarChart, LayoutDashboard, BarChart3, Building2, DollarSign, Receipt, Clock, Percent, MessageSquare } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
@@ -12,6 +12,8 @@ import { VerifyReceiptsPage } from "./accountant/VerifyReceiptsPage";
 import { SetFeesPage } from "./accountant/SetFeesPage";
 import { PaymentReportsPage } from "./accountant/PaymentReportsPage";
 import { BankAccountSettingsPage } from "./accountant/BankAccountSettingsPage";
+import { DiscountScholarshipPage } from "./accountant/DiscountScholarshipPage";
+import { MessageParentsPage } from "./accountant/MessageParentsPage";
 import { ChangePasswordPage } from "./ChangePasswordPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
@@ -83,6 +85,8 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
     { icon: <BarChart3 className="w-5 h-5" />, label: "Payment Reports", id: "payment-reports" },
     { icon: <BarChart className="w-5 h-5" />, label: "Payment History", id: "payment-history" },
     { icon: <Building2 className="w-5 h-5" />, label: "Bank Settings", id: "bank-settings" },
+    { icon: <Percent className="w-5 h-5" />, label: "Scholarships", id: "scholarships" },
+    { icon: <MessageSquare className="w-5 h-5" />, label: "Message Parents", id: "message-parents" },
     { icon: <LogOut className="w-5 h-5" />, label: "Logout", id: "logout" },
   ];
 
@@ -99,7 +103,9 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
         "verify-receipts": "Opening Receipt Verification",
         "payment-reports": "Opening Payment Reports",
         "payment-history": "Opening Payment History",
-        "bank-settings": "Opening Bank Settings"
+        "bank-settings": "Opening Bank Settings",
+        "scholarships": "Opening Scholarship Settings",
+        "message-parents": "Opening Parent Messages"
       };
       
       if (toastMessages[id]) {
@@ -404,6 +410,8 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
             {activeItem === "payment-reports" && <PaymentReportsPage />}
             {activeItem === "payment-history" && <PaymentHistoryPage />}
             {activeItem === "bank-settings" && <BankAccountSettingsPage />}
+            {activeItem === "scholarships" && <DiscountScholarshipPage />}
+            {activeItem === "message-parents" && <MessageParentsPage />}
             {activeItem === "change-password" && <ChangePasswordPage />}
             {activeItem === "verify-receipts" && <VerifyReceiptsPage />}
           </main>

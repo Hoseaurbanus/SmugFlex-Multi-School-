@@ -30,7 +30,7 @@ class AuthController {
         
         $username = Middleware::sanitizeString($data['username']);
         $password = $data['password'];
-        $role = Middleware::validateEnum($data['role'], ['admin', 'teacher', 'accountant', 'parent'], 'role');
+        $role = Middleware::validateEnum($data['role'], ['admin', 'teacher', 'student', 'accountant', 'parent'], 'role');
         
         // Rate limiting: Check if user has exceeded login attempts (max 5 per 15 minutes)
         if (RateLimiter::isLimited($username, 'login_attempt')) {
@@ -45,18 +45,21 @@ class AuthController {
                                  WHEN u.role = 'teacher' THEN t.first_name
                                  WHEN u.role = 'parent' THEN p.first_name
                                  WHEN u.role = 'accountant' THEN a.first_name
+                                 WHEN u.role = 'student' THEN s.first_name
                                  ELSE 'Admin'
                              END as first_name,
                              CASE 
                                  WHEN u.role = 'teacher' THEN t.last_name
                                  WHEN u.role = 'parent' THEN p.last_name
                                  WHEN u.role = 'accountant' THEN a.last_name
+                                 WHEN u.role = 'student' THEN s.last_name
                                  ELSE 'User'
                              END as last_name
                       FROM users u
                       LEFT JOIN teachers t ON u.role = 'teacher' AND u.linked_id = t.id
                       LEFT JOIN parents p ON u.role = 'parent' AND u.linked_id = p.id
                       LEFT JOIN accountants a ON u.role = 'accountant' AND u.linked_id = a.id
+                      LEFT JOIN students s ON u.role = 'student' AND u.linked_id = s.id
                       WHERE u.username = :username AND u.role = :role AND u.status = 'Active'";
             
             $stmt = $this->conn->prepare($query);
@@ -133,7 +136,96 @@ class AuthController {
             Response::serverError('Database error during login');
         }
     }
-    
+
+    /**
+     * Student passwordless login using admission number + class selection
+     */
+    public function studentLogin() {
+        $data = json_decode(file_get_contents('php://input'), true);
+        Middleware::validateRequired($data, ['admission_number', 'class_id']);
+
+        try {
+            $admission_number = Middleware::sanitizeString($data['admission_number']);
+            $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
+
+            // Validate student exists and belongs to the selected class
+            $query = "SELECT s.id, s.first_name, s.last_name, s.admission_number, s.class_id,
+                             c.name as class_name
+                      FROM students s
+                      JOIN classes c ON s.class_id = c.id
+                      WHERE s.admission_number = :admission_number AND s.class_id = :class_id AND s.status = 'Active'";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':admission_number', $admission_number);
+            $stmt->bindParam(':class_id', $class_id);
+            $stmt->execute();
+            $student = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$student) {
+                Response::unauthorized('Invalid admission number or class does not match');
+            }
+
+            // Find or create a users entry for this student
+            $user_query = "SELECT * FROM users WHERE role = 'student' AND linked_id = :linked_id AND status = 'Active' LIMIT 1";
+            $user_stmt = $this->conn->prepare($user_query);
+            $user_stmt->bindValue(':linked_id', $student['id']);
+            $user_stmt->execute();
+            $user = $user_stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user) {
+                $password_hash = password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT);
+                $insert_query = "INSERT INTO users (username, password_hash, role, linked_id, email, status, created_at, updated_at)
+                                 VALUES (:username, :password_hash, 'student', :linked_id, '', 'Active', NOW(), NOW())";
+                $insert_stmt = $this->conn->prepare($insert_query);
+                $username = $student['admission_number'];
+                $insert_stmt->bindParam(':username', $username);
+                $insert_stmt->bindParam(':password_hash', $password_hash);
+                $insert_stmt->bindParam(':linked_id', $student['id']);
+                $insert_stmt->execute();
+                $user_id = $this->conn->lastInsertId();
+
+                $user = [
+                    'id' => $user_id,
+                    'username' => $username,
+                    'role' => 'student',
+                    'linked_id' => $student['id'],
+                    'email' => '',
+                    'first_name' => $student['first_name'],
+                    'last_name' => $student['last_name'],
+                ];
+            } else {
+                $user['first_name'] = $student['first_name'];
+                $user['last_name'] = $student['last_name'];
+            }
+
+            // Log successful login
+            $full_name = $student['first_name'] . ' ' . $student['last_name'];
+            Middleware::logActivity($full_name, 'Student', 'LOGIN', 'Authentication', 'Success', 'Student logged in via portal', $user['id']);
+
+            // Update last login
+            $update_query = "UPDATE users SET last_login = NOW() WHERE id = :id";
+            $update_stmt = $this->conn->prepare($update_query);
+            $update_stmt->bindParam(':id', $user['id']);
+            $update_stmt->execute();
+
+            // Generate JWT token
+            $token = JWT::generateUserToken($user);
+
+            $user_data = [
+                'id' => (int)$user['id'],
+                'username' => $user['username'],
+                'role' => 'student',
+                'linked_id' => (int)$student['id'],
+                'first_name' => $student['first_name'],
+                'last_name' => $student['last_name'],
+                'token' => $token,
+            ];
+
+            Response::success($user_data, 'Student login successful');
+        } catch (PDOException $e) {
+            Response::serverError('Database error during student login');
+        }
+    }
+
     /**
      * User Logout
      */
