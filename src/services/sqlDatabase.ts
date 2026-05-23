@@ -613,12 +613,10 @@ class SQLDatabaseService {
       status: 'Active'
     };
 
-    // Treat subject registrations as global per class+subject across terms/sessions.
-    // If a registration already exists for this class and subject, just ensure it is Active
-    // instead of creating duplicate rows for each term/academic year.
+    // Check by all four columns matching the DB unique_key (subject_id, class_id, academic_year, term)
     const existingResult = await this.executeQueryInternal(
-      'SELECT id, academic_year, term, status FROM subject_registrations WHERE subject_id = ? AND class_id = ? LIMIT 1',
-      [subjectId, classId]
+      'SELECT id, status FROM subject_registrations WHERE subject_id = ? AND class_id = ? AND academic_year = ? AND term = ? LIMIT 1',
+      [subjectId, classId, academicYear, term]
     );
 
     const existingRows = existingResult?.data || [];
@@ -636,8 +634,6 @@ class SQLDatabaseService {
       return {
         id: existing.id,
         ...data,
-        academic_year: existing.academic_year,
-        term: existing.term,
         status: 'Active'
       };
     }
@@ -652,10 +648,10 @@ class SQLDatabaseService {
     academicYear: string,
     term: string
   ): Promise<boolean> {
-    // Remove registrations globally for this class+subject, regardless of academic year or term
+    // Remove registration for this specific class+subject+year+term combination
     const query =
-      'DELETE FROM subject_registrations WHERE subject_id = ? AND class_id = ?';
-    await this.executeQueryInternal(query, [subjectId, classId]);
+      'DELETE FROM subject_registrations WHERE subject_id = ? AND class_id = ? AND academic_year = ? AND term = ?';
+    await this.executeQueryInternal(query, [subjectId, classId, academicYear, term]);
     return true;
   }
 

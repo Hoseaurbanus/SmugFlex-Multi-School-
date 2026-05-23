@@ -563,6 +563,9 @@ class StudentController {
         
             foreach ($promotions as $index => $promotion) {
                 try {
+                    // Create savepoint for this student so a failure doesn't abort the entire batch
+                    $this->conn->exec("SAVEPOINT sp_{$index}");
+
                     $student_id = Middleware::validateInteger($promotion['student_id'], 'student_id');
                     $from_class_id = Middleware::validateInteger($promotion['from_class_id'], 'from_class_id');
                     $to_class_id = Middleware::validateInteger($promotion['to_class_id'], 'to_class_id');
@@ -616,23 +619,40 @@ class StudentController {
                     // Validate progression path ONLY for real promotions.
                     // - Manual: admin override (skip)
                     // - Repeated: can be same class or a demotion class (skip progression rule check here)
+                    // - Graduation: detected below when no rules exist from a terminal class
                     // Capacity is NOT enforced.
+                    $is_graduation = false;
                     if ($status === 'Promoted') {
                         $validation = $progressionController->validatePromotion($student_id, $to_class_id, $to_academic_year);
                         if (!$validation['valid']) {
-                            $failed_students[] = [
-                                'student_id' => $student_id,
-                                'error' => $validation['message']
-                            ];
-                            continue;
+                            // Check if this class has NO active progression rules (terminal/graduating class)
+                            $grad_check = "SELECT 1 FROM class_progression_rules 
+                                           WHERE from_class_id = :fid AND is_active = 1 
+                                           AND academic_year = :ay LIMIT 1";
+                            $grad_stmt = $this->conn->prepare($grad_check);
+                            $grad_stmt->bindParam(':fid', $from_class_id);
+                            $grad_stmt->bindParam(':ay', $to_academic_year);
+                            $grad_stmt->execute();
+                            
+                            if (!$grad_stmt->fetch(PDO::FETCH_ASSOC)) {
+                                // Terminal class — graduate the student
+                                $is_graduation = true;
+                                $to_class_id = $from_class_id;
+                            } else {
+                                $failed_students[] = [
+                                    'student_id' => $student_id,
+                                    'error' => $validation['message']
+                                ];
+                                continue;
+                            }
                         }
                     }
 
                     // Update student class/year for statuses that involve a class placement decision.
-                    // - Promoted: move to next class
+                    // - Promoted: move to next class (skip for graduation — they keep their class)
                     // - Manual: admin decides
                     // - Repeated: can stay in same class or move to a different class (demotion)
-                    if (in_array($status, ['Promoted', 'Manual', 'Repeated'], true)) {
+                    if (!$is_graduation && in_array($status, ['Promoted', 'Manual', 'Repeated'], true)) {
                         // Find current class_id in DB to keep class counts accurate even if payload is stale
                         $current_class_query = "SELECT class_id FROM students WHERE id = :student_id";
                         $current_class_stmt = $this->conn->prepare($current_class_query);
@@ -668,6 +688,28 @@ class StudentController {
                             $this->updateClassCounts($actual_from_class_id, $to_class_id);
                         }
                     }
+
+                    // Handle graduation: mark student as Graduated, keep class_id unchanged
+                    if ($is_graduation) {
+                        $grad_update = "UPDATE students SET status = 'Graduated', academic_year = :ay WHERE id = :sid";
+                        $grad_stmt2 = $this->conn->prepare($grad_update);
+                        $grad_stmt2->bindParam(':ay', $to_academic_year);
+                        $grad_stmt2->bindParam(':sid', $student_id);
+                        $grad_stmt2->execute();
+                    }
+
+                    // Update students.status for applicable non-default statuses
+                    if ($status === 'Transferred') {
+                        $status_update = "UPDATE students SET status = 'Transferred' WHERE id = :sid";
+                        $status_stmt = $this->conn->prepare($status_update);
+                        $status_stmt->bindParam(':sid', $student_id);
+                        $status_stmt->execute();
+                    } elseif ($status === 'Withdrawn') {
+                        $status_update = "UPDATE students SET status = 'Inactive' WHERE id = :sid";
+                        $status_stmt = $this->conn->prepare($status_update);
+                        $status_stmt->bindParam(':sid', $student_id);
+                        $status_stmt->execute();
+                    }
                 
                 // Record promotion with enhanced fields
                 $promotion_query = "INSERT INTO student_promotions (student_id, from_class_id, to_class_id, 
@@ -686,7 +728,7 @@ class StudentController {
                 $promoted_by = (int)($token_data['user_id'] ?? 0);
                 $promotion_stmt->bindParam(':promoted_by', $promoted_by);
                 $promotion_stmt->bindParam(':promotion_date', $promotion_date);
-                $manual_override = ($status === 'Manual') ? 1 : 0;
+                $manual_override = ($status === 'Manual' || $override_reason_in !== '') ? 1 : 0;
                 $promotion_stmt->bindParam(':manual_override', $manual_override);
                 $override_reason = $promotion['override_reason'] ?? null;
                 $promotion_stmt->bindParam(':override_reason', $override_reason);
@@ -695,6 +737,15 @@ class StudentController {
                 $processed_students[] = $student_id;
                 
             } catch (Exception $e) {
+                // Rollback to savepoint so other students can still be processed
+                try {
+                    $this->conn->exec("ROLLBACK TO SAVEPOINT sp_{$index}");
+                } catch (Exception $re) {
+                    // Savepoint rollback failed — abort entire transaction
+                    $this->conn->rollBack();
+                    Response::serverError('Transaction aborted: ' . $e->getMessage());
+                    return;
+                }
                 $failed_students[] = [
                     'student_id' => $promotion['student_id'] ?? 'unknown',
                     'error' => $e->getMessage()
@@ -723,8 +774,8 @@ class StudentController {
                 'total_attempted' => count($promotions)
             ], 'Promotion processing completed');
             
-        } catch (PDOException $e) {
-            $this->conn->rollBack();
+        } catch (Throwable $e) {
+            if ($this->conn->inTransaction()) $this->conn->rollBack();
             Response::serverError('Database error during student promotion');
         }
     }
@@ -771,9 +822,10 @@ class StudentController {
             $this->conn->beginTransaction();
             
             // Update student class
-            $update_query = "UPDATE students SET class_id = :to_class_id WHERE id = :student_id";
+            $update_query = "UPDATE students SET class_id = :to_class_id, academic_year = :academic_year WHERE id = :student_id";
             $update_stmt = $this->conn->prepare($update_query);
             $update_stmt->bindParam(':to_class_id', $to_class_id);
+            $update_stmt->bindParam(':academic_year', $academic_year);
             $update_stmt->bindParam(':student_id', $student_id);
             $update_stmt->execute();
             
@@ -794,14 +846,13 @@ class StudentController {
             
             // Record manual change
             $change_query = "INSERT INTO manual_class_changes 
-                           (student_id, from_class_id, to_class_id, academic_year, reason, changed_by, change_date) 
-                           VALUES (:student_id, :from_class_id, :to_class_id, :academic_year, :reason, :changed_by, :change_date)";
+                           (student_id, from_class_id, to_class_id, reason, changed_by, change_date) 
+                           VALUES (:student_id, :from_class_id, :to_class_id, :reason, :changed_by, :change_date)";
             
             $change_stmt = $this->conn->prepare($change_query);
             $change_stmt->bindParam(':student_id', $student_id);
             $change_stmt->bindParam(':from_class_id', $from_class_id);
             $change_stmt->bindParam(':to_class_id', $to_class_id);
-            $change_stmt->bindParam(':academic_year', $academic_year);
             $change_stmt->bindParam(':reason', $reason);
             $changed_by = (int)($token_data['user_id'] ?? 0);
             $change_stmt->bindParam(':changed_by', $changed_by);
@@ -827,8 +878,8 @@ class StudentController {
             
             Response::success(null, 'Manual class change completed successfully');
             
-        } catch (PDOException $e) {
-            $this->conn->rollBack();
+        } catch (Throwable $e) {
+            if ($this->conn->inTransaction()) $this->conn->rollBack();
             Response::serverError('Database error during manual class change');
         }
     }

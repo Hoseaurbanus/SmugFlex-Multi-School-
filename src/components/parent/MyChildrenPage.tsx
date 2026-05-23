@@ -3,9 +3,11 @@ import { User, Calendar, Award, TrendingUp, Download, Eye, Search, MoreVertical,
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { toast } from "sonner";
-import { generatePDFFromData } from '../../utils/pdfGenerator';
+import { generatePDFFromData, generateCumulativePDF } from '../../utils/pdfGenerator';
 import { FullPageResultView } from "../shared/FullPageResultView";
+import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { useSchool } from "../../contexts/SchoolContext";
 
 interface Child {
@@ -65,7 +67,10 @@ export function MyChildrenPage() {
     schoolSettings,
     teachers,
     affectiveDomains,
-    psychomotorDomains
+    psychomotorDomains,
+    cumulativeResults,
+    loadCumulativeResultsFromAPI,
+    loadingCumulative,
   } = useSchool();
   
   const [children, setChildren] = useState<Child[]>([]);
@@ -75,6 +80,7 @@ export function MyChildrenPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [fullPageView, setFullPageView] = useState<{ studentId: number; resultId: number } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [cumulativeViewChild, setCumulativeViewChild] = useState<Child | null>(null);
 
   const currentParent = currentUser && parents.length > 0 ? parents.find((p) => p.id === currentUser?.linked_id) : null;
   
@@ -275,6 +281,27 @@ export function MyChildrenPage() {
     }
   };
 
+  // Get cumulative result for a child
+  const getCumulativeForChild = (childId: number) => {
+    return cumulativeResults.find(cr => cr.student_id === childId);
+  };
+
+  const handleViewCumulative = async (child: Child) => {
+    if (!currentAcademicYear) {
+      toast.error('Academic year not set');
+      return;
+    }
+    // Load cumulative results if not already loaded
+    const existing = getCumulativeForChild(child.id);
+    if (!existing) {
+      const classObj = classes.find((c: any) => c.name === child.className);
+      if (classObj) {
+        await loadCumulativeResultsFromAPI(classObj.id, currentAcademicYear);
+      }
+    }
+    setCumulativeViewChild(child);
+  };
+
   const handleDownloadResult = async (student: any, result: any) => {
     try {
       if (!student || !result) {
@@ -470,6 +497,20 @@ export function MyChildrenPage() {
                         >
                           <Download className="w-3 h-3" />
                         </Button>
+                        {currentTerm === "Third Term" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={loadingCumulative}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewCumulative(child);
+                            }}
+                            className="h-8 px-2 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
+                          >
+                            <Award className="w-3 h-3" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -479,6 +520,44 @@ export function MyChildrenPage() {
           )}
         </div>
       )}
+
+      {/* Cumulative Result Dialog */}
+      <Dialog open={!!cumulativeViewChild} onOpenChange={(open) => { if (!open) setCumulativeViewChild(null); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Cumulative Result - {cumulativeViewChild?.fullName}
+            </DialogTitle>
+          </DialogHeader>
+          {cumulativeViewChild && (
+            <>
+              <CumulativeResultSheet
+                studentId={cumulativeViewChild.id}
+                academicYear={currentAcademicYear || ''}
+              />
+              <div className="flex gap-3 justify-end border-t pt-4 mt-4">
+                <Button
+                  disabled={loadingCumulative}
+                  onClick={async () => {
+                    const cr = cumulativeResults.find(
+                      r => r.student_id === cumulativeViewChild.id && r.academic_year === currentAcademicYear
+                    );
+                    if (!cr) { toast.error('Cumulative result data not found'); return; }
+                    try {
+                      await generateCumulativePDF(cumulativeViewChild, cr, schoolSettings, classes, currentAcademicYear || '');
+                      toast.success('PDF downloaded');
+                    } catch { toast.error('Failed to generate PDF'); }
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {loadingCumulative ? 'Loading...' : 'Download PDF'}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -338,6 +338,10 @@ try {
                         $resultsController->getAllCompiledResults();
                     } elseif ($path_parts[1] === 'pending-approvals') {
                         $resultsController->getPendingApprovals();
+                    } elseif ($path_parts[1] === 'cumulative' && isset($path_parts[2]) && $path_parts[2] === 'class' && isset($path_parts[3])) {
+                        $resultsController->getClassCumulativeResults($path_parts[3]);
+                    } elseif ($path_parts[1] === 'cumulative' && isset($path_parts[2]) && is_numeric($path_parts[2])) {
+                        $resultsController->getCumulativeResult($path_parts[2]);
                     } else {
                         Response::notFound('Results endpoint not found');
                     }
@@ -357,6 +361,8 @@ try {
                     $resultsController->upsertScores();
                 } elseif ($path_parts[1] === 'compile') {
                     $resultsController->compileResults();
+                } elseif ($path_parts[1] === 'compile-cumulative') {
+                    $resultsController->compileCumulative();
                 } elseif ($path_parts[1] === 'check-status') {
                     $resultsController->checkCompilationStatus();
                 } elseif ($path_parts[1] === 'student-status') {

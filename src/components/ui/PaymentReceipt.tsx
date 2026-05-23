@@ -9,10 +9,11 @@ const NAIRA = "₦";
 interface PaymentReceiptProps {
   payment: Payment;
   studentName?: string;
+  studentClassName?: string;
   className?: string;
 }
 
-export function PaymentReceipt({ payment, studentName, className = '' }: PaymentReceiptProps) {
+export function PaymentReceipt({ payment, studentName, studentClassName, className = '' }: PaymentReceiptProps) {
   const handlePrint = () => {
     window.print();
   };
@@ -26,6 +27,9 @@ export function PaymentReceipt({ payment, studentName, className = '' }: Payment
     // For now, we'll trigger print which can save as PDF
     window.print();
   };
+
+  const transactionReference = (payment as any).transaction_reference || (payment as any).reference || '';
+  const studentClass = studentClassName || (payment as any).class_name || 'N/A';
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-NG', {
@@ -100,7 +104,7 @@ export function PaymentReceipt({ payment, studentName, className = '' }: Payment
             </div>
             <div>
               <p className="text-sm text-gray-500">Class:</p>
-              <p className="font-medium">N/A</p>
+              <p className="font-medium">{studentClass}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Term:</p>
@@ -141,10 +145,10 @@ export function PaymentReceipt({ payment, studentName, className = '' }: Payment
         </div>
 
         {/* Transaction Reference */}
-        {payment.reference && (
+        {transactionReference && (
           <div className="mb-6">
             <p className="text-sm text-gray-500">Transaction Reference:</p>
-            <p className="font-mono text-sm">{payment.reference}</p>
+            <p className="font-mono text-sm">{transactionReference}</p>
           </div>
         )}
 

@@ -76,6 +76,7 @@ class ResultsController
                 $this->ensureCompiledResultsTableExists();
                 $this->ensureCompiledResultsColumnsExist();
                 $this->ensureScoresApprovalColumnsExist();
+                $this->ensureCumulativeResultsTableExists();
             }
         } catch (Throwable $e) {
             // Silent fail for security
@@ -208,6 +209,38 @@ class ResultsController
             }
         } catch (Throwable $e) {
             // Avoid breaking the API if migration fails.
+        }
+    }
+
+    /**
+     * Ensure cumulative_results table exists
+     */
+    private function ensureCumulativeResultsTableExists() {
+        try {
+            $query = "CREATE TABLE IF NOT EXISTS cumulative_results (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                student_id INT NOT NULL,
+                class_id INT NOT NULL,
+                academic_year VARCHAR(20) NOT NULL,
+                total_score DECIMAL(8,2) DEFAULT 0,
+                average_score DECIMAL(5,2) DEFAULT 0,
+                position INT DEFAULT NULL,
+                class_average DECIMAL(5,2) DEFAULT NULL,
+                total_students INT DEFAULT NULL,
+                promotion_status ENUM('Promoted','Repeated') DEFAULT NULL,
+                session_attendance_pct DECIMAL(5,2) DEFAULT NULL,
+                subject_data TEXT DEFAULT NULL,
+                principal_comment TEXT DEFAULT NULL,
+                compiled_by INT NOT NULL,
+                compiled_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_student_session (student_id, class_id, academic_year),
+                INDEX idx_class_year (class_id, academic_year)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+            $this->conn->exec($query);
+        } catch (Throwable $e) {
+            // Silently handle table creation errors
         }
     }
 
@@ -645,6 +678,18 @@ class ResultsController
             $existing_score = $existing_stmt->fetch();
 
             if ($existing_score) {
+                // Prevent overwriting already-approved scores
+                $status_check_query = "SELECT status FROM scores WHERE id = :score_id";
+                $status_check_stmt = $this->conn->prepare($status_check_query);
+                $status_check_stmt->bindParam(':score_id', $existing_score['id']);
+                $status_check_stmt->execute();
+                $current_status = $status_check_stmt->fetchColumn();
+
+                if ($current_status === 'Approved') {
+                    $this->conn->rollBack();
+                    Response::badRequest("Cannot modify approved score for student ID $student_id. Reject the existing score first.");
+                }
+
                 // Preserve existing values for components that were not provided in the request
                 $existing_values_query = "SELECT ca1, ca2, exam FROM scores WHERE id = :score_id";
                 $existing_values_stmt = $this->conn->prepare($existing_values_query);
@@ -2757,6 +2802,452 @@ class ResultsController
 
         } catch (Exception $e) {
             Response::serverError('Failed to retrieve student results');
+        }
+    }
+
+    /**
+     * Compile Cumulative Results (Admin only)
+     * Endpoint: POST /results/compile-cumulative
+     */
+    public function compileCumulative()
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        try {
+            $token_data = Middleware::requireRole('admin');
+            if (!$token_data) return;
+
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!$data) {
+                Response::badRequest('Invalid JSON body');
+                return;
+            }
+
+            $validator_errors = Middleware::validateRequired($data, ['class_id', 'academic_year']);
+            if (!empty($validator_errors)) {
+                Response::badRequest('Validation failed: ' . implode(', ', $validator_errors));
+                return;
+            }
+
+            $class_id = (int)$data['class_id'];
+            $academic_year = Middleware::sanitizeString($data['academic_year']);
+
+            // Check current term is Third Term
+            $term_check = $this->conn->prepare("SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' LIMIT 1");
+            $term_check->execute();
+            $current_term = $term_check->fetchColumn();
+            if (strtolower($current_term) !== 'third term') {
+                Response::badRequest('Cumulative results can only be compiled during Third Term');
+                return;
+            }
+
+            // Get all students in the class with active status
+            $students_query = "SELECT id, first_name, last_name FROM students WHERE class_id = :class_id AND status = 'Active' ORDER BY first_name";
+            $stmt = $this->conn->prepare($students_query);
+            $stmt->bindValue(':class_id', $class_id, PDO::PARAM_INT);
+            $stmt->execute();
+            $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($students)) {
+                Response::badRequest('No active students found in this class');
+                return;
+            }
+
+            $errors = [];
+            $compiled_count = 0;
+            $all_cumulative = [];
+
+            foreach ($students as $student) {
+                $student_id = (int)$student['id'];
+
+                // Verify all 3 terms have approved compiled_results
+                $check_query = "SELECT term, average_score, times_present, total_attendance_days
+                                FROM compiled_results
+                                WHERE student_id = :student_id AND class_id = :class_id
+                                  AND academic_year = :academic_year AND status = 'Approved'
+                                  AND term IN ('First Term','Second Term','Third Term')";
+                $check_stmt = $this->conn->prepare($check_query);
+                $check_stmt->bindValue(':student_id', $student_id, PDO::PARAM_INT);
+                $check_stmt->bindValue(':class_id', $class_id, PDO::PARAM_INT);
+                $check_stmt->bindValue(':academic_year', $academic_year);
+                $check_stmt->execute();
+                $term_results = $check_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $found_terms = array_column($term_results, 'term');
+
+                // Check which terms are missing
+                $missing = [];
+                foreach (['First Term', 'Second Term', 'Third Term'] as $t) {
+                    if (!in_array($t, $found_terms)) {
+                        $missing[] = $t;
+                    }
+                }
+
+                if (!empty($missing)) {
+                    $errors[] = $student['first_name'] . ' ' . $student['last_name'] . ': missing approved results for ' . implode(', ', $missing);
+                    continue;
+                }
+
+                // Get scores across all 3 terms, grouped by subject
+                $scores_query = "SELECT sa.subject_id, sub.name AS subject_name,
+                                        s.term, s.ca1, s.ca2, s.exam, s.total
+                                 FROM scores s
+                                 JOIN subject_assignments sa ON s.subject_assignment_id = sa.id
+                                 JOIN subjects sub ON sa.subject_id = sub.id
+                                 WHERE s.student_id = :student_id
+                                   AND s.academic_year = :academic_year
+                                   AND s.status = 'Approved'
+                                 ORDER BY sa.subject_id,
+                                          FIELD(s.term, 'First Term','Second Term','Third Term')";
+                $scores_stmt = $this->conn->prepare($scores_query);
+                $scores_stmt->bindValue(':student_id', $student_id, PDO::PARAM_INT);
+                $scores_stmt->bindValue(':academic_year', $academic_year);
+                $scores_stmt->execute();
+                $all_scores = $scores_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Pivot by subject_id
+                $subject_groups = [];
+                foreach ($all_scores as $score_row) {
+                    $sid = (int)$score_row['subject_id'];
+                    if (!isset($subject_groups[$sid])) {
+                        $subject_groups[$sid] = [
+                            'subject_id' => $sid,
+                            'subject_name' => $score_row['subject_name'],
+                            'first_ca1' => 0, 'first_ca2' => 0, 'first_exam' => 0, 'first_total' => 0,
+                            'second_ca1' => 0, 'second_ca2' => 0, 'second_exam' => 0, 'second_total' => 0,
+                            'third_ca1' => 0, 'third_ca2' => 0, 'third_exam' => 0, 'third_total' => 0,
+                        ];
+                    }
+                    $term = $score_row['term'];
+                    $prefix = '';
+                    if ($term === 'First Term') $prefix = 'first_';
+                    elseif ($term === 'Second Term') $prefix = 'second_';
+                    else $prefix = 'third_';
+
+                    $subject_groups[$sid][$prefix . 'ca1'] = (float)($score_row['ca1'] ?? 0);
+                    $subject_groups[$sid][$prefix . 'ca2'] = (float)($score_row['ca2'] ?? 0);
+                    $subject_groups[$sid][$prefix . 'exam'] = (float)($score_row['exam'] ?? 0);
+                    $subject_groups[$sid][$prefix . 'total'] = (float)($score_row['total'] ?? 0);
+                }
+
+                // Build subject_data and compute cumulative totals
+                $subject_data = [];
+                $running_grand_total = 0;
+                foreach ($subject_groups as $sg) {
+                    $grand_total = $sg['first_total'] + $sg['second_total'] + $sg['third_total'];
+                    $average = count(array_filter([$sg['first_total'], $sg['second_total'], $sg['third_total']], function($v) { return $v > 0; })) > 0
+                        ? round($grand_total / 3, 1)
+                        : 0;
+                    $grade = $this->calculateGrade($average);
+                    $remark = $this->getRemark($grade);
+
+                    $subject_data[] = [
+                        'subject_id' => $sg['subject_id'],
+                        'subject_name' => $sg['subject_name'],
+                        'first_ca1' => $sg['first_ca1'],
+                        'first_ca2' => $sg['first_ca2'],
+                        'first_exam' => $sg['first_exam'],
+                        'first_total' => $sg['first_total'],
+                        'second_ca1' => $sg['second_ca1'],
+                        'second_ca2' => $sg['second_ca2'],
+                        'second_exam' => $sg['second_exam'],
+                        'second_total' => $sg['second_total'],
+                        'third_ca1' => $sg['third_ca1'],
+                        'third_ca2' => $sg['third_ca2'],
+                        'third_exam' => $sg['third_exam'],
+                        'third_total' => $sg['third_total'],
+                        'grand_total' => $grand_total,
+                        'average' => $average,
+                        'grade' => $grade,
+                        'remark' => $remark,
+                    ];
+                    $running_grand_total += $grand_total;
+                }
+
+                $total_score = $running_grand_total;
+                $num_subjects = count($subject_data);
+                $average_score = $num_subjects > 0 ? round($total_score / $num_subjects, 2) : 0;
+
+                // Aggregate attendance from all 3 term compiled_results
+                $total_present = 0;
+                $total_days = 0;
+                foreach ($term_results as $tr) {
+                    $total_present += (int)($tr['times_present'] ?? 0);
+                    $total_days += (int)($tr['total_attendance_days'] ?? 0);
+                }
+                $session_attendance_pct = $total_days > 0 ? round(($total_present / $total_days) * 100, 2) : 0;
+
+                // Determine promotion status
+                $promotion_status = ($average_score >= 50 && $session_attendance_pct >= 50) ? 'Promoted' : 'Repeated';
+
+                // Auto-generate principal comment
+                $prefix = ($promotion_status === 'Promoted') ? 'Promoted. ' : 'Repeated. ';
+                if ($average_score >= 80) {
+                    $principal_comment = $prefix . 'Exceptional performance! Keep up the excellent work.';
+                } elseif ($average_score >= 70) {
+                    $principal_comment = $prefix . 'Very good performance! Continue to work hard and aim for excellence.';
+                } elseif ($average_score >= 60) {
+                    $principal_comment = $prefix . 'Good performance! There is room for improvement. Stay focused and dedicated.';
+                } elseif ($average_score >= 50) {
+                    $principal_comment = $prefix . 'Fair performance. More effort and dedication needed for better results.';
+                } else {
+                    $principal_comment = $prefix . 'Poor performance. Requires immediate attention and significant improvement.';
+                }
+
+                $all_cumulative[] = [
+                    'student_id' => $student_id,
+                    'class_id' => $class_id,
+                    'academic_year' => $academic_year,
+                    'total_score' => $total_score,
+                    'average_score' => $average_score,
+                    'class_average' => null,
+                    'total_students' => null,
+                    'promotion_status' => $promotion_status,
+                    'session_attendance_pct' => $session_attendance_pct,
+                    'subject_data' => json_encode($subject_data),
+                    'principal_comment' => $principal_comment,
+                    'compiled_by' => (int)($token_data['user_id'] ?? 1),
+                ];
+            }
+
+            if (!empty($errors)) {
+                Response::badRequest('Some students could not be compiled: ' . implode('; ', $errors));
+                return;
+            }
+
+            if (empty($all_cumulative)) {
+                Response::badRequest('No students to compile');
+                return;
+            }
+
+            // Sort by average_score descending for position assignment
+            usort($all_cumulative, function($a, $b) {
+                return $b['average_score'] <=> $a['average_score'];
+            });
+
+            // Assign positions with tie handling
+            $current_pos = 1;
+            for ($i = 0; $i < count($all_cumulative); $i++) {
+                if ($i > 0 && $all_cumulative[$i]['average_score'] < $all_cumulative[$i - 1]['average_score']) {
+                    $current_pos = $i + 1;
+                }
+                $all_cumulative[$i]['position'] = $current_pos;
+            }
+
+            // Compute class average from all students
+            $all_averages = array_column($all_cumulative, 'average_score');
+            $class_avg = count($all_averages) > 0 ? round(array_sum($all_averages) / count($all_averages), 2) : 0;
+            $total_students_count = count($all_cumulative);
+
+            // UPSERT each cumulative result
+            $compiled_count = 0;
+            $this->conn->beginTransaction();
+            $insert_query = "INSERT INTO cumulative_results 
+                (student_id, class_id, academic_year, total_score, average_score, position, 
+                 class_average, total_students, promotion_status, session_attendance_pct, 
+                 subject_data, principal_comment, compiled_by, compiled_date)
+                VALUES (:student_id, :class_id, :academic_year, :total_score, :average_score, :position,
+                 :class_average, :total_students, :promotion_status, :session_attendance_pct,
+                 :subject_data, :principal_comment, :compiled_by, NOW())
+                ON DUPLICATE KEY UPDATE
+                 total_score = VALUES(total_score),
+                 average_score = VALUES(average_score),
+                 position = VALUES(position),
+                 class_average = VALUES(class_average),
+                 total_students = VALUES(total_students),
+                 promotion_status = VALUES(promotion_status),
+                 session_attendance_pct = VALUES(session_attendance_pct),
+                 subject_data = VALUES(subject_data),
+                 principal_comment = VALUES(principal_comment),
+                 compiled_by = VALUES(compiled_by),
+                 compiled_date = NOW()";
+
+            $insert_stmt = $this->conn->prepare($insert_query);
+
+            foreach ($all_cumulative as $row) {
+                $insert_stmt->bindValue(':student_id', $row['student_id'], PDO::PARAM_INT);
+                $insert_stmt->bindValue(':class_id', $row['class_id'], PDO::PARAM_INT);
+                $insert_stmt->bindValue(':academic_year', $row['academic_year']);
+                $insert_stmt->bindValue(':total_score', $row['total_score']);
+                $insert_stmt->bindValue(':average_score', $row['average_score']);
+                $insert_stmt->bindValue(':position', $row['position'], PDO::PARAM_INT);
+                $insert_stmt->bindValue(':class_average', $class_avg);
+                $insert_stmt->bindValue(':total_students', $total_students_count, PDO::PARAM_INT);
+                $insert_stmt->bindValue(':promotion_status', $row['promotion_status']);
+                $insert_stmt->bindValue(':session_attendance_pct', $row['session_attendance_pct']);
+                $insert_stmt->bindValue(':subject_data', $row['subject_data']);
+                $insert_stmt->bindValue(':principal_comment', $row['principal_comment']);
+                $insert_stmt->bindValue(':compiled_by', $row['compiled_by'], PDO::PARAM_INT);
+                $insert_stmt->execute();
+                $compiled_count++;
+            }
+
+            $this->conn->commit();
+
+            Response::success([
+                'compiled_count' => $compiled_count,
+                'class_average' => $class_avg,
+                'total_students' => $total_students_count,
+            ], "Cumulative results compiled for {$compiled_count} students");
+
+        } catch (PDOException $e) {
+            if ($this->conn && $this->conn->inTransaction()) $this->conn->rollBack();
+            Response::serverError('Database error during cumulative compilation');
+        } catch (Exception $e) {
+            if ($this->conn && $this->conn->inTransaction()) $this->conn->rollBack();
+            Response::serverError('Failed to compile cumulative results');
+        }
+    }
+
+    /**
+     * Get Cumulative Result for a Student
+     * Endpoint: GET /results/cumulative/{student_id}
+     */
+    public function getCumulativeResult($student_id)
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        try {
+            $token_data = Middleware::requireAuth();
+            if (!$token_data) return;
+
+            $academic_year = $_GET['academic_year'] ?? null;
+            if (!$academic_year) {
+                Response::badRequest('academic_year query parameter is required');
+                return;
+            }
+
+            $student_id = Middleware::validateInteger($student_id);
+            if (!$student_id) {
+                Response::badRequest('Invalid student ID');
+                return;
+            }
+
+            // Role-based access control
+            $role = $token_data['role'] ?? 'admin';
+            if ($role === 'parent') {
+                if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
+                    Response::forbidden('Parent profile not linked to any students');
+                    return;
+                }
+                $link_check = "SELECT COUNT(*) as count FROM parent_student_links psl
+                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id";
+                $link_stmt = $this->conn->prepare($link_check);
+                $link_stmt->bindValue(':parent_id', $token_data['linked_id']);
+                $link_stmt->bindValue(':student_id', $student_id);
+                $link_stmt->execute();
+                if ($link_stmt->fetch()['count'] == 0) {
+                    Response::forbidden('Not authorized to view this student\'s cumulative result');
+                    return;
+                }
+            }
+
+            $query = "SELECT cr.*, s.first_name, s.last_name, s.admission_number, c.name as class_name
+                      FROM cumulative_results cr
+                      JOIN students s ON cr.student_id = s.id
+                      JOIN classes c ON cr.class_id = c.id
+                      WHERE cr.student_id = :student_id AND cr.academic_year = :academic_year
+                      LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindValue(':student_id', $student_id, PDO::PARAM_INT);
+            $stmt->bindValue(':academic_year', $academic_year);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$result) {
+                Response::notFound('Cumulative result not yet compiled');
+                return;
+            }
+
+            // Decode subject_data JSON
+            if (isset($result['subject_data'])) {
+                $result['subject_data'] = json_decode($result['subject_data'], true);
+            }
+
+            Response::success($result, 'Cumulative result retrieved successfully');
+
+        } catch (Exception $e) {
+            Response::serverError('Failed to retrieve cumulative result');
+        }
+    }
+
+    /**
+     * Get Cumulative Results for a Class
+     * Endpoint: GET /results/cumulative/class/{class_id}
+     */
+    public function getClassCumulativeResults($class_id)
+    {
+        if (!$this->conn) {
+            Response::serverError('Database connection failed');
+            return;
+        }
+
+        try {
+            $token_data = Middleware::requireAuth();
+            if (!$token_data) return;
+
+            $academic_year = $_GET['academic_year'] ?? null;
+            if (!$academic_year) {
+                Response::badRequest('academic_year query parameter is required');
+                return;
+            }
+
+            $class_id = Middleware::validateInteger($class_id);
+            if (!$class_id) {
+                Response::badRequest('Invalid class ID');
+                return;
+            }
+
+            // Role-based access control
+            $role = $token_data['role'] ?? 'admin';
+            if ($role === 'parent') {
+                if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
+                    Response::forbidden('Parent profile not linked to any students');
+                    return;
+                }
+                $link_check = "SELECT COUNT(*) as count FROM parent_student_links psl
+                               JOIN students s ON psl.student_id = s.id
+                               WHERE psl.parent_id = :parent_id AND s.class_id = :class_id";
+                $link_stmt = $this->conn->prepare($link_check);
+                $link_stmt->bindValue(':parent_id', $token_data['linked_id']);
+                $link_stmt->bindValue(':class_id', $class_id);
+                $link_stmt->execute();
+                if ($link_stmt->fetch()['count'] == 0) {
+                    Response::forbidden('Not authorized to view cumulative results for this class');
+                    return;
+                }
+            }
+
+            $query = "SELECT cr.*, s.first_name, s.last_name, s.admission_number, c.name as class_name
+                      FROM cumulative_results cr
+                      JOIN students s ON cr.student_id = s.id
+                      JOIN classes c ON cr.class_id = c.id
+                      WHERE cr.class_id = :class_id AND cr.academic_year = :academic_year
+                      ORDER BY cr.position ASC";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindValue(':class_id', $class_id, PDO::PARAM_INT);
+            $stmt->bindValue(':academic_year', $academic_year);
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Decode subject_data JSON for each row
+            foreach ($results as &$row) {
+                if (isset($row['subject_data'])) {
+                    $row['subject_data'] = json_decode($row['subject_data'], true);
+                }
+            }
+            unset($row);
+
+            Response::success($results, 'Class cumulative results retrieved successfully');
+
+        } catch (Exception $e) {
+            Response::serverError('Failed to retrieve class cumulative results');
         }
     }
 }

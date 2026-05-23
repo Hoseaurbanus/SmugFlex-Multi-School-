@@ -71,13 +71,13 @@ export function CbtQuestionBankDrawer({ open, onOpenChange, examId, subjectId, o
     setLoading(true);
     try {
       const result = await importFromCbtBank(examId, selected);
-      const count = result?.imported || selected.length;
+      const count = result?.ids?.length || selected.length;
       toast.success(`Imported ${count} question${count !== 1 ? 's' : ''}`);
       setSelected([]);
       onImported();
       onOpenChange(false);
-    } catch {
-      toast.error('Failed to import questions');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to import questions');
     } finally {
       setLoading(false);
     }

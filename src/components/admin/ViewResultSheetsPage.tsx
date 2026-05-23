@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { Search, FileText, Eye, Printer, Download, BarChart3, AlertCircle, Layers } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -7,16 +8,31 @@ import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { StudentResultSheet } from "../StudentResultSheet";
+import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { useSchool } from "../../contexts/SchoolContext";
+import { generatePDFFromData as generateStudentResultPdf, generateCumulativePDF } from "../../utils/pdfGenerator";
+import { shouldShowPosition as checkShouldShowPosition } from "../../utils/classHelpers";
 import { toast } from "sonner";
+
+type ViewMode = "term" | "cumulative";
 
 export function ViewResultSheetsPage() {
   const {
     students,
     classes,
     compiledResults,
+    schoolSettings,
+    teachers,
+    scores,
+    affectiveDomains,
+    psychomotorDomains,
     currentTerm,
     currentAcademicYear,
+    cumulativeResults,
+    loadCumulativeResultsFromAPI,
+    compileCumulativeResults,
+    currentUser,
+    loadingCumulative,
   } = useSchool();
 
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -24,8 +40,21 @@ export function ViewResultSheetsPage() {
   const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear ?? "");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
+  const [downloadingIds, setDownloadingIds] = useState<Record<number, boolean>>({});
+  const [viewMode, setViewMode] = useState<ViewMode>("term");
 
   const resultSheetRef = useRef<HTMLDivElement>(null);
+  const cumulativeResultSheetRef = useRef<HTMLDivElement>(null);
+
+  const safeCompiledResults = Array.isArray(compiledResults) ? compiledResults : [];
+
+  const academicYears = useMemo(() => {
+    const years = [...new Set(safeCompiledResults.map(r => r.academic_year).filter(Boolean))].sort() as string[];
+    if (currentAcademicYear && !years.includes(currentAcademicYear)) {
+      years.unshift(currentAcademicYear);
+    }
+    return years;
+  }, [safeCompiledResults, currentAcademicYear]);
 
   // Handle print using native browser print with enhanced styling
   const handlePrint = () => {
@@ -216,16 +245,16 @@ export function ViewResultSheetsPage() {
 
   // Filter approved results
   const approvedResults = useMemo(() => {
-    return compiledResults.filter(
+    return safeCompiledResults.filter(
       (r) =>
         r.status === "Approved" &&
         r.term === selectedTerm &&
         r.academic_year === selectedYear &&
-        (!selectedClassId || r.class_id === Number(selectedClassId))
+        (selectedClassId === "" || selectedClassId === "all" || r.class_id === Number(selectedClassId))
     );
-  }, [compiledResults, selectedTerm, selectedYear, selectedClassId]);
+  }, [safeCompiledResults, selectedTerm, selectedYear, selectedClassId]);
 
-  // Get students with approved results
+  // Get students with approved results (term mode)
   const studentsWithResults = useMemo(() => {
     return approvedResults
       .map((result) => {
@@ -248,6 +277,35 @@ export function ViewResultSheetsPage() {
       });
   }, [approvedResults, students, searchQuery]);
 
+  // Get students with cumulative results (cumulative mode)
+  const cumulativeStudentsWithResults = useMemo(() => {
+    let crs = cumulativeResults;
+    if (selectedClassId && selectedClassId !== "all") {
+      crs = crs.filter((cr) => cr.class_id === Number(selectedClassId));
+    }
+    if (selectedYear) {
+      crs = crs.filter((cr) => cr.academic_year === selectedYear);
+    }
+    return crs
+      .map((cr) => {
+        const student = students.find((s) => s.id === cr.student_id);
+        if (!student) return null;
+        return { ...student, result: cr };
+      })
+      .filter((s) => s !== null)
+      .filter((s) => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+          (s!.firstName && s!.firstName.toLowerCase().includes(query)) ||
+          (s!.lastName && s!.lastName.toLowerCase().includes(query)) ||
+          (s!.admissionNumber && s!.admissionNumber.toLowerCase().includes(query))
+        );
+      });
+  }, [cumulativeResults, students, searchQuery, selectedClassId, selectedYear]);
+
+  const displayedStudents = viewMode === "cumulative" ? cumulativeStudentsWithResults : studentsWithResults;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -262,7 +320,7 @@ export function ViewResultSheetsPage() {
       <Card className="border-[#0A2540]/10">
         <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl">
           <CardTitle className="flex items-center gap-2">
-            <span className="w-5 h-5" />
+            <Search className="w-5 h-5" />
             Filter Results
           </CardTitle>
         </CardHeader>
@@ -306,8 +364,9 @@ export function ViewResultSheetsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2024/2025">2024/2025</SelectItem>
-                  <SelectItem value="2025/2026">2025/2026</SelectItem>
+                  {academicYears.map((year) => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -315,7 +374,7 @@ export function ViewResultSheetsPage() {
             <div>
               <Label className="text-[#0A2540] mb-2 block">Search Student</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -340,7 +399,7 @@ export function ViewResultSheetsPage() {
                 </p>
               </div>
               <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="w-6 h-6 text-blue-600" />
+                <FileText className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -352,11 +411,11 @@ export function ViewResultSheetsPage() {
               <div>
                 <p className="text-gray-600 text-sm mb-1">Filtered Students</p>
                 <p className="text-[#0A2540] text-3xl font-bold">
-                  {studentsWithResults.length}
+                  {displayedStudents.length}
                 </p>
               </div>
               <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <span className="w-6 h-6 text-green-600" />
+                <BarChart3 className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -366,38 +425,75 @@ export function ViewResultSheetsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Term & Year</p>
-                <p className="text-[#0A2540] font-bold">{selectedTerm}</p>
-                <p className="text-gray-600 text-sm">{selectedYear}</p>
+                <p className="text-gray-600 text-sm mb-1">{viewMode === "cumulative" ? "Session" : "Term & Year"}</p>
+                <p className="text-[#0A2540] font-bold">{viewMode === "cumulative" ? selectedYear : selectedTerm}</p>
+                <p className="text-gray-600 text-sm">{viewMode === "cumulative" ? "Cumulative" : selectedYear}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <span className="w-6 h-6 text-purple-600" />
+                <Eye className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* View Mode Toggle */}
+      {selectedTerm === "Third Term" && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-[#0A2540]/10 p-4">
+          <div className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-[#3B82F6]" />
+            <span className="text-sm font-medium text-[#0A2540]">View:</span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === "term" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("term")}
+              className={viewMode === "term" ? "bg-[#3B82F6]" : ""}
+            >
+              Term Results
+            </Button>
+            <Button
+              variant={viewMode === "cumulative" ? "default" : "outline"}
+              size="sm"
+              disabled={loadingCumulative}
+              onClick={() => {
+                setViewMode("cumulative");
+                const classId = selectedClassId && selectedClassId !== "all" ? Number(selectedClassId) : undefined;
+                if (classId) loadCumulativeResultsFromAPI(classId, selectedYear);
+              }}
+              className={viewMode === "cumulative" ? "bg-[#3B82F6]" : ""}
+            >
+              {loadingCumulative ? 'Loading...' : 'Cumulative'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Student List */}
       <Card className="border-[#0A2540]/10">
         <CardHeader className="bg-gradient-to-r from-[#10B981] to-[#059669] text-white rounded-t-xl">
-          <CardTitle>Approved Result Sheets</CardTitle>
+          <CardTitle>{viewMode === "cumulative" ? "Cumulative Results" : "Approved Result Sheets"}</CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          {studentsWithResults.length === 0 ? (
+          {displayedStudents.length === 0 && loadingCumulative && viewMode === "cumulative" ? (
             <div className="text-center py-12">
-              <span className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 mb-2">No approved results found</p>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading cumulative results...</p>
+            </div>
+          ) : displayedStudents.length === 0 ? (
+            <div className="text-center py-12">
+              <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-600 mb-2">{viewMode === "cumulative" ? 'No cumulative results found' : 'No approved results found'}</p>
               <p className="text-gray-500 text-sm">
-                Try changing the filters or wait for results to be approved
+                {viewMode === "cumulative" ? 'Try changing the filters or compile cumulative results for the class' : 'Try changing the filters or wait for results to be approved'}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {studentsWithResults.map((studentData) => {
+              {displayedStudents.map((studentData) => {
             // Check if class should show position (not for early childhood classes)
-            const shouldShowPosition = studentData!.className && 
-              !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 2 (PEARL)'].includes(studentData!.className.toUpperCase());
+            const shouldShowPosition = checkShouldShowPosition(studentData!.className);
 
             return (
               <div
@@ -444,33 +540,70 @@ export function ViewResultSheetsPage() {
                             className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                             onClick={() => setSelectedStudent(studentData!.id)}
                           >
-                            <span className="w-4 h-4 mr-2" />
-                            View
+                            <Eye className="w-4 h-4 mr-2" />
+                            {viewMode === "cumulative" ? "View Cumulative" : "View Sheet"}
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>
-                              Result Sheet - {studentData!.firstName}{" "}
+                              {viewMode === "cumulative" ? "Cumulative Result" : "Result Sheet"} - {studentData!.firstName}{" "}
                               {studentData!.lastName}
                             </DialogTitle>
                           </DialogHeader>
 
                           <div className="space-y-4">
-                            <StudentResultSheet
-                              ref={resultSheetRef}
-                              studentId={studentData!.id}
-                              term={selectedTerm}
-                              academicYear={selectedYear}
-                            />
+                            {viewMode === "cumulative" ? (
+                              <CumulativeResultSheet
+                                ref={cumulativeResultSheetRef}
+                                studentId={studentData!.id}
+                                academicYear={selectedYear}
+                              />
+                            ) : (
+                              <StudentResultSheet
+                                ref={resultSheetRef}
+                                studentId={studentData!.id}
+                                term={selectedTerm}
+                                academicYear={selectedYear}
+                              />
+                            )}
 
                             <div className="flex gap-3 justify-end border-t pt-4">
+                              {viewMode === "cumulative" && (
+                                <Button
+                                  disabled={loadingCumulative}
+                                  onClick={async () => {
+                                    const cr = cumulativeResults.find(
+                                      r => r.student_id === studentData!.id && r.academic_year === selectedYear
+                                    );
+                                    if (!cr) { toast.error('Cumulative result data not found'); return; }
+                                    try {
+                                      await generateCumulativePDF(studentData!, cr, schoolSettings, classes, selectedYear);
+                                      toast.success('PDF downloaded');
+                                    } catch { toast.error('Failed to generate PDF'); }
+                                  }}
+                                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  {loadingCumulative ? 'Loading...' : 'Download PDF'}
+                                </Button>
+                              )}
                               <Button
-                                className="bg-gray-400 text-white rounded-xl cursor-not-allowed opacity-50"
-                                disabled
+                                onClick={() => {
+                                  const ref = viewMode === "cumulative" ? cumulativeResultSheetRef : resultSheetRef;
+                                  if (ref.current) {
+                                    const pw = window.open('', '_blank');
+                                    if (pw) {
+                                      pw.document.write(`<html><head><title>${viewMode === "cumulative" ? "Cumulative Result" : "Result Sheet"}</title><style>@page{size:A4;margin:8mm}body{margin:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}table{border-collapse:collapse;width:100%}td,th{padding:4px;font-size:10px}.bg-white{background:white!important}</style></head><body>${ref.current.innerHTML}</body></html>`);
+                                      pw.document.close();
+                                      setTimeout(() => { pw.print(); pw.close(); }, 500);
+                                    }
+                                  }
+                                }}
+                                className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
                               >
-                                <span className="w-4 h-4 mr-2" />
-                                Print (PDF Only)
+                                <Printer className="w-4 h-4 mr-2" />
+                                Print
                               </Button>
                             </div>
                           </div>

@@ -4,14 +4,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../ui/table';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -19,10 +12,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { useSchool, Student as SchoolStudent } from '../../contexts/SchoolContext';
 import { API_CONFIG } from '../../config/api';
-import { Users, User, Phone, Mail, Download, Search, Trophy, Target, TrendingUp } from 'lucide-react';
+import {
+  Users, User, Phone, Mail, Download, Search, Trophy, Target, Eye,
+  MoreVertical, MessageSquare, FileText, ChevronLeft, ChevronRight,
+  UserCheck, AlertCircle, RefreshCw, Medal, GraduationCap
+} from 'lucide-react';
+import { toast } from "sonner";
 
 interface ExtendedStudent extends SchoolStudent {
   parentName: string;
@@ -65,7 +68,6 @@ export function ClassListPage() {
       );
       return !!assignment;
     });
-    // Fallback to all classes if no class teacher assignments
     const availableClasses = classTeacherClasses.length > 0 ? classTeacherClasses : classes;
     const firstAvailableClass = availableClasses[0];
     return firstAvailableClass?.id || classes[0]?.id || 1;
@@ -74,6 +76,8 @@ export function ClassListPage() {
   const [selectedStudent, setSelectedStudent] = useState<ExtendedStudent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const lastLoadKeyRef = useRef<string>('');
   const didNormalizeSelectedClassRef = useRef<boolean>(false);
 
@@ -99,7 +103,6 @@ export function ClassListPage() {
     return best?.id ? Number(best.id) : (Number(baseClass.id) || null);
   };
 
-  // Load data when component mounts
   useEffect(() => {
     const loadData = async () => {
       const loadKey = `${String(currentTerm ?? '')}__${String(currentAcademicYear ?? '')}`;
@@ -111,7 +114,6 @@ export function ClassListPage() {
       setIsLoading(true);
       setError(null);
       try {
-        // Load all necessary data in parallel
         await Promise.all([
           currentTerm && currentAcademicYear
             ? loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear)
@@ -131,7 +133,6 @@ export function ClassListPage() {
     loadData();
   }, [currentTerm, currentAcademicYear, loadClassTeacherAssignmentsFromAPI, loadStudentsFromAPI, loadParentsFromAPI, loadCompiledResultsFromAPI, loadClassesFromAPI]);
 
-  // Refresh data when class changes (optional)
   useEffect(() => {
     if (selectedClassId && !isLoading) {
       const refreshData = async () => {
@@ -144,7 +145,6 @@ export function ClassListPage() {
           // Silent fail for security
         }
       };
-
       refreshData();
     }
   }, [selectedClassId, isLoading]);
@@ -161,7 +161,6 @@ export function ClassListPage() {
     didNormalizeSelectedClassRef.current = true;
   }, [isLoading, selectedClassId, classes, allStudents]);
 
-  // Get teacher's classes based on class teacher assignment only
   const currentTeacher = currentUser ? teachers.find(t => String(t.id) === String(currentUser.linked_id)) : null;
   const teacherClasses = classes.filter((c: any) => {
     const assignment = classTeacherAssignments.find((cta: any) => 
@@ -188,10 +187,8 @@ export function ClassListPage() {
     });
   }, [teacherClasses, classes, allStudents]);
 
-  // Fallback: If teacher has no class teacher assignments, show all classes
   const availableClasses = effectiveTeacherClasses.length > 0 ? effectiveTeacherClasses : classes;
 
-  // Get current class - from available classes, but prefer one with students
   const effectiveSelectedClassId = useMemo(() => {
     const canonical = resolveCanonicalClassId(selectedClassId);
     return canonical ?? selectedClassId;
@@ -201,9 +198,8 @@ export function ClassListPage() {
     availableClasses.find((c: any) => allStudents.some((s: any) => String(s.class_id) === String(c.id))) ||
     availableClasses[0];
 
-  // Get students from selected class with extended data
   const students: ExtendedStudent[] = useMemo(() => {
-    if (!selectedClass) return []; // Return empty if no class is selected
+    if (!selectedClass) return [];
     
     return allStudents
       .filter(s => {
@@ -214,7 +210,6 @@ export function ClassListPage() {
       })
       .map((student, index) => {
         const parent = parents.find(p => p.id === student.parent_id);
-        // Filter compiled results for current student, term, academic year, and approved status
         const studentResults = compiledResults.filter(r => 
           r.student_id === student.id && 
           r.status === 'Approved' &&
@@ -238,16 +233,12 @@ export function ClassListPage() {
             return Math.round((timesPresent / totalDays) * 100);
           })() : 0,
           averageScore: averageScore || 0,
-          position: index + 1, // Will be recalculated based on scores
+          position: index + 1,
         };
       })
       .sort((a, b) => b.averageScore - a.averageScore)
       .map((student, index) => ({ ...student, position: index + 1 }));
   }, [allStudents, effectiveSelectedClassId, parents, compiledResults, selectedClass, currentTerm, currentAcademicYear]);
-
-  const handleViewDetails = (student: any) => {
-    setSelectedStudent(student);
-  };
 
   const filteredStudents = (students || []).filter(student => {
     const fullName = `${student.firstName || ''} ${student.lastName || ''}`;
@@ -255,11 +246,27 @@ export function ClassListPage() {
       (fullName && fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (student.admissionNumber && student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (student.parentName && student.parentName.toLowerCase().includes(searchTerm.toLowerCase()));
-    
     const matchesGender = genderFilter === 'all' || student.gender === genderFilter;
-    
     return matchesSearch && matchesGender;
   });
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, genderFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
+  const paginatedStudents = filteredStudents.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Clamp current page when data refresh reduces total pages
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(Math.max(1, totalPages));
+    }
+  }, [currentPage, totalPages]);
 
   const classStats = {
     totalStudents: students?.length || 0,
@@ -271,18 +278,13 @@ export function ClassListPage() {
 
   const getInitials = (name: string) => {
     if (!name) return '??';
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase();
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
   const getStudentFullName = (student: any) => {
     const firstName = student?.firstName || '';
     const lastName = student?.lastName || '';
-    const fullName = `${firstName} ${lastName}`.trim() || 'Unknown Student';
-    return fullName;
+    return `${firstName} ${lastName}`.trim() || 'Unknown Student';
   };
 
   const getStudentAvatarSrc = (student: any): string | undefined => {
@@ -352,597 +354,536 @@ export function ClassListPage() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Student ID', 'Name', 'Gender', 'DOB', 'Parent Name', 'Parent Phone', 'Parent Email', 'Attendance %', 'Average Score', 'Position'];
-    const rows = filteredStudents.map(s => [
-      s.admissionNumber, `${s.firstName} ${s.lastName}`, s.gender, new Date(s.date_of_birth).toLocaleDateString('en-GB'), s.parentName, s.parentPhone, s.parentEmail, s.attendance, s.averageScore, s.position
-    ]);
-    
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedClass?.name || 'class'}-class-list-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    try {
+      const escapeCsv = (val: any) => {
+        const s = String(val ?? '');
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+
+      const headers = ['Student ID', 'Name', 'Gender', 'DOB', 'Parent Name', 'Parent Phone', 'Parent Email', 'Attendance %', 'Average Score', 'Position'];
+      const rows = filteredStudents.map(s => [
+        escapeCsv(s.admissionNumber),
+        escapeCsv(`${s.firstName} ${s.lastName}`),
+        escapeCsv(s.gender),
+        escapeCsv(s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString('en-GB') : ''),
+        escapeCsv(s.parentName),
+        escapeCsv(s.parentPhone),
+        escapeCsv(s.parentEmail),
+        escapeCsv(s.attendance),
+        escapeCsv(s.averageScore.toFixed(1)),
+        escapeCsv(s.position),
+      ]);
+      
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedClass?.name || 'class'}-class-list-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${filteredStudents.length} students`);
+    } catch {
+      toast.error('Failed to export CSV');
+    }
+  };
+
+  const getPerformanceColor = (score: number) => {
+    if (score >= 70) return { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Excellent', bar: 'from-emerald-400 to-emerald-600' };
+    if (score >= 50) return { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Good', bar: 'from-amber-400 to-amber-600' };
+    return { bg: 'bg-red-50 border-red-200', text: 'text-red-700', badge: 'bg-red-100 text-red-700 border-red-200', label: 'Needs Improvement', bar: 'from-red-400 to-red-600' };
+  };
+
+  const getAttendanceColor = (pct: number) => {
+    if (pct >= 90) return { bar: 'from-emerald-400 to-emerald-600', text: 'text-emerald-600' };
+    if (pct >= 75) return { bar: 'from-amber-400 to-amber-600', text: 'text-amber-600' };
+    return { bar: 'from-red-400 to-red-600', text: 'text-red-600' };
+  };
+
+  const getPositionBadge = (pos: number) => {
+    if (pos === 1) return { bg: 'bg-amber-100 text-amber-700 border-amber-200', icon: Trophy, iconColor: 'text-amber-500' };
+    if (pos === 2) return { bg: 'bg-slate-100 text-slate-600 border-slate-200', icon: Medal, iconColor: 'text-slate-400' };
+    if (pos === 3) return { bg: 'bg-orange-100 text-orange-700 border-orange-200', icon: Medal, iconColor: 'text-orange-500' };
+    return { bg: 'bg-slate-50 text-slate-500 border-slate-100', icon: null, iconColor: '' };
+  };
+
+  const getPageNumbers = (): (number | '...')[] => {
+    const pages: (number | '...')[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Loading State */}
+    <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
       {isLoading && (
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0A2540] mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading class data...</p>
+        <Card className="border-slate-200">
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3"></div>
+            <p className="text-slate-600 text-sm">Loading class data...</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Error State */}
       {error && !isLoading && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="p-6 text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button 
-              onClick={() => window.location.reload()} 
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
+            <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+            <p className="text-red-600 mb-3 text-sm">{error}</p>
+            <Button onClick={() => window.location.reload()} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
+              <RefreshCw className="w-4 h-4 mr-1.5" />
               Retry
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Main Content */}
       {!isLoading && !error && (
-      <>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[#0A2540] mb-2">Class List - {selectedClass?.name || 'No Class Assigned'}</h1>
-          <p className="text-gray-600">Manage and view your class students</p>
-        </div>
-        {teacherClasses.length > 0 && (
-          <Select
-            value={selectedClassId.toString()}
-            onValueChange={(value: string) => {
-              const rawId = Number(value);
-              const canonicalId = resolveCanonicalClassId(rawId) ?? rawId;
-              setSelectedClassId(canonicalId);
-            }}
-          >
-            <SelectTrigger className="w-48 border-[#0A2540]/20 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {effectiveTeacherClasses.map(cls => (
-                <SelectItem key={cls.id} value={cls.id.toString()}>{cls.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {teacherClasses.length === 0 && (
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-6 text-center">
-            <span className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-[#0A2540] mb-2">No Classes Assigned</h3>
-            <p className="text-gray-600">You haven't been assigned any classes yet. Please contact the administrator.</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {teacherClasses.length > 0 && (
-      <>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <GraduationCap className="w-6 h-6 text-indigo-600 flex-shrink-0" />
               <div>
-                <p className="text-gray-600 text-xs sm:text-sm mb-1">Total Students</p>
-                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.totalStudents}</p>
-              </div>
-              <div className="bg-blue-100 p-2 sm:p-3 rounded-xl">
-                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-xs sm:text-sm mb-1">Male</p>
-                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.maleCount}</p>
-              </div>
-              <div className="bg-indigo-100 p-2 sm:p-3 rounded-xl">
-                <User className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
+                <h1 className="text-lg md:text-xl font-semibold text-slate-800">
+                  {selectedClass?.name || 'No Class Assigned'}
+                </h1>
+                <p className="text-xs md:text-sm text-slate-500">
+                  {classStats.totalStudents} student{classStats.totalStudents !== 1 ? 's' : ''} • Class List
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-xs sm:text-sm mb-1">Female</p>
-                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.femaleCount}</p>
-              </div>
-              <div className="bg-pink-100 p-2 sm:p-3 rounded-xl">
-                <User className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-xs sm:text-sm mb-1">Avg Attendance</p>
-                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.averageAttendance.toFixed(1)}%</p>
-              </div>
-              <div className="bg-green-100 p-2 sm:p-3 rounded-xl">
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0A2540]/10">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-xs sm:text-sm mb-1">Class Average</p>
-                <p className="text-[#0A2540] text-lg sm:text-xl font-bold">{classStats.averageScore.toFixed(1)}%</p>
-              </div>
-              <div className="bg-yellow-100 p-2 sm:p-3 rounded-xl">
-                <Target className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters and Search */}
-      <Card className="border-[#0A2540]/10">
-        <CardContent className="p-4 sm:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {/* Search */}
-            <div className="relative sm:col-span-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                type="text"
-                placeholder="Search by name, ID, or parent..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-[#0A2540]/20 focus:border-[#FFD700] rounded-xl text-sm sm:text-base"
-              />
-            </div>
-
-            {/* Gender Filter */}
-            <div className="sm:col-span-1">
-              <Select value={genderFilter} onValueChange={setGenderFilter}>
-                <SelectTrigger className="border-[#0A2540]/20 rounded-xl text-sm sm:text-base">
-                  <SelectValue placeholder="Gender" />
+            {teacherClasses.length > 0 && (
+              <Select
+                value={selectedClassId.toString()}
+                onValueChange={(value: string) => {
+                  const rawId = Number(value);
+                  const canonicalId = resolveCanonicalClassId(rawId) ?? rawId;
+                  setSelectedClassId(canonicalId);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-44 h-9 text-sm border-slate-200 rounded-lg">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Genders</SelectItem>
-                  <SelectItem value="Male">Male</SelectItem>
-                  <SelectItem value="Female">Female</SelectItem>
+                  {effectiveTeacherClasses.map(cls => (
+                    <SelectItem key={cls.id} value={cls.id.toString()}>{cls.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Export Button */}
-            <div className="sm:col-span-1">
-              <Button 
-                onClick={exportToCSV}
-                className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl w-full sm:w-auto text-sm sm:text-base"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Export Class List</span>
-                <span className="sm:hidden">Export</span>
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Students Table */}
-      <Card className="border-[#0A2540]/10 shadow-lg">
-        <CardHeader className="border-b border-[#0A2540]/10 bg-gradient-to-r from-[#0A2540]/5 to-[#1E40AF]/5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <CardTitle className="text-[#0A2540] font-semibold">Students ({(filteredStudents || []).length})</CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-blue-100 text-blue-800 border-0 text-xs">
-                {classStats.totalStudents} Total
-              </Badge>
-              <Badge className="bg-green-100 text-green-800 border-0 text-xs">
-                {filteredStudents?.length || 0} Filtered
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {/* Mobile View - Card Layout */}
-          <div className="block lg:hidden">
-            {(filteredStudents || []).length === 0 ? (
-              <div className="text-center py-12">
-                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium">No students found</p>
-                <p className="text-gray-400 text-sm">Try adjusting your filters or search criteria</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-200">
-                {filteredStudents.map((student) => (
-                  <div key={student.id} className="p-4 space-y-3 hover:bg-gray-50 transition-colors">
-                    {/* Student Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                          student.position === 1 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white' :
-                          student.position === 2 ? 'bg-gradient-to-r from-gray-300 to-gray-500 text-white' :
-                          student.position === 3 ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {student.position}
-                        </div>
-                        <Avatar className="h-10 w-10 bg-gradient-to-br from-[#0A2540] to-[#1E40AF] text-white font-semibold">
-                          <AvatarImage
-                            src={getStudentAvatarCandidates(student)[0]}
-                            alt={getStudentFullName(student)}
-                            className="object-cover"
-                            onError={(e) => handleAvatarImageError(e, student)}
-                          />
-                          <AvatarFallback className="bg-transparent text-sm">
-                            {getInitials(getStudentFullName(student))}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-[#0A2540] font-semibold text-sm">{getStudentFullName(student)}</p>
-                          <p className="text-xs text-gray-500 font-mono">{student.admissionNumber}</p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewDetails(student)}
-                        className="text-[#0A2540] hover:text-white hover:bg-gradient-to-r hover:from-[#0A2540] hover:to-[#1E40AF] rounded-xl transition-all duration-200"
-                      >
-                        <Search className="w-4 h-4" />
-                      </Button>
-                    </div>
-
-                    {/* Student Details Grid */}
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-gray-600 text-xs mb-1">Gender</p>
-                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                          student.gender === 'Male' 
-                            ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                            : 'bg-pink-100 text-pink-800 border border-pink-200'
-                        }`}>
-                          <div className={`w-1.5 h-1.5 rounded-full ${
-                            student.gender === 'Male' ? 'bg-blue-500' : 'bg-pink-500'
-                          }`} />
-                          {student.gender}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 text-xs mb-1">Attendance</p>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-200 rounded-full h-2 relative overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                student.attendance >= 90 ? 'bg-gradient-to-r from-green-400 to-green-600' :
-                                student.attendance >= 75 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
-                                'bg-gradient-to-r from-red-400 to-red-600'
-                              }`}
-                              style={{ width: `${student.attendance}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-semibold text-[#0A2540]">{student.attendance}%</span>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 text-xs mb-1">Parent</p>
-                        <p className="text-[#0A2540] font-medium text-xs truncate">{student.parentName}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 text-xs mb-1">Performance</p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-[#0A2540]">{student.averageScore.toFixed(1)}%</span>
-                          <Badge 
-                            className={`rounded-full text-xs font-semibold ${
-                              student.averageScore >= 70 ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300' :
-                              student.averageScore >= 50 ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300' :
-                              'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300'
-                            }`}
-                          >
-                            {student.averageScore >= 70 ? 'Excellent' :
-                             student.averageScore >= 50 ? 'Good' : 'Needs Improvement'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Contact Info */}
-                    <div className="space-y-1 pt-2 border-t border-gray-100">
-                      <div className="flex items-center gap-2 text-xs">
-                        <Phone className="w-3 h-3 text-gray-400" />
-                        <span className="text-gray-600">{student.parentPhone}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <Mail className="w-3 h-3 text-gray-400" />
-                        <span className="text-gray-600 truncate">{student.parentEmail}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             )}
           </div>
 
-          {/* Desktop View - Table Layout */}
-          <div className="hidden lg:block overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gradient-to-r from-[#0A2540]/8 to-[#1E40AF]/8 border-b border-[#0A2540]/10">
-                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Position</TableHead>
-                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Student</TableHead>
-                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Gender</TableHead>
-                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Parent/Guardian</TableHead>
-                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Contact</TableHead>
-                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Attendance</TableHead>
-                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider">Performance</TableHead>
-                  <TableHead className="text-[#0A2540] font-semibold text-sm uppercase tracking-wider text-center">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(filteredStudents || []).length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
-                      <div className="flex flex-col items-center gap-3">
-                        <Users className="w-12 h-12 text-gray-300" />
-                        <p className="text-gray-500 font-medium">No students found</p>
-                        <p className="text-gray-400 text-sm">Try adjusting your filters or search criteria</p>
+          {teacherClasses.length === 0 && (
+            <Card className="border-slate-200">
+              <CardContent className="p-8 text-center">
+                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h3 className="font-semibold text-slate-700 mb-1">No Classes Assigned</h3>
+                <p className="text-slate-500 text-sm">Contact the administrator to get class teacher assignments.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {teacherClasses.length > 0 && (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <Card className="border-slate-200">
+                  <CardContent className="p-3 md:p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-slate-500 text-xs mb-0.5">Total Students</p>
+                        <p className="text-slate-800 font-bold text-lg">{classStats.totalStudents}</p>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredStudents.map((student) => (
-                    <TableRow key={student.id} className="hover:bg-gradient-to-r hover:from-[#0A2540]/3 hover:to-[#1E40AF]/3 transition-all duration-200 border-b border-gray-100">
-                      <TableCell className="py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                            student.position === 1 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white' :
-                            student.position === 2 ? 'bg-gradient-to-r from-gray-300 to-gray-500 text-white' :
-                            student.position === 3 ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                            {student.position}
-                          </div>
-                          {student.position <= 3 && (
-                            <Trophy className={`w-4 h-4 ${
-                              student.position === 1 ? 'text-yellow-500' :
-                              student.position === 2 ? 'text-gray-400' :
-                              'text-orange-600'
-                            }`} />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-12 w-12 bg-gradient-to-br from-[#0A2540] to-[#1E40AF] text-white font-semibold">
-                            <AvatarImage
-                              src={getStudentAvatarCandidates(student)[0]}
-                              alt={getStudentFullName(student)}
-                              className="object-cover"
-                              onError={(e) => handleAvatarImageError(e, student)}
-                            />
-                            <AvatarFallback className="bg-transparent">
-                              {getInitials(getStudentFullName(student))}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-[#0A2540] font-semibold">{getStudentFullName(student)}</p>
-                            <p className="text-sm text-gray-500 font-mono">{student.admissionNumber}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${
-                          student.gender === 'Male' 
-                            ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                            : 'bg-pink-100 text-pink-800 border border-pink-200'
-                        }`}>
-                          <div className={`w-2 h-2 rounded-full ${
-                            student.gender === 'Male' ? 'bg-blue-500' : 'bg-pink-500'
-                          }`} />
-                          {student.gender}
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="space-y-1">
-                          <p className="text-[#0A2540] font-medium">{student.parentName}</p>
-                          <p className="text-xs text-gray-500">Guardian</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm group">
-                            <Phone className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                            <span className="text-gray-600 group-hover:text-blue-600 transition-colors">{student.parentPhone}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm group">
-                            <Mail className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                            <span className="text-gray-600 group-hover:text-blue-600 transition-colors truncate max-w-[180px]">{student.parentEmail}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <div className="bg-gray-200 rounded-full h-3 w-20 relative overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-500 ${
-                                  student.attendance >= 90 ? 'bg-gradient-to-r from-green-400 to-green-600' :
-                                  student.attendance >= 75 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
-                                  'bg-gradient-to-r from-red-400 to-red-600'
-                                }`}
-                                style={{ width: `${student.attendance}%` }}
+                      <div className="bg-indigo-100 p-2 rounded-lg">
+                        <Users className="w-4 h-4 text-indigo-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border-slate-200">
+                  <CardContent className="p-3 md:p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-slate-500 text-xs mb-0.5">Male</p>
+                        <p className="text-slate-800 font-bold text-lg">{classStats.maleCount}</p>
+                      </div>
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <User className="w-4 h-4 text-blue-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border-slate-200">
+                  <CardContent className="p-3 md:p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-slate-500 text-xs mb-0.5">Female</p>
+                        <p className="text-slate-800 font-bold text-lg">{classStats.femaleCount}</p>
+                      </div>
+                      <div className="bg-pink-100 p-2 rounded-lg">
+                        <UserCheck className="w-4 h-4 text-pink-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border-slate-200">
+                  <CardContent className="p-3 md:p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-slate-500 text-xs mb-0.5">Avg Attendance</p>
+                        <p className={`font-bold text-lg ${classStats.averageAttendance >= 75 ? 'text-emerald-600' : classStats.averageAttendance >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {classStats.averageAttendance.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div className="bg-emerald-100 p-2 rounded-lg">
+                        <Target className="w-4 h-4 text-emerald-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border-slate-200">
+                  <CardContent className="p-3 md:p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-slate-500 text-xs mb-0.5">Class Average</p>
+                        <p className={`font-bold text-lg ${classStats.averageScore >= 70 ? 'text-emerald-600' : classStats.averageScore >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {classStats.averageScore.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div className="bg-amber-100 p-2 rounded-lg">
+                        <Trophy className="w-4 h-4 text-amber-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="border-slate-200">
+                <CardContent className="p-3 md:p-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <Input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search name, ID, or parent..."
+                        className="pl-9 h-9 text-sm border-slate-200 rounded-lg"
+                      />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {['all', 'Male', 'Female'].map((g) => (
+                        <button
+                          key={g}
+                          onClick={() => setGenderFilter(g)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                            genderFilter === g
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {g === 'all' ? 'All' : g}
+                        </button>
+                      ))}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={exportToCSV}
+                        className="h-9 text-xs border-slate-200 text-slate-600 rounded-lg"
+                      >
+                        <Download className="w-3.5 h-3.5 mr-1.5" />
+                        CSV
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {paginatedStudents.length === 0 ? (
+                <Card className="border-slate-200">
+                  <CardContent className="p-8 text-center">
+                    <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-600 font-medium">No students found</p>
+                    <p className="text-slate-400 text-sm mt-1">Try adjusting your search or filters</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {paginatedStudents.map((student) => {
+                    const perf = getPerformanceColor(student.averageScore);
+                    const attColor = getAttendanceColor(student.attendance);
+                    const posBadge = getPositionBadge(student.position);
+                    const PosIcon = posBadge.icon;
+
+                    return (
+                      <Card key={student.id} className="border-slate-200 hover:border-indigo-200 hover:shadow-sm transition-all group">
+                        <CardContent className="p-3 md:p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold border ${posBadge.bg}`}>
+                                {PosIcon ? <PosIcon className={`w-4 h-4 ${posBadge.iconColor}`} /> : `#${student.position}`}
+                              </div>
+                            </div>
+                            <Avatar className="w-10 h-10 rounded-lg flex-shrink-0 bg-gradient-to-br from-indigo-500 to-indigo-700 text-white font-semibold">
+                              <AvatarImage
+                                src={getStudentAvatarCandidates(student)[0]}
+                                alt={getStudentFullName(student)}
+                                className="object-cover rounded-lg"
+                                onError={(e) => handleAvatarImageError(e, student)}
                               />
+                              <AvatarFallback className="bg-transparent text-xs rounded-lg">
+                                {getInitials(getStudentFullName(student))}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-800 truncate">{getStudentFullName(student)}</p>
+                                  <p className="text-xs text-slate-400 font-mono">{student.admissionNumber}</p>
+                                </div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <MoreVertical className="w-4 h-4 text-slate-400" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="rounded-lg border-slate-200">
+                                    <DropdownMenuItem onClick={() => setSelectedStudent(student)} className="text-sm cursor-pointer">
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      View Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem className="text-sm cursor-pointer">
+                                      <MessageSquare className="w-4 h-4 mr-2" />
+                                      Message Parent
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem className="text-sm cursor-pointer">
+                                      <FileText className="w-4 h-4 mr-2" />
+                                      View Result
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${
+                                  student.gender === 'Male'
+                                    ? 'bg-blue-50 text-blue-600 border-blue-200'
+                                    : 'bg-pink-50 text-pink-600 border-pink-200'
+                                }`}>
+                                  <div className={`w-1.5 h-1.5 rounded-full ${student.gender === 'Male' ? 'bg-blue-500' : 'bg-pink-500'}`} />
+                                  {student.gender}
+                                </span>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${perf.badge}`}>
+                                  {student.averageScore.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 mt-3">
+                                <div>
+                                  <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Attendance</p>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full bg-gradient-to-r ${attColor.bar}`}
+                                        style={{ width: `${student.attendance}%` }}
+                                      />
+                                    </div>
+                                    <span className={`text-xs font-semibold ${attColor.text}`}>{student.attendance}%</span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Performance</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${perf.badge}`}>
+                                    {perf.label}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold text-[#0A2540]">{student.attendance}%</p>
-                            <p className="text-xs text-gray-500">Attendance</p>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {filteredStudents.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <div className="text-xs text-slate-500">
+                    Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredStudents.length)} of {filteredStudents.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}
+                    >
+                      <SelectTrigger className="h-8 w-20 text-xs border-slate-200 rounded-lg">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage <= 1}
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className="h-8 w-8 p-0 border-slate-200 rounded-lg"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      {getPageNumbers().map((page, i) =>
+                        page === '...' ? (
+                          <span key={`ellipsis-${i}`} className="px-1 text-slate-400 text-xs">...</span>
+                        ) : (
+                          <Button
+                            key={page}
+                            variant={currentPage === page ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setCurrentPage(page)}
+                            className={`h-8 w-8 p-0 text-xs rounded-lg ${
+                              currentPage === page
+                                ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                : 'border-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {page}
+                          </Button>
+                        )
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className="h-8 w-8 p-0 border-slate-200 rounded-lg"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Dialog open={!!selectedStudent} onOpenChange={() => setSelectedStudent(null)}>
+                <DialogContent className="max-w-lg rounded-xl">
+                  <DialogHeader>
+                    <DialogTitle className="text-slate-800 flex items-center gap-2">
+                      <GraduationCap className="w-5 h-5 text-indigo-600" />
+                      Student Details
+                    </DialogTitle>
+                    <DialogDescription>
+                      {selectedStudent && getStudentFullName(selectedStudent)}
+                    </DialogDescription>
+                  </DialogHeader>
+                  {selectedStudent && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-16 w-16 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white text-lg font-semibold">
+                          <AvatarImage
+                            src={getStudentAvatarCandidates(selectedStudent)[0]}
+                            alt={getStudentFullName(selectedStudent)}
+                            className="object-cover rounded-xl"
+                            onError={(e) => handleAvatarImageError(e, selectedStudent)}
+                          />
+                          <AvatarFallback className="bg-transparent rounded-xl">
+                            {getInitials(getStudentFullName(selectedStudent))}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="text-slate-800 font-semibold">{getStudentFullName(selectedStudent)}</h3>
+                          <p className="text-sm text-slate-500 font-mono">{selectedStudent.admissionNumber}</p>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded text-xs font-medium border ${
+                            selectedStudent.gender === 'Male'
+                              ? 'bg-blue-50 text-blue-600 border-blue-200'
+                              : 'bg-pink-50 text-pink-600 border-pink-200'
+                          }`}>
+                            {selectedStudent.gender}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                          <p className="text-xs text-slate-500 mb-0.5">Position</p>
+                          <p className="text-slate-800 font-semibold">{selectedStudent.position} / {students.length}</p>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                          <p className="text-xs text-slate-500 mb-0.5">Date of Birth</p>
+                          <p className="text-slate-800 font-semibold">
+                            {selectedStudent.date_of_birth
+                              ? new Date(selectedStudent.date_of_birth).toLocaleDateString('en-GB')
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                          <p className="text-xs text-emerald-600 mb-0.5">Average Score</p>
+                          <p className="text-emerald-700 font-bold text-lg">{selectedStudent.averageScore.toFixed(1)}%</p>
+                          <span className={`inline-block px-2 py-0.5 mt-1 rounded text-xs font-medium border ${getPerformanceColor(selectedStudent.averageScore).badge}`}>
+                            {getPerformanceColor(selectedStudent.averageScore).label}
+                          </span>
+                        </div>
+                        <div className="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                          <p className="text-xs text-amber-600 mb-0.5">Attendance Rate</p>
+                          <p className="text-amber-700 font-bold text-lg">{selectedStudent.attendance}%</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">Parent / Guardian</p>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-slate-700">{selectedStudent.parentName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-slate-700">{selectedStudent.parentPhone}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <Mail className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-slate-700 truncate">{selectedStudent.parentEmail}</span>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <p className="text-lg font-bold text-[#0A2540]">{student.averageScore.toFixed(1)}%</p>
-                            <Badge 
-                              className={`rounded-full text-xs font-semibold ${
-                                student.averageScore >= 70 ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300' :
-                                student.averageScore >= 50 ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300' :
-                                'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300'
-                              }`}
-                            >
-                              {student.averageScore >= 70 ? 'Excellent' :
-                               student.averageScore >= 50 ? 'Good' : 'Needs Improvement'}
-                            </Badge>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4 text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewDetails(student)}
-                          className="text-[#0A2540] hover:text-white hover:bg-gradient-to-r hover:from-[#0A2540] hover:to-[#1E40AF] rounded-xl transition-all duration-200 group"
-                        >
-                          <Search className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="flex-1 text-xs border-slate-200 rounded-lg">
+                          <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
+                          Message
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      </>
-      )}
-
-      {/* Student Details Dialog */}
-      <Dialog open={!!selectedStudent} onOpenChange={() => setSelectedStudent(null)}>
-        <DialogContent className="max-w-2xl rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-[#0A2540]">Student Details</DialogTitle>
-            <DialogDescription>
-              Complete information for {selectedStudent && getStudentFullName(selectedStudent)}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {/* Student Info */}
-            <div className="flex items-center gap-4">
-              <Avatar className="h-20 w-20 bg-[#0A2540] text-white text-xl">
-                <AvatarImage
-                  src={selectedStudent ? getStudentAvatarCandidates(selectedStudent)[0] : undefined}
-                  alt={selectedStudent ? getStudentFullName(selectedStudent) : 'Student'}
-                  className="object-cover"
-                  onError={(e) => selectedStudent && handleAvatarImageError(e, selectedStudent)}
-                />
-                <AvatarFallback className="bg-[#0A2540] text-white">
-                  {selectedStudent && getInitials(getStudentFullName(selectedStudent))}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="text-[#0A2540]">{selectedStudent && getStudentFullName(selectedStudent)}</h3>
-                <p className="text-gray-600">{selectedStudent?.admissionNumber}</p>
-                <Badge variant="secondary" className="mt-1 rounded-xl">{selectedStudent?.gender}</Badge>
-              </div>
-            </div>
-
-            {/* Details Grid */}
-            <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
-              <div>
-                <p className="text-gray-600 text-sm">Date of Birth</p>
-                <p className="text-[#0A2540]">{selectedStudent && new Date(selectedStudent.date_of_birth).toLocaleDateString('en-GB')}</p>
-              </div>
-              <div>
-                <p className="text-gray-600 text-sm">Academic Year</p>
-                <p className="text-[#0A2540]">{selectedStudent?.academic_year || '2024/2025'}</p>
-              </div>
-              <div>
-                <p className="text-gray-600 text-sm">Class Position</p>
-                <p className="text-[#0A2540]">{selectedStudent?.position} / {students.length}</p>
-              </div>
-              <div>
-                <p className="text-gray-600 text-sm">Status</p>
-                <Badge className="bg-green-100 text-green-800 rounded-xl">Active</Badge>
-              </div>
-            </div>
-
-            {/* Performance */}
-            <div className="space-y-2">
-              <h4 className="text-[#0A2540]">Performance</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-blue-50 p-4 rounded-xl">
-                  <p className="text-gray-600 text-sm">Average Score</p>
-                  <p className="text-[#0A2540] text-xl">{selectedStudent?.averageScore.toFixed(1)}%</p>
-                </div>
-                <div className="bg-green-50 p-4 rounded-xl">
-                  <p className="text-gray-600 text-sm">Attendance Rate</p>
-                  <p className="text-[#0A2540] text-xl">{selectedStudent?.attendance}%</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Parent/Guardian Info */}
-            <div className="space-y-2">
-              <h4 className="text-[#0A2540]">Parent/Guardian Information</h4>
-              <div className="bg-gray-50 p-4 rounded-xl space-y-3">
-                <div>
-                  <p className="text-gray-600 text-sm">Name</p>
-                  <p className="text-[#0A2540]">{selectedStudent?.parentName}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-gray-600 text-sm">Phone</p>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-gray-400" />
-                      <p className="text-[#0A2540]">{selectedStudent?.parentPhone}</p>
+                        <Button size="sm" variant="outline" className="flex-1 text-xs border-slate-200 rounded-lg">
+                          <FileText className="w-3.5 h-3.5 mr-1.5" />
+                          View Result
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-sm">Email</p>
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      <p className="text-[#0A2540]">{selectedStudent?.parentEmail}</p>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-sm">Class</p>
-                  <p className="text-[#0A2540]">{selectedStudent?.className}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      </>
+                  )}
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </>
       )}
     </div>
   );

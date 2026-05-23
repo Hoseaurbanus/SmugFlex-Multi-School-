@@ -63,7 +63,7 @@ export function ManualPaymentEntryPage() {
   };
 
   // Handle submit
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedStudentId) {
       toast.error("Please select a student");
       return;
@@ -81,37 +81,36 @@ export function ManualPaymentEntryPage() {
 
     const receipt = receiptNumber || generateReceiptNumber();
 
-    addPayment({
-      student_id: Number(selectedStudentId),
-      student_name: selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : "",
-      amount: Number(amount),
-      payment_type: "School Fees",
-      term,
-      academic_year: currentAcademicYear,
-      payment_method: "Cash",
-      reference: receipt,
-      recorded_by: 1, // Admin user
-      recorded_date: paymentDate,
-      status: "Verified",
-      receipt_number: receipt,
-      verified_by: 1,
-      verified_date: new Date().toISOString(),
-      notes: description || `School fees payment - ${term} ${currentAcademicYear}`,
-      transaction_reference: receipt,
-    });
+    try {
+      await addPayment({
+        student_id: Number(selectedStudentId),
+        student_name: selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : "",
+        amount: Number(amount),
+        payment_type: "School Fees",
+        term,
+        academic_year: currentAcademicYear,
+        payment_method: "Cash",
+        reference: receipt,
+        recorded_date: `${paymentDate} 00:00:00`,
+        notes: description || `School fees payment - ${term} ${currentAcademicYear}`,
+        transaction_reference: receipt,
+      });
 
-    toast.success(
-      `Payment of ₦${Number(amount).toLocaleString()} recorded successfully! Receipt: ${receipt}`
-    );
+      toast.success(
+        `Payment of ₦${Number(amount).toLocaleString()} recorded successfully! Receipt: ${receipt}`
+      );
 
-    // Reset form
-    setSelectedStudentId("");
-    setSelectedClassId("");
-    setAmount("");
-    setPaymentDate(new Date().toISOString().split("T")[0]);
-    setDescription("");
-    setReceiptNumber("");
-    setSearchQuery("");
+      // Reset form
+      setSelectedStudentId("");
+      setSelectedClassId("");
+      setAmount("");
+      setPaymentDate(new Date().toISOString().split("T")[0]);
+      setDescription("");
+      setReceiptNumber("");
+      setSearchQuery("");
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to record payment');
+    }
   };
 
   return (

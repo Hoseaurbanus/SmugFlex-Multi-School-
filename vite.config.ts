@@ -18,12 +18,21 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
         format: 'es', // Ensure ES modules
-        manualChunks: {
-          // Split vendor dependencies
-          vendor: ['react', 'react-dom'],
-          radix: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
-          charts: ['recharts'],
-          utils: ['lucide-react', 'clsx', 'tailwind-merge']
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+
+          const parts = id.split('node_modules/')[1].split('/');
+          const pkg = parts[0].startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
+
+          if (pkg === 'react' || pkg === 'react-dom') return 'react-vendor';
+          if (pkg.startsWith('@radix-ui')) return 'radix-ui';
+          if (pkg === 'recharts') return 'recharts';
+          if (pkg === 'jspdf') return 'jspdf';
+          if (pkg === 'html2canvas') return 'html2canvas';
+          if (pkg === 'mammoth') return 'mammoth';
+          if (pkg === 'jszip') return 'jszip';
+          if (pkg === 'clsx' || pkg === 'tailwind-merge' || pkg === 'lucide-react') return 'ui-utils';
+          return `vendor-${pkg.replace('@', '').replace('/', '-')}`;
         }
       }
     },

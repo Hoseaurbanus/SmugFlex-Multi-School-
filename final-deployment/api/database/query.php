@@ -23,7 +23,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 try {
     $token_data = Middleware::requireAuth();
     $role = strtolower(trim((string)($token_data['role'] ?? '')));
-    // SECURITY FIX: Allow admin, teacher, and accountant - but not parents
     if ($role !== 'admin' && $role !== 'teacher' && $role !== 'accountant') {
         error_log("SECURITY: Access denied: User " . ($token_data['username'] ?? 'unknown') . " with role " . ($token_data['role'] ?? 'none') . " attempted to access database query endpoint.");
         Response::forbidden('Access denied: Only administrators, teachers, and accountants can execute database queries');
@@ -56,6 +55,12 @@ $queryType = strtoupper(strtok($normalized, " \t\r\n"));
 $allowed_verbs = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
 if (!in_array($queryType, $allowed_verbs, true)) {
     Response::badRequest("Disallowed query type: only SELECT, INSERT, UPDATE, DELETE are permitted.");
+}
+
+// Restrict write operations (INSERT, UPDATE, DELETE) to admin only
+if (in_array($queryType, ['INSERT', 'UPDATE', 'DELETE'], true) && $role !== 'admin') {
+    error_log("SECURITY: Write query denied for non-admin role '{$role}' by user " . ($token_data['username'] ?? 'unknown'));
+    Response::forbidden('Only administrators can execute write operations (INSERT/UPDATE/DELETE)');
 }
 
 // Basic security check: prevent highly destructive queries

@@ -164,18 +164,20 @@ class PaymentController {
                 $conditions[] = "p.recorded_date <= :date_to";
                 $params[':date_to'] = Middleware::validateDate($_GET['date_to']);
             }
+
+            $return_all = isset($_GET['all_history']) && $_GET['all_history'] === 'true';
             
-            // ============ NEW: TERM AND ACADEMIC YEAR FILTERING ============
-            // Allow filtering by specific term/year, or use current defaults
+            // ============ UPDATED: TERM AND ACADEMIC YEAR FILTERING ============
+            // Allow full history when requested, otherwise default to current term/year
             $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : $default_term;
             $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : $default_academic_year;
             
-            // CRITICAL: Always filter by academic year and term
-            $conditions[] = "p.academic_year = :academic_year";
-            $params[':academic_year'] = $academic_year;
-            
-            $conditions[] = "p.term = :term";
-            $params[':term'] = $term;
+            if (!$return_all) {
+                $conditions[] = "p.academic_year = :academic_year";
+                $params[':academic_year'] = $academic_year;
+                $conditions[] = "p.term = :term";
+                $params[':term'] = $term;
+            }
             // ============ END: TERM AND ACADEMIC YEAR FILTERING ============
             
             if (!empty($conditions)) {
@@ -272,6 +274,7 @@ class PaymentController {
             $invoice_id = isset($data['invoice_id']) ? Middleware::validateInteger($data['invoice_id'], 'invoice_id') : null;
             $transaction_reference = isset($data['transaction_reference']) ? Middleware::sanitizeString($data['transaction_reference']) : null;
             $notes = isset($data['notes']) ? Middleware::sanitizeString($data['notes']) : null;
+            $recorded_date = isset($data['recorded_date']) ? Middleware::sanitizeString($data['recorded_date']) : null;
 
             // Idempotency: prevent duplicate references (returns the original payment)
             if (!empty($transaction_reference)) {
@@ -307,9 +310,9 @@ class PaymentController {
             
             // Insert payment (retry on receipt_number collision)
             $query = "INSERT INTO payments (student_id, invoice_id, amount, payment_type, term, academic_year, payment_method, 
-                                          transaction_reference, receipt_number, recorded_by, notes, status, verified_by, verified_date)
+                                          transaction_reference, receipt_number, recorded_by, notes, status, verified_by, verified_date, recorded_date)
                       VALUES (:student_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method,
-                              :transaction_reference, :receipt_number, :recorded_by, :notes, :status, :verified_by, :verified_date)";
+                              :transaction_reference, :receipt_number, :recorded_by, :notes, :status, :verified_by, :verified_date, :recorded_date)";
 
             $recorded_by = $_SESSION['user_id'] ?? 1;
             $verified_by = ($status === 'Verified') ? $recorded_by : null;
@@ -336,6 +339,7 @@ class PaymentController {
                     $stmt->bindParam(':status', $status);
                     $stmt->bindParam(':verified_by', $verified_by);
                     $stmt->bindParam(':verified_date', $verified_date);
+                    $stmt->bindValue(':recorded_date', $recorded_date ? $recorded_date : date('Y-m-d H:i:s'));
 
                     $stmt->execute();
                     $payment_id = $this->conn->lastInsertId();
@@ -1487,8 +1491,9 @@ class PaymentController {
      * Generate Receipt Number
      */
     private function generateReceiptNumber() {
+        $prefix = 'GRA';
+
         try {
-            $prefix = 'GRA';
             $date = date('Ymd');
             
             // Get count for today
@@ -1536,7 +1541,49 @@ class PaymentController {
                 $update_stmt->bindParam(':total_paid', $new_total_paid);
                 $update_stmt->bindParam(':id', $balance_record['id']);
                 $update_stmt->execute();
+                return;
             }
+
+            // Create fee balance record if missing
+            $student_query = "SELECT class_id FROM students WHERE id = :student_id LIMIT 1";
+            $student_stmt = $this->conn->prepare($student_query);
+            $student_stmt->bindParam(':student_id', $student_id);
+            $student_stmt->execute();
+            $student = $student_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$student) {
+                return;
+            }
+
+            $fee_query = "SELECT total_fee FROM fee_structures 
+                          WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year 
+                          ORDER BY id DESC LIMIT 1";
+            $fee_stmt = $this->conn->prepare($fee_query);
+            $fee_stmt->bindParam(':class_id', $student['class_id']);
+            $fee_stmt->bindParam(':term', $term);
+            $fee_stmt->bindParam(':academic_year', $academic_year);
+            $fee_stmt->execute();
+            $fee_structure = $fee_stmt->fetch(PDO::FETCH_ASSOC);
+
+            $total_fee_required = $fee_structure ? floatval($fee_structure['total_fee']) : 0.00;
+            $status = 'Partial';
+            if ($total_fee_required > 0 && $amount >= $total_fee_required) {
+                $status = 'Paid';
+            } elseif ($amount <= 0) {
+                $status = 'Unpaid';
+            }
+
+            $insert_query = "INSERT INTO student_fee_balances 
+                             (student_id, class_id, term, academic_year, total_fee_required, total_paid, status, last_payment_date) 
+                             VALUES (:student_id, :class_id, :term, :academic_year, :total_fee_required, :total_paid, :status, NOW())";
+            $insert_stmt = $this->conn->prepare($insert_query);
+            $insert_stmt->bindParam(':student_id', $student_id);
+            $insert_stmt->bindParam(':class_id', $student['class_id']);
+            $insert_stmt->bindParam(':term', $term);
+            $insert_stmt->bindParam(':academic_year', $academic_year);
+            $insert_stmt->bindParam(':total_fee_required', $total_fee_required);
+            $insert_stmt->bindParam(':total_paid', $amount);
+            $insert_stmt->bindParam(':status', $status);
+            $insert_stmt->execute();
         } catch (PDOException $e) {
             error_log("Error updating fee balance: " . $e->getMessage());
         }

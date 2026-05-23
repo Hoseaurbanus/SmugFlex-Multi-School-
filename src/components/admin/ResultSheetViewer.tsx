@@ -1,5 +1,5 @@
-import { Book, BookOpen, Loader2 } from 'lucide-react';
-import { useState, useEffect } from "react";
+import { Book, BookOpen, Loader2, Printer, Download } from 'lucide-react';
+import { useState, useEffect, useRef } from "react";
 import { useSchool } from "../../contexts/SchoolContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Label } from "../ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { StudentResultCard } from "../shared/StudentResultCard";
+import { generatePDFFromData as generateStudentResultPdf } from "../../utils/pdfGenerator";
+import { toast } from "sonner";
 
 interface ResultSheetViewerProps {
   isOpen?: boolean;
@@ -25,7 +27,7 @@ export function ResultSheetViewer({
   initialTerm,
   initialAcademicYear
 }: ResultSheetViewerProps) {
-  const { students, classes, compiledResults, currentUser, loadCompiledResultsFromAPI } = useSchool();
+  const { students, classes, compiledResults, currentUser, loadCompiledResultsFromAPI, schoolSettings, teachers, scores, affectiveDomains, psychomotorDomains } = useSchool();
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(initialStudentId || null);
   const [selectedClassId, setSelectedClassId] = useState<number | null>(initialClassId || null);
   const [selectedTerm, setSelectedTerm] = useState(initialTerm || "Third Term");
@@ -122,10 +124,29 @@ export function ResultSheetViewer({
     }
   };
 
+  const resultCardRef = useRef<HTMLDivElement>(null);
+
   const handlePrint = () => {
-    // Print functionality removed - only use ResultsManagementPage PDF generation
+    if (resultCardRef.current && studentResultData) {
+      const pw = window.open('', '_blank');
+      if (pw) {
+        pw.document.write(`<html><head><title>Result Sheet</title><style>@page{size:A4;margin:8mm}body{margin:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact}table{border-collapse:collapse;width:100%}td,th{padding:4px;font-size:10px}.bg-white{background:white!important}</style></head><body>${resultCardRef.current.innerHTML}</body></html>`);
+        pw.document.close();
+        setTimeout(() => { pw.print(); pw.close(); }, 500);
+      }
+    }
   };
 
+  const handleDownloadPDF = async () => {
+    if (!studentResultData) return;
+    const student = students.find(s => s.id === selectedStudentId);
+    if (!student) { toast.error('Student not found'); return; }
+    try {
+      const context = { schoolSettings, teachers, classes, scores, affectiveDomains, psychomotorDomains };
+      await generateStudentResultPdf(student, studentResultData, context, { downloadMethod: 'blob' });
+      toast.success('PDF downloaded');
+    } catch { toast.error('Failed to download PDF'); }
+  };
 
   const handlePreview = () => {
     if (selectedStudentId && selectedClassId && selectedTerm && selectedAcademicYear) {
@@ -249,7 +270,7 @@ export function ResultSheetViewer({
                   disabled={!canGenerateResult}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  <span className="w-4 h-4 mr-2" />
+                  <Eye className="w-4 h-4 mr-2" />
                   Preview Result Sheet
                 </Button>
               </div>
@@ -269,11 +290,13 @@ export function ResultSheetViewer({
                       <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                       <span className="ml-2 text-gray-600">Loading result data...</span>
                     </div>
-                  ) : studentResultData ? (
-                    <StudentResultCard
-                      result={studentResultData}
-                      currentUser={currentUser}
-                    />
+                   ) : studentResultData ? (
+                    <div ref={resultCardRef}>
+                      <StudentResultCard
+                        result={studentResultData}
+                        currentUser={currentUser}
+                      />
+                    </div>
                   ) : (
                     <div className="text-center py-20 text-gray-500">
                       <p>No result data found for this student.</p>
@@ -281,6 +304,18 @@ export function ResultSheetViewer({
                     </div>
                   )}
                 </div>
+                {studentResultData && (
+                  <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-[#E5E7EB]">
+                    <Button onClick={handlePrint} className="bg-[#3B82F6] hover:bg-[#2563EB] text-white">
+                      <Printer className="w-4 h-4 mr-2" />
+                      Print
+                    </Button>
+                    <Button onClick={handleDownloadPDF} className="bg-[#10B981] hover:bg-[#059669] text-white">
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

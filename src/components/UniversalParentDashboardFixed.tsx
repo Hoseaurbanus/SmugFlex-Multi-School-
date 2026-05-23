@@ -2016,6 +2016,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
             <PaymentReceipt 
               payment={selectedPaymentForReceipt} 
               studentName={selectedPaymentForReceipt.student_name}
+              studentClassName={selectedPaymentForReceipt.class_name}
             />
           )}
         </DialogContent>

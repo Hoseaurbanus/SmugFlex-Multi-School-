@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -13,16 +13,33 @@ import { toast } from 'sonner';
 const NAIRA = "\u20A6";
 
 export function PaymentHistoryPage() {
-  const { payments, students, reversePayment, currentTerm, currentAcademicYear } = useSchool();
+  const { payments, students, reversePayment, currentTerm, currentAcademicYear, loadPaymentsFromAPI } = useSchool();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [feeTypeFilter, setFeeTypeFilter] = useState('all');
   const [termFilter, setTermFilter] = useState('all');
+  const [academicYearFilter, setAcademicYearFilter] = useState('all');
   const [isReversing, setIsReversing] = useState(false);
 
   const [isReverseDialogOpen, setIsReverseDialogOpen] = useState(false);
   const [reverseReason, setReverseReason] = useState('');
   const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
+
+  const academicYears = useMemo(() => {
+    const years = Array.from(new Set(payments.map(p => p.academic_year).filter(Boolean)));
+    if (currentAcademicYear && !years.includes(currentAcademicYear)) {
+      years.unshift(currentAcademicYear);
+    }
+    return years.sort();
+  }, [payments, currentAcademicYear]);
+
+  useEffect(() => {
+    if (loadPaymentsFromAPI) {
+      loadPaymentsFromAPI(true).catch(() => {
+        // failed full-history load is non-blocking
+      });
+    }
+  }, [loadPaymentsFromAPI]);
 
   const filteredPayments = payments.filter(payment => {
     const matchesSearch = 
@@ -33,8 +50,9 @@ export function PaymentHistoryPage() {
     const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
     const matchesFeeType = feeTypeFilter === 'all' || payment.payment_type === feeTypeFilter;
     const matchesTerm = termFilter === 'all' || payment.term === termFilter;
+    const matchesYear = academicYearFilter === 'all' || payment.academic_year === academicYearFilter;
     
-    return matchesSearch && matchesStatus && matchesFeeType && matchesTerm;
+    return matchesSearch && matchesStatus && matchesFeeType && matchesTerm && matchesYear;
   });
 
   const totalRevenue = payments.filter(p => p.status === 'Verified').reduce((sum, p) => sum + p.amount, 0);
@@ -178,7 +196,7 @@ export function PaymentHistoryPage() {
       {/* Filters and Search */}
       <Card className="border-[#0A2540]/10">
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             {/* Search */}
             <div className="relative">
               <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -231,6 +249,19 @@ export function PaymentHistoryPage() {
                 <SelectItem value="First Term">First Term</SelectItem>
                 <SelectItem value="Second Term">Second Term</SelectItem>
                 <SelectItem value="Third Term">Third Term</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Academic Year Filter */}
+            <Select value={academicYearFilter} onValueChange={setAcademicYearFilter}>
+              <SelectTrigger className="border-[#0A2540]/20 rounded-xl">
+                <SelectValue placeholder="Academic Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Academic Years</SelectItem>
+                {academicYears.map((year) => (
+                  <SelectItem key={year} value={year}>{year}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
 

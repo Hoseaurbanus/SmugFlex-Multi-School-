@@ -21,7 +21,7 @@ import { importSubjectsFromCSV, generateSubjectTemplate } from "../../utils/csvI
 import { SubjectCreationForm } from "./forms/SubjectCreationForm";
 
 export function ManageSubjectsPageFixed() {
-  const { subjects, addSubject, updateSubject, deleteSubject, subjectAssignments } = useSchool();
+  const { subjects, addSubject, updateSubject, deleteSubject, subjectAssignments, loadSubjectsFromAPI } = useSchool();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
@@ -68,7 +68,7 @@ export function ManageSubjectsPageFixed() {
   }, [filteredSubjects, currentPage, pageSize]);
 
   // Get unique categories
-  const categories = ["All", "Creche", "Nursery", "Primary", "JSS", "SS"];
+  const categories = ["All", "Creche", "Nursery", "Primary", "JSS", "SS", "General"];
 
   const allowedSubjectCategories = ["Creche", "Nursery", "Primary", "JSS", "SS", "General"] as const;
   type AllowedSubjectCategory = (typeof allowedSubjectCategories)[number];
@@ -223,7 +223,7 @@ export function ManageSubjectsPageFixed() {
         toast.success(`${result.valid.length} subjects imported successfully`);
         
         // Refresh subjects data
-        window.location.reload();
+        await loadSubjectsFromAPI(true);
       } else {
         toast.error("No valid subjects found in CSV file");
       }
@@ -339,7 +339,7 @@ export function ManageSubjectsPageFixed() {
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        {["Creche", "Nursery", "Primary", "JSS", "SS"].map((c) => (
+                        {["Creche", "Nursery", "Primary", "JSS", "SS", "General"].map((c) => (
                           <SelectItem key={c} value={c}>
                             {c}
                           </SelectItem>
@@ -526,80 +526,82 @@ export function ManageSubjectsPageFixed() {
       <Card className="border-[#0A2540]/10 shadow-lg">
         <CardContent className="p-6">
           {filteredSubjects.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Subject Code</TableHead>
-                  <TableHead>Subject Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Assignments</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedSubjects.map((subject: any) => (
-                  <TableRow key={subject.id}>
-                    <TableCell className="font-mono">{subject.code}</TableCell>
-                    <TableCell className="font-medium">{subject.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{subject.category}</Badge>
-                    </TableCell>
-                    <TableCell>{subject.department || subject.category}</TableCell>
-                    <TableCell>
-                      {subject.is_core ? (
-                        <Badge variant="default">Core</Badge>
-                      ) : (
-                        <Badge variant="secondary">Elective</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={subject.status === 'Active' ? 'default' : 'secondary'}>
-                        {subject.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">
-                        {getAssignmentCount(subject.id)} classes
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleToggleStatus(subject)}
-                          className="h-8"
-                          disabled={actionLoading === `toggle-${subject.id}`}
-                        >
-                          {actionLoading === `toggle-${subject.id}`
-                            ? 'Updating...'
-                            : (subject.status === 'Active' ? 'Disable' : 'Enable')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEditForm(subject)}
-                          className="h-8"
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => openDeleteDialog(subject)}
-                          className="h-8"
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Subject Code</TableHead>
+                    <TableHead>Subject Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Assignments</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedSubjects.map((subject: any) => (
+                    <TableRow key={subject.id}>
+                      <TableCell className="font-mono">{subject.code}</TableCell>
+                      <TableCell className="font-medium">{subject.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{subject.category}</Badge>
+                      </TableCell>
+                      <TableCell>{subject.department || subject.category}</TableCell>
+                      <TableCell>
+                        {subject.is_core ? (
+                          <Badge variant="default">Core</Badge>
+                        ) : (
+                          <Badge variant="secondary">Elective</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={subject.status === 'Active' ? 'default' : 'secondary'}>
+                          {subject.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-gray-600">
+                          {getAssignmentCount(subject.id)} classes
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleStatus(subject)}
+                            className="h-8"
+                            disabled={actionLoading === `toggle-${subject.id}`}
+                          >
+                            {actionLoading === `toggle-${subject.id}`
+                              ? 'Updating...'
+                              : (subject.status === 'Active' ? 'Disable' : 'Enable')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openEditForm(subject)}
+                            className="h-8"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => openDeleteDialog(subject)}
+                            className="h-8"
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="text-center py-12">
               <Book className="w-16 h-16 mx-auto mb-4 text-gray-300" />
@@ -659,6 +661,11 @@ export function ManageSubjectsPageFixed() {
             <AlertDialogTitle>Delete Subject</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete subject "{selectedSubject?.name}"? This action cannot be undone.
+              {selectedSubject && getAssignmentCount(selectedSubject.id) > 0 && (
+                <span className="block mt-3 text-amber-600 font-medium">
+                  Warning: This subject has {getAssignmentCount(selectedSubject.id)} active teacher assignment{getAssignmentCount(selectedSubject.id) !== 1 ? 's' : ''}. You must remove them first before deleting.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -666,8 +673,9 @@ export function ManageSubjectsPageFixed() {
             <AlertDialogAction
               onClick={handleDeleteSubject}
               className="bg-red-600 hover:bg-red-700"
+              disabled={selectedSubject ? getAssignmentCount(selectedSubject.id) > 0 : false}
             >
-              Delete Subject
+              {selectedSubject && getAssignmentCount(selectedSubject.id) > 0 ? 'Blocked' : 'Delete Subject'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

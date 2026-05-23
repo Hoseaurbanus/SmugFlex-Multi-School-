@@ -1,5 +1,5 @@
-import { Book, BookOpen, GraduationCap, ArrowLeft, Plus, X, FileText } from 'lucide-react';
-import { useState, useRef, useMemo, useEffect, lazy, Suspense, useCallback } from "react";
+import { Book, BookOpen, GraduationCap, ArrowLeft, Plus, FileText, Search, Loader2, Upload, AlertTriangle, Trash2 } from 'lucide-react';
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -11,12 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Checkbox } from "../ui/checkbox";
 import { toast } from "sonner";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
-import { SimpleDropdown, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
 import { exportClassesToCSV } from "../../utils/csvExporter";
 import { importClassesFromCSV, generateClassTemplate } from "../../utils/csvImporter";
 import { useSchool, Class, Subject, SubjectRegistration, Teacher, Student } from "../../contexts/SchoolContext";
 import { ClassCreationForm } from "./forms/ClassCreationForm";
+
+const CLASS_LEVELS = ["Creche", "Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "JSS 1", "JSS 2", "JSS 3", "SSS 1", "SSS 2", "SSS 3"];
 
 function ManageClassesPageDesktop() {
   const { 
@@ -36,11 +36,6 @@ function ManageClassesPageDesktop() {
     loadClassesFromAPI
   } = useSchool();
   
-  // Monitor classes data changes
-  useEffect(() => {
-    // Silent for security
-  }, [classes]);
-  
   // Get active teachers from context
   const availableTeachers = teachers.filter((t: Teacher) => t.status === 'Active');
   
@@ -54,48 +49,46 @@ function ManageClassesPageDesktop() {
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'details'>('grid');
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
-  const [registrationPreview, setRegistrationPreview] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    level: "",
+    category: "Primary" as "Primary" | "Secondary",
+    capacity: 30,
+    classTeacherId: "",
+    section: "",
+    status: "Active" as "Active" | "Inactive",
+  });
 
   // Get students for selected class (coerce IDs to numbers to avoid string/number mismatches)
   const classStudents = selectedClass
     ? students.filter((s: Student) => Number(s.class_id) === Number(selectedClass.id))
     : [];
   
-  // Get registered subjects for selected class
-  // IMPORTANT: Subject registrations are global for a class across all terms/sessions.
-  // Only teacher assignments are term/session based.
+  // Get registered subjects for selected class in current term/year
   const classRegisteredSubjects = selectedClass
     ? subjectRegistrations.filter((sr: SubjectRegistration) =>
-        Number(sr.class_id) === Number(selectedClass.id)
+        Number(sr.class_id) === Number(selectedClass.id) &&
+        sr.academic_year === currentAcademicYear &&
+        sr.term === currentTerm
       )
     : [];
   
-  // Debug: Log subject registration filtering
-  useEffect(() => {
-    if (selectedClass) {
-      // Silent for security
-    }
-  }, [selectedClass, subjectRegistrations, currentTerm, currentAcademicYear]);
-  
-  // Get available subjects (all subjects not yet registered for this class)
+  // Get available subjects (all subjects not yet registered for this class in current term)
   const availableSubjects = selectedClass
     ? subjects.filter((subject: Subject) => !classRegisteredSubjects.some((rs: SubjectRegistration) => Number(rs.subject_id) === Number(subject.id)))
     : [];
   
-  // Handle subject selection with preview
+  // Handle subject selection
   const handleSubjectSelection = (subjectId: number, checked: boolean) => {
     if (checked) {
-      const newSelection = [...selectedSubjects, subjectId];
-      setSelectedSubjects(newSelection);
-      setRegistrationPreview(newSelection);
+      setSelectedSubjects(prev => [...prev, subjectId]);
     } else {
-      const newSelection = selectedSubjects.filter(id => id !== subjectId);
-      setSelectedSubjects(newSelection);
-      setRegistrationPreview(newSelection);
+      setSelectedSubjects(prev => prev.filter(id => id !== subjectId));
     }
   };
 
@@ -134,7 +127,6 @@ function ManageClassesPageDesktop() {
     if (newSubjects.length === 0) {
       toast.info('No new subjects to register');
       setSelectedSubjects([]);
-      setRegistrationPreview([]);
       setActionLoading(null);
       return;
     }
@@ -178,7 +170,6 @@ function ManageClassesPageDesktop() {
       }
       
       setSelectedSubjects([]);
-      setRegistrationPreview([]);
     } catch (error) {
       toast.error('Failed to register subjects');
     } finally {
@@ -228,7 +219,11 @@ function ManageClassesPageDesktop() {
     setViewMode('grid');
     setSelectedClass(null);
     setSelectedSubjects([]);
-    setRegistrationPreview([]);
+  };
+
+  // Get assignment count for a class (subject_assignments)
+  const getClassAssignmentCount = (classId: number) => {
+    return subjectAssignments.filter(sa => Number(sa.class_id) === Number(classId)).length;
   };
 
   // Filter classes
@@ -237,17 +232,8 @@ function ManageClassesPageDesktop() {
                          cls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          (cls.classTeacher || '').toLowerCase().includes(searchQuery.toLowerCase());
     
-    // Map levels to categories for filtering
-    const getCategoryFromLevel = (level: string) => {
-      if (level === 'Primary' || level === 'Nursery' || level === 'Creche') return 'Primary';
-      if (level.includes('JSS') || level.includes('SSS')) return 'Secondary';
-      return 'Primary'; // Default fallback
-    };
-    
-    const classCategory = getCategoryFromLevel(cls.level);
-    
     const matchesLevel = filterLevel === "All" || cls.level === filterLevel;
-    const matchesCategory = filterCategory === "All" || classCategory === filterCategory;
+    const matchesCategory = filterCategory === "All" || cls.category === filterCategory;
     const matchesStatus = filterStatus === "All" || cls.status === filterStatus;
     
     return matchesSearch && matchesLevel && matchesCategory && matchesStatus;
@@ -256,6 +242,15 @@ function ManageClassesPageDesktop() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterLevel, filterCategory, filterStatus]);
+
+  // Show loading state if classes haven't loaded yet
+  useEffect(() => {
+    if (classes.length === 0) {
+      setIsLoading(true);
+    } else {
+      setIsLoading(false);
+    }
+  }, [classes]);
 
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil(filteredClasses.length / pageSize));
@@ -327,6 +322,56 @@ function ManageClassesPageDesktop() {
     setDeleteDialogOpen(true);
   };
 
+  const openEditForm = () => {
+    if (!selectedClass) return;
+    setEditFormData({
+      name: selectedClass.name,
+      level: selectedClass.level,
+      category: selectedClass.category,
+      capacity: selectedClass.capacity,
+      classTeacherId: selectedClass.classTeacherId?.toString() || "",
+      section: selectedClass.section || "",
+      status: selectedClass.status,
+    });
+    setIsEditing(true);
+  };
+
+  const handleEditClass = async () => {
+    if (!selectedClass) return;
+    if (!editFormData.name.trim() || !editFormData.level.trim() || !editFormData.capacity) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    setActionLoading("edit");
+
+    try {
+      const success = await updateClass(selectedClass.id, {
+        name: editFormData.name.trim(),
+        level: editFormData.level.trim(),
+        category: editFormData.category,
+        capacity: editFormData.capacity,
+        classTeacherId: editFormData.classTeacherId ? parseInt(editFormData.classTeacherId) : null,
+        section: editFormData.section.trim() || undefined,
+        status: editFormData.status,
+      });
+
+      if (success) {
+        toast.success(`Class "${editFormData.name}" updated successfully!`);
+        setIsEditing(false);
+        setSelectedClass(prev => prev ? { ...prev, ...editFormData, classTeacherId: editFormData.classTeacherId ? parseInt(editFormData.classTeacherId) : null } : null);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to update class');
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const exportCSVTemplate = () => {
     const template = generateClassTemplate();
     const blob = new Blob([template], { type: 'text/csv' });
@@ -357,7 +402,7 @@ function ManageClassesPageDesktop() {
         toast.success(`${result.valid.length} classes imported successfully`);
         
         // Refresh classes data
-        window.location.reload();
+        await loadClassesFromAPI(true);
       } else {
         toast.error("No valid classes found in CSV file");
       }
@@ -377,6 +422,39 @@ function ManageClassesPageDesktop() {
               <p className="text-gray-600">Click on a class to view details and manage subjects</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <input
+                type="file"
+                ref={csvInputRef}
+                accept=".csv"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    await handleCSVImport(file);
+                  }
+                  e.target.value = '';
+                }}
+                className="hidden"
+              />
+              <Button
+                onClick={exportCSVTemplate}
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-gray-300 text-gray-600 hover:bg-gray-100 w-full sm:w-auto flex items-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Template</span>
+                <span className="sm:hidden">Template</span>
+              </Button>
+              <Button
+                onClick={() => csvInputRef.current?.click()}
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-gray-300 text-gray-600 hover:bg-gray-100 w-full sm:w-auto flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Bulk Import</span>
+                <span className="sm:hidden">Import</span>
+              </Button>
               <Button
                 onClick={async () => {
                   await exportClassesToCSV();
@@ -485,13 +563,16 @@ function ManageClassesPageDesktop() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">Search</Label>
-                  <Input
-                    type="text"
-                    placeholder="Search classes..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="border-gray-300 rounded-lg"
-                  />
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Search classes..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 border-gray-300 rounded-lg"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">Level</Label>
@@ -501,21 +582,9 @@ function ManageClassesPageDesktop() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="All">All Levels</SelectItem>
-                      <SelectItem value="Creche">Creche</SelectItem>
-                      <SelectItem value="Nursery">Nursery</SelectItem>
-                      <SelectItem value="KG 1">KG 1</SelectItem>
-                      <SelectItem value="KG 2">KG 2</SelectItem>
-                      <SelectItem value="Grade 1">Grade 1</SelectItem>
-                      <SelectItem value="Grade 2">Grade 2</SelectItem>
-                      <SelectItem value="Grade 3">Grade 3</SelectItem>
-                      <SelectItem value="Grade 4">Grade 4</SelectItem>
-                      <SelectItem value="Grade 5">Grade 5</SelectItem>
-                      <SelectItem value="JSS 1">JSS 1</SelectItem>
-                      <SelectItem value="JSS 2">JSS 2</SelectItem>
-                      <SelectItem value="JSS 3">JSS 3</SelectItem>
-                      <SelectItem value="SSS 1">SSS 1</SelectItem>
-                      <SelectItem value="SSS 2">SSS 2</SelectItem>
-                      <SelectItem value="SSS 3">SSS 3</SelectItem>
+                      {CLASS_LEVELS.map((level) => (
+                        <SelectItem key={level} value={level}>{level}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -549,7 +618,17 @@ function ManageClassesPageDesktop() {
             </CardContent>
           </Card>
 
-          {/* Classes Grid */}
+          {/* Loading indicator */}
+          {isLoading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center gap-2 text-gray-500">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Loading classes...
+              </div>
+            </div>
+          )}
+
+          {!isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedClasses.map((cls: Class) => (
               <Card 
@@ -582,8 +661,9 @@ function ManageClassesPageDesktop() {
               </Card>
             ))}
           </div>
+          )}
 
-          {filteredClasses.length > 0 && (
+          {!isLoading && filteredClasses.length > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-6">
               <div className="text-sm text-gray-600">
                 Showing {Math.min(filteredClasses.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredClasses.length, currentPage * pageSize)} of {filteredClasses.length}
@@ -625,7 +705,7 @@ function ManageClassesPageDesktop() {
             </div>
           )}
 
-          {filteredClasses.length === 0 && (
+          {!isLoading && filteredClasses.length === 0 && (
             <Card className="border-[#0A2540]/10 shadow-lg">
               <CardContent className="p-12 text-center">
                 <div className="text-gray-500">
@@ -659,6 +739,13 @@ function ManageClassesPageDesktop() {
                   </div>
                   <div className="flex gap-2">
                     <Button
+                      onClick={openEditForm}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Edit
+                    </Button>
+                    <Button
                       onClick={() => openDeleteDialog(selectedClass)}
                       variant="destructive"
                       size="sm"
@@ -670,10 +757,7 @@ function ManageClassesPageDesktop() {
                           Deleting...
                         </>
                       ) : (
-                        <>
-                          <span className="w-4 h-4 mr-2" />
-                          Delete Class
-                        </>
+                        <Trash2 className="w-4 h-4" />
                       )}
                     </Button>
                   </div>
@@ -706,44 +790,282 @@ function ManageClassesPageDesktop() {
                   </div>
 
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Students ({classStudents.length})</h3>
+                    <h3 className="text-lg font-semibold mb-4">Students ({selectedClass.currentStudents})</h3>
                     <div className="max-h-96 overflow-y-auto">
                       {classStudents.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Name</TableHead>
-                              <TableHead>Admission No</TableHead>
-                              <TableHead>Gender</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {classStudents.map((student: Student) => (
-                              <TableRow key={student.id}>
-                                <TableCell>{student.firstName} {student.lastName}</TableCell>
-                                <TableCell>{student.admissionNumber}</TableCell>
-                                <TableCell>{student.gender}</TableCell>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Admission No</TableHead>
+                                <TableHead>Gender</TableHead>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                            </TableHeader>
+                            <TableBody>
+                              {classStudents.map((student: Student) => (
+                                <TableRow key={student.id}>
+                                  <TableCell>{student.firstName} {student.lastName}</TableCell>
+                                  <TableCell>{student.admissionNumber}</TableCell>
+                                  <TableCell>{student.gender}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       ) : (
                         <p className="text-gray-500 text-center py-8">No students enrolled in this class</p>
                       )}
                     </div>
                   </div>
                 </div>
+
+                {/* Subject Management Section */}
+                <div className="mt-8 border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-4">Registered Subjects ({classRegisteredSubjects.length})</h3>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Subject</TableHead>
+                          <TableHead>Code</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {classRegisteredSubjects.length > 0 ? (
+                          classRegisteredSubjects.map((reg) => (
+                            <TableRow key={reg.id}>
+                              <TableCell className="font-medium">{reg.subject_name || reg.subjectName || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.name || 'Unknown'}</TableCell>
+                              <TableCell>{reg.subject_code || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.code || '-'}</TableCell>
+                              <TableCell>
+                                <Badge variant={reg.is_compulsory ? 'default' : 'secondary'}>
+                                  {reg.is_compulsory ? 'Compulsory' : 'Optional'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleRemoveSubject(reg.subject_id)}
+                                  disabled={actionLoading === `remove-${reg.subject_id}`}
+                                >
+                                  {actionLoading === `remove-${reg.subject_id}` ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                              No subjects registered yet
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Available Subjects to Register */}
+                  {availableSubjects.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="font-medium mb-2 text-gray-700">Register New Subjects</h4>
+                      <div className="border rounded-md max-h-40 overflow-y-auto p-3 space-y-2">
+                        {availableSubjects.map((subject) => (
+                          <div key={subject.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`subject-${subject.id}`}
+                              checked={selectedSubjects.includes(subject.id)}
+                              onCheckedChange={(checked) => handleSubjectSelection(subject.id, !!checked)}
+                            />
+                            <Label htmlFor={`subject-${subject.id}`} className="text-sm cursor-pointer">
+                              {subject.name} <span className="text-gray-500">({subject.code})</span>
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mt-3">
+                        <Button
+                          onClick={handleRegisterSubjects}
+                          disabled={selectedSubjects.length === 0 || actionLoading === 'register-subjects'}
+                          size="sm"
+                        >
+                          {actionLoading === 'register-subjects' ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              Registering...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 mr-2" />
+                              Register {selectedSubjects.length > 0 ? `(${selectedSubjects.length})` : ''}
+                            </>
+                          )}
+                        </Button>
+                        {selectedSubjects.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSelectedSubjects([]); }}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {availableSubjects.length === 0 && classRegisteredSubjects.length > 0 && (
+                    <p className="text-sm text-gray-500 mt-4">All subjects are registered for this class.</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}
+
+          {/* Edit Class Dialog */}
+          <Dialog open={isEditing} onOpenChange={setIsEditing}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Edit Class</DialogTitle>
+                <DialogDescription>Update the class details.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Class Name <span className="text-red-500">*</span></Label>
+                    <Input
+                      value={editFormData.name}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="e.g., Grade 1 (Diamond)"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Class Level <span className="text-red-500">*</span></Label>
+                    <Select
+                      value={editFormData.level}
+                      onValueChange={(value) => setEditFormData(prev => ({ ...prev, level: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CLASS_LEVELS.map((level) => (
+                          <SelectItem key={level} value={level}>{level}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Category <span className="text-red-500">*</span></Label>
+                    <Select
+                      value={editFormData.category}
+                      onValueChange={(value) => setEditFormData(prev => ({ ...prev, category: value as "Primary" | "Secondary" }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Primary">Primary</SelectItem>
+                        <SelectItem value="Secondary">Secondary</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Capacity <span className="text-red-500">*</span></Label>
+                    <Input
+                      type="number"
+                      value={editFormData.capacity}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, capacity: parseInt(e.target.value) || 0 }))}
+                      min="1"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Class Teacher</Label>
+                    <Select
+                      value={editFormData.classTeacherId}
+                      onValueChange={(value) => setEditFormData(prev => ({ ...prev, classTeacherId: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select teacher" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Not Assigned</SelectItem>
+                        {availableTeachers.map((teacher: Teacher) => (
+                          <SelectItem key={teacher.id} value={teacher.id.toString()}>
+                            {teacher.firstName} {teacher.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Section</Label>
+                    <Input
+                      value={editFormData.section}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, section: e.target.value }))}
+                      placeholder="e.g., A, B"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={editFormData.status}
+                    onValueChange={(value) => setEditFormData(prev => ({ ...prev, status: value as "Active" | "Inactive" }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditing(false)} disabled={actionLoading === "edit"}>
+                  Cancel
+                </Button>
+                <Button onClick={handleEditClass} disabled={actionLoading === "edit"}>
+                  {actionLoading === "edit" ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Delete Confirmation Dialog */}
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete Class</AlertDialogTitle>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                  Delete Class
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   Are you sure you want to delete class "{selectedClass?.name}"? This action cannot be undone.
+                  {selectedClass && getClassAssignmentCount(selectedClass.id) > 0 && (
+                    <span className="block mt-3 text-amber-600 font-medium">
+                      Warning: This class has {getClassAssignmentCount(selectedClass.id)} active subject assignment{getClassAssignmentCount(selectedClass.id) !== 1 ? 's' : ''}. You must remove them first before deleting.
+                    </span>
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -751,8 +1073,9 @@ function ManageClassesPageDesktop() {
                 <AlertDialogAction
                   onClick={handleDeleteClass}
                   className="bg-red-600 hover:bg-red-700"
+                  disabled={selectedClass ? getClassAssignmentCount(selectedClass.id) > 0 || (selectedClass.currentStudents > 0) : false}
                 >
-                  Delete Class
+                  {selectedClass && (getClassAssignmentCount(selectedClass.id) > 0 || selectedClass.currentStudents > 0) ? 'Blocked' : 'Delete Class'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -201,6 +201,8 @@ export function RecordPaymentPage() {
         transaction_reference: txnReference,
       });
 
+      const actualReceiptNumber = result?.receipt_number || result?.receiptNumber || `RCPT-${Date.now()}`;
+
       // Notify parent
       if (selectedStudent?.parent_id) {
         const parent = parents.find(p => p.id === selectedStudent.parent_id);
@@ -221,7 +223,7 @@ export function RecordPaymentPage() {
       // Store payment details for receipt
       setRecordedPayment({
         amount,
-        receiptNumber: `RCPT-${Date.now()}`,
+        receiptNumber: actualReceiptNumber,
         studentName: `${selectedStudent?.firstName} ${selectedStudent?.lastName}`,
         className: selectedClass?.name,
         admissionNumber: selectedStudent?.admissionNumber,

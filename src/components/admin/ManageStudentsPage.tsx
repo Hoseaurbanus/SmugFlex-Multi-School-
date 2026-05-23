@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from "../ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Label } from "../ui/label";
-import { Alert, AlertDescription } from "../ui/alert";
+
 import { toast } from "sonner";
 import { useSchool, Student } from "../../contexts/SchoolContext";
 import { API_CONFIG } from '../../config/api';
@@ -95,6 +95,8 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
   const [pageSize, setPageSize] = useState(20);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [unlinkDialogOpen, setUnlinkDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [linkGuardianDialogOpen, setLinkGuardianDialogOpen] = useState(false);
   const [uploadPassportDialogOpen, setUploadPassportDialogOpen] = useState(false);
@@ -133,6 +135,8 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     gender: "Male" as "Male" | "Female",
     date_of_birth: "",
     admission_number: "",
+    class_id: "",
+    level: "",
   });
   const [editPassportFile, setEditPassportFile] = useState<File | null>(null);
   const editPassportInputRef = useRef<HTMLInputElement>(null);
@@ -221,10 +225,16 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     if (!Array.isArray(students)) {
       return { total: 0, active: 0, primary: 0, secondary: 0 };
     }
-    
-    const primaryLevels = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'];
-    const secondaryLevels = ['JSS 1', 'JSS 2', 'JSS 3', 'SSS 1', 'SSS 2', 'SSS 3'];
-    
+
+    // Derive primary/secondary levels from classes table, with fallback
+    const classLevels = Array.isArray(classes) ? classes.map(c => c.level).filter(Boolean) : [];
+    const primaryLevels = classLevels.length > 0
+      ? classLevels.filter(l => /^(Grade|KG|Nursery|Primary)/i.test(l))
+      : ['KG 1', 'KG 2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'];
+    const secondaryLevels = classLevels.length > 0
+      ? classLevels.filter(l => /^(JSS|SSS|JS|SS|J\.S\.S\.|S\.S\.S\.)/i.test(l))
+      : ['JSS 1', 'JSS 2', 'JSS 3', 'SSS 1', 'SSS 2', 'SSS 3'];
+
     return {
       total: students.length,
       active: students.filter(s => s.status === "Active").length,
@@ -548,13 +558,16 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
 
   const handleEdit = (student: any) => {
     setSelectedStudent(student);
+    const studentClass = Array.isArray(classes) ? classes.find(c => c.id === student.class_id) : null;
     setEditFormData({
       first_name: student.firstName,
       last_name: student.lastName,
       other_name: student.otherName || "",
-      date_of_birth: student.date_of_birth,
+      date_of_birth: student.date_of_birth || "",
       admission_number: student.admissionNumber,
-      gender: student.gender
+      gender: student.gender,
+      class_id: String(student.class_id || ''),
+      level: studentClass?.level || student.level || '',
     });
     setEditPassportFile(null);
     setEditDialogOpen(true);
@@ -615,15 +628,17 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
   };
 
   const unlinkStudent = async (student: Student) => {
-    setUnlinkingStudentId(student.id);
+    setSelectedStudent(student);
+    setUnlinkDialogOpen(true);
+  };
+
+  const confirmUnlinkStudent = async () => {
+    if (!selectedStudent) return;
+    setUnlinkingStudentId(selectedStudent.id);
     
     try {
-      if (!confirm(`Are you sure you want to unlink ${student.firstName} ${student.lastName} from their parent?`)) {
-        return;
-      }
-
       const link = Array.isArray(parentStudentLinks)
-        ? parentStudentLinks.find((l: any) => String(l.student_id) === String(student.id))
+        ? parentStudentLinks.find((l: any) => String(l.student_id) === String(selectedStudent.id))
         : null;
 
       if (!link?.parent_id) {
@@ -631,18 +646,19 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
         return;
       }
 
-      const ok = await unlinkStudentFromParent(Number(link.parent_id), Number(student.id));
+      const ok = await unlinkStudentFromParent(Number(link.parent_id), Number(selectedStudent.id));
       if (!ok) {
         toast.error('Failed to unlink guardian');
         return;
       }
 
-      toast.success(`Successfully unlinked ${student.firstName} ${student.lastName} from parent`);
+      toast.success(`Successfully unlinked ${selectedStudent.firstName} ${selectedStudent.lastName} from parent`);
       await refreshStudents();
     } catch (error) {
       toast.error('Failed to unlink student');
     } finally {
       setUnlinkingStudentId(null);
+      setUnlinkDialogOpen(false);
     }
   };
 
@@ -958,25 +974,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 </Button>
                 
                 <Button
-                  onClick={async () => {
+                  onClick={() => {
                     if (selectedStudents.length === 0) return;
-                    
-                    if (!confirm(`Are you sure you want to delete ${selectedStudents.length} student(s)? This action cannot be undone.`)) {
-                      return;
-                    }
-                    
-                    try {
-                      setActionLoading('bulk-delete');
-                      await deleteBulkStudents(selectedStudents);
-                      toast.success(`${selectedStudents.length} student(s) deleted successfully`);
-                      setSelectedStudents([]);
-                      setIsSelectAll(false);
-                      await refreshStudents();
-                    } catch (error) {
-                      toast.error('Failed to delete selected students');
-                    } finally {
-                      setActionLoading(null);
-                    }
+                    setBulkDeleteDialogOpen(true);
                   }}
                   variant="destructive"
                   size="sm"
@@ -1096,8 +1096,8 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 )}
               </div>
             ) : (
-              /* Table View for larger screens */
-              <div className="hidden lg:block">
+              /* Table View with horizontal scroll for all screens */
+              <div className="block">
                 <Card>
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -1357,6 +1357,43 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               </Select>
             </div>
             <div>
+              <Label>Date of Birth</Label>
+              <Input
+                type="date"
+                value={editFormData.date_of_birth}
+                onChange={(e) => setEditFormData({...editFormData, date_of_birth: e.target.value})}
+              />
+            </div>
+            <div>
+              <Label>Admission Number</Label>
+              <Input value={editFormData.admission_number} disabled className="bg-gray-50" />
+            </div>
+            <div>
+              <Label>Class</Label>
+              <Select
+                value={editFormData.class_id}
+                onValueChange={(value) => {
+                  const selectedClass = Array.isArray(classes) ? classes.find(c => String(c.id) === value) : null;
+                  setEditFormData({
+                    ...editFormData,
+                    class_id: value,
+                    level: selectedClass?.level || '',
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.isArray(classes) && classes.map((cls) => (
+                    <SelectItem key={cls.id} value={String(cls.id)}>
+                      {cls.name} ({cls.level})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Student Photo</Label>
               <div className="flex items-center gap-4">
                 {selectedStudent?.photo_url && (
@@ -1431,12 +1468,16 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   }
 
                   // Update student data
-                  await updateStudent(selectedStudent.id, {
+                  const updatePayload: any = {
                     firstName: editFormData.first_name,
                     lastName: editFormData.last_name,
                     otherName: editFormData.other_name,
-                    gender: editFormData.gender
-                  });
+                    gender: editFormData.gender,
+                    date_of_birth: editFormData.date_of_birth,
+                    class_id: editFormData.class_id ? Number(editFormData.class_id) : selectedStudent.class_id,
+                    level: editFormData.level || selectedStudent.level,
+                  };
+                  await updateStudent(selectedStudent.id, updatePayload);
                   
                   toast.success('Student updated successfully');
                   setEditDialogOpen(false);
@@ -1480,11 +1521,24 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   <SelectValue placeholder="Select a parent" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.isArray(parents) && parents.map((parent) => (
+                  {Array.isArray(parents) && parents
+                    .filter(p => !Array.isArray(parentStudentLinks) || !parentStudentLinks.some(link =>
+                      Number(link.parent_id) === Number(p.id) && Number(link.student_id) === Number(selectedStudent?.id)
+                    ))
+                    .map((parent) => (
                     <SelectItem key={parent.id} value={parent.id.toString()}>
                       {parent.firstName} {parent.lastName} - {parent.email}
                     </SelectItem>
                   ))}
+                  {Array.isArray(parents) && parents.filter(p =>
+                    Array.isArray(parentStudentLinks) && parentStudentLinks.some(link =>
+                      Number(link.parent_id) === Number(p.id) && Number(link.student_id) === Number(selectedStudent?.id)
+                    )
+                  ).length > 0 && (
+                    <div className="px-2 py-1.5 text-xs text-gray-400 italic border-t border-gray-100 mt-1 pt-2">
+                      All available parents shown — already linked parents are hidden
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1540,6 +1594,72 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 <div className="w-4 h-4 animate-spin rounded-full border border-white border-t-transparent" />
               ) : (
                 'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-md mx-4">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Students</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedStudents.length} student(s)? This action cannot be undone and will permanently remove all student data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  setActionLoading('bulk-delete');
+                  await deleteBulkStudents(selectedStudents);
+                  toast.success(`${selectedStudents.length} student(s) deleted successfully`);
+                  setSelectedStudents([]);
+                  setIsSelectAll(false);
+                  await refreshStudents();
+                } catch (error) {
+                  toast.error('Failed to delete selected students');
+                } finally {
+                  setActionLoading(null);
+                  setBulkDeleteDialogOpen(false);
+                }
+              }}
+              disabled={actionLoading === 'bulk-delete'}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {actionLoading === 'bulk-delete' ? (
+                <div className="w-4 h-4 animate-spin rounded-full border border-white border-t-transparent" />
+              ) : (
+                'Delete All'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unlink Guardian Confirmation Dialog */}
+      <AlertDialog open={unlinkDialogOpen} onOpenChange={setUnlinkDialogOpen}>
+        <AlertDialogContent className="max-w-md mx-4">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlink Guardian</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to unlink {selectedStudent?.firstName} {selectedStudent?.lastName} from their parent/guardian?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmUnlinkStudent}
+              disabled={unlinkingStudentId !== null}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {unlinkingStudentId !== null ? (
+                <div className="w-4 h-4 animate-spin rounded-full border border-white border-t-transparent" />
+              ) : (
+                'Unlink'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

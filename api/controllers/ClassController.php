@@ -235,6 +235,34 @@ class ClassController {
                 $update_teacher_stmt = $this->conn->prepare($update_teacher_query);
                 $update_teacher_stmt->bindParam(':teacher_id', $class_teacher_id);
                 $update_teacher_stmt->execute();
+
+                // Also create class_teacher_assignments record for TeacherDashboard access
+                $term_query = "SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' LIMIT 1";
+                $term_stmt = $this->conn->prepare($term_query);
+                $term_stmt->execute();
+                $term_row = $term_stmt->fetch();
+                $term = $term_row ? $term_row['setting_value'] : 'First Term';
+
+                $cta_check_query = "SELECT id FROM class_teacher_assignments 
+                                   WHERE teacher_id = :teacher_id AND class_id = :class_id 
+                                   AND academic_year = :academic_year AND term = :term";
+                $cta_check_stmt = $this->conn->prepare($cta_check_query);
+                $cta_check_stmt->bindParam(':teacher_id', $class_teacher_id);
+                $cta_check_stmt->bindParam(':class_id', $class_id);
+                $cta_check_stmt->bindParam(':academic_year', $academic_year);
+                $cta_check_stmt->bindParam(':term', $term);
+                $cta_check_stmt->execute();
+
+                if (!$cta_check_stmt->fetch()) {
+                    $cta_insert_query = "INSERT INTO class_teacher_assignments (teacher_id, class_id, academic_year, term, status)
+                                        VALUES (:teacher_id, :class_id, :academic_year, :term, 'Active')";
+                    $cta_insert_stmt = $this->conn->prepare($cta_insert_query);
+                    $cta_insert_stmt->bindParam(':teacher_id', $class_teacher_id);
+                    $cta_insert_stmt->bindParam(':class_id', $class_id);
+                    $cta_insert_stmt->bindParam(':academic_year', $academic_year);
+                    $cta_insert_stmt->bindParam(':term', $term);
+                    $cta_insert_stmt->execute();
+                }
             }
             
             // Log activity
@@ -343,6 +371,47 @@ class ClassController {
             }
             
             $stmt->execute();
+
+            // Sync class_teacher_assignments if teacher changed
+            if (isset($data['class_teacher_id'])) {
+                $newTeacherId = $data['class_teacher_id'] ? (int)$data['class_teacher_id'] : null;
+                $oldTeacherId = $existing_class['class_teacher_id'];
+                
+                $term_query = "SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' LIMIT 1";
+                $term_stmt = $this->conn->prepare($term_query);
+                $term_stmt->execute();
+                $term_row = $term_stmt->fetch();
+                $term = $term_row ? $term_row['setting_value'] : 'First Term';
+                $academic_year = $existing_class['academic_year'];
+
+                if ($newTeacherId && $newTeacherId !== (int)$oldTeacherId) {
+                    $deactivate_query = "UPDATE class_teacher_assignments SET status = 'Inactive', updated_at = CURRENT_TIMESTAMP 
+                                        WHERE class_id = :class_id AND academic_year = :academic_year AND term = :term";
+                    $deactivate_stmt = $this->conn->prepare($deactivate_query);
+                    $deactivate_stmt->bindParam(':class_id', $class_id);
+                    $deactivate_stmt->bindParam(':academic_year', $academic_year);
+                    $deactivate_stmt->bindParam(':term', $term);
+                    $deactivate_stmt->execute();
+
+                    $cta_insert_query = "INSERT INTO class_teacher_assignments (teacher_id, class_id, academic_year, term, status)
+                                        VALUES (:teacher_id, :class_id, :academic_year, :term, 'Active')";
+                    $cta_insert_stmt = $this->conn->prepare($cta_insert_query);
+                    $cta_insert_stmt->bindParam(':teacher_id', $newTeacherId);
+                    $cta_insert_stmt->bindParam(':class_id', $class_id);
+                    $cta_insert_stmt->bindParam(':academic_year', $academic_year);
+                    $cta_insert_stmt->bindParam(':term', $term);
+                    $cta_insert_stmt->execute();
+                } elseif (!$newTeacherId && $oldTeacherId) {
+                    $deactivate_query = "UPDATE class_teacher_assignments SET status = 'Inactive', updated_at = CURRENT_TIMESTAMP 
+                                        WHERE class_id = :class_id AND academic_year = :academic_year AND term = :term AND teacher_id = :teacher_id";
+                    $deactivate_stmt = $this->conn->prepare($deactivate_query);
+                    $deactivate_stmt->bindParam(':class_id', $class_id);
+                    $deactivate_stmt->bindParam(':academic_year', $academic_year);
+                    $deactivate_stmt->bindParam(':term', $term);
+                    $deactivate_stmt->bindParam(':teacher_id', $oldTeacherId);
+                    $deactivate_stmt->execute();
+                }
+            }
             
             // Log activity
             Middleware::logActivity(

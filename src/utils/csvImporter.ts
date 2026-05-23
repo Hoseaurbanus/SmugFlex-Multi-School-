@@ -201,12 +201,17 @@ function validateClassData(data: any[]): { valid: any[], errors: string[] } {
   const valid: any[] = [];
   const errors: string[] = [];
   
+  const validLevels = ["Creche", "Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "JSS 1", "JSS 2", "JSS 3", "SSS 1", "SSS 2", "SSS 3"];
+  const validCategories = ['Primary', 'Secondary'];
+  
   data.forEach((row, index) => {
     const rowErrors = [];
     
     // Required fields
     if (!row.name) rowErrors.push('Class name required');
     if (!row.level) rowErrors.push('Level required');
+    if (!row.category) rowErrors.push('Category required');
+    if (!row.academic_year) rowErrors.push('Academic year required');
     
     // Validate capacity
     if (row.capacity && (isNaN(row.capacity) || parseInt(row.capacity) <= 0)) {
@@ -214,9 +219,13 @@ function validateClassData(data: any[]): { valid: any[], errors: string[] } {
     }
     
     // Validate level
-    const validLevels = ['Creche', 'Nursery', 'Primary', 'JSS', 'SS'];
     if (row.level && !validLevels.includes(row.level)) {
       rowErrors.push(`Invalid level (must be one of: ${validLevels.join(', ')})`);
+    }
+    
+    // Validate category
+    if (row.category && !validCategories.includes(row.category)) {
+      rowErrors.push(`Invalid category (must be Primary or Secondary)`);
     }
     
     if (rowErrors.length === 0) {
@@ -661,16 +670,20 @@ export function generateClassTemplate(): string {
     'name',
     'level',
     'section',
+    'category',
     'capacity',
+    'academic_year',
     'status',
     'classTeacherId'
   ];
   
   const sampleData = [
     'JSS 1A',
-    'JSS',
+    'JSS 1',
     'A',
+    'Secondary',
     '30',
+    '2025/2026',
     'Active',
     ''
   ];

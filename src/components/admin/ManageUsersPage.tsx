@@ -60,6 +60,12 @@ export function ManageUsersPage() {
   // Accountant dialogs
   const [showAccountantViewDialog, setShowAccountantViewDialog] = useState(false);
   const [showAccountantEditDialog, setShowAccountantEditDialog] = useState(false);
+  const [showDeleteTeacherDialog, setShowDeleteTeacherDialog] = useState(false);
+  const [showDeleteParentDialog, setShowDeleteParentDialog] = useState(false);
+  const [showDeleteAccountantDialog, setShowDeleteAccountantDialog] = useState(false);
+  const [deleteTeacherTarget, setDeleteTeacherTarget] = useState<Teacher | null>(null);
+  const [deleteParentTarget, setDeleteParentTarget] = useState<Parent | null>(null);
+  const [deleteAccountantTarget, setDeleteAccountantTarget] = useState<Accountant | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
@@ -297,7 +303,7 @@ export function ManageUsersPage() {
           : "not sent";
         
         toast.success(
-          `Password reset successfully for ${selectedUser.username}. New password: ${newPassword}`
+          `Password reset successfully for ${selectedUser.username}`
         );
       }
     } catch (error) {
@@ -408,6 +414,36 @@ export function ManageUsersPage() {
   };
 
   const confirmCreateUser = async () => {
+    if (!createFormData.username.trim()) {
+      toast.error('Username is required');
+      return;
+    }
+    if (!createFormData.firstName.trim()) {
+      toast.error('First name is required');
+      return;
+    }
+    if (!createFormData.lastName.trim()) {
+      toast.error('Last name is required');
+      return;
+    }
+    if (!createFormData.email.trim()) {
+      toast.error('Email is required');
+      return;
+    }
+    if (createFormData.role === 'teacher' && !createFormData.gender) {
+      toast.error('Gender is required for teachers');
+      return;
+    }
+    if (createFormData.role === 'parent') {
+      if (!createFormData.address.trim()) {
+        toast.error('Address is required for parents');
+        return;
+      }
+      if (!createFormData.occupation.trim()) {
+        toast.error('Occupation is required for parents');
+        return;
+      }
+    }
     setIsLoading(true);
     try {
       const newUser = await createUserAPI(createFormData);
@@ -494,20 +530,25 @@ export function ManageUsersPage() {
     setShowTeacherEditDialog(true);
   };
 
-  const handleDeleteTeacher = async (teacher: Teacher) => {
-    if (window.confirm(`Are you sure you want to delete teacher ${teacher.firstName} ${teacher.lastName}? This action cannot be undone.`)) {
-      setTeacherActionLoading(`delete-${teacher.id}`);
-      try {
-        const success = await deleteTeacherAPI(Number(teacher.id));
-        if (success) {
-          toast.success(`Teacher ${teacher.firstName} ${teacher.lastName} deleted successfully`);
-          // Data will automatically refresh due to API call
-        }
-      } catch (error) {
-        toast.error('Failed to delete teacher');
-      } finally {
-        setTeacherActionLoading(null);
+  const handleDeleteTeacher = (teacher: Teacher) => {
+    setDeleteTeacherTarget(teacher);
+    setShowDeleteTeacherDialog(true);
+  };
+
+  const confirmDeleteTeacher = async () => {
+    if (!deleteTeacherTarget) return;
+    setTeacherActionLoading(`delete-${deleteTeacherTarget.id}`);
+    try {
+      const success = await deleteTeacherAPI(Number(deleteTeacherTarget.id));
+      if (success) {
+        toast.success(`Teacher ${deleteTeacherTarget.firstName} ${deleteTeacherTarget.lastName} deleted successfully`);
       }
+    } catch (error) {
+      toast.error('Failed to delete teacher');
+    } finally {
+      setTeacherActionLoading(null);
+      setShowDeleteTeacherDialog(false);
+      setDeleteTeacherTarget(null);
     }
   };
 
@@ -521,17 +562,23 @@ export function ManageUsersPage() {
     setShowParentEditDialog(true);
   };
 
-  const handleDeleteParent = async (parent: Parent) => {
-    if (window.confirm(`Are you sure you want to delete parent ${parent.firstName} ${parent.lastName}? This action cannot be undone.`)) {
-      try {
-        const success = await deleteParentAPI(parent.id);
-        if (success) {
-          toast.success(`Parent ${parent.firstName} ${parent.lastName} deleted successfully`);
-          // Data will automatically refresh due to API call
-        }
-      } catch (error) {
-        toast.error('Failed to delete parent');
+  const handleDeleteParent = (parent: Parent) => {
+    setDeleteParentTarget(parent);
+    setShowDeleteParentDialog(true);
+  };
+
+  const confirmDeleteParent = async () => {
+    if (!deleteParentTarget) return;
+    try {
+      const success = await deleteParentAPI(deleteParentTarget.id);
+      if (success) {
+        toast.success(`Parent ${deleteParentTarget.firstName} ${deleteParentTarget.lastName} deleted successfully`);
       }
+    } catch (error) {
+      toast.error('Failed to delete parent');
+    } finally {
+      setShowDeleteParentDialog(false);
+      setDeleteParentTarget(null);
     }
   };
 
@@ -545,17 +592,23 @@ export function ManageUsersPage() {
     setShowAccountantEditDialog(true);
   };
 
-  const handleDeleteAccountant = async (accountant: Accountant) => {
-    if (window.confirm(`Are you sure you want to delete accountant ${accountant.firstName} ${accountant.lastName}? This action cannot be undone.`)) {
-      try {
-        const success = await deleteAccountantAPI(accountant.id);
-        if (success) {
-          toast.success(`Accountant ${accountant.firstName} ${accountant.lastName} deleted successfully`);
-          // Data will automatically refresh due to API call
-        }
-      } catch (error) {
-        toast.error('Failed to delete accountant');
+  const handleDeleteAccountant = (accountant: Accountant) => {
+    setDeleteAccountantTarget(accountant);
+    setShowDeleteAccountantDialog(true);
+  };
+
+  const confirmDeleteAccountant = async () => {
+    if (!deleteAccountantTarget) return;
+    try {
+      const success = await deleteAccountantAPI(deleteAccountantTarget.id);
+      if (success) {
+        toast.success(`Accountant ${deleteAccountantTarget.firstName} ${deleteAccountantTarget.lastName} deleted successfully`);
       }
+    } catch (error) {
+      toast.error('Failed to delete accountant');
+    } finally {
+      setShowDeleteAccountantDialog(false);
+      setDeleteAccountantTarget(null);
     }
   };
 
@@ -826,8 +879,8 @@ export function ManageUsersPage() {
           </CardContent>
         </Card>
 
-          {/* Users Table */}
-        <Card className="border-gray-200">
+          {/* Users Table - Desktop */}
+        <Card className="border-gray-200 hidden lg:block">
           <CardHeader className="border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
           </CardHeader>
@@ -977,6 +1030,141 @@ export function ManageUsersPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Users Card View - Mobile */}
+          <Card className="border-gray-200 block lg:hidden">
+            <CardHeader className="border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              {filteredUsers.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No users found matching your criteria
+                </div>
+              ) : (
+                paginatedUsers.map((user: UserType) => (
+                  <Card key={user.id} className="border-gray-200">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 text-sm truncate">
+                            {getUserFullName(user)}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {user.email}{(user as any).phone ? ` • ${(user as any).phone}` : ''}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <Badge className={`${getRoleBadgeColor(user.role)} text-white border-0 capitalize text-xs`}>
+                            {user.role}
+                          </Badge>
+                          <Badge className={user.status === "Active" ? "bg-green-100 text-green-800 border-0 text-xs" : "bg-red-100 text-red-800 border-0 text-xs"}>
+                            {user.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Last login: {user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}
+                      </div>
+                      <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                        <Button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleView(user); }}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
+                          title="View Details"
+                          type="button"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(user); }}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
+                          title="Edit User"
+                          type="button"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleResetPassword(user); }}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-100"
+                          title="Reset Password"
+                          type="button"
+                        >
+                          <Key className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeactivate(user); }}
+                          size="sm"
+                          variant={user.status === 'Active' ? 'outline' : 'default'}
+                          className={`h-8 w-8 p-0 ${user.status === 'Active' ? 'border-gray-300 hover:bg-gray-100' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                          title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+                          type="button"
+                        >
+                          {user.status === 'Active' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
+                        </Button>
+                        <Button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(user); }}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 text-red-600 border-red-300 hover:bg-red-50"
+                          title="Delete User"
+                          type="button"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+              {filteredUsers.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200">
+                  <div className="text-sm text-gray-600">
+                    Showing {Math.min(filteredUsers.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredUsers.length, currentPage * pageSize)} of {filteredUsers.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Rows" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10 / page</SelectItem>
+                        <SelectItem value="20">20 / page</SelectItem>
+                        <SelectItem value="50">50 / page</SelectItem>
+                        <SelectItem value="100">100 / page</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                      Page {currentPage} / {totalPages}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
       </div>
 
       {/* Create User Dialog */}
@@ -1012,6 +1200,21 @@ export function ManageUsersPage() {
               <p className="text-xs text-gray-500 mt-1">
                 Leave empty to use default password: <code>{createFormData.role}123</code>
               </p>
+            </div>
+            
+            <div>
+              <Label htmlFor="role">Role *</Label>
+              <Select value={createFormData.role} onValueChange={(value: any) => setCreateFormData({...createFormData, role: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="teacher">Teacher</SelectItem>
+                  <SelectItem value="accountant">Accountant</SelectItem>
+                  <SelectItem value="parent">Parent</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -1193,21 +1396,6 @@ export function ManageUsersPage() {
                 />
               </div>
             )}
-            
-            <div>
-              <Label htmlFor="role">Role *</Label>
-              <Select value={createFormData.role} onValueChange={(value: any) => setCreateFormData({...createFormData, role: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="teacher">Teacher</SelectItem>
-                  <SelectItem value="accountant">Accountant</SelectItem>
-                  <SelectItem value="parent">Parent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             
             <div>
               <Label htmlFor="status">Status</Label>
@@ -1582,6 +1770,76 @@ export function ManageUsersPage() {
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
               {isLoading ? 'Deleting...' : 'Delete User'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Teacher Dialog */}
+      <AlertDialog open={showDeleteTeacherDialog} onOpenChange={setShowDeleteTeacherDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Teacher</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete teacher {deleteTeacherTarget?.firstName} {deleteTeacherTarget?.lastName}? This action cannot be undone.
+              <br /><br />
+              <strong>Warning:</strong> This will permanently remove the teacher and all their associated data including subject assignments and class associations.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={teacherActionLoading === `delete-${deleteTeacherTarget?.id}`}>Cancel</AlertDialogCancel>
+            <Button
+              onClick={confirmDeleteTeacher}
+              disabled={teacherActionLoading === `delete-${deleteTeacherTarget?.id}`}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {teacherActionLoading === `delete-${deleteTeacherTarget?.id}` ? 'Deleting...' : 'Delete Teacher'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Parent Dialog */}
+      <AlertDialog open={showDeleteParentDialog} onOpenChange={setShowDeleteParentDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Parent</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete parent {deleteParentTarget?.firstName} {deleteParentTarget?.lastName}? This action cannot be undone.
+              <br /><br />
+              <strong>Warning:</strong> This will permanently remove the parent and all their associated data including student links.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              onClick={confirmDeleteParent}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete Parent
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Accountant Dialog */}
+      <AlertDialog open={showDeleteAccountantDialog} onOpenChange={setShowDeleteAccountantDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Accountant</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete accountant {deleteAccountantTarget?.firstName} {deleteAccountantTarget?.lastName}? This action cannot be undone.
+              <br /><br />
+              <strong>Warning:</strong> This will permanently remove the accountant and all their associated financial data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              onClick={confirmDeleteAccountant}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete Accountant
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

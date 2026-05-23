@@ -1,4 +1,4 @@
-import { BarChart, BarChart3, ArrowLeft } from 'lucide-react';
+import { BarChart, BarChart3, ArrowLeft, Download, Eye, ClipboardCheck } from 'lucide-react';
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -10,14 +10,18 @@ import { Textarea } from "../ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { StudentResultCard } from "../shared/StudentResultCard";
+import { ViewAllResultsPage } from "./ViewAllResultsPage";
+import { ViewResultSheetsPage } from "./ViewResultSheetsPage";
 import { FullPageResultView } from "../shared/FullPageResultView";
 import { ResultSheetViewerButton } from "./ResultSheetViewer";
+import { CumulativeResultSheet } from "../CumulativeResultSheet";
+import { shouldShowPosition as checkShouldShowPosition, getGrade } from "../../utils/classHelpers";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import schoolLogo from "../../assets/images/school-logo.jpg";
 import { API_CONFIG } from "../../config/api";
 import { formatPositionWithSuffix } from "../../utils/position";
-import { generatePDFFromData as generateStudentResultPdf } from "../../utils/pdfGenerator";
+import { generatePDFFromData as generateStudentResultPdf, generateCumulativePDF } from "../../utils/pdfGenerator";
 
 type ViewMode = "management" | "viewAll" | "viewSheets";
 
@@ -67,6 +71,57 @@ class ResultsManagementErrorBoundary extends React.Component<
   }
 }
 
+class FullPageErrorBoundary extends React.Component<
+  { children: React.ReactNode; onClose: () => void },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { children: React.ReactNode; onClose: () => void }) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
+
+  static getDerivedStateFromError(error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { hasError: true, message };
+  }
+
+  componentDidCatch() {
+    // silent
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+          <Card className="border-red-200 max-w-lg w-full">
+            <CardHeader>
+              <CardTitle className="text-red-700">Error Loading Result</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-gray-700">
+                The result could not be displayed due to an error.
+              </div>
+              <div className="text-xs text-gray-500 break-words bg-gray-50 p-2 rounded border">
+                {this.state.message}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Reload Page
+                </Button>
+                <Button variant="default" onClick={this.props.onClose}>
+                  Back to Results
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export function ResultsManagementPage() {
   const {
     currentUser,
@@ -92,6 +147,10 @@ export function ResultsManagementPage() {
     psychomotorDomains,
     schoolSettings,
     loadSchoolSettings,
+    cumulativeResults,
+    loadCumulativeResultsFromAPI,
+    compileCumulativeResults,
+    loadingCumulative,
   } = useSchool();
 
   if (!currentUser) {
@@ -1614,18 +1673,12 @@ export function ResultsManagementPage() {
   if (viewMode === "viewAll") {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            onClick={() => setViewMode("management")}
-            className="rounded-xl"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Management
-          </Button>
-          <h1 className="text-[#0A2540]">View All Results</h1>
-        </div>
-        <ViewAllResultsPage onBack={() => setViewMode("management")} />
+        <ViewAllResultsPage
+          onBack={() => setViewMode("management")}
+          onViewResult={(studentId, resultId) => {
+            setFullPageView({ studentId, resultId });
+          }}
+        />
       </div>
     );
   }
@@ -1653,11 +1706,13 @@ export function ResultsManagementPage() {
   // This prevents click-through / immediate re-open issues and makes Back reliable.
   if (fullPageView) {
     return (
-      <FullPageResultView
-        studentId={fullPageView.studentId}
-        resultId={fullPageView.resultId}
-        onClose={closeFullPageView}
-      />
+      <FullPageErrorBoundary onClose={closeFullPageView}>
+        <FullPageResultView
+          studentId={fullPageView.studentId}
+          resultId={fullPageView.resultId}
+          onClose={closeFullPageView}
+        />
+      </FullPageErrorBoundary>
     );
   }
 
@@ -2085,7 +2140,7 @@ export function ResultsManagementPage() {
 
       {/* Compact Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-gray-50 rounded-lg p-1 h-8 sm:h-9 gap-1">
+        <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-${selectedTerm === "Third Term" ? '5' : '4'} bg-gray-50 rounded-lg p-1 h-8 sm:h-9 gap-1`}>
           <TabsTrigger value="pending" className="rounded-md text-xs data-[state=active]:bg-yellow-100 data-[state=active]:text-yellow-800">
             <span className="hidden sm:inline">Pending</span>
             <span className="sm:hidden">P</span>
@@ -2106,9 +2161,17 @@ export function ResultsManagementPage() {
             <span className="sm:hidden">All</span>
             ({tabCounts.all})
           </TabsTrigger>
+          {selectedTerm === "Third Term" && (
+            <TabsTrigger value="cumulative" className="rounded-md text-xs data-[state=active]:bg-purple-100 data-[state=active]:text-purple-800">
+              <span className="hidden sm:inline">Cumulative</span>
+              <span className="sm:hidden">C</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value={activeTab} className="mt-4">
+        {/* Main tabs content (Pending/Approved/Rejected/All) */}
+        {activeTab !== "cumulative" && (
+          <TabsContent value={activeTab} className="mt-4">
           {/* Compact Bulk Actions */}
           {activeTab === "pending" && filteredResults.length > 0 && (
             <Card className="border-gray-200 shadow-sm mb-3">
@@ -2255,7 +2318,7 @@ export function ResultsManagementPage() {
                                 setFullPageView({ studentId: studentData!.id, resultId: studentData!.result.id });
                               }}
                             >
-                              <span className="w-3 h-3 mr-1" />
+                              <Eye className="w-4 h-4 mr-1.5" />
                               View
                             </Button>
                             
@@ -2266,7 +2329,7 @@ export function ResultsManagementPage() {
                               onClick={() => handleDownloadStudentPDF(studentData!, studentData!.result)}
                               disabled={!!downloadingResultIds[Number(studentData!.result.id)]}
                             >
-                              <span className="w-3 h-3 mr-1" />
+                              <Download className="w-4 h-4 mr-1.5" />
                               <span className="hidden sm:inline">{!!downloadingResultIds[Number(studentData!.result.id)] ? 'Preparing…' : (studentData!.result.status === 'Approved' ? 'Download PDF' : `PDF (${studentData!.result.status})`)}</span>
                               <span className="sm:hidden">PDF</span>
                             </Button>
@@ -2278,7 +2341,7 @@ export function ResultsManagementPage() {
                                   className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl h-7 sm:h-8 text-xs"
                                   onClick={() => setSelectedResult(studentData!.result.id)}
                                 >
-                                  <span className="w-3 h-3 mr-1" />
+                                  <ClipboardCheck className="w-4 h-4 mr-1.5" />
                                   <span className="hidden sm:inline">Review</span>
                                   <span className="sm:hidden">R</span>
                                 </Button>
@@ -2371,6 +2434,126 @@ export function ResultsManagementPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
+        {/* Cumulative tab content */}
+        {activeTab === "cumulative" && (
+          <TabsContent value="cumulative" className="mt-4">
+            <Card className="border-gray-200 shadow-sm">
+              <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-t-xl px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">
+                    Cumulative Results - {selectedYear} Session
+                  </CardTitle>
+                  {currentUser?.role === 'admin' && (
+                    <Button
+                      size="sm"
+                      disabled={loadingCumulative}
+                      onClick={async () => {
+                        if (!selectedClassId || selectedClassId === "all") {
+                          toast.error('Please select a specific class first');
+                          return;
+                        }
+                        const classId = Number(selectedClassId);
+                        if (!classId) {
+                          toast.error('Invalid class selected');
+                          return;
+                        }
+                        toast.loading('Compiling cumulative results...');
+                        const result = await compileCumulativeResults(classId, selectedYear);
+                        toast.dismiss();
+                        if (result.success) {
+                          toast.success(result.message);
+                          await loadCumulativeResultsFromAPI(classId, selectedYear);
+                        } else {
+                          toast.error(result.message);
+                        }
+                      }}
+                      className="bg-white text-purple-700 hover:bg-purple-50 h-7 text-xs"
+                    >
+                      {loadingCumulative ? 'Compiling...' : 'Compile Cumulative'}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-4">
+                {selectedClassId === "all" ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-gray-500">Select a specific class to view cumulative results</p>
+                  </div>
+                ) : loadingCumulative ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-3"></div>
+                    <p className="text-sm text-gray-500">Loading cumulative results...</p>
+                  </div>
+                ) : cumulativeResults.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-gray-500">No cumulative results found</p>
+                    <p className="text-xs text-gray-400 mt-1">Click "Compile Cumulative" to generate results for this class</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {cumulativeResults.map((cr) => {
+                      const student = students.find((s: any) => s.id === cr.student_id);
+                      if (!student) return null;
+                      const studentClass = classes.find((c: any) => c.id === (student as any).class_id);
+                      const showPos = checkShouldShowPosition(studentClass?.name);
+                      return (
+                        <div key={cr.student_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">{(student as any).firstName} {(student as any).lastName}</p>
+                              <p className="text-xs text-gray-500">
+                                Avg: {cr.average_score.toFixed(1)}% | Grade: {getGrade(cr.average_score)}
+                                {showPos ? ` | Pos: ${formatPositionWithSuffix(cr.position)}` : ''}
+                                {' | '}{cr.promotion_status || 'Pending'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white h-7 text-xs rounded-lg">
+                                  View
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                                <DialogHeader>
+                                  <DialogTitle>
+                                    Cumulative Result - {(student as any).firstName} {(student as any).lastName}
+                                  </DialogTitle>
+                                </DialogHeader>
+                                <CumulativeResultSheet
+                                  studentId={cr.student_id}
+                                  academicYear={selectedYear}
+                                />
+                                <div className="flex gap-3 justify-end border-t pt-4 mt-4">
+                                  <Button
+                                    disabled={loadingCumulative}
+                                    onClick={async () => {
+                                      try {
+                                        await generateCumulativePDF(student, cr, schoolSettings, classes, selectedYear);
+                                        toast.success('PDF downloaded');
+                                      } catch { toast.error('Failed to generate PDF'); }
+                                    }}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                                  >
+                                    <Download className="w-4 h-4 mr-2" />
+                                    {loadingCumulative ? 'Loading...' : 'Download PDF'}
+                                  </Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Bulk Approve Dialog */}
@@ -2446,40 +2629,4 @@ export function ResultsManagementPage() {
   );
 }
 
-function ViewAllResultsPage({ onBack }: { onBack?: () => void }) {
-  return (
-    <div className="p-6">
-      <div className="flex items-center mb-6">
-        <Button onClick={onBack || (() => {})} variant="outline" className="mr-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Management
-        </Button>
-        <h2 className="text-2xl font-bold">All Results</h2>
-      </div>
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-gray-600">View all results functionality coming soon...</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
-function ViewResultSheetsPage({ onBack }: { onBack?: () => void }) {
-  return (
-    <div className="p-6">
-      <div className="flex items-center mb-6">
-        <Button onClick={onBack || (() => {})} variant="outline" className="mr-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Management
-        </Button>
-        <h2 className="text-2xl font-bold">Result Sheets</h2>
-      </div>
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-gray-600">View result sheets functionality coming soon...</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}

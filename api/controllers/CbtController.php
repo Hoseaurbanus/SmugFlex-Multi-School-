@@ -183,7 +183,8 @@ class CbtController {
             $params = [':id' => $id];
 
             $allowedFields = ['title', 'instructions', 'duration_minutes', 'score_slot', 'feed_into_scores',
-                             'shuffle_questions', 'allow_review', 'starts_at', 'ends_at', 'status', 'total_marks'];
+                             'shuffle_questions', 'allow_review', 'starts_at', 'ends_at', 'status',
+                             'total_marks', 'published'];
 
             foreach ($allowedFields as $field) {
                 if (isset($data[$field])) {
@@ -638,18 +639,22 @@ class CbtController {
             $insertedIds = [];
 
             $insertQuery = "INSERT INTO cbt_questions
-                           (exam_id, question_type, question_text, options_json, correct_answer_json, marks, sort_order)
-                           VALUES (:exam_id, :question_type, :question_text, :options_json, :correct_answer_json, :marks, :sort_order)";
+                           (exam_id, question_type, question_text, passage_text, image_url, options_json, correct_answer_json, marks, sort_order, section, section_instructions)
+                           VALUES (:exam_id, :question_type, :question_text, :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :sort_order, :section, :section_instructions)";
             $insertStmt = $this->conn->prepare($insertQuery);
 
             foreach ($bankQuestions as $q) {
                 $insertStmt->bindValue(':exam_id', $exam_id);
                 $insertStmt->bindValue(':question_type', $q['question_type']);
                 $insertStmt->bindValue(':question_text', $q['question_text']);
+                $insertStmt->bindValue(':passage_text', $q['passage_text'] ?? null);
+                $insertStmt->bindValue(':image_url', $q['image_url'] ?? null);
                 $insertStmt->bindValue(':options_json', $q['options_json']);
                 $insertStmt->bindValue(':correct_answer_json', $q['correct_answer_json']);
                 $insertStmt->bindValue(':marks', $q['marks']);
                 $insertStmt->bindValue(':sort_order', $nextSort++);
+                $insertStmt->bindValue(':section', $q['section'] ?? null);
+                $insertStmt->bindValue(':section_instructions', $q['section_instructions'] ?? null);
                 $insertStmt->execute();
                 $insertedIds[] = $this->conn->lastInsertId();
             }
@@ -1118,21 +1123,39 @@ class CbtController {
                     switch ($answer['question_type']) {
                         case 'single_choice':
                         case 'true_false':
-                            $isCorrect = $studentAnswer === $correct;
+                            $isCorrect = strcasecmp(trim((string)$studentAnswer), trim((string)$correct)) === 0;
                             $awarded = $isCorrect ? $marks : 0;
                             break;
 
                         case 'multi_select':
                             if (is_array($studentAnswer) && is_array($correct)) {
-                                $correctSelected = count(array_intersect($studentAnswer, $correct));
-                                $incorrectSelected = count(array_diff($studentAnswer, $correct));
-                                $totalCorrect = count($correct);
+                                // Normalize case for multi-select
+                                $studentNorm = array_map(function($v) { return strtolower(trim((string)$v)); }, $studentAnswer);
+                                $correctNorm = array_map(function($v) { return strtolower(trim((string)$v)); }, $correct);
+                                $correctSelected = count(array_intersect($studentNorm, $correctNorm));
+                                $incorrectSelected = count(array_diff($studentNorm, $correctNorm));
+                                $totalCorrect = count($correctNorm);
                                 if ($totalCorrect > 0) {
                                     $net = $correctSelected - $incorrectSelected;
                                     $raw = floor($marks * max(0, $net) / $totalCorrect);
                                     $awarded = max(0, (int)$raw);
                                 }
                                 $isCorrect = $awarded === $marks;
+                            }
+                            break;
+
+                        case 'fill_in_blank':
+                            $studentNorm = trim(strtolower((string)$studentAnswer));
+                            $correctNorm = trim(strtolower((string)$correct));
+                            if ($studentNorm === $correctNorm) {
+                                $isCorrect = true;
+                                $awarded = $marks;
+                            } elseif (!empty($studentNorm) && !empty($correctNorm)) {
+                                // Partial: student answer contains correct or vice versa
+                                if (str_contains($studentNorm, $correctNorm) || str_contains($correctNorm, $studentNorm)) {
+                                    $awarded = max(1, (int)ceil($marks / 2));
+                                    $isCorrect = false;
+                                }
                             }
                             break;
                     }
@@ -1547,73 +1570,209 @@ class CbtController {
 
         $materialText = $data['material_text'];
         $questionType = $data['question_type'];
-        $count = min((int)($data['count'] ?? 5), 20);
+        $count = min((int)($data['count'] ?? 5), 30);
+        $difficulty = $data['difficulty'] ?? 'mixed';
+        $examType = $data['exam_type'] ?? 'JAMB/WAEC';
+        $topic = $data['topic'] ?? '';
+        $includeExplanations = !empty($data['include_explanations']);
 
         try {
-            $apiKey = getenv('OPENAI_API_KEY');
-            if (!$apiKey) {
-                Response::badRequest('OpenAI API key not configured. Set OPENAI_API_KEY environment variable.');
+            $geminiKey = getenv('GEMINI_API_KEY');
+
+            // Try Gemini AI (free tier) if key is configured
+            if ($geminiKey) {
+                $questions = $this->generateWithGemini($geminiKey, $materialText, $questionType, $count, $difficulty, $examType, $topic, $includeExplanations);
+                Response::success(['questions' => $questions], count($questions) . ' questions generated successfully');
+            } else {
+                // Fallback: generate template questions locally (no API key needed)
+                $questions = $this->generateLocalFallback($materialText, $questionType, $count, $difficulty, $includeExplanations);
+                Response::success(['questions' => $questions], count($questions) . ' questions generated (local mode) — Set GEMINI_API_KEY for AI-powered generation');
             }
-
-            $prompt = "You are a professional exam question generator for JAMB and WAEC standard. ";
-            $prompt .= "Generate $count " . ($questionType === 'multi_select' ? 'multiple-select' : $questionType) . " questions from the following material. ";
-            $prompt .= "Each question must have:\n";
-            $prompt .= "- question_text: the question\n";
-            $prompt .= "- options: array of 4 answer choices (A, B, C, D) labelled clearly\n";
-            $prompt .= "- correct_answer: the correct option text (or array for multi-select)\n";
-            $prompt .= "- marks: 1\n";
-            $prompt .= "- difficulty: 'easy', 'medium', or 'hard'\n";
-            $prompt .= "- topic: a short topic label\n";
-            $prompt .= "- explanation: brief explanation of the correct answer\n\n";
-            $prompt .= "Output valid JSON array only. Material:\n\n" . substr($materialText, 0, 8000);
-
-            $ch = curl_init('https://api.openai.com/v1/chat/completions');
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'Authorization: Bearer ' . $apiKey,
-                ],
-                CURLOPT_POSTFIELDS => json_encode([
-                    'model' => 'gpt-4o-mini',
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'You are a JAMB/WAEC question generator. Output ONLY valid JSON.'],
-                        ['role' => 'user', 'content' => $prompt],
-                    ],
-                    'temperature' => 0.7,
-                    'max_tokens' => 4000,
-                ]),
-                CURLOPT_TIMEOUT => 60,
-            ]);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($httpCode !== 200) {
-                Response::serverError('AI generation failed. Check API key and try again.');
-            }
-
-            $result = json_decode($response, true);
-            $content = $result['choices'][0]['message']['content'] ?? '[]';
-            $content = trim($content);
-
-            // Remove markdown code fences if present
-            if (str_starts_with($content, '```')) {
-                $content = preg_replace('/^```(?:json)?\s*/i', '', $content);
-                $content = preg_replace('/\s*```$/', '', $content);
-            }
-
-            $generated = json_decode($content, true);
-            if (!is_array($generated)) {
-                Response::serverError('AI returned invalid JSON. Please try again.');
-            }
-
-            Response::success(['questions' => $generated], 'Questions generated successfully');
         } catch (\Exception $e) {
             Response::serverError('Error generating questions: ' . $e->getMessage());
         }
+    }
+
+    private function generateWithGemini($apiKey, $materialText, $questionType, $count, $difficulty, $examType, $topic, $includeExplanations) {
+        $difficultyGuide = $difficulty === 'mixed'
+            ? 'Mix of easy, medium, and hard questions'
+            : "All questions should be $difficulty difficulty";
+
+        $typeGuide = [
+            'single_choice' => 'multiple choice with 4 options (A, B, C, D). One correct answer.',
+            'multi_select' => 'multiple-select where 2 or more options are correct.',
+            'true_false' => 'true/false with exactly TWO options: "True" and "False". The correct_answer must be either "True" or "False".',
+        ];
+
+        $prompt = "You are an expert JAMB/WAEC/NECO question setter with 20+ years of experience. ";
+        $prompt .= "Generate exactly $count high-quality $examType-standard ";
+        $prompt .= $typeGuide[$questionType] ?? 'multiple choice questions';
+        $prompt .= " from the following material.\n\n";
+        $prompt .= "REQUIREMENTS:\n";
+        $prompt .= "- Each question must test understanding, not just recall\n";
+        $prompt .= "- Distractors (wrong options) must be plausible and relevant\n";
+        $prompt .= "- $difficultyGuide\n";
+        $prompt .= "- Each question_text can include simple HTML like <b>bold</b>, <i>italic</i>, <sub>subscript</sub>, <sup>superscript</sup> for formulas\n";
+        if ($topic) $prompt .= "- Topic: $topic\n";
+        if ($includeExplanations) $prompt .= "- Include an 'explanation' field explaining why the correct answer is right\n";
+
+        $prompt .= "\nOutput ONLY a valid JSON array. Each object must have:\n";
+        $prompt .= "- question_text (string)\n";
+        $prompt .= "- options (array of strings)\n";
+        $prompt .= "- correct_answer (string, or array of strings for multi_select)\n";
+        $prompt .= "- marks (integer, 1-3 depending on difficulty: easy=1, medium=2, hard=3)\n";
+        $prompt .= "- difficulty ('easy', 'medium', or 'hard')\n";
+        $prompt .= "- topic (string)\n";
+        if ($includeExplanations) $prompt .= "- explanation (string)\n";
+
+        $prompt .= "\n\nMaterial to generate from:\n" . substr($materialText, 0, 10000);
+
+        $requestBody = [
+            'contents' => [
+                ['parts' => [['text' => $prompt]]]
+            ],
+            'generationConfig' => [
+                'temperature' => 0.8,
+                'maxOutputTokens' => 8192,
+            ],
+        ];
+
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . urlencode($apiKey);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS => json_encode($requestBody),
+            CURLOPT_TIMEOUT => 90,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            $errorMsg = 'Gemini API error (HTTP ' . $httpCode . ')';
+            $result = json_decode($response, true);
+            if (isset($result['error']['message'])) {
+                $errorMsg .= ': ' . $result['error']['message'];
+            }
+            // Fall back to local generation if Gemini fails
+            return $this->generateLocalFallback($materialText, $questionType, $count, $difficulty, $includeExplanations);
+        }
+
+        $result = json_decode($response, true);
+        $content = $result['candidates'][0]['content']['parts'][0]['text'] ?? '[]';
+        $content = trim($content);
+
+        // Remove markdown code fences if present
+        if (str_starts_with($content, '```')) {
+            $content = preg_replace('/^```(?:json)?\s*/i', '', $content);
+            $content = preg_replace('/\s*```$/', '', $content);
+        }
+
+        $generated = json_decode($content, true);
+        if (!is_array($generated)) {
+            return $this->generateLocalFallback($materialText, $questionType, $count, $difficulty, $includeExplanations);
+        }
+
+        return $generated;
+    }
+
+    private function generateLocalFallback($materialText, $questionType, $count, $difficulty, $includeExplanations) {
+        $questions = [];
+
+        // Extract meaningful sentences from material
+        $sentences = preg_split('/[.!?]+/', $materialText);
+        $sentences = array_map('trim', $sentences);
+        $sentences = array_filter($sentences, function($s) {
+            return strlen($s) > 20;
+        });
+        $sentences = array_values($sentences);
+
+        if (empty($sentences)) {
+            // Use generic educational topics if material is too short
+            $topics = ['the main concept', 'the key principle', 'the fundamental idea', 'the core topic', 'the primary theme'];
+            for ($i = 0; $i < min($count, 5); $i++) {
+                $questions[] = $this->makeLocalQuestion($topics[$i] ?? 'this topic', $questionType, $difficulty, $includeExplanations, $i);
+            }
+            return $questions;
+        }
+
+        $used = [];
+        $maxQuestions = min($count, count($sentences), 10);
+
+        for ($i = 0; $i < $maxQuestions; $i++) {
+            // Pick a sentence, avoiding repeats
+            $idx = $i % count($sentences);
+            $sentence = $sentences[$idx];
+
+            $questions[] = $this->makeLocalQuestion($sentence, $questionType, $difficulty, $includeExplanations, $i);
+        }
+
+        return $questions;
+    }
+
+    private function makeLocalQuestion($sentence, $questionType, $difficulty, $includeExplanations, $index) {
+        $diffList = ['easy', 'medium', 'hard'];
+        $diff = $difficulty === 'mixed' ? $diffList[$index % 3] : $difficulty;
+
+        $marks = $diff === 'easy' ? 1 : ($diff === 'medium' ? 2 : 3);
+        $words = str_word_count($sentence);
+        $short = mb_substr($sentence, 0, min(mb_strlen($sentence), 80));
+
+        // Extract a key term for fill-in-the-blank
+        $allWords = str_word_count($sentence, 1);
+        $keyWord = !empty($allWords) ? $allWords[min($index, count($allWords) - 1)] : 'concept';
+
+        $question = [
+            'question_type' => $questionType,
+            'marks' => $marks,
+            'difficulty' => $diff,
+            'topic' => 'General',
+        ];
+
+        if ($questionType === 'true_false') {
+            $statement = "Based on the material, is the following statement correct? \"$short\"";
+            $question['question_text'] = htmlspecialchars($statement, ENT_QUOTES, 'UTF-8');
+            $question['options'] = ['True', 'False'];
+            $question['correct_answer'] = 'True';
+            if ($includeExplanations) {
+                $question['explanation'] = 'The statement is derived directly from the material provided.';
+            }
+        } elseif ($questionType === 'fill_in_blank') {
+            $blanked = str_ireplace($keyWord, '_____', $short);
+            $question['question_text'] = 'Fill in the blank: ' . htmlspecialchars($blanked, ENT_QUOTES, 'UTF-8');
+            $question['options'] = [];
+            $question['correct_answer'] = $keyWord;
+            if ($includeExplanations) {
+                $question['explanation'] = "The correct answer is \"$keyWord\" based on the material.";
+            }
+        } elseif ($questionType === 'multi_select') {
+            $question['question_text'] = 'Which of the following are mentioned in the material? (Select all that apply)';
+            $parts = array_slice(str_word_count($sentence, 1), 0, 6);
+            $correct = array_slice($parts, 0, 2);
+            $question['options'] = array_map(function($w) { return htmlspecialchars($w, ENT_QUOTES, 'UTF-8'); }, $parts);
+            $question['correct_answer'] = array_map(function($w) { return htmlspecialchars($w, ENT_QUOTES, 'UTF-8'); }, $correct);
+            if ($includeExplanations) {
+                $question['explanation'] = 'These terms appear in the provided material.';
+            }
+        } else {
+            $question['question_text'] = 'According to the material, what is meant by: "' . htmlspecialchars($short, ENT_QUOTES, 'UTF-8') . '"?';
+            $question['options'] = [
+                htmlspecialchars($short, ENT_QUOTES, 'UTF-8'),
+                'The opposite of what is described',
+                'An unrelated concept',
+                'None of the above'
+            ];
+            $question['correct_answer'] = htmlspecialchars($short, ENT_QUOTES, 'UTF-8');
+            if ($includeExplanations) {
+                $question['explanation'] = 'This is stated directly in the provided material. Review the passage for the exact wording.';
+            }
+        }
+
+        return $question;
     }
 
     // ─── HELPER METHODS ──────────────────────────────────────

@@ -30,7 +30,6 @@ export function PromotionSystemPage() {
     compiledResults, 
     currentTerm,
     currentAcademicYear,
-    promoteMultipleStudents,
     addActivityLog,
     currentUser,
     refreshStudents
@@ -40,7 +39,6 @@ export function PromotionSystemPage() {
     compiledResults: any[],
     currentTerm: string,
     currentAcademicYear: string,
-    promoteMultipleStudents: Function,
     addActivityLog: Function,
     currentUser: any,
     refreshStudents: Function
@@ -505,19 +503,18 @@ export function PromotionSystemPage() {
         
         toast.success(`Manual ${action} status set for ${selectedStudentForManual.firstName} ${selectedStudentForManual.lastName}`);
       } else {
-        // Other statuses
+        // Other statuses — keep in batch so they get persisted to student_promotions
         setManualOverride({
           ...manualOverride,
           [selectedStudentForManual.id]: action,
         });
 
-        // Remove from batch if the new status should not be processed as a class move.
-        setSelectedStudents((prev) => prev.filter((id) => id !== selectedStudentForManual.id));
-        setPromotionMapping((prev) => {
-          const next = { ...prev };
-          delete next[selectedStudentForManual.id];
-          return next;
+        // Set destination to current class (no class move, but status gets recorded)
+        setPromotionMapping({
+          ...promotionMapping,
+          [selectedStudentForManual.id]: selectedStudentForManual.class_id,
         });
+        setSelectedStudents((prev) => prev.includes(selectedStudentForManual.id) ? prev : [...prev, selectedStudentForManual.id]);
         toast.success(`Manual ${action} status set for ${selectedStudentForManual.firstName} ${selectedStudentForManual.lastName}`);
       }
       
@@ -532,7 +529,13 @@ export function PromotionSystemPage() {
   const getNextClasses = useMemo(() => {
     return (currentClassId: number) => {
       const rules = progressionRules.filter((rule: any) => rule.from_class_id === currentClassId);
-      return classes.filter((cls: any) => rules.some((rule: any) => rule.to_class_id === cls.id));
+      const validClasses = classes.filter((cls: any) => rules.some((rule: any) => rule.to_class_id === cls.id));
+      // If no progression rules exist from this class, it's a terminal/graduating class
+      if (validClasses.length === 0) {
+        const currentClass = classes.find((cls: any) => cls.id === currentClassId);
+        return currentClass ? [{ ...currentClass, isGraduation: true }] : [];
+      }
+      return validClasses;
     };
   }, [progressionRules, classes]);
 
@@ -564,13 +567,20 @@ export function PromotionSystemPage() {
       // Manual overrides allow admin to choose any class.
     } else {
       // Check progression path
-      const validPath = progressionRules.some((rule: any) => 
-        rule.from_class_id === student.class_id && 
-        rule.to_class_id === toClassId
-      );
-      
-      if (!validPath) {
-        return { valid: false, message: 'Invalid progression path' };
+      if (student.class_id === toClassId) {
+        // Same class destination — only valid if this is a terminal class (no progression rules)
+        const hasRules = progressionRules.some((rule: any) => rule.from_class_id === student.class_id);
+        if (hasRules) {
+          return { valid: false, message: 'Same class not allowed when progression path exists' };
+        }
+      } else {
+        const validPath = progressionRules.some((rule: any) => 
+          rule.from_class_id === student.class_id && 
+          rule.to_class_id === toClassId
+        );
+        if (!validPath) {
+          return { valid: false, message: 'Invalid progression path' };
+        }
       }
     }
 
@@ -822,9 +832,12 @@ export function PromotionSystemPage() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">
-                      {promo.total_students} students promoted
+                      {promo.first_name} {promo.last_name}
                     </p>
                     <p className="text-xs text-gray-500">
+                      {promo.from_class_name} → {promo.to_class_name}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
                       {new Date(promo.promotion_date).toLocaleDateString()}
                     </p>
                   </div>
@@ -1250,14 +1263,14 @@ export function PromotionSystemPage() {
                                         <SelectItem 
                                           key={cls.id} 
                                           value={cls.id.toString()} 
-                                          className={`text-gray-900 ${isFull ? 'text-red-600 bg-red-50' : ''}`}
+                                          className={`text-gray-900 ${isFull && !cls.isGraduation ? 'text-red-600 bg-red-50' : cls.isGraduation ? 'text-green-600 bg-green-50 font-medium' : ''}`}
                                           onClick={() => {
-                                            if (isFull) {
+                                            if (isFull && !cls.isGraduation) {
                                               toast.error('Class is at full capacity');
                                             }
                                           }}
                                         >
-                                          {cls.name} ({capacity?.current || 0}/{capacity?.max || 40}) {isFull ? '(FULL)' : ''}
+                                          {cls.isGraduation ? `Graduate — ${cls.name}` : `${cls.name} (${capacity?.current || 0}/${capacity?.max || 40}) ${isFull ? '(FULL)' : ''}`}
                                         </SelectItem>
                                       );
                                     })}

@@ -33,7 +33,7 @@ export function SubjectCreationForm({ onClose, onSuccess }: SubjectCreationFormP
   const [selectedClassIds, setSelectedClassIds] = useState<number[]>([]);
 
   // Available categories
-  const categories = ["Creche", "Nursery", "Primary", "JSS", "SS"];
+  const categories = ["Creche", "Nursery", "Primary", "JSS", "SS", "General"];
 
   // Validation
   const validateForm = () => {

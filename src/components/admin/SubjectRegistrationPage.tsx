@@ -1,4 +1,4 @@
-import { Book, BookOpen, Check } from 'lucide-react';
+import { Book, BookOpen, Check, Search, Plus, Trash2, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Checkbox } from "../ui/checkbox";
 import { Alert, AlertDescription } from "../ui/alert";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import { SubjectRegistration, SubjectAssignment } from "../../contexts/SchoolContext";
@@ -33,7 +34,6 @@ export function SubjectRegistrationPage() {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClass, setSelectedClass] = useState<number | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<number | null>(null);
   
   // Academic settings - use current from context
@@ -44,15 +44,11 @@ export function SubjectRegistrationPage() {
   const [registrations, setRegistrations] = useState<SubjectRegistration[]>([]);
   const [assignments, setAssignments] = useState<SubjectAssignment[]>([]);
   const [unassignedSubjects, setUnassignedSubjects] = useState<any[]>([]);
-  const [availableTeachers, setAvailableTeachers] = useState<any[]>([]);
   
   // Dialog states
   const [registrationDialogOpen, setRegistrationDialogOpen] = useState(false);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editAssignmentDialogOpen, setEditAssignmentDialogOpen] = useState(false);
-  const [selectedRegistration, setSelectedRegistration] = useState<SubjectRegistration | null>(null);
-  const [selectedAssignment, setSelectedAssignment] = useState<SubjectAssignment | null>(null);
+  const [removeConfirm, setRemoveConfirm] = useState<{ type: 'registration' | 'assignment'; item: any } | null>(null);
   
   // Form states
   const [registrationForm, setRegistrationForm] = useState({
@@ -67,16 +63,25 @@ export function SubjectRegistrationPage() {
     teacher_id: 0
   });
 
-  // Load initial data
+  // Sync academicYear/term from context when they become available (async load)
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!academicYear && currentAcademicYear) {
+      setAcademicYear(currentAcademicYear);
+    }
+  }, [currentAcademicYear]);
 
+  useEffect(() => {
+    if (!term && currentTerm) {
+      setTerm(currentTerm);
+    }
+  }, [currentTerm]);
+
+  // Load data when filters or context change
   useEffect(() => {
     if (academicYear && term) {
       loadData();
     }
-  }, [academicYear, term, selectedClass, selectedSubject, selectedTeacher]);
+  }, [academicYear, term, selectedClass, selectedTeacher]);
 
   const loadData = async () => {
     if (!academicYear || !term) return;
@@ -125,14 +130,7 @@ export function SubjectRegistrationPage() {
     }
   };
 
-  const loadAvailableTeachers = (subjectId: number, classId: number) => {
-    try {
-      // Get all teachers (simplified - in real system might check qualifications)
-      setAvailableTeachers(teachers);
-    } catch (error) {
-      toast.error('Failed to load available teachers');
-    }
-  };
+
 
   const handleRegisterSubject = async () => {
     if (!registrationForm.subject_id || !registrationForm.class_id) {
@@ -186,40 +184,46 @@ export function SubjectRegistrationPage() {
     }
   };
 
-  const handleRemoveRegistration = async (registration: SubjectRegistration) => {
-    try {
-      const success = await removeSubjectRegistration(
-        registration.subject_id,
-        registration.class_id,
-        registration.academic_year,
-        registration.term
-      );
-      
-      if (success) {
-        loadData();
-        toast.success('Subject registration removed!');
-      }
-    } catch (error) {
-      toast.error('Failed to remove registration');
-    }
+  const handleRemoveRegistration = (registration: SubjectRegistration) => {
+    setRemoveConfirm({ type: 'registration', item: registration });
   };
 
-  const handleRemoveAssignment = async (assignment: SubjectAssignment) => {
+  const handleRemoveAssignment = (assignment: SubjectAssignment) => {
+    setRemoveConfirm({ type: 'assignment', item: assignment });
+  };
+
+  const confirmRemove = async () => {
+    if (!removeConfirm) return;
+    const { type, item } = removeConfirm;
+
     try {
-      const success = await removeSubjectAssignment(
-        assignment.teacher_id,
-        assignment.subject_id,
-        assignment.class_id,
-        assignment.academic_year,
-        assignment.term
-      );
-      
+      let success = false;
+      if (type === 'registration') {
+        success = await removeSubjectRegistration(
+          item.subject_id,
+          item.class_id,
+          item.academic_year,
+          item.term
+        );
+      } else {
+        success = await removeSubjectAssignment(
+          item.teacher_id,
+          item.subject_id,
+          item.class_id,
+          item.academic_year,
+          item.term
+        );
+      }
+
       if (success) {
         loadData();
-        toast.success('Teacher assignment removed!');
+        const label = type === 'registration' ? 'Subject registration' : 'Teacher assignment';
+        toast.success(`${label} removed!`);
       }
     } catch (error) {
-      toast.error('Failed to remove assignment');
+      toast.error('Failed to remove');
+    } finally {
+      setRemoveConfirm(null);
     }
   };
 
@@ -287,7 +291,7 @@ export function SubjectRegistrationPage() {
             <div>
               <Label>Search</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   placeholder="Search subjects, classes, teachers..."
                   value={searchQuery}
@@ -332,7 +336,7 @@ export function SubjectRegistrationPage() {
             )}
             <div className="flex items-end">
               <Button onClick={loadData} disabled={loading} variant="outline">
-                <span className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
@@ -349,92 +353,83 @@ export function SubjectRegistrationPage() {
               Subject Registration
             </CardTitle>
             <Button onClick={() => setRegistrationDialogOpen(true)}>
-              <span className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 mr-2" />
               Register Subject
             </Button>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="flex items-center justify-center">
-                        <span className="w-6 h-6 animate-spin mr-2" />
-                        Loading...
-                      </div>
-                    </TableCell>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ) : filteredRegistrations.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                      No subject registrations found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredRegistrations.map((registration) => (
-                    <TableRow key={registration.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{registration.subject_name || 'No subject'}</div>
-                          <div className="text-sm text-gray-500">{registration.subject_code || 'No code'}</div>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Loading...
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{registration.class_name || 'No class'}</div>
-                          <div className="text-sm text-gray-500">{registration.class_level || 'No level'}</div>
-                        </div>
+                    </TableRow>
+                  ) : filteredRegistrations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                        No subject registrations found
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{registration.subject_category || 'No category'}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={registration.is_compulsory ? "default" : "secondary"}>
-                          {registration.is_compulsory ? "Compulsory" : "Optional"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={registration.status === "Active" ? "default" : "destructive"}>
-                          {registration.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedRegistration(registration);
-                              setEditDialogOpen(true);
-                            }}
-                          >
-                            <span className="w-4 h-4" />
-                          </Button>
+                    </TableRow>
+                  ) : (
+                    filteredRegistrations.map((registration) => (
+                      <TableRow key={registration.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{registration.subject_name || 'No subject'}</div>
+                            <div className="text-sm text-gray-500">{registration.subject_code || 'No code'}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{registration.class_name || 'No class'}</div>
+                            <div className="text-sm text-gray-500">{registration.class_level || 'No level'}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{registration.subject_category || 'No category'}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={registration.is_compulsory ? "default" : "secondary"}>
+                            {registration.is_compulsory ? "Compulsory" : "Optional"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={registration.status === "Active" ? "default" : "destructive"}>
+                            {registration.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <Button
                             size="sm"
                             variant="destructive"
                             onClick={() => handleRemoveRegistration(registration)}
+                            title="Remove"
                           >
-                            <span className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -448,91 +443,79 @@ export function SubjectRegistrationPage() {
               Teacher Assignment
             </CardTitle>
             <Button onClick={() => setAssignmentDialogOpen(true)}>
-              <span className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 mr-2" />
               Assign Subject
             </Button>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Teacher</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="flex items-center justify-center">
-                        <span className="w-6 h-6 animate-spin mr-2" />
-                        Loading...
-                      </div>
-                    </TableCell>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Teacher</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ) : filteredAssignments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                      No subject assignments found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredAssignments.map((assignment) => (
-                    <TableRow key={assignment.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{assignment.subject_name || 'No subject'}</div>
-                          <div className="text-sm text-gray-500">ID: {assignment.subject_id}</div>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Loading...
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{assignment.class_name || 'No class'}</div>
-                          <div className="text-sm text-gray-500">ID: {assignment.class_id}</div>
-                        </div>
+                    </TableRow>
+                  ) : filteredAssignments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                        No subject assignments found
                       </TableCell>
-                      <TableCell>
-                        <div>
+                    </TableRow>
+                  ) : (
+                    filteredAssignments.map((assignment) => (
+                      <TableRow key={assignment.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{assignment.subject_name || 'No subject'}</div>
+                            <div className="text-sm text-gray-500">{assignment.subject_code || ''}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{assignment.class_name || 'No class'}</div>
+                            <div className="text-sm text-gray-500">{assignment.subject_category || ''}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
                           <div className="font-medium">
                             {assignment.teacher_name || 'Unassigned'}
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={assignment.status === "Active" ? "default" : "destructive"}>
-                          {assignment.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedAssignment(assignment);
-                              setEditAssignmentDialogOpen(true);
-                            }}
-                          >
-                            <span className="w-4 h-4" />
-                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={assignment.status === "Active" ? "default" : "destructive"}>
+                            {assignment.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <Button
                             size="sm"
                             variant="destructive"
                             onClick={() => handleRemoveAssignment(assignment)}
+                            title="Remove"
                           >
-                            <span className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -665,9 +648,7 @@ export function SubjectRegistrationPage() {
                 onValueChange={(value) => {
                   const subjectId = parseInt(value);
                   setAssignmentForm(prev => ({ ...prev, subject_id: subjectId }));
-                  if (subjectId && assignmentForm.class_id) {
-                    loadAvailableTeachers(subjectId, assignmentForm.class_id);
-                  }
+
                 }}
                 disabled={!assignmentForm.class_id}
               >
@@ -702,6 +683,30 @@ export function SubjectRegistrationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Remove Confirmation Dialog */}
+      <AlertDialog open={!!removeConfirm} onOpenChange={(open) => { if (!open) setRemoveConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Confirm Removal
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeConfirm?.type === 'registration'
+                ? `Remove "${removeConfirm.item?.subject_name}" from "${removeConfirm.item?.class_name}"? This action cannot be undone.`
+                : `Remove assignment of "${removeConfirm.item?.subject_name}" from "${removeConfirm.item?.teacher_name}"? This action cannot be undone.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemove} className="bg-red-600 hover:bg-red-700">
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Graceland Royal Academy — School Management System
 
-A full-stack school management system for **Graceland Royal Academy, Gombe, Nigeria**. The platform streamlines academic, financial, and administrative operations across four user roles: **Admin**, **Teacher**, **Accountant**, and **Parent**.
+A full-stack school management system for **Graceland Royal Academy, Gombe, Nigeria**. The platform streamlines academic, financial, and administrative operations across five user roles: **Admin**, **Teacher**, **Accountant**, **Parent**, and **Student**.
 
 **Live:** [https://gracelandroyalacademy.com.ng](https://gracelandroyalacademy.com.ng)
 
@@ -27,8 +27,10 @@ A full-stack school management system for **Graceland Royal Academy, Gombe, Nige
   - [Assignment Management](#11-assignment-management)
   - [Timetable Management](#12-timetable-management)
   - [System Administration](#13-system-administration)
+- [Complete Permission Matrix](#complete-permission-matrix)
 - [Project Structure](#project-structure)
 - [Database Schema Overview](#database-schema-overview)
+- [CBT (Computer-Based Testing) Module](#cbt-computer-based-testing-module)
 - [Security](#security)
 - [Getting Started](#getting-started)
 - [API Overview](#api-overview)
@@ -39,79 +41,83 @@ A full-stack school management system for **Graceland Royal Academy, Gombe, Nige
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18, TypeScript 5.9, Vite 6, SWC |
-| **Routing** | React Router DOM v6 (lazy-loaded, role-based routes) |
-| **Styling** | Tailwind CSS v4, Radix UI primitives, Lucide icons |
-| **Charts** | Recharts |
-| **PDF** | jsPDF + jsPDF-AutoTable + html2canvas |
-| **Payments** | Paystack inline.js |
-| **Backend** | PHP 8.x (custom MVC, no framework) |
-| **Database** | MySQL / MariaDB |
-| **Auth** | Custom JWT (HS256) with role-based middleware |
-| **Real-time** | Server-Sent Events (SSE) with polling fallback |
-| **Deployment** | Apache + Vite build output |
+| Layer | Technology | Usage |
+|-------|-----------|-------|
+| **Frontend** | React 18, TypeScript 5.9, Vite 6, SWC | SPA with lazy-loaded role-based dashboards |
+| **Routing** | React Router DOM v6 | 7 routes: public landing, login, 5 role dashboards |
+| **Styling** | Tailwind CSS v4, Radix UI primitives (~25 components), Lucide icons | shadcn/ui pattern with `cn()` utility |
+| **Charts** | Recharts | Dashboard analytics, fee collection, attendance trends |
+| **PDF** | jsPDF + jsPDF-AutoTable + html2canvas | Report cards, cumulative results, broadsheets |
+| **Payments** | Paystack inline.js | Online fee payment (card, USSD, bank transfer) |
+| **State** | React Context (monolithic ~9,158 lines) | Single `SchoolContext` provider with ~200 methods |
+| **Real-time** | Server-Sent Events (SSE) + 15s polling fallback | Live notification delivery, score updates |
+| **Backend** | PHP 8.x, custom MVC (no framework) | Front controller `index.php` → switch-based routing |
+| **Database** | MySQL / MariaDB 11.4 | 65 tables + 5 views, utf8mb4, JSON columns, generated columns |
+| **Auth** | Custom JWT (HS256) with bcrypt | Stateless auth, 24h expiry, 48h refresh grace period |
+| **Deployment** | Apache + Vite build output | `.htaccess` rewrites, CSP headers, gzip |
 
 ---
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Browser (SPA)                      │
-│  React 18 + TypeScript + Vite                        │
-│  ┌──────────┐ ┌──────────┐ ┌────────────────────┐   │
-│  │ Admin    │ │ Teacher  │ │ Accountant │ Parent │   │
-│  │ Dashboard│ │Dashboard │ │ Dashboard  │Dashboard│   │
-│  └──────────┘ └──────────┘ └────────────────────┘   │
-│         │              │              │              │
-│    ┌────┴──────────────┴──────────────┴─────┐       │
-│    │        SchoolContext (Global State)     │       │
-│    │  ~200 methods, 20+ entity arrays        │       │
-│    └────────────────┬───────────────────────┘       │
-│                     │                                │
-│              ┌──────┴──────┐                         │
-│              │ ApiService  │                         │
-│              │ (fetch +    │                         │
-│              │  retry +    │                         │
-│              │  auto-refresh)│                       │
-│              └──────┬──────┘                         │
-└─────────────────────┼───────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                      Browser (SPA)                             │
+│  React 18 + TypeScript + Vite + SWC                            │
+│  ┌──────────┐ ┌──────────┐ ┌────────────┐ ┌────────────────┐  │
+│  │  Admin   │ │  Teacher │ │ Accountant │ │ Parent/Student │  │
+│  │ Dashboard│ │ Dashboard│ │  Dashboard │ │   Dashboard    │  │
+│  └──────────┘ └──────────┘ └────────────┘ └────────────────┘  │
+│         │            │              │              │           │
+│    ┌────┴────────────┴──────────────┴──────────────┴────┐      │
+│    │          SchoolContext (Global State)               │      │
+│    │  ~200 methods, 20+ entity arrays, 9,158 lines       │      │
+│    └────────────────┬────────────────────────────────────┘      │
+│                     │                                           │
+│              ┌──────┴──────┐                                    │
+│              │ ApiService  │  ← authService.ts                 │
+│              │ (fetch +    │  ← sqlDatabase.ts (offline cache) │
+│              │  retry +    │  ← tokenManager.ts                │
+│              │  auto-refresh)│                                 │
+│              └──────┬──────┘                                    │
+└─────────────────────┼──────────────────────────────────────────┘
                       │ JWT Bearer Token
-┌─────────────────────┼───────────────────────────────┐
-│                     │                                │
-│              ┌──────┴──────┐                         │
-│              │  api/index.php (Front Controller)     │
-│              └──────┬──────┘                         │
-│                     │                                │
-│      ┌──────────────┼──────────────┐                │
-│      ▼              ▼              ▼                 │
-│  Middleware    Controllers    Helpers                │
-│  ─────────    ───────────    ────────                │
-│  • requireAuth()  • Student    • Response            │
-│  • requireRole()  • Teacher    • JWT                 │
-│  • requireAnyRole() • Class    • RateLimiter         │
-│  • sanitizeString() • Subject  • Logger              │
-│  • validateInt()  • Results    • Database            │
-│  • paginate()     • Payments   • RealtimeEvents      │
-│                   • Attendance                       │
-│                   • Auth                             │
-│                   • Parent                           │
-│                   • Notification                     │
-│                   • Assignment                       │
-│                   • Progression                      │
-│                   • Invoice                          │
-│                   • Report                           │
-│                   • File                             │
-│                   • User                             │
-│                   • Realtime (SSE)                   │
-│                      │                               │
-│              ┌───────┴────────┐                      │
-│              │  MySQL/MariaDB │                      │
-│              │  30+ tables    │                      │
-│              └────────────────┘                      │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────┼──────────────────────────────────────────┐
+│                     │                                           │
+│              ┌──────┴──────┐                                    │
+│              │ api/index.php (Front Controller, 822 lines)     │
+│              └──────┬──────┘                                    │
+│                     │                                           │
+│      ┌──────────────┼──────────────┐                            │
+│      ▼              ▼              ▼                             │
+│  Middleware     Controllers    Helpers                           │
+│  ─────────     ───────────    ────────                           │
+│  • requireAuth()   • Student    • Response.php (13 methods)     │
+│  • requireRole()   • Teacher    • JWT.php (HS256)              │
+│  • requireAnyRole() • Class     • RateLimiter.php              │
+│  • sanitizeString() • Subject   • Logger.php                   │
+│  • validateInt()   • Results    • DatabaseTransaction.php      │
+│  • paginate()      • Payments   • RealtimeEvents.php           │
+│                    • Attendance  • Middleware.php               │
+│                    • Auth (389L)                                │
+│                    • Parent (CRUD + link/unlink children)       │
+│                    • Notification (CRUD + broadcast)            │
+│                    • Assignment (CRUD + submit + grade)         │
+│                    • Progression (rules + validation)           │
+│                    • Invoice (auto-generate)                    │
+│                    • Report (PDF generation)                    │
+│                    • File (upload + management)                 │
+│                    • User (CRUD + password reset)               │
+│                    • CBT (exams/questions/attempts/scoring)     │
+│                    • Realtime (SSE streaming)                   │
+│                    • CbtController (full online exam engine)   │
+│                      │                                          │
+│              ┌───────┴────────┐                                 │
+│              │  MySQL/MariaDB │                                  │
+│              │  65 tables     │                                  │
+│              │  5 views       │                                  │
+│              └────────────────┘                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -143,6 +149,7 @@ A full-stack school management system for **Graceland Royal Academy, Gombe, Nige
 │       ├─ Attach JWT Bearer token from localStorage               │
 │       ├─ Set Cache-Control: no-cache (for GET/HEAD)              │
 │       ├─ Adaptive timeout (30s normal, 60s on slow connection)   │
+│       ├─ Retry: up to 3 attempts for idempotent GET/HEAD         │
 │       └─ Execute fetch() with AbortController                    │
 └──────────────────────────────────────────────────────────────────┘
     ↓
@@ -150,19 +157,18 @@ A full-stack school management system for **Graceland Royal Academy, Gombe, Nige
 │              3. PHP BACKEND ROUTING                               │
 │                                                                  │
 │  Apache rewrites /api/* → api/index.php (Front Controller)       │
-│    ├─ CORS headers (whitelist: gracelandroyalacademy.com.ng,     │
-│    │              localhost:3000)                                 │
+│    ├─ CORS headers (whitelist-based origins)                     │
 │    ├─ Content-Type: application/json                             │
-│    ├─ Parse URL path → route to correct controller               │
+│    ├─ Parse URL path → switch-based route → controller method    │
 │    │  e.g., /students/42 → StudentController.getStudentById(42)  │
 │    └─ Wrap all in try/catch → Response::serverError()            │
 │                                                                  │
 │  Each controller:                                                │
-│    ├─ new Database() → PDO connection (utf8mb4)                  │
+│    ├─ new Database() → PDO connection (utf8mb4, prepared stmts)  │
 │    ├─ Middleware::requireAuth() → JWT::validateToken()           │
-│    │   └─ Checks: Authorization header, signature, expiry        │
+│    │   └─ Checks: Authorization header, signature, expiry, role  │
 │    ├─ Input validation (sanitizeString, validateEnum, etc.)      │
-│    ├─ Business logic + SQL queries                               │
+│    ├─ Business logic + SQL queries (parameterized)               │
 │    ├─ Activity logging to activity_logs table                    │
 │    ├─ RealtimeEvents::publish() for SSE updates                  │
 │    └─ Response::success() / error() / notFound() etc.            │
@@ -172,14 +178,15 @@ A full-stack school management system for **Graceland Royal Academy, Gombe, Nige
 │              4. DATABASE LAYER                                    │
 │                                                                  │
 │  Database class (config/database.php):                           │
-│    ├─ Loads .env from 5 possible locations                       │
+│    ├─ Loads .env from 5 possible locations (cascading search)    │
 │    ├─ Connects via PDO (ERRMODE_EXCEPTION, FETCH_ASSOC)          │
 │    └─ Config class: JWT secret, upload paths, CORS, timezone    │
 │                                                                  │
 │  Auto schema migration (in ResultsController, PaymentController):│
 │    ├─ CREATE TABLE IF NOT EXISTS for new tables                  │
 │    ├─ ALTER TABLE ADD COLUMN IF NOT EXISTS for schema changes    │
-│    └─ CREATE INDEX IF NOT EXISTS for performance                 │
+│    ├─ Uses SHOW COLUMNS FROM / SHOW INDEX FROM for detection    │
+│    └─ Uses INFORMATION_SCHEMA for column/index introspection     │
 └──────────────────────────────────────────────────────────────────┘
     ↓
 ┌──────────────────────────────────────────────────────────────────┐
@@ -192,9 +199,9 @@ A full-stack school management system for **Graceland Royal Academy, Gombe, Nige
 │                                                                  │
 │  ApiService receives response:                                   │
 │    ├─ If 401 → auto-refresh token via POST /auth/refresh-token   │
-│    │  → retry original request                                   │
+│    │  → retry original request with new token                    │
 │    ├─ If server error (5xx) + idempotent → retry w/ backoff      │
-│    ├─ If network error → retry w/ exponential backoff            │
+│    ├─ If network error → retry w/ exponential backoff (1/2/4s)  │
 │    └─ If success → return parsed JSON to component               │
 └──────────────────────────────────────────────────────────────────┘
     ↓
@@ -222,6 +229,7 @@ Several backend controllers **auto-create tables and columns** on construction �
 - `ResultsController` → Creates `compiled_results` table + approval columns on `scores` table
 - `PaymentController` → Adds `invoice_id`, reversal tracking columns, unique indexes on `payments` table
 - Uses `SHOW COLUMNS FROM`, `SHOW INDEX FROM`, and `INFORMATION_SCHEMA` to check existence before altering
+- Only one explicit migration file: `api/migrations/003_question_extensions.sql` (adds passage/image/section columns to CBT tables)
 
 ### Dual Field Naming Convention
 The system handles both **snake_case** (database) and **camelCase** (React) field names throughout:
@@ -236,7 +244,7 @@ CRUD operations update local state **before** the API call completes, then sync:
 3. On success → reload from API to ensure consistency
 4. On failure → reload from API to revert optimistic change
 
-### Offline Cache Layer (`sqlDatabase.ts`)
+### Offline Cache Layer (`sqlDatabase.ts` — 787 lines)
 Wraps API calls with:
 - **Request debouncing** — prevents duplicate concurrent requests (Map-based keyed cache)
 - **Exponential backoff retry** — retries 3x with 1s/2s/4s delays on network errors
@@ -254,6 +262,7 @@ Wraps API calls with:
 - 48h grace period for token refresh
 - Auto-refresh on 401 responses via `ApiService.refreshToken()`
 - Rate-limited login: 5 attempts per 15-minute window (APCu or file-based)
+- Token validation across 4 header sources (Authorization, REDIRECT_HTTP_AUTHORIZATION, etc.)
 
 ### Role-Based Data Access
 Backend enforces row-level security per role:
@@ -261,6 +270,22 @@ Backend enforces row-level security per role:
 - **Teacher** → only sees students in classes where they have subject assignments
 - **Accountant/Admin** → full access
 - Implemented via dynamic SQL conditions in every query
+
+### Frontend Component Patterns
+- **Single-monolithic files**: Feature pages are single files (688–2,632 lines each), few extracted sub-components
+- **Error boundaries**: `ResultsManagementPage` uses class-based error boundaries (`ResultsManagementErrorBoundary`, `FullPageErrorBoundary`)
+- **Naming convention**: `Manage*Page.tsx` for CRUD pages, `*Page.tsx` for action pages
+- **Export patterns**: Mixed — some use `export function`, others use `export default` + alias
+- **Lazy loading**: `React.lazy` used for dashboards and `AddStudentFormSimple`
+- **Mobile-responsive**: `ManageStudentsPage` has `Mobile` suffix variant; `ManageClassesPage` uses `Desktop` suffix
+
+### Auth Flow — 6 Layers
+1. `config/api.ts` — Token storage primitives (localStorage)
+2. `services/authService.ts` — Singleton auth business logic (30-min auto-refresh)
+3. `services/api.ts` — HTTP client with automatic Bearer injection + 401 refresh
+4. `components/ProtectedRoute.tsx` — Route guard (token check + role match)
+5. `utils/tokenManager.ts` — Token recovery from multiple storage locations
+6. `main.tsx` — Global error suppression (silences 401/403 errors in production)
 
 ---
 
@@ -361,10 +386,13 @@ In-app notifications with role-based broadcast (All/Admin/Teachers/Accountants/P
 Create homework with title, description, due date, max score, file attachments. Student submissions with teacher grading and feedback.
 
 ### Timetables
-Exam timetable scheduling (class, subject, date, time, hall, invigilator) and class period timetables.
+Exam timetable scheduling (class, subject, date, time, hall, invigilator) and class period timetables (8 periods, Mon–Fri).
 
 ### Promotion & Progression
 Progression rules (from-class → to-class). Eligibility calculation (attendance ≥ 75% + passing average). Bulk promotion with target class and academic year advancement. Manual override with 8 statuses: Promoted, Repeated, Transferred, On Hold, Withdrawn, Pending Approval, Conditional, Manual.
+
+### CBT (Computer-Based Testing)
+Full online exam engine: create exams with duration, start/end times; single-choice and true/false questions with JSON options; question bank for reusable content; student attempts with auto-scoring; score feeding into the results system; AI-powered question generation from study materials.
 
 ### Parent Portal
 View linked children with photos, report cards, attendance, fee balances. Make online payments via Paystack. Upload bank transfer receipts. Access class WhatsApp groups. Download payment receipts.
@@ -411,7 +439,7 @@ On logout → POST /auth/logout → JWT cleared from localStorage
 - All API requests require `Authorization: Bearer <token>` header
 - Role is checked at middleware level (`requireAuth()` + `requireRole()`)
 - Rate limiting prevents brute force attacks
-- Passwords stored with bcrypt hashing
+- Passwords stored with bcrypt hashing (with legacy plaintext upgrade path for parents)
 - CORS whitelist restricts API access to known origins
 - Activity logging tracks all user actions
 
@@ -803,7 +831,7 @@ Teacher clicks "Compile Results" → POST /results/compile
 **Fee Structure Setup (Admin/Accountant):**
 
 ```
-Navigate to Set Fees → Select Class → Term → Academic Year
+Navigat to → Set Fees → Select Class → Term → Academic Year
     ↓
 Define fee components (each with amount):
     • Tuition Fee
@@ -1072,7 +1100,7 @@ When computing across all three terms of an academic year, the system:
 ```
 Server-Sent Events stream via GET /realtime/stream
     ↓
-Connection authenticated via JWT token
+Connection authenticated via JWT token (header or ?token= query param)
     ↓
 On new notification → Event published to `realtime_events` table
     ↓
@@ -1183,7 +1211,7 @@ Displayed in both Admin and Teacher dashboards
 
 **Class Timetable:**
 
-Period-based scheduling per class with subjects, teachers, time slots.
+Period-based scheduling per class with subjects, teachers, time slots (8 periods, Mon–Fri).
 
 **Who can do what:**
 
@@ -1379,11 +1407,12 @@ Upload via POST /files/upload → File stored in uploads/ directory
 | Change own password | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
+
 ## Project Structure
 
 **Total frontend files:** ~120 TypeScript/TSX files across 15 directories  
-**Total backend files:** 17 controllers, 6 helpers, 1 router, config files  
-**Database:** 62 tables in MariaDB
+**Total backend files:** 17 controllers (avg ~800 lines), 6 helpers, 1 router (822 lines), config files  
+**Database:** 65 tables + 5 views in MariaDB
 
 ```
 /
@@ -1391,39 +1420,39 @@ Upload via POST /files/upload → File stored in uploads/ directory
 ├── index.html                    # SPA entry point (Vite module script)
 ├── package.json                  # Dependencies: React 18, Radix UI, Recharts, Paystack, jsPDF
 ├── vite.config.ts                # Vite 6 build config: manual chunk splitting, es2015 target
-├── tsconfig.json                 # TypeScript 5.9 config
+├── tsconfig.json                 # TypeScript 5.9 config with @/ path alias
 │
 ├── src/                          # React TypeScript frontend
 │   ├── main.tsx                  # App bootstrap, global error handlers, providers (76 lines)
-│   ├── App.tsx                   # Route definitions — 5 routes: /, /login, /admin, /teacher, /accountant, /parent (62 lines)
+│   ├── App.tsx                   # Route definitions — 7 routes (62 lines)
 │   ├── index.css                 # Tailwind v4 directives + 5,544 lines custom CSS
 │   │
 │   ├── config/
 │   │   └── api.ts                # API_CONFIG: BASE_URL, ENDPOINTS, token helpers (259 lines)
 │   │
 │   ├── contexts/
-│   │   ├── SchoolContext.tsx      # Global state hub — 20+ entity arrays, ~200 methods (8,517 lines)
+│   │   ├── SchoolContext.tsx      # Global state hub — 20+ entity arrays, ~200 methods (9,158 lines)
 │   │   ├── ConnectionContext.tsx  # Network online/offline monitoring (106 lines)
-│   │   └── NotificationService.tsx # Real-time SSE pub/sub (122 lines)
+│   │   └── NotificationService.tsx # Real-time SSE pub/sub + toast display (122 lines)
 │   │
 │   ├── services/
 │   │   ├── api.ts                # ApiService — fetch + adaptive timeout + retry + token refresh (430 lines)
-│   │   ├── authService.ts        # Auth helpers (324 lines)
-│   │   └── sqlDatabase.ts        # Local data cache: request debouncing, exponential backoff retry (787 lines)
+│   │   ├── authService.ts        # Auth helpers — singleton login/logout/refresh/validate (324 lines)
+│   │   └── sqlDatabase.ts        # Offline cache: request debouncing, exponential backoff retry (787 lines)
 │   │
-│   ├── hooks/
+│   ├── hooks/                    # 5 custom hooks
 │   │   ├── useBatchApi.ts        # Batch API request optimization
 │   │   ├── useLazyLoad.ts        # Lazy loading hook
 │   │   ├── useMobileOptimization.ts
 │   │   ├── useRealTimeData.ts    # Real-time data subscription
 │   │   └── useTermChangeDetector.ts
 │   │
-│   ├── utils/
+│   ├── utils/                    # 18 utility files
 │   │   ├── pdfGenerator.ts       # PDF report card generation via jsPDF (1,258 lines)
 │   │   ├── csvExporter.ts        # CSV data export
 │   │   ├── csvImporter.ts        # CSV data import
 │   │   ├── databaseImporter.ts   # Database import utility
-│   │   ├── tokenManager.ts       # JWT token persistence & refresh
+│   │   ├── tokenManager.ts       # JWT token persistence & multi-source recovery (171 lines)
 │   │   ├── storageManager.ts     # LocalStorage abstraction
 │   │   ├── connectionMonitor.ts  # Connection health checks
 │   │   ├── dataCache.ts          # Client-side data caching
@@ -1432,59 +1461,66 @@ Upload via POST /files/upload → File stored in uploads/ directory
 │   │   ├── passwordValidator.ts  # Password strength validation
 │   │   ├── performance.ts        # Performance monitoring
 │   │   ├── position.ts           # Position formatting (1st, 2nd, 3rd...)
-│   │   └── qrCode.ts             # QR code generation for report cards
+│   │   ├── qrCode.ts             # QR code generation for report cards
+│   │   ├── questionParser.ts     # CBT question parser
+│   │   ├── classHelpers.ts       # Class level/name helpers
+│   │   ├── adminOptimizations.ts # Admin page optimizations
+│   │   └── systemVerification.ts # System health verification
 │   │
 │   ├── components/
-│   │   ├── AdminDashboard.tsx    # Admin main dashboard (451 lines)
+│   │   ├── AdminDashboard.tsx    # Admin main dashboard (459 lines, 18 sidebar items)
 │   │   ├── TeacherDashboard.tsx  # Teacher main dashboard
 │   │   ├── AccountantDashboard.tsx  # Accountant main dashboard
+│   │   ├── StudentDashboard.tsx  # Student dashboard (lazy-loaded)
 │   │   ├── UniversalParentDashboardFixed.tsx  # Parent dashboard (2,028 lines)
 │   │   ├── LandingPage.tsx       # Public landing page (335 lines)
 │   │   ├── LoginPage.tsx         # Login form with role selection (189 lines)
 │   │   ├── ProtectedRoute.tsx    # Auth guard — checks token + role (33 lines)
-│   │   ├── DashboardSidebar.tsx  # Shared sidebar with role-based theming
+│   │   ├── DashboardSidebar.tsx  # Shared sidebar with design tokens (282 lines)
 │   │   ├── DashboardTopBar.tsx   # Top bar with notifications bell
 │   │   ├── NotificationsPage.tsx # Notifications list
 │   │   ├── ProfileSettingsPage.tsx
 │   │   ├── ChangePasswordPage.tsx
 │   │   ├── StudentResultSheet.tsx
+│   │   ├── CumulativeResultSheet.tsx
 │   │   ├── PasswordStrengthIndicator.tsx
 │   │   │
-│   │   ├── admin/                # 45+ admin page components
-│   │   │   ├── ManageStudentsPage.tsx
-│   │   │   ├── ManageClassesPage.tsx
-│   │   │   ├── ManageSubjectsPage.tsx
-│   │   │   ├── ManageTeachersPage.tsx
-│   │   │   ├── ManageUsersPage.tsx
-│   │   │   ├── ManageParentsPage.tsx
-│   │   │   ├── ManageStaffPage.tsx
-│   │   │   ├── ManageTeacherAssignmentsPage.tsx
-│   │   │   ├── ResultsManagementPage.tsx
-│   │   │   ├── PromotionSystemPage.tsx
-│   │   │   ├── FeeManagementPage.tsx
-│   │   │   ├── SystemSettingsPage.tsx
+│   │   ├── admin/                # 48 admin feature components
+│   │   │   ├── ManageStudentsPage.tsx  # Student CRUD (1,675 lines, mobile-first)
+│   │   │   ├── ManageUsersPage.tsx     # User management (1,903 lines, all roles)
+│   │   │   ├── ManageClassesPage.tsx   # Class CRUD (1,090 lines)
+│   │   │   ├── ManageSubjectsPage.tsx  # Subject CRUD (688 lines)
+│   │   │   ├── ManageTeachersPage.tsx  # Teacher CRUD
+│   │   │   ├── ManageParentsPage.tsx   # Parent CRUD
+│   │   │   ├── ManageStaffPage.tsx     # Staff management
+│   │   │   ├── ManageTeacherAssignmentsPage.tsx  # Teacher-subject-class assignment
+│   │   │   ├── ResultsManagementPage.tsx  # Results workflow (2,632 lines, largest)
+│   │   │   ├── PromotionSystemPage.tsx # Student promotion (1,688 lines)
+│   │   │   ├── FeeManagementPage.tsx   # Fee oversight dashboard (280 lines)
+│   │   │   ├── SystemSettingsPage.tsx  # School configuration (1,138 lines)
 │   │   │   ├── RegisterUserPage.tsx / CreateUserPage.tsx
 │   │   │   ├── LinkStudentParentPage.tsx
-│   │   │   ├── AddStudentPage.tsx / AddStudentFormSimple.tsx
+│   │   │   ├── AddStudentPage.tsx / AddStudentFormSimple.tsx (lazy-loaded)
 │   │   │   ├── StudentProfilePage.tsx
 │   │   │   ├── StudentAdmissionApprovalPage.tsx
 │   │   │   ├── TransferWithdrawalPage.tsx
 │   │   │   ├── BulkStaffImportPage.tsx / QuickStaffImportPage.tsx
 │   │   │   ├── SubjectRegistrationPage.tsx
 │   │   │   ├── DepartmentManagementPage.tsx
-│   │   │   ├── ExamTimetablePage.tsx
+│   │   │   ├── ExamTimetablePage.tsx  # Exam scheduling (411 lines)
 │   │   │   ├── SendNotificationPage.tsx
 │   │   │   ├── NotificationSystemPage.tsx / NotificationArchivesPage.tsx
 │   │   │   ├── ViewResultSheetsPage.tsx / ResultSheetViewer.tsx
 │   │   │   ├── ViewAllResultsPage.tsx
 │   │   │   ├── ApproveResultsPage.tsx / ResultApprovalDetailPage.tsx
 │   │   │   ├── BroadsheetViewPage.tsx
-│   │   │   ├── AttendanceReportsPage.tsx
+│   │   │   ├── AttendanceReportsPage.tsx  # Attendance analytics (397 lines)
 │   │   │   ├── DataBackupPage.tsx / DatabaseViewer.tsx
 │   │   │   ├── ActivityLogsPage.tsx / SystemReportsPage.tsx
 │   │   │   ├── SignatureSettingsPage.tsx / TermSettingsPage.tsx
 │   │   │   ├── ManualPaymentEntryPage.tsx / DebtorListPage.tsx
-│   │   │   └── AddTeacherPage.tsx / AddParentPage.tsx / AddAccountantPage.tsx
+│   │   │   ├── AddTeacherPage.tsx / AddParentPage.tsx / AddAccountantPage.tsx
+│   │   │   └── UserManagementPage.tsx (wrapper, 167 lines)
 │   │   │
 │   │   ├── teacher/              # 13 teacher page components
 │   │   │   ├── ScoreEntryPage.tsx
@@ -1515,6 +1551,13 @@ Upload via POST /files/upload → File stored in uploads/ directory
 │   │   │   ├── NotificationsPage.tsx
 │   │   │   └── SettingsPage.tsx
 │   │   │
+│   │   ├── student/              # Student dashboard components
+│   │   │   └── StudentDashboard.tsx
+│   │   │
+│   │   ├── cbt/                  # CBT exam components
+│   │   │   ├── CbtExamListPage.tsx
+│   │   │   └── ... (online exam UI)
+│   │   │
 │   │   ├── public/               # 6 public landing pages
 │   │   │   ├── AboutPage.tsx
 │   │   │   ├── AdmissionsPage.tsx
@@ -1523,24 +1566,25 @@ Upload via POST /files/upload → File stored in uploads/ directory
 │   │   │   ├── SchoolNewsPage.tsx
 │   │   │   └── ContactPage.tsx
 │   │   │
-│   │   ├── shared/               # Shared views
+│   │   ├── shared/               # Shared cross-role views
 │   │   │   ├── ViewNotificationsPage.tsx
 │   │   │   ├── ViewExamTimetablePage.tsx
-│   │   │   ├── StudentResultCard.tsx
-│   │   │   └── FullPageResultView.tsx
+│   │   │   ├── StudentResultCard.tsx (1,261 lines)
+│   │   │   ├── FullPageResultView.tsx (271 lines)
+│   │   │   └── types/resultCard.ts
 │   │   │
-│   │   └── ui/                   # 25+ shadcn-style UI primitives
+│   │   └── ui/                   # 26 shadcn-style UI primitives
 │   │       ├── button.tsx, card.tsx, dialog.tsx, input.tsx
 │   │       ├── table.tsx, select.tsx, badge.tsx, tabs.tsx
-│   │       ├── form.tsx, avatar.tsx, checkbox.tsx
-│   │       ├── alert.tsx, label.tsx, progress.tsx
+│   │       ├── form.tsx, avatar.tsx, checkbox.tsx, switch.tsx
+│   │       ├── alert.tsx, label.tsx, progress.tsx, slider.tsx
 │   │       ├── dropdown-menu.tsx, popover.tsx, tooltip.tsx
-│   │       ├── switch.tsx, slider.tsx, separator.tsx
-│   │       ├── scroll-area.tsx, textarea.tsx, alert-dialog.tsx
+│   │       ├── separator.tsx, scroll-area.tsx, textarea.tsx
+│   │       ├── alert-dialog.tsx, sheet.tsx, simple-dropdown.tsx
 │   │       └── PaymentReceipt.tsx
 │   │
-│   ├── styles/globals.css        # Design tokens & CSS variables (273 lines)
-│   └── types/globals.d.ts        # Global type declarations
+│   ├── types/globals.d.ts        # Global type declarations
+│   └── styles/globals.css        # Design tokens & CSS variables (273 lines)
 │
 ├── api/                          # PHP 8.4 REST API Backend
 │   ├── index.php                 # Front controller / router (822 lines)
@@ -1549,32 +1593,33 @@ Upload via POST /files/upload → File stored in uploads/ directory
 │   ├── config/
 │   │   └── database.php          # Database class (PDO) + Config class (JWT, CORS, upload) (270 lines)
 │   │
-│   ├── helpers/                  # 6 reusable utility classes
-│   │   ├── Response.php          # JSON response formatter (13 methods: success, error, paginated, etc.) (174 lines)
+│   ├── helpers/                  # 7 reusable utility classes
+│   │   ├── Response.php          # JSON response formatter (174 lines)
 │   │   ├── Middleware.php        # Auth/role enforcement, input validation, pagination (343 lines)
 │   │   ├── JWT.php               # HS256 JWT encode/decode/validate/refresh (180 lines)
 │   │   ├── RateLimiter.php       # Brute force: 5 attempts/15min via APCu or file (283 lines)
-│   │   ├── Logger.php            # File-based logging with levels (DEBUG→CRITICAL) (218 lines)
+│   │   ├── Logger.php            # File-based logging with levels (218 lines)
 │   │   ├── DatabaseTransaction.php  # PDO transaction + savepoint helper (222 lines)
 │   │   └── RealtimeEvents.php    # SSE event publisher (75 lines)
 │   │
-│   ├── controllers/              # 17 controllers
+│   ├── controllers/              # 18 controllers
 │   │   ├── AuthController.php    # Login/logout/profile/password/refresh (389 lines)
 │   │   ├── StudentController.php # CRUD, promote, domains, statistics (1,280 lines)
 │   │   ├── TeacherController.php # CRUD, assignments, class students
 │   │   ├── ClassController.php   # CRUD, students/subjects/stats by class
 │   │   ├── SubjectController.php # CRUD, assign, assignments listing
-│   │   ├── ResultsController.php # Scores CRUD, compile, approve (~2,763 lines)
-│   │   ├── PaymentController.php # Payments CRUD, Paystack integration, verify, reverse (~1,583 lines)
+│   │   ├── ResultsController.php # Scores CRUD, compile, approve (~2,763 lines, largest)
+│   │   ├── PaymentController.php # Payments CRUD, Paystack, verify, reverse (~1,583 lines)
 │   │   ├── ParentController.php  # CRUD, link/unlink children
 │   │   ├── AttendanceController.php  # Mark, bulk, summaries
 │   │   ├── NotificationController.php# CRUD, broadcast, mark read
 │   │   ├── AssignmentController.php  # CRUD, submit, grade
-│   │   ├── InvoiceController.php # Auto-generate invoices, get by student/class
+│   │   ├── InvoiceController.php # Auto-generate invoices
 │   │   ├── ReportController.php  # PDF report cards, class/financial reports (611 lines)
 │   │   ├── FileController.php    # Logo upload, file management
 │   │   ├── UserController.php    # CRUD, password reset
-│   │   ├── ProgressionController.php  # Progression rules CRUD, validation
+│   │   ├── ProgressionController.php  # Progression rules CRUD
+│   │   ├── CbtController.php     # Full CBT engine: exams/questions/attempts/scoring
 │   │   └── RealtimeController.php    # SSE streaming endpoint
 │   │
 │   ├── standalone scripts:
@@ -1582,147 +1627,156 @@ Upload via POST /files/upload → File stored in uploads/ directory
 │   │   ├── signature_settings.php    # Digital signature settings
 │   │   ├── subject_registrations.php # Subject registration listings
 │   │   ├── teachers.php              # Teacher listings
+│   │   ├── class_teacher_assignments.php
+│   │   ├── academic_years.php
 │   │   ├── upload-student-photo.php  # Photo upload handler
 │   │   ├── health.php                # API health check
-│   │   ├── jwt_diagnostic.php        # JWT debugging tool
-│   │   ├── jwt_test.php              # JWT test endpoint
+│   │   ├── jwt_diagnostic.php / jwt_test.php  # JWT debugging
 │   │   ├── test.php / test-promotions.php / restore_first_term.php
-│   │   ├── database/query.php        # Raw SQL query (admin only)
-│   │   └── auth/simple_login.php     # Legacy login (disabled)
+│   │   └── auth/
+│   │       └── simple_login.php     # Legacy login (disabled)
+│   │
+│   └── migrations/
+│       └── 003_question_extensions.sql  # CBT question extensions
 │
 ├── database/                     # SQL dumps
-│   ├── mdpjhtua_graceland_academy.sql  # Full database dump (45,159 lines, 62 tables)
+│   ├── mdpjhtua_graceland_academy.sql  # Full database dump (45,802 lines, 65 tables + 5 views)
 │   └── whatsapp_groups.sql
 │
 ├── build/                        # Vite production build output
-├── final-deployment/             # Pre-packaged deployment archive
-│   ├── .htaccess, index.html, api/, assets/
-│   └── DEPLOYMENT_INFO.txt
-│
 ├── scripts/
 │   └── update-deployment.mjs     # Copies build/ to final-deployment/
-│
-├── assets/                       # Vite-compiled production assets (CSS + JS bundles)
-├── docs/
-│   └── backend-test.html         # Backend API test page
-│
-├── node_modules/                 # npm dependencies
-├── .env.example / .env.production / .gitignore
-├── package.json / package-lock.json
-├── vite.config.ts                # Vite 6 config: es2015 target, manual chunk splitting (vendor, radix, charts, utils)
-├── tsconfig.json
-└── README.md
+├── assets/                       # Vite-compiled production assets
+└── docs/
+    └── backend-test.html         # Backend API test page
 ```
 
 ---
 
 ## Database Schema Overview
 
-The system uses a **MariaDB** database named `mdpjhtua_graceland_academy` with **62 tables** across six domains:
+The system uses a **MariaDB 11.4** database named `mdpjhtua_graceland_academy` with **65 tables** and **5 views** across 13 functional groups:
 
 ### Core Entity Tables (5)
 
-| Table | Rows (approx.) | Purpose |
-|-------|----------------|---------|
-| `students` | ~1,000 | Student profiles (admission_no, class_id, DOB, gender, photo, status, medical info) |
-| `teachers` | ~80 | Teacher profiles (employee_id, phone, qualification, specialization JSON, signature) |
-| `parents` | ~700 | Parent/guardian profiles (name, phone, email, occupation, address) |
-| `parent_student_links` | ~900 | Many-to-many links between parents and students (with relationship type, is_primary) |
-| `accountants` | ~5 | Accountant staff records |
+| Table | Rows (approx.) | Key Columns |
+|-------|----------------|-------------|
+| `students` | ~350 | `id`, `first_name`, `last_name`, `admission_number`, `class_id`, `parent_id`, `date_of_birth`, `gender`, `photo_url`, `passport_photo`, `status`, `academic_year` |
+| `teachers` | ~34 | `id`, `first_name`, `last_name`, `employee_id`, `email`, `phone`, `gender`, `qualification`, `specialization` (JSON), `is_class_teacher`, `department_id`, `signature` |
+| `parents` | ~250 | `id`, `first_name`, `last_name`, `email`, `phone`, `alternate_phone`, `address`, `occupation`, `status` |
+| `accountants` | ~1 | `id`, `first_name`, `last_name`, `employee_id`, `email`, `phone`, `department`, `status` |
+| `users` | ~250 | `id`, `username`, `password_hash` (bcrypt), `role` (admin/teacher/accountant/parent), `linked_id`, `email`, `status`, `last_login` |
 
-### Academic Structure Tables (11)
+### Academic Structure (10)
 
-| Table | Purpose |
-|-------|---------|
-| `classes` | Class/section definitions (name, level, category, capacity, academic_year) |
-| `subjects` | Subject definitions (name, code, category, is_core, department, description) |
-| `subject_registrations` | Which subjects are registered for which class/term/year |
-| `subject_assignments` | Links subject → class → teacher per term/year |
-| `class_teacher_assignments` | Class teacher assignments per term/year |
-| `class_progression_rules` | Promotion rules (from_class → to_class) |
-| `departments` | School departments with HOD |
-| `class_whatsapp_groups` | WhatsApp group links per class |
-| `class_timetable` | Period-based lesson timetable |
-| `exam_timetable` | Exam scheduling (date, time, venue, supervisor) |
-| `school_calendar` | School calendar events |
+`academic_years`, `terms`, `classes` (15 classes, gemstone-themed names), `subjects` (~70), `departments`, `class_progression_rules`, `subject_registrations`, `class_whatsapp_groups`, `class_timetable` (8 periods), `exam_timetable`
 
-### Results & Grading Tables (7)
+### Assignments & Relationships (4)
 
-| Table | Purpose |
-|-------|---------|
-| `scores` | Individual scores (ca1, ca2, exam, total, grade, remark, status workflow) |
-| `affective_domains` | 6 affective traits scored 1–5 per student/term (attentiveness, honesty, etc.) |
-| `psychomotor_domains` | 10 psychomotor traits scored 1–5 per student/term (handwriting, sports, etc.) |
-| `student_domains` | Combined domain storage |
-| `compiled_results` | Final compiled results (totals, averages, positions, comments, signatures) |
-| `class_performance_summary` | Per-class aggregated performance data |
-| `student_summary` | Per-student aggregated summary |
+`subject_assignments` (~1,300 records), `class_teacher_assignments`, `parent_student_links` (~600, many-to-many with relationship type), `student_promotions`
 
-### Financial Tables (7)
+### Academic Scoring (6)
 
-| Table | Purpose |
-|-------|---------|
-| `payments` | Payment records (amount, method, reference, receipt, status, verification workflow) |
-| `fee_structures` | Fee components per class/term/year (tuition, development, sports, exam, books, etc.) |
-| `student_fee_balances` | Running fee balances per student/term/year |
-| `student_term_invoices` | Auto-generated invoices per student/term/year |
-| `scholarships` | Scholarship/discount definitions |
-| `student_scholarships` | Scholarship assignments to individual students |
-| `bank_account_settings` | School bank account details for transfers |
+`scores` (~8,800 records — `ca1`, `ca2`, `exam`, `total` GENERATED column, `grade`, `status` workflow), `affective_domains` (6 traits 1–5), `psychomotor_domains` (10 traits 1–5), `compiled_results`, `assignments`, `assignment_submissions`
 
-### Operational & Monitoring Tables (16)
+### CBT — Computer-Based Testing (5)
 
-| Table | Purpose |
-|-------|---------|
-| `attendance` | Daily attendance records per student (Present/Absent/Late/Excused) |
-| `attendance_backup` | Backup of attendance records |
-| `attendance_summary` | Pre-computed attendance summaries |
-| `assignments` | Homework/class assignments by teachers |
-| `assignment_submissions` | Student submissions with grades and feedback |
-| `notifications` | System notifications (target audience, read tracking, soft delete) |
-| `user_notifications` | Per-user notification read/deleted state |
-| `activity_logs` | Full audit trail (actor, action, target, IP, status, details) |
-| `data_change_logs` | Detailed data change tracking |
-| `data_changes_summary` | Aggregated change summaries |
-| `realtime_events` | SSE event queue (topic + JSON payload + timestamp) |
-| `performance_logs` | System performance metrics |
-| `security_logs` | Security event log |
-| `security_events_summary` | Aggregated security summaries |
-| `manual_class_changes` | Student manual class change history |
-| `student_promotions` | Student promotion history |
+`cbt_exams`, `cbt_questions` (JSON options), `cbt_question_bank` (reusable), `cbt_attempts`, `cbt_answers`
 
-### System & Security Tables (9)
+### Financial (7)
 
-| Table | Purpose |
-|-------|---------|
-| `users` | System login accounts (username, bcrypt password_hash, role, linked_id, status) |
-| `user_sessions` | Active user session tracking |
-| `user_dashboard_responsibilities` | Dashboard permission flags per user |
-| `token_blacklist` | Revoked JWT tokens |
-| `password_reset_log` | Password change audit |
-| `permissions` | Available system permissions |
-| `role_permissions` | Role-to-permission mappings |
-| `school_settings` | Key-value school configuration |
-| `signature_settings` | Principal & head teacher digital signatures |
+`fee_structures` (GENERATED `total_fee`), `payments` (with reversal tracking), `student_fee_balances` (GENERATED `balance`), `student_term_invoices`, `scholarships`, `student_scholarships`, `bank_account_settings`
 
-### Academic Year & Term Tables (4)
+### Attendance (3)
 
-| Table | Purpose |
-|-------|---------|
-| `academic_years` | Academic year definitions (year, start_date, end_date, status) |
-| `terms` | Term definitions per academic year |
-| `school_settings` | Current active term/year |
-| `file_uploads` | Uploaded file metadata |
+`attendance` (UNIQUE on student+date), `attendance_backup`, `attendance_summary`
 
-### CBT (Computer-Based Test) Tables (5)
+### Notifications (2)
 
-| Table | Purpose |
-|-------|---------|
-| `cbt_exams` | CBT exam definitions |
-| `cbt_questions` | CBT questions per exam |
-| `cbt_question_bank` | Reusable question bank |
-| `cbt_attempts` | Student CBT attempt records |
-| `cbt_answers` | Student CBT answer submissions |
+`notifications` (JSON target_audience, read_by), `user_notifications`
+
+### School Configuration (3)
+
+`school_settings` (key-value), `signature_settings`, `file_uploads`
+
+### System & Security (9)
+
+`permissions` (37 definitions), `role_permissions`, `user_sessions`, `token_blacklist`, `password_reset_log`, `user_dashboard_responsibilities`, `school_calendar`, `manual_class_changes`, `student_domains` (view)
+
+### Audit & Monitoring (5)
+
+`activity_logs` (~8,500 events), `data_change_logs` (JSON snapshots), `security_logs` (JSON details), `performance_logs`, `realtime_events`
+
+### Views (5)
+
+`class_performance_summary`, `data_changes_summary`, `security_events_summary`, `student_domains` (UNION of affective + psychomotor), `student_summary` (joins students+classes+parents+fees), `teacher_assignments`
+
+### Key Database Patterns
+
+- **Generated columns**: `fee_structures.total_fee` (sum of 7 components), `scores.total` (ca1+ca2+exam), `student_fee_balances.balance` (fee - paid) — all STORED
+- **JSON columns**: `teachers.specialization`, `cbt_questions.options_json/correct_answer_json`, `notifications.target_users/read_by`, `data_change_logs.old_values/new_values`, `security_logs.details`, `realtime_events.payload`
+- **Check constraints**: `affective_domains`/`psychomotor_domains` traits (1–5), `class_timetable.period` (1–8)
+- **Cascade deletes**: All child tables (scores, attendance, payments, results, links, etc.) cascade on parent delete
+- **UNIQUE constraints**: `attendance (student_id, date)`, `affective_domains (student_id, class_id, term, academic_year)`, `/psychomotor_domains` (same), `academic_years.year`
+- **Status ENUMs**: `Active/Inactive` (most entities), `Draft/Submitted/Approved/Rejected` (scores, results), `Present/Absent/Late/Excused` (attendance), `Pending/Verified/Rejected` (payments)
+- **Polymorphic `linked_id`**: `users.linked_id` + `users.role` references different entity tables (teachers/parents/accountants)
+- **Partitioning**: All academic tables include `academic_year` (varchar, e.g. "2024/2025") + `term` (enum) columns
+
+---
+
+## CBT (Computer-Based Testing) Module
+
+The CBT module provides a complete online examination engine integrated with the school management system.
+
+### Architecture
+
+```
+CbtController.php (backend)
+  ├── Exam CRUD (create/edit/delete/publish)
+  ├── Question management (single_choice, true_false)
+  ├── Question bank (reusable across exams)
+  ├── Attempt tracking (in_progress → submitted → scored)
+  ├── Auto-scoring + manual override
+  ├── AI question generation from study materials
+  ├── Bulk import questions
+  └── Score feeding → results system
+
+Database (5 tables)
+  ├── cbt_exams — exam definitions (duration, schedule, score_slot)
+  ├── cbt_questions — questions per exam (JSON options)
+  ├── cbt_question_bank — reusable question library (tags, difficulty)
+  ├── cbt_attempts — student attempts (status, score, percentage)
+  └── cbt_answers — individual answers (JSON answer, is_correct, marks)
+```
+
+### Workflow
+
+```
+Admin creates exam → Configure: title, class, subject, duration,
+schedule, total marks, score slot (first_test/second_test)
+    ↓
+Add questions: single_choice (options via JSON) or true_false
+    ↓
+Reuse from question bank or create new
+    ↓
+Publish exam → Students can take it during scheduled time window
+    ↓
+Student starts attempt → Timer begins
+    ↓
+Student answers questions (one by one or review-all)
+    ↓
+Auto-save on each answer
+    ↓
+Submit → System auto-grades → Score calculated (percentage + remark)
+    ↓
+Feed scores into results system (first_test/second_test score slots)
+```
+
+### Question Bank
+
+- Reusable questions tagged by subject, class, topic, difficulty (easy/medium/hard)
+- AI generation: upload study material → auto-generate questions
+- Bulk import: upload questions in bulk via file
 
 ---
 
@@ -1750,7 +1804,7 @@ The system implements defense-in-depth via Apache `mod_headers`:
 - **Legacy plaintext upgrade**: Parent accounts with plaintext passwords are auto-upgraded to bcrypt on first login
 - **Rate limiting**: 5 login attempts per 15-minute window via APCu (in-memory) or file fallback
 - **JWT**: HS256 signed tokens with 24h expiry + 48h grace period for refresh
-- **CORS**: Whitelist-based — only `gracelandroyalacademy.com.ng`, `www.gracelandroyalacademy.com.ng`, `localhost:3000`
+- **CORS**: Whitelist-based — only known origins
 - **Activity logging**: All authentication events logged to `activity_logs` table with IP address
 
 ### API Security
@@ -1762,6 +1816,7 @@ The system implements defense-in-depth via Apache `mod_headers`:
 - File upload validation: MIME type, extension whitelist, 5MB max size
 - Directory browsing disabled (`Options -Indexes`)
 - Server signature hidden (`ServerSignature Off`)
+- Global error suppression in production (silences 401/403 in browser console)
 
 ---
 
@@ -1847,6 +1902,7 @@ All endpoints live under `/api/`. Authentication is via `Authorization: Bearer <
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/auth/login` | Login (username + password + role) | Public |
+| POST | `/auth/student-login` | Student login | Public |
 | POST | `/auth/logout` | Invalidate session | All |
 | GET | `/auth/profile` | Current user profile | All |
 | POST | `/auth/change-password` | Update password | All |
@@ -1864,14 +1920,21 @@ All endpoints live under `/api/`. Authentication is via `Authorization: Bearer <
 | GET | `/students/statistics` | Dashboard stats | Admin |
 | POST | `/students/promote-students` | Bulk promote | Admin |
 | POST | `/students/manual-class-change` | Manual reassignment | Admin |
+| POST | `/students/affective-domains` | Save affective scores | Teacher |
+| POST | `/students/psychomotor-domains` | Save psychomotor scores | Teacher |
+
+*Same routes available under `/student/*` for backwards compatibility*
 
 ### Teachers
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/teachers` | List all | Admin |
+| GET | `/teachers/{id}` | Get by ID | Admin |
 | POST | `/teachers` | Create | Admin |
 | PUT | `/teachers/{id}` | Update | Admin |
 | DELETE | `/teachers/{id}` | Delete | Admin |
+| GET | `/teachers/assignments/{teacher_id}` | Subject assignments | Admin |
+| GET | `/teachers/students/{teacher_id}` | Class students | Admin |
 
 ### Classes
 | Method | Endpoint | Description | Access |
@@ -1883,6 +1946,20 @@ All endpoints live under `/api/`. Authentication is via `Authorization: Bearer <
 | GET | `/classes/students/{id}` | Students in class | Admin, Teacher |
 | GET | `/classes/subjects/{id}` | Subjects for class | Admin, Teacher |
 | GET | `/classes/statistics/{id}` | Class stats | Admin |
+| GET | `/classes/by-level/{level}` | Classes by level | All |
+| GET | `/classes/whatsapp-groups` | WhatsApp groups | All |
+| GET | `/classes/public-list` | Public class list | Public |
+
+### Parents
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/parents` | List all | Admin |
+| POST | `/parents` | Create | Admin |
+| PUT | `/parents/{id}` | Update | Admin |
+| DELETE | `/parents/{id}` | Delete | Admin |
+| GET | `/parents/children/{parent_id}` | Linked children | All (role-aware) |
+| POST | `/parents/link/{parent_id}` | Link to student | Admin |
+| DELETE | `/parents/unlink/{parent_id}/{student_id}` | Unlink | Admin |
 
 ### Subjects
 | Method | Endpoint | Description | Access |
@@ -1892,20 +1969,28 @@ All endpoints live under `/api/`. Authentication is via `Authorization: Bearer <
 | PUT | `/subjects/{id}` | Update | Admin |
 | DELETE | `/subjects/{id}` | Delete | Admin |
 | POST | `/subjects/assign` | Assign to teacher+class | Admin |
+| GET | `/subjects/assignments` | All assignments | Admin |
+| GET | `/subjects/category/{category}` | By category | All |
 
 ### Results / Scores
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/results/scores/{assignment_id}` | Get scores by assignment | Teacher, Admin |
+| GET | `/results/scores/by-term` | Scores by term | Teacher, Admin |
 | POST | `/results/scores` | Create/update (upsert) | Teacher |
-| POST | `/results/submit/{assignment_id}` | Submit for approval | Teacher (Class) |
 | POST | `/results/scores/approve/{id}` | Approve score | Admin |
 | POST | `/results/scores/reject/{id}` | Reject score | Admin |
-| GET | `/results/student/{id}` | Student results | All (role-aware) |
+| POST | `/results/submit/{assignment_id}` | Submit for approval | Teacher (Class) |
+| GET | `/results/student/{student_id}` | Student results | All (role-aware) |
 | POST | `/results/compile` | Compile results | Teacher (Class) |
+| POST | `/results/compile-cumulative` | Cumulative compilation | Teacher |
 | GET | `/results/compiled` | All compiled results | Admin |
-| POST | `/results/approve/{id}` | Approve compilation | Admin |
-| POST | `/results/reject/{id}` | Reject compilation | Admin |
+| POST | `/results/approve/{result_id}` | Approve compilation | Admin |
+| POST | `/results/reject/{result_id}` | Reject compilation | Admin |
+| DELETE | `/results/compiled/{id}` | Delete compiled result | Admin |
+| GET | `/results/cumulative/{student_id}` | Cumulative results | All (role-aware) |
+| GET | `/results/pending-approvals` | Pending approvals | Admin |
+| GET | `/results/cumulative/class/{class_id}` | Class cumulative | Admin, Teacher |
 
 ### Payments
 | Method | Endpoint | Description | Access |
@@ -1919,15 +2004,18 @@ All endpoints live under `/api/`. Authentication is via `Authorization: Bearer <
 | GET | `/payments/student/{id}/history` | Student history | All (role-aware) |
 | GET | `/payments/student/{id}/balance` | Fee balance | All (role-aware) |
 | GET | `/payments/reports` | Payment reports | Admin, Accountant |
+| GET | `/payments/reconciliation-summary` | Reconciliation | Admin, Accountant |
+| GET | `/payments/exceptions` | Payment exceptions | Admin, Accountant |
 
 ### Attendance
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| POST | `/attendance` | Mark single | Teacher (Class) |
-| POST | `/attendance/bulk` | Mark bulk | Teacher (Class) |
+| GET | `/attendance` | List all | Admin, Teacher |
 | GET | `/attendance/{date}` | By date | Teacher, Admin |
+| POST | `/attendance` | Mark/bulk | Teacher (Class) |
 | GET | `/attendance/student/{id}` | Student summary | All (role-aware) |
 | GET | `/attendance/class/{id}` | Class summary | Teacher, Admin |
+| GET | `/attendance/reports` | Attendance reports | Admin |
 
 ### Notifications
 | Method | Endpoint | Description | Access |
@@ -1937,6 +2025,9 @@ All endpoints live under `/api/`. Authentication is via `Authorization: Bearer <
 | POST | `/notifications/broadcast` | Broadcast | Admin |
 | PUT | `/notifications/{id}` | Mark read | All |
 | DELETE | `/notifications/{id}` | Delete | All |
+| GET | `/notifications/unread-count` | Unread count | All |
+| GET | `/notifications/user` | User's notifications | All |
+| PUT | `/notifications/mark-all-read` | Mark all read | All |
 
 ### Assignments
 | Method | Endpoint | Description | Access |
@@ -1947,6 +2038,20 @@ All endpoints live under `/api/`. Authentication is via `Authorization: Bearer <
 | DELETE | `/assignments/{id}` | Delete | Teacher, Admin |
 | POST | `/assignments/submit/{assignment_id}` | Submit | Student/Admin |
 | PUT | `/assignments/grade/{submission_id}` | Grade | Teacher |
+
+### CBT (Computer-Based Testing)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET/POST/PUT/DELETE | `/cbt/exams` | Exam CRUD | Admin, Teacher |
+| GET/POST/PUT/DELETE | `/cbt/questions/{exam_id}` | Question CRUD | Admin, Teacher |
+| GET/POST/DELETE | `/cbt/question-bank` | Question bank | Admin, Teacher |
+| GET | `/cbt/student-exams` | Available exams | Student |
+| POST | `/cbt/start/{exam_id}` | Start attempt | Student |
+| POST | `/cbt/save-answer/{attempt_id}` | Save answer | Student |
+| POST | `/cbt/submit/{attempt_id}` | Submit exam | Student |
+| GET | `/cbt/results/{exam_id}` | Exam results | Admin, Teacher |
+| POST | `/cbt/feed-scores/{exam_id}` | Feed to results | Admin, Teacher |
+| POST | `/cbt/generate-questions` | AI generation | Admin, Teacher |
 
 ### Reports
 | Method | Endpoint | Description | Access |
@@ -1965,12 +2070,16 @@ All endpoints live under `/api/`. Authentication is via `Authorization: Bearer <
 | GET | `/users` | List users | Admin |
 | POST | `/users` | Create user | Admin |
 | PUT | `/users/{id}` | Update user | Admin |
-| DELETE | `/users/{id}` | Delete user | Admin |
+| DELETE | `/users/{id}` | Delete user (inactive only) | Admin |
+| POST | `/users/reset-password/{id}` | Reset password | Admin |
 | POST | `/files/upload` | Upload file | Admin |
 | GET | `/realtime/stream` | SSE stream | All (authenticated) |
 | POST | `/database/query` | Raw SQL | Admin |
 | GET | `/class_teacher_assignments` | Class teacher assignments | All |
 | GET | `/subject_registrations` | Subject registrations | All |
+| GET | `/progression/rules` | Progression rules | Admin |
+| POST | `/progression/rules` | Create rule | Admin |
+| GET | `/` or `/info` | API metadata | Public |
 
 ---
 

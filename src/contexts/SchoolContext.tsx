@@ -278,6 +278,49 @@ export interface CompiledResult {
   rejection_reason: string | null;
 }
 
+export interface CumulativeSubjectEntry {
+  subject_id: number;
+  subject_name: string;
+  first_ca1?: number;
+  first_ca2?: number;
+  first_exam?: number;
+  first_total?: number;
+  second_ca1?: number;
+  second_ca2?: number;
+  second_exam?: number;
+  second_total?: number;
+  third_ca1?: number;
+  third_ca2?: number;
+  third_exam?: number;
+  third_total?: number;
+  grand_total: number;
+  average: number;
+  grade: string;
+  remark: string;
+}
+
+export interface CumulativeResult {
+  id?: number;
+  student_id: number;
+  class_id: number;
+  academic_year: string;
+  total_score: number;
+  average_score: number;
+  position?: number;
+  class_average?: number;
+  total_students?: number;
+  promotion_status: 'Promoted' | 'Repeated' | null;
+  session_attendance_pct?: number;
+  subject_data: CumulativeSubjectEntry[];
+  principal_comment?: string;
+  compiled_by?: number;
+  compiled_date?: string;
+  first_name?: string;
+  last_name?: string;
+  admission_number?: string;
+  class_name?: string;
+}
+
 export interface FeeStructure {
   id: number;
   class_id: number;
@@ -669,10 +712,13 @@ export interface SchoolContextType {
   affectiveDomains: AffectiveDomain[];
   psychomotorDomains: PsychomotorDomain[];
   compiledResults: CompiledResult[];
+  cumulativeResults: CumulativeResult[];
+  loadingCumulative: boolean;
   payments: Payment[];
   users: User[];
   currentUser: User | null;
   isLoading: boolean;
+  loadingCumulative: boolean;
   feeStructures: FeeStructure[];
   studentFeeBalances: StudentFeeBalance[];
   notifications: Notification[];
@@ -965,7 +1011,7 @@ export interface SchoolContextType {
   createBatchAttendance: (attendanceRecords: Omit<Attendance, 'id'>[]) => Promise<boolean>;
 
   // Payment Methods
-  addPayment: (payment: CreatePaymentPayload) => Promise<void>;
+  addPayment: (payment: CreatePaymentPayload) => Promise<any>;
   updatePayment: (id: number, payment: Partial<Payment>) => Promise<void>;
   verifyPayment: (
     id: number,
@@ -1088,7 +1134,7 @@ export interface SchoolContextType {
   deleteCbtExamScores: (examId: number) => Promise<any>;
   bulkImportQuestions: (examId: number, questions: any[]) => Promise<any>;
   uploadQuestionImage: (file: File) => Promise<any>;
-  generateQuestionsFromMaterial: (materialText: string, questionType: string, count: number) => Promise<any>;
+  generateQuestionsFromMaterial: (materialText: string, questionType: string, count: number, options?: { difficulty?: string; exam_type?: string; topic?: string; include_explanations?: boolean }) => Promise<any>;
 
   // Data Loading Methods
   loadUsersFromAPI: () => Promise<boolean>;
@@ -1121,10 +1167,12 @@ export interface SchoolContextType {
   loadScholarshipsFromAPI: () => Promise<boolean>;
   loadAssignmentsFromAPI: () => Promise<boolean>;
   loadClassTeacherAssignmentsFromAPI: (forceReload?: boolean, termParam?: string | null, yearParam?: string | null) => Promise<boolean>;
+  loadCumulativeResultsFromAPI: (classId: number, academicYear: string) => Promise<CumulativeResult[]>;
+  compileCumulativeResults: (classId: number, academicYear: string) => Promise<{ success: boolean; message: string; count: number }>;
 
   // Payment API Methods
   createPaymentAPI: (payment: any) => Promise<any>;
-  loadPaymentsFromAPI: () => Promise<boolean>;
+  loadPaymentsFromAPI: (allHistory?: boolean) => Promise<boolean>;
   getPaymentExceptions: (pendingOnlineMinutes?: number, pendingBankHours?: number) => Promise<any>;
   createFeeStructureAPI: (feeStructure: any) => Promise<any>;
   getFeeStructuresAPI: () => Promise<any>;
@@ -1229,6 +1277,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingCumulative, setLoadingCumulative] = useState(false);
 
   // Initialize auth state from local storage on mount
   // MOVED TO BOTTOM of component to ensure access to data loading functions
@@ -1263,6 +1312,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [affectiveDomains, setAffectiveDomains] = useState<AffectiveDomain[]>([]);
   const [psychomotorDomains, setPsychomotorDomains] = useState<PsychomotorDomain[]>([]);
   const [compiledResults, setCompiledResults] = useState<CompiledResult[]>([]);
+  const [cumulativeResults, setCumulativeResults] = useState<CumulativeResult[]>([]);
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
   const [studentFeeBalances, setStudentFeeBalances] = useState<StudentFeeBalance[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -2145,7 +2195,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
                 .join(' ')
                 .trim()
             ),
-            className: student.className || student.class_name,
+            className: student.className || student.class_name || '',
             classCategory: student.classCategory || student.class_category,
             parentName: student.parentName || student.parent_name,
             parent_id: student.parent_id || student.parentId,
@@ -2276,7 +2326,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       const result = await sqlDatabase.executeQuery('SELECT * FROM subject_registrations WHERE status = "Active" ORDER BY created_at DESC');
       if (result && result.data) {
-        const registrationsData = result.data;
+        const registrationsData = Array.isArray(result.data) ? result.data : (result.data.data || []);
         
         // Don't filter here - let components handle term/year filtering as needed
         // This ensures all registrations are available for display
@@ -2755,7 +2805,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       const result = await sqlDatabase.registerSubjectForClass(subjectId, classId, academicYear, term, isCompulsory);
       if (result && result.id) {
-        await loadSubjectsFromAPI(); // This will also refresh subject registrations
+        await loadSubjectRegistrationsFromAPI();
         return true;
       }
       return false;
@@ -2768,7 +2818,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       const result = await sqlDatabase.removeSubjectRegistration(subjectId, classId, academicYear, term);
       if (result) {
-        await loadSubjectsFromAPI(); // This will also refresh subject registrations
+        await loadSubjectRegistrationsFromAPI();
         return true;
       }
       return false;
@@ -2805,7 +2855,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       query += ' ORDER BY sr.academic_year, sr.term, c.name, s.name';
       
       const result = await sqlDatabase.executeQuery(query, params);
-      return result?.data || [];
+      return Array.isArray(result?.data) ? result.data : (result?.data?.data || []);
     } catch (error) {
       return [];
     }
@@ -3018,6 +3068,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           loadWithRetry(() => loadParentStudentLinksFromAPI()).catch(e => { return null; }),
           loadWithRetry(() => loadCbtExamsFromAPI()).catch(e => { return null; }),
           loadWithRetry(() => loadCbtQuestionBankFromAPI()).catch(e => { return null; }),
+          loadWithRetry(() => loadSubjectRegistrationsFromAPI()).catch(e => { return null; }),
         ];
       } else if (user.role === 'teacher') {
         roleSpecificLoads = [
@@ -3679,6 +3730,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const newId = await createClassAPI(newClass);
       if (newId > 0) {
         await loadClassesFromAPI();
+        if (newClass.classTeacherId) {
+          await loadClassTeacherAssignmentsFromAPI(true);
+        }
       }
       return newId;
     } catch (error: any) {
@@ -3720,6 +3774,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const success = await updateClassAPI(id, classData);
     if (success) {
       await loadClassesFromAPI();
+      if ('classTeacherId' in classData) {
+        await loadClassTeacherAssignmentsFromAPI(true);
+      }
     }
     return success;
   };
@@ -3938,6 +3995,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   // Combined update to set both academic year and term in a single operation
   const updateCurrentTermAndYear = async (year: string, term: string) => {
+    // Save previous values in case the API call fails
+    const prevYear = currentAcademicYear;
+    const prevTerm = currentTerm;
+
     // Update local state first so dependent UI uses new values immediately
     setCurrentAcademicYear(year);
     setCurrentTerm(term);
@@ -3979,7 +4040,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       setAttendances([]);
 
     } catch (error) {
-      
+      // Restore previous state on failure to keep UI in sync with DB
+      if (prevYear !== null) setCurrentAcademicYear(prevYear);
+      if (prevTerm !== null) setCurrentTerm(prevTerm);
+      toast.error(error instanceof Error ? error.message : 'Failed to update term/year');
     }
   };
 
@@ -4991,6 +5055,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         await loadPaymentsFromAPI();
         await loadStudentFeeBalancesFromAPI();
         toast.success('Payment recorded successfully');
+        return response.data;
       } else {
         throw new Error(response.message || 'Failed to record payment');
       }
@@ -6264,7 +6329,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       
       // Default behaviour (admin/accountant only): use the global payments endpoint
-      const response = await api.get<any>('/payments?limit=1000');
+      const paymentsQuery = `/payments?limit=1000${allHistory ? '&all_history=true' : ''}`;
+      const response = await api.get<any>(paymentsQuery);
       
       if (response.success && response.data) {
         // Ensure response.data is an array before mapping
@@ -6534,6 +6600,44 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
 
     return false;
+  };
+
+  const loadCumulativeResultsFromAPI = async (classId: number, academicYear: string): Promise<CumulativeResult[]> => {
+    setLoadingCumulative(true);
+    try {
+      const res = await api.get<any>(`/results/cumulative/class/${classId}`, { academic_year: academicYear });
+      let raw = (res as any)?.data;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw) && 'data' in raw) {
+        raw = (raw as any).data;
+      }
+      const results = Array.isArray(raw) ? raw : [];
+      setCumulativeResults(results);
+      return results;
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to load cumulative results';
+      return Promise.reject(new Error(msg));
+    } finally {
+      setLoadingCumulative(false);
+    }
+  };
+
+  const compileCumulativeResults = async (classId: number, academicYear: string): Promise<{ success: boolean; message: string; count: number }> => {
+    setLoadingCumulative(true);
+    try {
+      const res = await api.post<any>('/results/compile-cumulative', { class_id: classId, academic_year: academicYear });
+      const body = (res as any)?.data || {};
+      const success = body?.success ?? false;
+      if (success) {
+        await loadCumulativeResultsFromAPI(classId, academicYear);
+        return { success: true, message: body?.message || 'Cumulative results compiled', count: body?.data?.compiled_count ?? 0 };
+      }
+      return { success: false, message: body?.message || 'Failed to compile', count: 0 };
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Unknown error';
+      return { success: false, message: msg, count: 0 };
+    } finally {
+      setLoadingCumulative(false);
+    }
   };
 
   const createFeeStructureAPI = async (feeStructure: any): Promise<boolean> => {
@@ -7227,12 +7331,16 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const generateQuestionsFromMaterial = async (materialText: string, questionType: string, count: number): Promise<any> => {
+  const generateQuestionsFromMaterial = async (materialText: string, questionType: string, count: number, options?: { difficulty?: string; exam_type?: string; topic?: string; include_explanations?: boolean }): Promise<any> => {
     try {
       const response = await api.post('/cbt/generate-questions', {
         material_text: materialText,
         question_type: questionType,
         count,
+        difficulty: options?.difficulty || 'mixed',
+        exam_type: options?.exam_type || 'JAMB/WAEC',
+        topic: options?.topic || '',
+        include_explanations: options?.include_explanations ? 1 : 0,
       });
       if (response && response.success) {
         return response.data;
@@ -8132,10 +8240,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     affectiveDomains,
     psychomotorDomains,
     compiledResults,
+    cumulativeResults,
     payments,
     users,
     currentUser,
     isLoading,
+    loadingCumulative,
     feeStructures,
     studentFeeBalances,
     feeBalances: studentFeeBalances,
@@ -9009,7 +9119,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     // User Management Methods
     checkUserPermissionAPI,
     getPendingApprovals,
-    loadCompiledResultsFromAPI
+    loadCompiledResultsFromAPI,
+    loadCumulativeResultsFromAPI,
+    compileCumulativeResults
   };
 
   // Load term and year settings on mount

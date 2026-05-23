@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Table2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -7,12 +8,12 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 
 export function BroadsheetViewPage() {
-  const { classes, students, scores, subjects, subjectAssignments } = useSchool();
+  const { classes, students, scores, subjects, subjectAssignments, currentTerm, currentAcademicYear } = useSchool();
   const [selectedClassId, setSelectedClassId] = useState("");
 
   const selectedClass = classes.find(c => c.id === Number(selectedClassId));
-  const classStudents = students.filter(s => s.classId === Number(selectedClassId) && s.status === 'Active');
-  const classAssignments = subjectAssignments.filter(sa => sa.classId === Number(selectedClassId));
+  const classStudents = students.filter(s => (s.class_id || s.classId) === Number(selectedClassId) && s.status === 'Active');
+  const classAssignments = subjectAssignments.filter(sa => sa.class_id === Number(selectedClassId));
 
   const handlePrint = () => {
     window.print();
@@ -75,7 +76,7 @@ export function BroadsheetViewPage() {
       {!selectedClassId ? (
         <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
           <CardContent className="p-12 text-center">
-            <Table className="w-16 h-16 text-[#9CA3AF] mx-auto mb-4" />
+            <Table2 className="w-16 h-16 text-[#9CA3AF] mx-auto mb-4" />
             <p className="text-[#6B7280]">Select a class to view broadsheet</p>
           </CardContent>
         </Card>
@@ -113,7 +114,7 @@ export function BroadsheetViewPage() {
                     </th>
                     {classAssignments.map((assignment) => (
                       <th key={assignment.id} className="p-3 text-center font-semibold text-[#1F2937] min-w-[100px]">
-                        <div>{assignment.subjectName}</div>
+                        <div>{assignment.subject_name}</div>
                         <div className="text-xs font-normal text-[#6B7280]">Total</div>
                       </th>
                     ))}
@@ -129,45 +130,68 @@ export function BroadsheetViewPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {classStudents.map((student, index) => {
-                    const studentScores = scores.filter(s => s.studentId === student.id);
-                    const totalScore = studentScores.reduce((sum, s) => sum + s.total, 0);
-                    const average = studentScores.length > 0 ? (totalScore / studentScores.length).toFixed(2) : '0.00';
+                  {(() => {
+                    // Pre-compute per-student scores filtered by term/year
+                    const studentsWithTotals = classStudents.map(student => {
+                      const studentScores = scores.filter(s =>
+                        s.student_id === student.id &&
+                        s.term === currentTerm &&
+                        s.academic_year === currentAcademicYear
+                      );
+                      const totalScore = studentScores.reduce((sum, s) => sum + (s.total || 0), 0);
+                      const count = studentScores.length;
+                      const average = count > 0 ? (totalScore / count).toFixed(2) : '0.00';
+                      return { student, studentScores, totalScore, average, count };
+                    });
 
-                    return (
-                      <tr key={student.id} className="border-b border-[#E5E7EB] hover:bg-[#F9FAFB]">
-                        <td className="p-3 sticky left-0 bg-white">{index + 1}</td>
-                        <td className="p-3 font-medium text-[#1F2937] sticky left-12 bg-white">
-                          {student.firstName} {student.lastName}
-                        </td>
-                        <td className="p-3 text-[#6B7280]">{student.admissionNumber}</td>
-                        {classAssignments.map((assignment) => {
-                          const score = studentScores.find(s => s.subjectAssignmentId === assignment.id);
-                          return (
-                            <td key={assignment.id} className="p-3 text-center">
-                              {score ? (
-                                <div>
-                                  <div className="font-semibold text-[#1F2937]">{score.total}</div>
-                                  <div className="text-xs text-[#6B7280]">{score.grade}</div>
-                                </div>
-                              ) : (
-                                <span className="text-[#9CA3AF]">-</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td className="p-3 text-center font-semibold text-[#1F2937] bg-[#F9FAFB]">
-                          {totalScore}
-                        </td>
-                        <td className="p-3 text-center font-semibold text-[#1F2937] bg-[#F9FAFB]">
-                          {average}%
-                        </td>
-                        <td className="p-3 text-center font-semibold text-[#1F2937] bg-[#F9FAFB]">
-                          {index + 1}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                    // Sort by total score descending for real position calculation
+                    const sorted = [...studentsWithTotals].sort((a, b) => b.totalScore - a.totalScore);
+                    let currentPos = 1;
+                    const positionMap = new Map<number, number>();
+                    sorted.forEach((item, idx) => {
+                      if (idx > 0 && item.totalScore < sorted[idx - 1].totalScore) {
+                        currentPos = idx + 1;
+                      }
+                      positionMap.set(item.student.id, currentPos);
+                    });
+
+                    return studentsWithTotals.map(({ student, studentScores, totalScore, average }) => {
+                      const pos = positionMap.get(student.id) || 0;
+                      return (
+                        <tr key={student.id} className="border-b border-[#E5E7EB] hover:bg-[#F9FAFB]">
+                          <td className="p-3 sticky left-0 bg-white">{pos}</td>
+                          <td className="p-3 font-medium text-[#1F2937] sticky left-12 bg-white">
+                            {student.firstName || student.first_name} {student.lastName || student.last_name}
+                          </td>
+                          <td className="p-3 text-[#6B7280]">{student.admissionNumber}</td>
+                          {classAssignments.map((assignment) => {
+                            const score = studentScores.find(s => s.subject_assignment_id === assignment.id);
+                            return (
+                              <td key={assignment.id} className="p-3 text-center">
+                                {score ? (
+                                  <div>
+                                    <div className="font-semibold text-[#1F2937]">{score.total}</div>
+                                    <div className="text-xs text-[#6B7280]">{score.grade}</div>
+                                  </div>
+                                ) : (
+                                  <span className="text-[#9CA3AF]">-</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="p-3 text-center font-semibold text-[#1F2937] bg-[#F9FAFB]">
+                            {totalScore}
+                          </td>
+                          <td className="p-3 text-center font-semibold text-[#1F2937] bg-[#F9FAFB]">
+                            {average}%
+                          </td>
+                          <td className="p-3 text-center font-semibold text-[#1F2937] bg-[#F9FAFB]">
+                            {pos}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>

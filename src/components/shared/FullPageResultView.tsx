@@ -3,9 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { StudentResultCard } from "./StudentResultCard";
+import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { useSchool } from "../../contexts/SchoolContext";
+import { generateCumulativePDF } from "../../utils/pdfGenerator";
 import { StudentData, ClassData, CompiledResultData } from "./types/resultCard";
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Award, Download } from 'lucide-react';
+import { toast } from "sonner";
 
 interface FullPageResultViewProps {
   studentId: number;
@@ -14,10 +17,11 @@ interface FullPageResultViewProps {
 }
 
 export function FullPageResultView({ studentId, resultId, onClose }: FullPageResultViewProps) {
-  const { students, classes, compiledResults } = useSchool();
+  const { students, classes, compiledResults, currentTerm, currentAcademicYear, cumulativeResults, loadCumulativeResultsFromAPI, schoolSettings, loadingCumulative } = useSchool();
   const [student, setStudent] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [studentClass, setStudentClass] = useState<any>(null);
+  const [showCumulative, setShowCumulative] = useState(false);
 
   const resolvedStudentName =
     (student as any)?.fullName ||
@@ -64,6 +68,18 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
     setResult(foundResult);
     setStudentClass(foundClass);
   }, [studentId, resultId, students, compiledResults, classes]);
+
+  // Preload cumulative results when switching to cumulative mode
+  useEffect(() => {
+    if (showCumulative && student?.class_id && currentAcademicYear) {
+      const hasData = cumulativeResults.some(
+        r => r.student_id === studentId && r.academic_year === (result?.academic_year || currentAcademicYear)
+      );
+      if (!hasData) {
+        loadCumulativeResultsFromAPI(Number(student.class_id), result?.academic_year || currentAcademicYear).catch(() => {});
+      }
+    }
+  }, [showCumulative]);
 
   if (!student || !result) {
     return (
@@ -160,26 +176,54 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
               <div className="flex items-center gap-4">
                 <Button
                   variant="outline"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onClose();
-                  }}
-                  className="flex items-center gap-2 pointer-events-auto"
+                  type="button"
+                  onClick={onClose}
+                  className="flex items-center gap-2"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to Results
                 </Button>
                 <div>
                   <h1 className="text-xl font-semibold text-gray-900">
-                    {resolvedStudentName} - Result Sheet
+                    {resolvedStudentName} - {showCumulative ? 'Cumulative Result' : 'Result Sheet'}
                   </h1>
                   <p className="text-sm text-gray-600">
-                    {studentClass?.name} • {result.term} • {result.academic_year}
+                    {studentClass?.name} • {showCumulative ? `${result?.academic_year || currentAcademicYear || ''} Session` : `${result?.term} • ${result?.academic_year}`}
                   </p>
                 </div>
               </div>
-              
+              {result?.term === 'Third Term' && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowCumulative(!showCumulative)}
+                    className="flex items-center gap-2 border-purple-300 text-purple-700 hover:bg-purple-50"
+                  >
+                    <Award className="w-4 h-4" />
+                    {showCumulative ? 'View Term Result' : 'View Cumulative'}
+                  </Button>
+                  {showCumulative && (
+                    <Button
+                      variant="outline"
+                      disabled={loadingCumulative}
+                      onClick={async () => {
+                        const cr = cumulativeResults.find(
+                          r => r.student_id === studentId && r.academic_year === (result?.academic_year || currentAcademicYear || '')
+                        );
+                        if (!cr) { toast.error('Cumulative result data not found'); return; }
+                        try {
+                          await generateCumulativePDF(student, cr, schoolSettings, classes, result?.academic_year || currentAcademicYear || '');
+                          toast.success('PDF downloaded');
+                        } catch { toast.error('Failed to generate PDF'); }
+                      }}
+                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <Download className="w-4 h-4" />
+                      {loadingCumulative ? 'Loading...' : 'Download PDF'}
+                    </Button>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -203,13 +247,20 @@ export function FullPageResultView({ studentId, resultId, onClose }: FullPageRes
                 height: '100%',
                 overflow: 'visible'
               }}>
-                <StudentResultCard
-                  student={student}
-                  studentClass={studentClass}
-                  result={result}
-                  showActions={false}
-                  currentUser={{ role: 'admin' }}
-                />
+                {showCumulative ? (
+                  <CumulativeResultSheet
+                    studentId={studentId}
+                    academicYear={result.academic_year || currentAcademicYear || ''}
+                  />
+                ) : (
+                  <StudentResultCard
+                    student={student}
+                    studentClass={studentClass}
+                    result={result}
+                    showActions={false}
+                    currentUser={{ role: 'admin' }}
+                  />
+                )}
               </div>
             </div>
           </div>

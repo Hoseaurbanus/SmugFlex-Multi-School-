@@ -1029,6 +1029,7 @@ export function VerifyReceiptsPage() {
             <PaymentReceipt 
               payment={selectedPayment} 
               studentName={selectedPayment.student_name}
+              studentClassName={selectedPayment.class_name}
             />
           )}
         </DialogContent>

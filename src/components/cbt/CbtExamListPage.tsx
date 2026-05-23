@@ -1,4 +1,4 @@
-import { Plus, Search, Clock, Users, BarChart3, MoreHorizontal, Play, Archive, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Clock, Users, BarChart3, MoreHorizontal, Play, Archive, Pencil, Trash2, EyeOff } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
@@ -15,7 +15,7 @@ import { CbtQuestionEditor } from './CbtQuestionEditor';
 import { CbtExamResultsPage } from './CbtExamResultsPage';
 
 export function CbtExamListPage() {
-  const { cbtExams, loadCbtExamsFromAPI, deleteCbtExam, publishCbtExam, currentUser } = useSchool();
+  const { cbtExams, loadCbtExamsFromAPI, deleteCbtExam, publishCbtExam, updateCbtExam, currentUser } = useSchool();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,6 +79,30 @@ export function CbtExamListPage() {
       toast.success('Exam published');
     } catch {
       toast.error('Failed to publish exam');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUnpublish = async (id: number) => {
+    setActionLoading(`unpublish-${id}`);
+    try {
+      await updateCbtExam(id, { published: 0 });
+      toast.success('Exam unpublished');
+    } catch {
+      toast.error('Failed to unpublish exam');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleArchive = async (id: number) => {
+    setActionLoading(`archive-${id}`);
+    try {
+      await updateCbtExam(id, { status: 'Archived' });
+      toast.success('Exam archived');
+    } catch {
+      toast.error('Failed to archive exam');
     } finally {
       setActionLoading(null);
     }
@@ -225,10 +249,21 @@ export function CbtExamListPage() {
                                     <Pencil className="w-4 h-4 mr-2" />
                                     Edit
                                   </DropdownMenuItem>
-                                  {!exam.published && (
+                                  {!exam.published ? (
                                     <DropdownMenuItem onClick={() => handlePublish(exam.id)} disabled={actionLoading === `publish-${exam.id}`}>
                                       <Play className="w-4 h-4 mr-2" />
                                       Publish
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem onClick={() => handleUnpublish(exam.id)} disabled={actionLoading === `unpublish-${exam.id}`}>
+                                      <EyeOff className="w-4 h-4 mr-2" />
+                                      Unpublish
+                                    </DropdownMenuItem>
+                                  )}
+                                  {exam.status !== 'Archived' && (
+                                    <DropdownMenuItem onClick={() => handleArchive(exam.id)} disabled={actionLoading === `archive-${exam.id}`}>
+                                      <Archive className="w-4 h-4 mr-2" />
+                                      Archive
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem onClick={() => { setExamToDelete(exam.id); setDeleteDialogOpen(true); }} className="text-red-600">
@@ -286,9 +321,18 @@ export function CbtExamListPage() {
                           <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleEdit(exam)}>
                             <Pencil className="w-3 h-3" />
                           </Button>
-                          {!exam.published && (
+                          {!exam.published ? (
                             <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handlePublish(exam.id)} disabled={actionLoading === `publish-${exam.id}`}>
                               <Play className="w-3 h-3" />
+                            </Button>
+                          ) : (
+                            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleUnpublish(exam.id)} disabled={actionLoading === `unpublish-${exam.id}`}>
+                              <EyeOff className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {exam.status !== 'Archived' && (
+                            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleArchive(exam.id)} disabled={actionLoading === `archive-${exam.id}`}>
+                              <Archive className="w-3 h-3" />
                             </Button>
                           )}
                           <Button variant="outline" size="sm" className="text-xs h-8 text-red-600" onClick={() => { setExamToDelete(exam.id); setDeleteDialogOpen(true); }}>

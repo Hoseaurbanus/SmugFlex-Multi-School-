@@ -42,6 +42,10 @@ export function MessageParentsPage() {
         message: `From: School Accountant\nTo: ${recipientText}\nSubject: ${messageData.subject}\n\n${messageData.message}`,
         type: 'info',
         targetAudience: targetAudience as any,
+        targetUsers:
+          messageData.recipientType === 'specific_parent' && messageData.parentId
+            ? [Number(messageData.parentId)]
+            : undefined,
         sentBy: currentUser?.id || 0,
         sentDate: new Date().toISOString(),
         isRead: false,

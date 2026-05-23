@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useMemo, useState } from "react";
 import { useSchool } from "../contexts/SchoolContext";
 import { API_CONFIG } from "../config/api";
 import { formatPositionWithSuffix } from "../utils/position";
+import { generateQrDataUrl } from "../utils/qrCode";
 
 interface StudentResultSheetProps {
   studentId: number;
@@ -28,6 +29,7 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
     } = useSchool();
 
     const [signatureResumptionDate, setSignatureResumptionDate] = useState<string>('');
+    const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
     // Load school settings for branding (logo/name/motto/signatures). This is unrelated to Next Term Begins.
     useEffect(() => {
@@ -71,6 +73,30 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
       };
     }, [academicYear, term]);
 
+    // Generate QR code
+    useEffect(() => {
+      let cancelled = false;
+      const generate = async () => {
+        const resultId = (compiledResult as any)?.id;
+        if (!resultId || !studentId) return;
+        const payload = JSON.stringify({
+          result_id: resultId,
+          student_id: studentId,
+          term,
+          academic_year: academicYear,
+          average_score: (compiledResult as any)?.average_score || 0,
+        });
+        try {
+          const url = await generateQrDataUrl(payload, 220);
+          if (!cancelled) setQrCodeDataUrl(url);
+        } catch {
+          // silently ignore
+        }
+      };
+      generate();
+      return () => { cancelled = true; };
+    }, [studentId, term, academicYear]);
+
     // Get student
     const student = students.find((s) => s.id === studentId);
     if (!student) return null;
@@ -112,7 +138,8 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
     }, [student]);
 
     // Get compiled result
-    const compiledResult = compiledResults.find(
+    const safeCompiledResults = Array.isArray(compiledResults) ? compiledResults : [];
+    const compiledResult = safeCompiledResults.find(
       (r) =>
         r.student_id === studentId &&
         r.term === term &&
@@ -135,20 +162,31 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
     const shouldShowPosition = studentClass?.name && 
       !['CRECHE', 'KG1', 'KG2', 'CRECHE (ONYX)', 'KG 1', 'KG 2', 'KINDERGARTEN 1', 'KINDERGARTEN 2', 'KG 1 (SARDIUS)', 'KG 1 (SARDONYX)', 'KG 2 (SARDIUS)', 'KG 2 (SARDONYX)', 'KG 2 (PEARL)'].includes(studentClass.name.toUpperCase());
 
-    // Get all registered subjects for this student's class and term
-    const registeredSubjects = subjectRegistrations.filter(
-      (sr: any) => sr.class_id === student.class_id &&
-            sr.term === term &&
-            sr.academic_year === academicYear &&
-            sr.status === 'Active'
+    // Get student scores — prefer embedded, fall back to context scores + subject join
+    const studentScores = compiledResult.scores?.length > 0
+      ? compiledResult.scores
+      : scores
+          .filter((s) => s.student_id === studentId && s.term === term && s.academic_year === academicYear)
+          .map((s) => {
+            const assignment = subjectAssignments.find((sa) => sa.id === s.subject_assignment_id);
+            const subject = subjects.find((sub) => sub.id === assignment?.subject_id);
+            return {
+              ...s,
+              subject_name: subject?.name || subject?.subject_name || 'Unknown'
+            };
+          });
+
+    // Get affective and psychomotor — prefer embedded, fall back to context arrays
+    const affective = compiledResult.affective || (
+      Array.isArray(affectiveDomains) ? affectiveDomains.find(
+        (a: any) => a.student_id === studentId && a.term === term && a.academic_year === academicYear
+      ) : null
     );
-
-    // Get student scores from compiled result (approved real data)
-    const studentScores = compiledResult.scores || [];
-
-    // Get affective and psychomotor from approved compiled result only
-    const affective = compiledResult.affective;
-    const psychomotor = compiledResult.psychomotor;
+    const psychomotor = compiledResult.psychomotor || (
+      Array.isArray(psychomotorDomains) ? psychomotorDomains.find(
+        (p: any) => p.student_id === studentId && p.term === term && p.academic_year === academicYear
+      ) : null
+    );
     
     // Calculate total score and average from compiled result data
     const totalScore = compiledResult.total_score || 0;
@@ -587,6 +625,7 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
             <thead>
               <tr style={{ backgroundColor: '#4A90E2', color: 'white' }}>
+                <th style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', width: '5%' }}>SN</th>
                 <th style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'left' }}>Subject</th>
                 {!studentClass?.name?.toUpperCase().includes('CRECHE') && (
                   <>
@@ -603,15 +642,16 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
             <tbody>
               {studentScores.map((score, index) => (
                 <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white' }}>
+                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{index + 1}</td>
                   <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 500, fontSize: '10px' }}>{score.subject_name || 'UNKNOWN'}</td>
                   {!studentClass?.name?.toUpperCase().includes('CRECHE') && (
                     <>
-                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.ca1}</td>
-                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.ca2}</td>
+                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.first_ca ?? score.ca1 ?? 0}</td>
+                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.second_ca ?? score.ca2 ?? 0}</td>
                     </>
                   )}
-                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.exam}</td>
-                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 700, fontSize: '10px' }}>{score.total}</td>
+                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.exams ?? score.exam ?? 0}</td>
+                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 700, fontSize: '10px' }}>{score.total || 0}</td>
                   <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 700, fontSize: '10px' }}>{score.grade}</td>
                   <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.remark}</td>
                 </tr>
@@ -632,7 +672,7 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
             <h3 style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: 600, color: '#333' }}>Performance Summary</h3>
             <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Total Score:</span> <strong>{totalScore.toFixed(1)}</strong></p>
             <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Student Average:</span> <strong>{studentAverage.toFixed(1)}%</strong></p>
-            <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Class Average:</span> <strong>{compiledResult.class_average.toFixed(1)}%</strong></p>
+            <p style={{ margin: '0 0 3px', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Class Average:</span> <strong>{(compiledResult.class_average || 0).toFixed(1)}%</strong></p>
             {shouldShowPosition && (
               <p style={{ margin: 0, display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}><span>Position in Class:</span> <strong>{formatPositionWithSuffix(compiledResult.position)}</strong></p>
             )}
@@ -645,11 +685,11 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
           <div style={{ width: '49%' }}>
             <h3 style={{ backgroundColor: '#2c3e50', color: 'white', padding: '6px', borderRadius: '4px 4px 0 0', margin: 0, fontSize: '11px', textAlign: 'center', fontWeight: 'bold' }}>Affective Domain</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #2c3e50', fontSize: '10px' }}>
-              <thead><tr style={{ backgroundColor: '#34495e', color: 'white' }}><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'left', fontSize: '10px', fontWeight: 'bold' }}>Trait</th><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>Rating</th></tr></thead>
+              <thead><tr style={{ backgroundColor: '#34495e', color: 'white' }}><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'left', fontSize: '10px', fontWeight: 'bold' }}>Trait</th><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>Rating</th><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>Remark</th></tr></thead>
               <tbody>
                 {affective ? Object.entries(affective).filter(([key]) => !['_remark', 'id', 'student_id', 'class_id', 'term', 'academic_year', 'entered_by', 'entered_date'].some(k => key.includes(k))).map(([key, value], i) => (
-                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f8f9fa' : 'white' }}><td style={{ padding: '3px 6px', border: '1px solid #ddd', fontSize: '9px', fontWeight: '500' }}>{getDomainName(key)}</td><td style={{ padding: '3px 6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '9px', fontWeight: 'bold' }}>{value}</td></tr>
-                )) : <tr><td colSpan={2} style={{ padding: '6px', textAlign: 'center', fontSize: '9px', color: '#666' }}>No data</td></tr>}
+                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f8f9fa' : 'white' }}><td style={{ padding: '3px 6px', border: '1px solid #ddd', fontSize: '9px', fontWeight: '500' }}>{getDomainName(key)}</td><td style={{ padding: '3px 6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '9px', fontWeight: 'bold' }}>{value}</td><td style={{ padding: '3px 6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '9px' }}>{getRatingRemark(Number(value))}</td></tr>
+                )) : <tr><td colSpan={3} style={{ padding: '6px', textAlign: 'center', fontSize: '9px', color: '#666' }}>No data</td></tr>}
               </tbody>
             </table>
           </div>
@@ -657,11 +697,11 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
           <div style={{ width: '49%' }}>
             <h3 style={{ backgroundColor: '#2c3e50', color: 'white', padding: '6px', borderRadius: '4px 4px 0 0', margin: 0, fontSize: '11px', textAlign: 'center', fontWeight: 'bold' }}>Psychomotor Domain</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #2c3e50', fontSize: '10px' }}>
-              <thead><tr style={{ backgroundColor: '#34495e', color: 'white' }}><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'left', fontSize: '10px', fontWeight: 'bold' }}>Skill</th><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>Rating</th></tr></thead>
+              <thead><tr style={{ backgroundColor: '#34495e', color: 'white' }}><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'left', fontSize: '10px', fontWeight: 'bold' }}>Skill</th><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>Rating</th><th style={{ padding: '4px 6px', border: '1px solid #2c3e50', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>Remark</th></tr></thead>
               <tbody>
                 {psychomotor ? Object.entries(psychomotor).filter(([key]) => !['_remark', 'id', 'student_id', 'class_id', 'term', 'academic_year', 'entered_by', 'entered_date'].some(k => key.includes(k))).map(([key, value], i) => (
-                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f8f9fa' : 'white' }}><td style={{ padding: '3px 6px', border: '1px solid #ddd', fontSize: '9px', fontWeight: '500' }}>{getDomainName(key)}</td><td style={{ padding: '3px 6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '9px', fontWeight: 'bold' }}>{value}</td></tr>
-                )) : <tr><td colSpan={2} style={{ padding: '6px', textAlign: 'center', fontSize: '9px', color: '#666' }}>No data</td></tr>}
+                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f8f9fa' : 'white' }}><td style={{ padding: '3px 6px', border: '1px solid #ddd', fontSize: '9px', fontWeight: '500' }}>{getDomainName(key)}</td><td style={{ padding: '3px 6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '9px', fontWeight: 'bold' }}>{value}</td><td style={{ padding: '3px 6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '9px' }}>{getRatingRemark(Number(value))}</td></tr>
+                )) : <tr><td colSpan={3} style={{ padding: '6px', textAlign: 'center', fontSize: '9px', color: '#666' }}>No data</td></tr>}
               </tbody>
             </table>
           </div>
@@ -672,12 +712,12 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <div style={{ width: '65%' }}>
               <h3 style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: 600 }}>Grading Key</h3>
-              <p style={{ margin: '0 0 4px' }}>A: 80-100 (Excellent)</p>
-              <p style={{ margin: '0 0 4px' }}>B: 70-79 (Very Good)</p>
-              <p style={{ margin: '0 0 4px' }}>C: 60-69 (Good)</p>
-              <p style={{ margin: '0 0 4px' }}>D: 50-59 (Fair)</p>
-              <p style={{ margin: '0 0 4px' }}>E: 40-49 (Pass)</p>
-              <p style={{ margin: 0 }}>F: 0-39 (Fail)</p>
+              <p style={{ margin: '0 0 4px' }}>A: 90-100 (Excellent)</p>
+              <p style={{ margin: '0 0 4px' }}>B: 80-89 (Very Good)</p>
+              <p style={{ margin: '0 0 4px' }}>C: 70-79 (Good)</p>
+              <p style={{ margin: '0 0 4px' }}>D: 60-69 (Satisfactory)</p>
+              <p style={{ margin: '0 0 4px' }}>E: 50-59 (Fair)</p>
+              <p style={{ margin: 0 }}>F: 0-49 (Fail)</p>
             </div>
             <div style={{ width: '33%', textAlign: 'center' }}>
               <div style={{ marginBottom: '40px' }}>
@@ -685,8 +725,14 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
                 <p style={{ borderTop: '1px solid #333', paddingTop: '4px', margin: 0 }}>{studentClass?.name?.includes('JSS') ? 'Principal' : 'Head Teacher'}'s Signature</p>
               </div>
               <div>
+                <p style={{ borderTop: '1px solid #333', paddingTop: '4px', margin: '0 0 4px' }}><strong>Class Teacher:</strong> {compiledResult.class_teacher_name || '_________________'}</p>
                 <p style={{ borderTop: '1px solid #333', paddingTop: '4px', margin: 0 }}>Class Teacher's Signature</p>
               </div>
+              {qrCodeDataUrl && (
+                <div style={{ marginTop: '8px' }}>
+                  <img src={qrCodeDataUrl} alt="QR Code" style={{ width: '64px', height: '64px' }} />
+                </div>
+              )}
             </div>
           </div>
           <div style={{ textAlign: 'center', marginTop: '24px', borderTop: '2px solid #4A90E2', paddingTop: '8px' }}>

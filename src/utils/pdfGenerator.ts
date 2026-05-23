@@ -4,6 +4,7 @@ import schoolLogo from "../assets/images/school-logo.jpg";
 import { API_CONFIG } from "../config/api";
 import { formatPositionWithSuffix } from "./position";
 import { generateQrDataUrl } from "./qrCode";
+import { shouldShowPosition as checkShouldShowPosition } from "./classHelpers";
 
 type PdfDownloadMethod = 'save' | 'blob';
 
@@ -1209,6 +1210,319 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   pdf.save(filename);
   
 };
+
+// Generate PDF for Cumulative Result
+export const generateCumulativePDF = async (
+  student: any,
+  cumulativeResult: any,
+  schoolSettings: any,
+  classes: any[],
+  academicYear: string
+) => {
+  const { default: jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: false });
+
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 6;
+  const contentWidth = pageWidth - margin * 2;
+  const primaryColor: [number, number, number] = [74, 144, 226];
+
+  let y = margin;
+
+  const addText = (text: string, x: number, y: number, size: number, bold = false, align: 'left' | 'center' = 'left') => {
+    pdf.setFontSize(size);
+    pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+    pdf.setTextColor(0, 0, 0);
+    if (align === 'center') {
+      pdf.text(text, x, y, { align: 'center' });
+    } else {
+      pdf.text(text, x, y);
+    }
+  };
+
+  const subjectData: any[] = cumulativeResult.subject_data || [];
+  const getGrade = (avg: number) => {
+    if (avg >= 90) return 'A'; if (avg >= 80) return 'B'; if (avg >= 70) return 'C';
+    if (avg >= 60) return 'D'; if (avg >= 50) return 'E'; return 'F';
+  };
+
+  const studentClass = classes.find((c: any) => String(c.id) === String(student.class_id));
+
+  // White background
+  pdf.setFillColor(255, 255, 255);
+  pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
+  // === HEADER ===
+  const logoSize = 16;
+  const logoX = pageWidth / 2 - logoSize / 2;
+  const logoCenterY = y + logoSize / 2;
+  pdf.setDrawColor(...primaryColor);
+  pdf.setLineWidth(0.5);
+  pdf.circle(pageWidth / 2, logoCenterY, logoSize / 2, 'S');
+  pdf.setLineWidth(1);
+
+  // Try to render actual school logo
+  let logoRendered = false;
+  const logoUrl = schoolSettings?.school_logo_url;
+  if (logoUrl) {
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const imgLoad = new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject();
+      });
+      img.src = logoUrl;
+      await imgLoad;
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const s = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+        const sx = ((img.naturalWidth || img.width) - s) / 2;
+        const sy = ((img.naturalHeight || img.height) - s) / 2;
+        ctx.clearRect(0, 0, 256, 256);
+        ctx.beginPath();
+        ctx.arc(128, 128, 128, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(img, sx, sy, s, s, 0, 0, 256, 256);
+        const dataUrl = canvas.toDataURL('image/png');
+        pdf.addImage(dataUrl, 'PNG', logoX, y, logoSize, logoSize);
+        logoRendered = true;
+      }
+    } catch { /* fall through to text */ }
+  }
+
+  if (!logoRendered) {
+    addText('LOGO', pageWidth / 2, y + logoSize / 2 + 2, 8, true, 'center');
+  }
+
+  y += logoSize + 4;
+  addText((schoolSettings?.school_name || '').toUpperCase(), pageWidth / 2, y, 16, true, 'center');
+  y += 6;
+  addText(schoolSettings?.school_motto || '', pageWidth / 2, y, 8, false, 'center');
+  y += 5;
+  addText(schoolSettings?.school_address || '', pageWidth / 2, y, 9, false, 'center');
+  y += 4;
+  addText(`${schoolSettings?.school_email || ''} | ${schoolSettings?.school_phone || ''}`, pageWidth / 2, y, 8, false, 'center');
+
+  y += 3;
+  pdf.setDrawColor(...primaryColor);
+  pdf.setLineWidth(0.5);
+  const lineW = pageWidth * 0.8;
+  pdf.line((pageWidth - lineW) / 2, y, (pageWidth + lineW) / 2, y);
+  pdf.setLineWidth(1);
+  y += 5;
+
+  // Title
+  pdf.setTextColor(...primaryColor);
+  addText(`CUMULATIVE RESULT - ${academicYear} SESSION`, pageWidth / 2, y, 12, true, 'center');
+  pdf.setTextColor(0, 0, 0);
+  y += 8;
+
+  // === STUDENT INFO ===
+  const infoX = margin;
+  const infoWidth = contentWidth;
+  pdf.setFillColor(248, 249, 250);
+  pdf.rect(infoX, y, infoWidth, 16, 'F');
+  pdf.setDrawColor(...primaryColor);
+  pdf.setLineWidth(0.3);
+  pdf.rect(infoX, y, infoWidth, 16);
+  pdf.setLineWidth(1);
+
+  const studentName = student?.fullName || `${student?.firstName || ''} ${student?.lastName || ''}`.trim();
+  const rows = [
+    [`Name: ${studentName}`, `Session: ${academicYear}`],
+    [`Admission No: ${student?.admissionNumber || ''}`, `Class: ${studentClass?.name || student?.className || ''}`],
+    [`Gender: ${student?.gender || ''}`, `Attendance: ${cumulativeResult.session_attendance_pct != null ? cumulativeResult.session_attendance_pct.toFixed(1) + '%' : '-'}`],
+    [`Promotion Status: ${cumulativeResult.promotion_status || 'Pending'}`, `No. in Class: ${cumulativeResult.total_students || ''}`],
+  ];
+
+  const rowH = 4;
+  rows.forEach((row, ri) => {
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    const rowY = y + ri * rowH + 1;
+    const colW = infoWidth / 2;
+    pdf.text(row[0], infoX + 2, rowY + rowH * 0.6);
+    pdf.text(row[1], infoX + colW + 2, rowY + rowH * 0.6);
+    pdf.setDrawColor(...primaryColor);
+    pdf.setLineWidth(0.2);
+    if (ri < rows.length - 1) pdf.line(infoX, rowY + rowH, infoX + infoWidth, rowY + rowH);
+  });
+  pdf.setLineWidth(1);
+
+  y += 16 + 4;
+
+  // === SUBJECT TABLE ===
+  const tableX = margin;
+  const tableW = contentWidth;
+  const headers = ['Subject', '1st', '2nd', '3rd', 'Total', 'Avg', 'Grd', 'Remark'];
+  const colWidths = [0.26, 0.09, 0.09, 0.09, 0.10, 0.10, 0.08, 0.19];
+
+  // Header
+  pdf.setFillColor(...primaryColor);
+  pdf.rect(tableX, y, tableW, 6, 'F');
+  let cx = tableX;
+  headers.forEach((h, i) => {
+    const cw = tableW * colWidths[i];
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'bold');
+    if (i === 0) pdf.text(h, cx + 2, y + 4);
+    else pdf.text(h, cx + cw / 2, y + 4, { align: 'center' });
+    pdf.setDrawColor(255, 255, 255);
+    pdf.setLineWidth(0.2);
+    pdf.rect(cx, y, cw, 6);
+    cx += cw;
+  });
+  pdf.setLineWidth(1);
+
+  let rowY = y + 6;
+  subjectData.forEach((entry: any, i: number) => {
+    const rh = 4.5;
+    pdf.setFillColor(i % 2 === 0 ? 255 : 248, i % 2 === 0 ? 255 : 249, i % 2 === 0 ? 255 : 250);
+    pdf.rect(tableX, rowY, tableW, rh, 'F');
+
+    const vals = [
+      entry.subject_name || '',
+      String(entry.first_total ?? '-'),
+      String(entry.second_total ?? '-'),
+      String(entry.third_total ?? '-'),
+      String(entry.grand_total ?? ''),
+      (entry.average ?? 0).toFixed(1),
+      entry.grade || '',
+      entry.remark || '',
+    ];
+
+    cx = tableX;
+    vals.forEach((v, vi) => {
+      const cw = tableW * colWidths[vi];
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(vi === 0 ? 7 : 6.5);
+      pdf.setFont('helvetica', vi >= 4 ? 'bold' : 'normal');
+      if (vi === 0) pdf.text(v, cx + 1, rowY + 3);
+      else pdf.text(v, cx + cw / 2, rowY + 3, { align: 'center' });
+      pdf.setDrawColor(...primaryColor);
+      pdf.setLineWidth(0.2);
+      pdf.rect(cx, rowY, cw, rh);
+      cx += cw;
+    });
+
+    rowY += rh;
+  });
+
+  // Total row
+  const grandAvg = cumulativeResult.average_score || 0;
+  const grade = getGrade(grandAvg);
+  const remark = grade === 'A' ? 'Excellent' : grade === 'B' ? 'Very Good' : grade === 'C' ? 'Good' : grade === 'D' ? 'Satisfactory' : grade === 'E' ? 'Fair' : 'Fail';
+
+  pdf.setFillColor(232, 240, 254);
+  pdf.rect(tableX, rowY, tableW, 5, 'F');
+  cx = tableX;
+  const totalVals = ['TOTAL', '-', '-', '-', cumulativeResult.total_score?.toFixed(1) || '', grandAvg.toFixed(1), grade, remark];
+  totalVals.forEach((v, vi) => {
+    const cw = tableW * colWidths[vi];
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(6.5);
+    pdf.setFont('helvetica', 'bold');
+    if (vi === 0) pdf.text(v, cx + 1, rowY + 3.5);
+    else pdf.text(v, cx + cw / 2, rowY + 3.5, { align: 'center' });
+    pdf.setDrawColor(...primaryColor);
+    pdf.setLineWidth(0.2);
+    pdf.rect(cx, rowY, cw, 5);
+    cx += cw;
+  });
+  pdf.setLineWidth(1);
+
+  y = rowY + 8;
+
+  // === PRINCIPAL COMMENT + PERFORMANCE SUMMARY ===
+  const commentW = tableW * 0.62;
+  const perfW = tableW * 0.35;
+  const perfX = tableX + commentW + 3;
+
+  // Principal Comment
+  pdf.setDrawColor(...primaryColor);
+  pdf.setLineWidth(0.3);
+  pdf.rect(tableX, y, commentW, 18);
+  addText("Principal's Comment:", tableX + 2, y + 4, 7, true);
+  pdf.setFont('helvetica', 'italic');
+  pdf.setFontSize(7);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text(cumulativeResult.principal_comment || '', tableX + 2, y + 9);
+  pdf.setFont('helvetica', 'normal');
+
+  // Performance Summary
+  pdf.setFillColor(249, 249, 249);
+  pdf.rect(perfX, y, perfW, 18, 'F');
+  pdf.setDrawColor(...primaryColor);
+  pdf.rect(perfX, y, perfW, 18);
+
+  const shouldShowPosition = checkShouldShowPosition(studentClass?.name);
+
+  addText('Performance Summary', perfX + 2, y + 4, 7, true);
+  const perfLines = [
+    `Total Score: ${cumulativeResult.total_score?.toFixed(1) || '0.0'}`,
+    `Student Avg: ${grandAvg.toFixed(1)}%`,
+    `Class Avg: ${(cumulativeResult.class_average || 0).toFixed(1)}%`,
+    shouldShowPosition
+      ? `Position: ${cumulativeResult.position || '-'}${cumulativeResult.position ? getOrdinalSuffix(cumulativeResult.position) : ''}`
+      : `Grade: ${grade}`,
+  ];
+
+  pdf.setFontSize(6.5);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFont('helvetica', 'normal');
+  perfLines.forEach((line, li) => {
+    pdf.text(line, perfX + 2, y + 8 + li * 3);
+  });
+
+  y += 22;
+
+  // === FOOTER - Grading Key + QR ===
+  const footerY = pageHeight - 32;
+  pdf.setDrawColor(...primaryColor);
+  pdf.setLineWidth(0.5);
+  const footerDividerX = margin;
+  const footerDividerW = contentWidth;
+  pdf.line(footerDividerX, footerY, footerDividerX + footerDividerW, footerY);
+  pdf.setLineWidth(1);
+
+  // Grading Key
+  addText('Grading Key', margin, footerY + 4, 7, true);
+  const gradingLines = ['A: 90-100 (Excellent)', 'B: 80-89 (Very Good)', 'C: 70-79 (Good)', 'D: 60-69 (Satisfactory)', 'E: 50-59 (Fair)', 'F: 0-49 (Fail)'];
+  pdf.setFontSize(6);
+  pdf.setFont('helvetica', 'normal');
+  gradingLines.forEach((line, gi) => {
+    pdf.text(line, margin + (gi % 2 === 0 ? 0 : 35), footerY + 9 + Math.floor(gi / 2) * 4);
+  });
+
+  // QR Code
+  try {
+    const { generateQrDataUrl } = await import('./qrCode');
+    const qrPayload = JSON.stringify({
+      student: studentName,
+      session: academicYear,
+      average: grandAvg.toFixed(1),
+      promotion: cumulativeResult.promotion_status || 'N/A',
+    });
+    const qrDataUrl = await generateQrDataUrl(qrPayload, 192);
+    const qrX = pageWidth - margin - 22;
+    pdf.addImage(qrDataUrl, 'PNG', qrX, footerY + 2, 18, 18);
+  } catch { /* silent */ }
+
+  pdf.save(`${studentName.replace(/\s+/g, '_')}_Cumulative_Report.pdf`);
+};
+
+function getOrdinalSuffix(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
 
 // Wrapper function for easy import
 export const handleDownloadStudentPDF = async (student: any, result: any, context: any) => {

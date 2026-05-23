@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "sonner";
 import { useSchool } from "../../../contexts/SchoolContext";
 
+const CLASS_LEVELS = ["Creche", "Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "JSS 1", "JSS 2", "JSS 3", "SSS 1", "SSS 2", "SSS 3"];
+
 interface ClassCreationFormProps {
   onClose: () => void;
   onSuccess: () => void;
@@ -54,12 +56,8 @@ export function ClassCreationForm({ onClose, onSuccess }: ClassCreationFormProps
       newErrors.capacity = "Class capacity is required";
     } else if (parseInt(formData.capacity) < 1) {
       newErrors.capacity = "Capacity must be at least 1 student";
-    } else if (parseInt(formData.capacity) > 50) {
-      newErrors.capacity = "Capacity cannot exceed 50 students";
-    }
-
-    if (!formData.classTeacherId) {
-      newErrors.classTeacherId = "Class teacher is required";
+    } else if (parseInt(formData.capacity) > 100) {
+      newErrors.capacity = "Capacity cannot exceed 100 students";
     }
 
     setErrors(newErrors);
@@ -163,14 +161,19 @@ export function ClassCreationForm({ onClose, onSuccess }: ClassCreationFormProps
               <Label htmlFor="level" className="text-sm font-medium text-gray-700">
                 Class Level <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="level"
-                type="text"
+              <Select
                 value={formData.level}
-                onChange={(e) => handleInputChange('level', e.target.value)}
-                placeholder="e.g., Grade 1, JSS 1"
-                className={`border-gray-300 ${errors.level ? 'border-red-500' : ''}`}
-              />
+                onValueChange={(value) => handleInputChange('level', value)}
+              >
+                <SelectTrigger className={`border-gray-300 ${errors.level ? 'border-red-500' : ''}`}>
+                  <SelectValue placeholder="Select level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLASS_LEVELS.map((level) => (
+                    <SelectItem key={level} value={level}>{level}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {errors.level && <p className="text-sm text-red-500">{errors.level}</p>}
             </div>
           </div>
@@ -200,9 +203,9 @@ export function ClassCreationForm({ onClose, onSuccess }: ClassCreationFormProps
                 type="number"
                 value={formData.capacity}
                 onChange={(e) => handleInputChange('capacity', e.target.value)}
-                placeholder="Maximum students (1-50)"
+                placeholder="Maximum students (1-100)"
                 min="1"
-                max="50"
+                max="100"
                 className={`border-gray-300 ${errors.capacity ? 'border-red-500' : ''}`}
               />
               {errors.capacity && <p className="text-sm text-red-500">{errors.capacity}</p>}
@@ -212,7 +215,7 @@ export function ClassCreationForm({ onClose, onSuccess }: ClassCreationFormProps
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="classTeacherId" className="text-sm font-medium text-gray-700">
-                Class Teacher <span className="text-red-500">*</span>
+                Class Teacher
               </Label>
               <Select
                 value={formData.classTeacherId}

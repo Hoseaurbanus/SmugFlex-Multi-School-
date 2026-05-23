@@ -118,13 +118,27 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
   const pendingPayments = payments.filter(p => p.status === 'Pending');
   const unreadNotifications = currentUser ? getUnreadNotifications() : [];
 
-  // Calculate real statistics
-  const academicYearFromBalances = studentFeeBalances.length > 0 ? studentFeeBalances[0].academic_year : currentAcademicYear;
+  const currentBalances = studentFeeBalances.filter(
+    (balance) => balance.term === currentTerm && balance.academic_year === currentAcademicYear
+  );
+  const hasCurrentBalances = currentBalances.length > 0;
 
-  const totalFeeRequired = studentFeeBalances.reduce((sum, balance) => sum + balance.total_fee_required, 0);
-  const totalPaid = studentFeeBalances.reduce((sum, balance) => sum + balance.total_paid, 0);
-  const totalOutstanding = studentFeeBalances.reduce((sum, b) => sum + b.balance, 0);
-  const collectionRate = totalFeeRequired > 0 ? ((totalPaid / totalFeeRequired) * 100).toFixed(1) : "0";
+  const totalFeeRequired = hasCurrentBalances
+    ? currentBalances.reduce((sum, balance) => sum + balance.total_fee_required, 0)
+    : 0;
+  const totalPaid = hasCurrentBalances
+    ? currentBalances.reduce((sum, balance) => sum + balance.total_paid, 0)
+    : payments
+        .filter(
+          (p) => p.status === 'Verified' && p.term === currentTerm && p.academic_year === currentAcademicYear
+        )
+        .reduce((sum, p) => sum + p.amount, 0);
+  const totalOutstanding = hasCurrentBalances
+    ? currentBalances.reduce((sum, balance) => sum + balance.balance, 0)
+    : 0;
+  const collectionRateNumeric = totalFeeRequired > 0 ? (totalPaid / totalFeeRequired) * 100 : 0;
+  const collectionRate = totalFeeRequired > 0 ? collectionRateNumeric.toFixed(1) : hasCurrentBalances ? '0' : 'N/A';
+  const collectionRateLabel = totalFeeRequired > 0 ? `${collectionRate}%` : hasCurrentBalances ? '0%' : 'N/A';
 
   // Today's payments
   const today = new Date().toDateString();
@@ -177,7 +191,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                       <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
                         <span className="w-6 h-6" />
                       </div>
-                      <span className="text-sm opacity-80">{collectionRate}%</span>
+                      <span className="text-sm opacity-80">{collectionRateLabel}</span>
                     </div>
                     <p className="text-white/80 text-sm mb-1">Total Collected</p>
                     <h3 className="text-white">{NAIRA}{totalPaid.toLocaleString()}</h3>
@@ -236,12 +250,12 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[#6B7280] text-sm">Collection Rate</span>
-                      <span className="text-[#007C91]">{collectionRate}%</span>
+                      <span className="text-[#007C91]">{collectionRateLabel}</span>
                     </div>
                     <div className="w-full bg-[#E5E7EB] rounded-full h-4 overflow-hidden">
                       <div
                         className="bg-gradient-to-r from-[#007C91] to-[#10B981] h-full rounded-full transition-all duration-500"
-                        style={{ width: `${collectionRate}%` }}
+                        style={{ width: `${collectionRateNumeric}%` }}
                       />
                     </div>
                       <div className="grid grid-cols-3 gap-4 mt-4">

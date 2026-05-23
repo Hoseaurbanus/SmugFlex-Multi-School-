@@ -1,4 +1,4 @@
-import { LogOut, Book, LayoutDashboard, BookOpen, FileSpreadsheet, Users, MessageSquare, Calendar, PenTool, Award, Heart, Activity, Monitor } from 'lucide-react';
+import { LogOut, Book, LayoutDashboard, BookOpen, FileSpreadsheet, Users, MessageSquare, Calendar, PenTool, Award, Heart, Activity, Monitor, AlertCircle, RefreshCw } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
@@ -52,6 +52,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   } = useSchool();
   const [activeItem, setActiveItem] = useState("dashboard");
   const [isWelcomeLoading, setIsWelcomeLoading] = useState(false);
+  const [dashboardLoadError, setDashboardLoadError] = useState<string | null>(null);
   
   // Notification dialog state
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
@@ -158,10 +159,11 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
         const classes = await getTeacherClasses(Number(teacherId));
         if (isMounted) {
           setTeacherClasses(classes);
+          setDashboardLoadError(null);
         }
       } catch (error) {
         if (isMounted) {
-          // Silent fail for security
+          setDashboardLoadError('Failed to load dashboard data. Check your connection and try again.');
         }
       }
     };
@@ -236,26 +238,17 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     }
   }, [teacherId, currentTerm, currentAcademicYear, loadStudentsFromAPI, loadTeachersFromAPI, loadClassesFromAPI, loadNotificationsFromAPI, loadScoresFromAPI, loadAssignmentsFromAPI, loadAttendancesFromAPI, loadSubjectAssignmentsFromAPI, loadClassTeacherAssignmentsFromAPI, getTeacherClasses]);
 
-  const didInitialRefreshRef = useRef(false);
-
-  useEffect(() => {
-    if (didInitialRefreshRef.current) return;
-    if (!currentUser || currentUser.role !== 'teacher') return;
-    if (activeItem !== 'dashboard') return;
-    if (!teacherId) return;
-    if (!currentTerm || !currentAcademicYear) return;
-
-    didInitialRefreshRef.current = true;
-    (async () => {
-      await refreshData();
-    })();
-  }, [activeItem, currentAcademicYear, currentTerm, currentUser, refreshData, teacherId]);
+  const isRefreshingRef = useRef(false);
 
   useEffect(() => {
     if (activeItem !== 'dashboard') return;
     const intervalId = window.setInterval(() => {
-      refreshData();
-    }, 15000);
+      if (isRefreshingRef.current) return;
+      isRefreshingRef.current = true;
+      refreshData().finally(() => {
+        isRefreshingRef.current = false;
+      });
+    }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
@@ -271,7 +264,8 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     return classTeacherAssignments.some((cta: any) => 
       String(cta.teacher_id) === String(teacherId) && 
       cta.academic_year === currentAcademicYear && 
-      cta.term === currentTerm
+      cta.term === currentTerm &&
+      cta.status === 'Active'
     );
   }, [teacherId, classTeacherAssignments, currentAcademicYear, currentTerm]);
   
@@ -374,6 +368,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                     type="button"
                     variant="outline"
                     onClick={async () => {
+                      setDashboardLoadError(null);
                       try {
                         await refreshData();
                         toast.success('Dashboard refreshed');
@@ -386,6 +381,27 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   </Button>
                 </div>
               </div>
+
+              {dashboardLoadError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                    <p className="text-sm text-red-700">{dashboardLoadError}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      setDashboardLoadError(null);
+                      await refreshData();
+                    }}
+                    className="text-red-700 border-red-200 hover:bg-red-100 ml-4 flex-shrink-0"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-1" />
+                    Retry
+                  </Button>
+                </div>
+              )}
 
               <div className="grid md:grid-cols-3 gap-4">
                 <Card className="rounded-lg bg-white border border-[#E5E7EB] shadow-clinical">
@@ -520,6 +536,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {activeItem === "exam-timetable" && <ViewExamTimetablePage userRole="teacher" />}
           {activeItem === "cbt-exams" && <CbtExamListPage />}
           {activeItem === "mark-attendance" && <MarkAttendancePage />}
+          {activeItem === "domains" && <DomainsPage />}
           
           {!["dashboard", "class-list", "enter-scores", "compile-results", "approve-scores", "message-parents", "change-password", "mark-attendance", "domains", "exam-timetable", "cbt-exams"].includes(activeItem) && (
             <div className="space-y-6">
