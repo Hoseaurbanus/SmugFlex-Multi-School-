@@ -25,6 +25,7 @@ export function CbtExamForm({ open, onOpenChange, exam, onSaved }: CbtExamFormPr
   const [classId, setClassId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('30');
+  const [questionsPerStudent, setQuestionsPerStudent] = useState('');
   const [scoreSlot, setScoreSlot] = useState<'first_test' | 'second_test' | ''>('');
   const [feedIntoScores, setFeedIntoScores] = useState(false);
   const [shuffleQuestions, setShuffleQuestions] = useState(true);
@@ -77,6 +78,7 @@ export function CbtExamForm({ open, onOpenChange, exam, onSaved }: CbtExamFormPr
       setScoreSlot(exam.score_slot || '');
       setFeedIntoScores(!!exam.feed_into_scores);
       setShuffleQuestions(!!exam.shuffle_questions);
+      setQuestionsPerStudent(exam.questions_per_student ? String(exam.questions_per_student) : '');
     } else {
       setTitle('');
       setInstructions('');
@@ -86,6 +88,7 @@ export function CbtExamForm({ open, onOpenChange, exam, onSaved }: CbtExamFormPr
       setScoreSlot('');
       setFeedIntoScores(false);
       setShuffleQuestions(true);
+      setQuestionsPerStudent('');
     }
   }, [exam, open]);
 
@@ -97,6 +100,7 @@ export function CbtExamForm({ open, onOpenChange, exam, onSaved }: CbtExamFormPr
 
     setLoading(true);
     try {
+      const qps = questionsPerStudent.trim();
       const payload = {
         title: title.trim(),
         instructions: instructions.trim(),
@@ -106,6 +110,7 @@ export function CbtExamForm({ open, onOpenChange, exam, onSaved }: CbtExamFormPr
         score_slot: feedIntoScores && scoreSlot ? scoreSlot : null,
         feed_into_scores: feedIntoScores ? 1 : 0,
         shuffle_questions: shuffleQuestions ? 1 : 0,
+        questions_per_student: qps ? parseInt(qps) : null,
       };
 
       if (isEditing && exam) {
@@ -182,6 +187,18 @@ export function CbtExamForm({ open, onOpenChange, exam, onSaved }: CbtExamFormPr
               <p className="text-xs text-[#6B7280]">Randomize question order for each student</p>
             </div>
             <Switch checked={shuffleQuestions} onCheckedChange={setShuffleQuestions} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Questions per Student <span className="text-[#6B7280] font-normal">(optional)</span></Label>
+            <Input
+              type="number"
+              value={questionsPerStudent}
+              onChange={e => setQuestionsPerStudent(e.target.value)}
+              min={1}
+              placeholder="Leave empty to show all questions"
+            />
+            <p className="text-xs text-[#6B7280]">Create more questions than this number to give each student a random subset.</p>
           </div>
 
           <div className="flex items-center justify-between border border-[#E5E7EB] rounded-lg p-3">

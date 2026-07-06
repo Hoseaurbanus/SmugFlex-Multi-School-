@@ -1,6 +1,6 @@
 /**
  * Performance Optimizations
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Management Platform
  */
 
 import { useEffect, useState, useCallback } from 'react';

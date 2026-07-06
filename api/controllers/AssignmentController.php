@@ -1,13 +1,14 @@
 <?php
 /**
  * Assignment Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class AssignmentController {
     private $conn;
@@ -22,9 +23,10 @@ class AssignmentController {
      */
     public function getAllAssignments() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $pagination = Middleware::getPaginationParams();
-        $search_params = Middleware::getSearchParams();
+        $search_params = Middleware::getSearchParams(['id', 'title', 'due_date', 'status', 'created_at']);
         
         try {
             $query = "SELECT a.*, sub.name as subject_name, sub.code as subject_code,
@@ -83,6 +85,10 @@ class AssignmentController {
                 )";
                 $params[':parent_id'] = $token_data['linked_id'];
             }
+
+            // School tenant scoping
+            $conditions[] = "a.school_id = :school_id";
+            $params[':school_id'] = $school_id;
             
             if (!empty($conditions)) {
                 $query .= " WHERE " . implode(' AND ', $conditions);
@@ -124,6 +130,7 @@ class AssignmentController {
      */
     public function getAssignmentById($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $assignment_id = Middleware::validateInteger($id, 'assignment_id');
         
         try {
@@ -136,10 +143,11 @@ class AssignmentController {
                       JOIN subjects sub ON a.subject_id = sub.id
                       JOIN classes c ON a.class_id = c.id
                       JOIN teachers t ON a.teacher_id = t.id
-                      WHERE a.id = :id";
+                      WHERE a.id = :id AND a.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $assignment_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $assignment = $stmt->fetch();
@@ -180,6 +188,7 @@ class AssignmentController {
      */
     public function createAssignment() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         if ($token_data['role'] !== 'teacher' && $token_data['role'] !== 'admin') {
             Response::forbidden('Only teachers and admins can create assignments');
@@ -202,11 +211,12 @@ class AssignmentController {
             // Teacher can only create assignments for their subjects/classes
             if ($token_data['role'] === 'teacher') {
                 $check_query = "SELECT COUNT(*) as count FROM subject_assignments 
-                                WHERE teacher_id = :teacher_id AND subject_id = :subject_id AND class_id = :class_id";
+                                WHERE teacher_id = :teacher_id AND subject_id = :subject_id AND class_id = :class_id AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':subject_id', $subject_id);
                 $check_stmt->bindParam(':class_id', $class_id);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -215,8 +225,8 @@ class AssignmentController {
             }
             
             // Insert assignment
-            $query = "INSERT INTO assignments (title, description, subject_id, class_id, teacher_id, due_date, max_score, status, created_by)
-                      VALUES (:title, :description, :subject_id, :class_id, :teacher_id, :due_date, :max_score, :status, :created_by)";
+            $query = "INSERT INTO assignments (title, description, subject_id, class_id, teacher_id, due_date, max_score, status, created_by, school_id)
+                      VALUES (:title, :description, :subject_id, :class_id, :teacher_id, :due_date, :max_score, :status, :created_by, :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':title', $title);
@@ -229,6 +239,7 @@ class AssignmentController {
             $stmt->bindParam(':max_score', $max_score);
             $stmt->bindParam(':status', $status);
             $stmt->bindParam(':created_by', $token_data['user_id']);
+            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
             $assignment_id = $this->conn->lastInsertId();
@@ -236,7 +247,7 @@ class AssignmentController {
             // Handle file attachments if any
             if (isset($data['attachments']) && is_array($data['attachments'])) {
                 foreach ($data['attachments'] as $attachment) {
-                    $this->addAttachment($assignment_id, $attachment);
+                    $this->addAttachment($assignment_id, $attachment, $school_id);
                 }
             }
             
@@ -271,12 +282,13 @@ class AssignmentController {
      */
     public function updateAssignment($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $assignment_id = Middleware::validateInteger($id, 'assignment_id');
         $data = json_decode(file_get_contents('php://input'), true);
         
         try {
             // Check if assignment exists and user has permission
-            $check_query = "SELECT * FROM assignments WHERE id = :id";
+            $check_query = "SELECT * FROM assignments WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $assignment_id);
             $check_stmt->execute();
@@ -319,7 +331,8 @@ class AssignmentController {
                 Response::badRequest('No valid fields to update');
             }
             
-            $query = "UPDATE assignments SET " . implode(', ', $update_fields) . " WHERE id = :id";
+            $query = "UPDATE assignments SET " . implode(', ', $update_fields) . " WHERE id = :id AND school_id = :school_id";
+            $params[':school_id'] = $school_id;
             $stmt = $this->conn->prepare($query);
             
             foreach ($params as $key => $value) {
@@ -359,6 +372,7 @@ class AssignmentController {
      */
     public function deleteAssignment($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $assignment_id = Middleware::validateInteger($id, 'assignment_id');
         
         try {
@@ -367,9 +381,10 @@ class AssignmentController {
                             FROM assignments a
                             JOIN subjects sub ON a.subject_id = sub.id
                             JOIN classes c ON a.class_id = c.id
-                            WHERE a.id = :id";
+                            WHERE a.id = :id AND a.school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $assignment_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $assignment = $check_stmt->fetch();
@@ -383,9 +398,10 @@ class AssignmentController {
             }
             
             // Check for existing submissions
-            $submission_check_query = "SELECT COUNT(*) as count FROM assignment_submissions WHERE assignment_id = :assignment_id";
+            $submission_check_query = "SELECT COUNT(*) as count FROM assignment_submissions WHERE assignment_id = :assignment_id AND school_id = :school_id2";
             $submission_check_stmt = $this->conn->prepare($submission_check_query);
             $submission_check_stmt->bindParam(':assignment_id', $assignment_id);
+            $submission_check_stmt->bindParam(':school_id2', $school_id);
             $submission_check_stmt->execute();
             
             if ($submission_check_stmt->fetch()['count'] > 0) {
@@ -393,9 +409,10 @@ class AssignmentController {
             }
             
             // Delete assignment (cascade will handle attachments)
-            $query = "DELETE FROM assignments WHERE id = :id";
+            $query = "DELETE FROM assignments WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $assignment_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             // Log activity
@@ -427,6 +444,7 @@ class AssignmentController {
      */
     public function getSubmissions($assignment_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $assignment_id = Middleware::validateInteger($assignment_id, 'assignment_id');
         
         try {
@@ -435,9 +453,10 @@ class AssignmentController {
                             FROM assignments a
                             JOIN subjects sub ON a.subject_id = sub.id
                             JOIN classes c ON a.class_id = c.id
-                            WHERE a.id = :id";
+                            WHERE a.id = :id AND a.school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $assignment_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $assignment = $check_stmt->fetch();
@@ -452,7 +471,7 @@ class AssignmentController {
             
             // Parent can only see submissions for their children
             $parent_filter = "";
-            $params = [':assignment_id' => $assignment_id];
+            $params = [':assignment_id' => $assignment_id, ':school_id' => $school_id];
             
             if ($token_data['role'] === 'parent') {
                 $parent_filter = " AND asub.student_id IN (
@@ -466,7 +485,7 @@ class AssignmentController {
             $query = "SELECT asub.*, s.first_name, s.last_name, s.admission_number
                       FROM assignment_submissions asub
                       JOIN students s ON asub.student_id = s.id
-                      WHERE asub.assignment_id = :assignment_id $parent_filter
+                      WHERE asub.assignment_id = :assignment_id AND asub.school_id = :school_id $parent_filter
                       ORDER BY s.last_name, s.first_name";
             
             $stmt = $this->conn->prepare($query);
@@ -479,9 +498,10 @@ class AssignmentController {
             
             // Get attachments for each submission
             foreach ($submissions as &$submission) {
-                $attachment_query = "SELECT * FROM assignment_attachments WHERE submission_id = :submission_id";
+                $attachment_query = "SELECT * FROM assignment_attachments WHERE submission_id = :submission_id AND school_id = :school_id2";
                 $attachment_stmt = $this->conn->prepare($attachment_query);
                 $attachment_stmt->bindParam(':submission_id', $submission['id']);
+                $attachment_stmt->bindParam(':school_id2', $school_id);
                 $attachment_stmt->execute();
                 $submission['attachments'] = $attachment_stmt->fetchAll();
             }
@@ -498,6 +518,7 @@ class AssignmentController {
      */
     public function submitAssignment($assignment_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         if ($token_data['role'] !== 'student') {
             Response::forbidden('Only students can submit assignments');
@@ -510,10 +531,11 @@ class AssignmentController {
             // Check if assignment exists and is published
             $check_query = "SELECT a.*, s.class_id FROM assignments a
                             JOIN students s ON s.id = :student_id
-                            WHERE a.id = :assignment_id AND a.status = 'Published'";
+                            WHERE a.id = :assignment_id AND a.status = 'Published' AND a.school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':assignment_id', $assignment_id);
             $check_stmt->bindParam(':student_id', $token_data['linked_id']);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $assignment = $check_stmt->fetch();
@@ -532,10 +554,11 @@ class AssignmentController {
             }
             
             // Check if already submitted
-            $submission_check_query = "SELECT id FROM assignment_submissions WHERE assignment_id = :assignment_id AND student_id = :student_id";
+            $submission_check_query = "SELECT id FROM assignment_submissions WHERE assignment_id = :assignment_id AND student_id = :student_id AND school_id = :school_id2";
             $submission_check_stmt = $this->conn->prepare($submission_check_query);
             $submission_check_stmt->bindParam(':assignment_id', $assignment_id);
             $submission_check_stmt->bindParam(':student_id', $token_data['linked_id']);
+            $submission_check_stmt->bindParam(':school_id2', $school_id);
             $submission_check_stmt->execute();
             
             $existing_submission = $submission_check_stmt->fetch();
@@ -545,23 +568,25 @@ class AssignmentController {
             if ($existing_submission) {
                 // Update existing submission
                 $update_query = "UPDATE assignment_submissions SET content = :content, submitted_at = NOW(), updated_at = NOW()
-                                 WHERE id = :submission_id";
+                                 WHERE id = :submission_id AND school_id = :school_id3";
                 
                 $update_stmt = $this->conn->prepare($update_query);
                 $update_stmt->bindParam(':content', $data['content']);
                 $update_stmt->bindParam(':submission_id', $existing_submission['id']);
+                $update_stmt->bindParam(':school_id3', $school_id);
                 $update_stmt->execute();
                 
                 $submission_id = $existing_submission['id'];
             } else {
                 // Create new submission
-                $insert_query = "INSERT INTO assignment_submissions (assignment_id, student_id, content, submitted_at)
-                                 VALUES (:assignment_id, :student_id, :content, NOW())";
+                $insert_query = "INSERT INTO assignment_submissions (assignment_id, student_id, content, submitted_at, school_id)
+                                 VALUES (:assignment_id, :student_id, :content, NOW(), :school_id4)";
                 
                 $insert_stmt = $this->conn->prepare($insert_query);
                 $insert_stmt->bindParam(':assignment_id', $assignment_id);
                 $insert_stmt->bindParam(':student_id', $token_data['linked_id']);
                 $insert_stmt->bindParam(':content', $data['content']);
+                $insert_stmt->bindParam(':school_id4', $school_id);
                 $insert_stmt->execute();
                 
                 $submission_id = $this->conn->lastInsertId();
@@ -570,7 +595,7 @@ class AssignmentController {
             // Handle file attachments if any
             if (isset($data['attachments']) && is_array($data['attachments'])) {
                 foreach ($data['attachments'] as $attachment) {
-                    $this->addSubmissionAttachment($submission_id, $attachment);
+                    $this->addSubmissionAttachment($submission_id, $attachment, $school_id);
                 }
             }
             
@@ -607,6 +632,7 @@ class AssignmentController {
      */
     public function gradeAssignment($submission_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         if ($token_data['role'] !== 'teacher') {
             Response::forbidden('Only teachers can grade assignments');
@@ -622,9 +648,10 @@ class AssignmentController {
             $check_query = "SELECT asub.*, a.teacher_id, a.max_score
                             FROM assignment_submissions asub
                             JOIN assignments a ON asub.assignment_id = a.id
-                            WHERE asub.id = :submission_id";
+                            WHERE asub.id = :submission_id AND asub.school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':submission_id', $submission_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $submission = $check_stmt->fetch();
@@ -646,13 +673,14 @@ class AssignmentController {
             
             // Update submission with grade
             $update_query = "UPDATE assignment_submissions SET score = :score, feedback = :feedback, graded_at = NOW(), graded_by = :graded_by
-                             WHERE id = :submission_id";
+                             WHERE id = :submission_id AND school_id = :school_id2";
             
             $update_stmt = $this->conn->prepare($update_query);
             $update_stmt->bindParam(':score', $score);
             $update_stmt->bindParam(':feedback', $feedback);
             $update_stmt->bindParam(':graded_by', $token_data['user_id']);
             $update_stmt->bindParam(':submission_id', $submission_id);
+            $update_stmt->bindParam(':school_id2', $school_id);
             $update_stmt->execute();
             
             // Log activity
@@ -683,10 +711,10 @@ class AssignmentController {
     /**
      * Add Attachment Helper
      */
-    private function addAttachment($assignment_id, $attachment) {
+    private function addAttachment($assignment_id, $attachment, $school_id = null) {
         try {
-            $query = "INSERT INTO assignment_attachments (assignment_id, file_name, file_path, file_size, file_type)
-                      VALUES (:assignment_id, :file_name, :file_path, :file_size, :file_type)";
+            $query = "INSERT INTO assignment_attachments (assignment_id, file_name, file_path, file_size, file_type, school_id)
+                      VALUES (:assignment_id, :file_name, :file_path, :file_size, :file_type, :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':assignment_id', $assignment_id);
@@ -694,6 +722,7 @@ class AssignmentController {
             $stmt->bindParam(':file_path', $attachment['file_path']);
             $stmt->bindParam(':file_size', $attachment['file_size']);
             $stmt->bindParam(':file_type', $attachment['file_type']);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
         } catch (PDOException $e) {
@@ -704,10 +733,10 @@ class AssignmentController {
     /**
      * Add Submission Attachment Helper
      */
-    private function addSubmissionAttachment($submission_id, $attachment) {
+    private function addSubmissionAttachment($submission_id, $attachment, $school_id = null) {
         try {
-            $query = "INSERT INTO assignment_attachments (submission_id, file_name, file_path, file_size, file_type)
-                      VALUES (:submission_id, :file_name, :file_path, :file_size, :file_type)";
+            $query = "INSERT INTO assignment_attachments (submission_id, file_name, file_path, file_size, file_type, school_id)
+                      VALUES (:submission_id, :file_name, :file_path, :file_size, :file_type, :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':submission_id', $submission_id);
@@ -715,6 +744,7 @@ class AssignmentController {
             $stmt->bindParam(':file_path', $attachment['file_path']);
             $stmt->bindParam(':file_size', $attachment['file_size']);
             $stmt->bindParam(':file_type', $attachment['file_type']);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
         } catch (PDOException $e) {

@@ -1,13 +1,14 @@
 <?php
 /**
  * Payment Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class PaymentController {
     private $conn;
@@ -15,7 +16,6 @@ class PaymentController {
     public function __construct() {
         $database = new Database();
         $this->conn = $database->getConnection();
-        $this->ensureSchema();
     }
 
     private function ensureSchema() {
@@ -71,14 +71,15 @@ class PaymentController {
         }
     }
 
-    private function findPaymentByTransactionReference($transaction_reference) {
+    private function findPaymentByTransactionReference($transaction_reference, $school_id) {
         if (empty($transaction_reference)) {
             return null;
         }
         try {
-            $q = "SELECT id, receipt_number, status FROM payments WHERE transaction_reference = :ref LIMIT 1";
+            $q = "SELECT id, receipt_number, status FROM payments WHERE transaction_reference = :ref AND school_id = :school_id LIMIT 1";
             $s = $this->conn->prepare($q);
             $s->bindParam(':ref', $transaction_reference);
+            $s->bindParam(':school_id', $school_id);
             $s->execute();
             $row = $s->fetch(PDO::FETCH_ASSOC);
             return $row ?: null;
@@ -87,16 +88,17 @@ class PaymentController {
         }
     }
 
-    private function getActiveInvoiceIdForStudent($student_id, $term, $academic_year) {
+    private function getActiveInvoiceIdForStudent($student_id, $term, $academic_year, $school_id) {
         try {
             $query = "SELECT id FROM student_term_invoices
-                      WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND status = 'Active'
+                      WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND status = 'Active' AND school_id = :school_id
                       ORDER BY version DESC, id DESC
                       LIMIT 1";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':student_id', $student_id);
             $stmt->bindParam(':term', $term);
             $stmt->bindParam(':academic_year', $academic_year);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             return $row ? intval($row['id']) : null;
@@ -109,16 +111,18 @@ class PaymentController {
      * Get All Payments (with filtering)
      */
     public function getAllPayments() {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $pagination = Middleware::getPaginationParams();
-        $search_params = Middleware::getSearchParams();
+        $search_params = Middleware::getSearchParams(['id', 'amount', 'payment_date', 'recorded_date', 'status', 'receipt_number', 'student_id', 'payment_method']);
         
         try {
             // Get current academic year and term from settings (default filter)
             $settings_query = "SELECT setting_key, setting_value FROM school_settings 
-                              WHERE setting_key IN ('current_academic_year', 'current_term')";
+                              WHERE setting_key IN ('current_academic_year', 'current_term') AND school_id = :school_id";
             $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->bindParam(':school_id', $school_id);
             $settings_stmt->execute();
             $settings = [];
             while ($setting = $settings_stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -140,8 +144,8 @@ class PaymentController {
                            JOIN students s ON p.student_id = s.id";
             
             // Add search conditions
-            $conditions = [];
-            $params = [];
+            $conditions = ["p.school_id = :school_id"];
+            $params = [':school_id' => $school_id];
             
             if (!empty($search_params['search'])) {
                 $conditions[] = "(s.first_name LIKE :search OR s.last_name LIKE :search OR s.admission_number LIKE :search OR p.receipt_number LIKE :search)";
@@ -219,7 +223,8 @@ class PaymentController {
      * Get Payment by ID
      */
     public function getPaymentById($id) {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $payment_id = Middleware::validateInteger($id, 'payment_id');
         
@@ -233,10 +238,11 @@ class PaymentController {
                       JOIN classes c ON s.class_id = c.id
                       LEFT JOIN users u ON p.recorded_by = u.id
                       LEFT JOIN users v ON p.verified_by = v.id
-                      WHERE p.id = :id";
+                      WHERE p.id = :id AND p.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $payment_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $payment = $stmt->fetch();
@@ -256,7 +262,8 @@ class PaymentController {
      * Create New Payment
      */
     public function createPayment() {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -278,7 +285,7 @@ class PaymentController {
 
             // Idempotency: prevent duplicate references (returns the original payment)
             if (!empty($transaction_reference)) {
-                $existing = $this->findPaymentByTransactionReference($transaction_reference);
+                $existing = $this->findPaymentByTransactionReference($transaction_reference, $school_id);
                 if ($existing) {
                     Response::success([
                         'id' => intval($existing['id']),
@@ -289,9 +296,10 @@ class PaymentController {
             }
             
             // Check if student exists
-            $student_query = "SELECT first_name, last_name FROM students WHERE id = :student_id";
+            $student_query = "SELECT first_name, last_name FROM students WHERE id = :student_id AND school_id = :school_id";
             $student_stmt = $this->conn->prepare($student_query);
             $student_stmt->bindParam(':student_id', $student_id);
+            $student_stmt->bindParam(':school_id', $school_id);
             $student_stmt->execute();
             
             $student = $student_stmt->fetch();
@@ -303,18 +311,18 @@ class PaymentController {
             $receipt_number = null;
 
             if (empty($invoice_id)) {
-                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year);
+                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year, $school_id);
             }
 
             $status = ($payment_method === 'Cash') ? 'Verified' : 'Pending';
             
             // Insert payment (retry on receipt_number collision)
-            $query = "INSERT INTO payments (student_id, invoice_id, amount, payment_type, term, academic_year, payment_method, 
+            $query = "INSERT INTO payments (student_id, school_id, invoice_id, amount, payment_type, term, academic_year, payment_method, 
                                           transaction_reference, receipt_number, recorded_by, notes, status, verified_by, verified_date, recorded_date)
-                      VALUES (:student_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method,
+                      VALUES (:student_id, :school_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method,
                               :transaction_reference, :receipt_number, :recorded_by, :notes, :status, :verified_by, :verified_date, :recorded_date)";
 
-            $recorded_by = $_SESSION['user_id'] ?? 1;
+            $recorded_by = $token_data['user_id'];
             $verified_by = ($status === 'Verified') ? $recorded_by : null;
             $verified_date = ($status === 'Verified') ? date('Y-m-d H:i:s') : null;
 
@@ -326,6 +334,7 @@ class PaymentController {
                 try {
                     $stmt = $this->conn->prepare($query);
                     $stmt->bindParam(':student_id', $student_id);
+                    $stmt->bindParam(':school_id', $school_id);
                     $stmt->bindParam(':invoice_id', $invoice_id);
                     $stmt->bindParam(':amount', $amount);
                     $stmt->bindParam(':payment_type', $payment_type);
@@ -349,7 +358,7 @@ class PaymentController {
                     if ($e->getCode() === '23000') {
                         // If duplicate transaction reference slipped through, return existing
                         if (!empty($transaction_reference)) {
-                            $existing = $this->findPaymentByTransactionReference($transaction_reference);
+                            $existing = $this->findPaymentByTransactionReference($transaction_reference, $school_id);
                             if ($existing) {
                                 Response::success([
                                     'id' => intval($existing['id']),
@@ -402,16 +411,18 @@ class PaymentController {
      * Verify Payment
      */
     public function verifyPayment($id) {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $payment_id = Middleware::validateInteger($id, 'payment_id');
         $data = json_decode(file_get_contents('php://input'), true);
         
         try {
             // Check if payment exists and is pending
-            $check_query = "SELECT * FROM payments WHERE id = :id AND status = 'Pending'";
+            $check_query = "SELECT * FROM payments WHERE id = :id AND status = 'Pending' AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $payment_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $payment = $check_stmt->fetch();
@@ -473,11 +484,11 @@ class PaymentController {
                 $update_query .= ", notes = CONCAT(IFNULL(notes, ''), :notes_append)";
             }
 
-            $update_query .= " WHERE id = :id";
+            $update_query .= " WHERE id = :id AND school_id = :school_id";
             
             $update_stmt = $this->conn->prepare($update_query);
             $update_stmt->bindParam(':status', $status);
-            $verified_by = $_SESSION['user_id'] ?? 1;
+            $verified_by = $token_data['user_id'];
             $update_stmt->bindParam(':verified_by', $verified_by);
             if ($action === 'verify' && isset($amount_to_apply) && abs(floatval($amount_to_apply) - floatval($payment['amount'])) > 0.00001) {
                 $update_stmt->bindParam(':amount', $amount_to_apply);
@@ -486,6 +497,7 @@ class PaymentController {
                 $update_stmt->bindParam(':notes_append', $notes_append);
             }
             $update_stmt->bindParam(':id', $payment_id);
+            $update_stmt->bindParam(':school_id', $school_id);
             $update_stmt->execute();
 
             RealtimeEvents::publish(['payments', 'students', 'notifications'], [
@@ -499,10 +511,11 @@ class PaymentController {
             
             // Add rejection reason if rejected
             if ($action === 'reject') {
-                $notes_query = "UPDATE payments SET notes = CONCAT(IFNULL(notes, ''), '\nRejection: ', :rejection_reason) WHERE id = :id";
+                $notes_query = "UPDATE payments SET notes = CONCAT(IFNULL(notes, ''), '\nRejection: ', :rejection_reason) WHERE id = :id AND school_id = :school_id";
                 $notes_stmt = $this->conn->prepare($notes_query);
                 $notes_stmt->bindParam(':rejection_reason', $rejection_reason);
                 $notes_stmt->bindParam(':id', $payment_id);
+                $notes_stmt->bindParam(':school_id', $school_id);
                 $notes_stmt->execute();
             }
             
@@ -530,7 +543,8 @@ class PaymentController {
      * Marks the original payment as Reversed.
      */
     public function reversePayment($id) {
-        Middleware::requireAnyRole(['accountant', 'admin']);
+        $token_data = Middleware::requireAnyRole(['accountant', 'admin']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $payment_id = Middleware::validateInteger($id, 'payment_id');
         $data = json_decode(file_get_contents('php://input'), true);
@@ -542,9 +556,10 @@ class PaymentController {
             }
 
             // Only reverse Verified payments, and only once
-            $q = "SELECT * FROM payments WHERE id = :id LIMIT 1";
+            $q = "SELECT * FROM payments WHERE id = :id AND school_id = :school_id LIMIT 1";
             $s = $this->conn->prepare($q);
             $s->bindParam(':id', $payment_id);
+            $s->bindParam(':school_id', $school_id);
             $s->execute();
             $payment = $s->fetch(PDO::FETCH_ASSOC);
 
@@ -567,14 +582,14 @@ class PaymentController {
             $academic_year = $payment['academic_year'];
             $payment_type = $payment['payment_type'];
 
-            $reversed_by = $_SESSION['user_id'] ?? 1;
+            $reversed_by = $token_data['user_id'];
 
             // Create reversal entry (negative, Verified)
             $receipt_number = null;
             $attempts = 0;
-            $insert_q = "INSERT INTO payments (student_id, invoice_id, reversed_from_payment_id, amount, payment_type, term, academic_year, payment_method,
+            $insert_q = "INSERT INTO payments (student_id, school_id, invoice_id, reversed_from_payment_id, amount, payment_type, term, academic_year, payment_method,
                                               transaction_reference, receipt_number, recorded_by, notes, status, verified_by, verified_date)
-                        VALUES (:student_id, :invoice_id, :reversed_from_payment_id, :amount, :payment_type, :term, :academic_year, :payment_method,
+                        VALUES (:student_id, :school_id, :invoice_id, :reversed_from_payment_id, :amount, :payment_type, :term, :academic_year, :payment_method,
                                 NULL, :receipt_number, :recorded_by, :notes, 'Verified', :verified_by, NOW())";
 
             $reversal_notes = "Reversal of payment ID {$payment_id}. Reason: {$reason}";
@@ -587,6 +602,7 @@ class PaymentController {
                 try {
                     $ins = $this->conn->prepare($insert_q);
                     $ins->bindParam(':student_id', $student_id);
+                    $ins->bindParam(':school_id', $school_id);
                     $ins->bindParam(':invoice_id', $invoice_id);
                     $ins->bindParam(':reversed_from_payment_id', $payment_id);
                     $ins->bindParam(':amount', $neg_amount);
@@ -613,10 +629,11 @@ class PaymentController {
             $upd = $this->conn->prepare("UPDATE payments
                                         SET status = 'Reversed', reversed_by = :reversed_by, reversed_date = NOW(),
                                             notes = CONCAT(IFNULL(notes, ''), '\nReversed: ', :reason)
-                                        WHERE id = :id");
+                                        WHERE id = :id AND school_id = :school_id");
             $upd->bindParam(':reversed_by', $reversed_by);
             $upd->bindParam(':reason', $reason);
             $upd->bindParam(':id', $payment_id);
+            $upd->bindParam(':school_id', $school_id);
             $upd->execute();
 
             // Reverse the legacy balance cache (if present)
@@ -649,6 +666,7 @@ class PaymentController {
      */
     public function getStudentPaymentHistory($student_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $student_id = Middleware::validateInteger($student_id, 'student_id');
         
         // Check access permissions
@@ -668,8 +686,9 @@ class PaymentController {
         try {
             // ============ NEW: GET CURRENT SETTINGS FOR DEFAULT FILTERING ============
             $settings_query = "SELECT setting_key, setting_value FROM school_settings 
-                              WHERE setting_key IN ('current_academic_year', 'current_term')";
+                              WHERE setting_key IN ('current_academic_year', 'current_term') AND school_id = :settings_school_id";
             $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->bindParam(':settings_school_id', $school_id);
             $settings_stmt->execute();
             $settings = [];
             while ($setting = $settings_stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -691,9 +710,9 @@ class PaymentController {
             $query = "SELECT p.*, u.username as recorded_by_name
                       FROM payments p
                       LEFT JOIN users u ON p.recorded_by = u.id
-                      WHERE p.student_id = :student_id";
+                      WHERE p.student_id = :student_id AND p.school_id = :school_id";
             
-            $params = [':student_id' => $student_id];
+            $params = [':student_id' => $student_id, ':school_id' => $school_id];
             
             // ============ NEW: MANDATORY FILTERING BY ACADEMIC YEAR AND TERM ============
             if (!$return_all) {
@@ -739,7 +758,8 @@ class PaymentController {
      */
     public function submitBankTransferProof() {
         $token_data = Middleware::requireAuth();
-        Middleware::requireAnyRole(['parent']);
+        $token_data2 = Middleware::requireAnyRole(['parent']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['student_id', 'amount', 'payment_type', 'proof_url']);
         try {
@@ -755,7 +775,7 @@ class PaymentController {
 
             // Idempotency: prevent duplicate references (returns the original payment)
             if (!empty($transaction_reference)) {
-                $existing = $this->findPaymentByTransactionReference($transaction_reference);
+                $existing = $this->findPaymentByTransactionReference($transaction_reference, $school_id);
                 if ($existing) {
                     Response::success([
                         'id' => intval($existing['id']),
@@ -787,9 +807,10 @@ class PaymentController {
                 Response::forbidden('Access denied to this student');
             }
             // Get student details for logging
-            $student_query = "SELECT first_name, last_name FROM students WHERE id = :student_id";
+            $student_query = "SELECT first_name, last_name FROM students WHERE id = :student_id AND school_id = :school_id";
             $student_stmt = $this->conn->prepare($student_query);
             $student_stmt->bindParam(':student_id', $student_id);
+            $student_stmt->bindParam(':school_id', $school_id);
             $student_stmt->execute();
             $student = $student_stmt->fetch();
             if (!$student) {
@@ -797,13 +818,13 @@ class PaymentController {
             }
             $receipt_number = null;
             if (empty($invoice_id)) {
-                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year);
+                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year, $school_id);
             }
             // Combine notes with proof URL
             $combined_notes = $notes ? ($notes . "\n") : '';
             $combined_notes .= 'Bank transfer receipt: ' . $proof_url;
             // Insert pending bank transfer payment (retry on receipt_number collision)
-            $query = "INSERT INTO payments (student_id, invoice_id, amount, payment_type, term, academic_year, payment_method, transaction_reference, receipt_number, recorded_by, notes, status) VALUES (:student_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method, :transaction_reference, :receipt_number, :recorded_by, :notes, 'Pending')";
+            $query = "INSERT INTO payments (student_id, school_id, invoice_id, amount, payment_type, term, academic_year, payment_method, transaction_reference, receipt_number, recorded_by, notes, status) VALUES (:student_id, :school_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method, :transaction_reference, :receipt_number, :recorded_by, :notes, 'Pending')";
             $payment_method = 'Bank Transfer';
 
             $attempts = 0;
@@ -813,6 +834,7 @@ class PaymentController {
                 try {
                     $stmt = $this->conn->prepare($query);
                     $stmt->bindParam(':student_id', $student_id);
+                    $stmt->bindParam(':school_id', $school_id);
                     $stmt->bindParam(':invoice_id', $invoice_id);
                     $stmt->bindParam(':amount', $amount);
                     $stmt->bindParam(':payment_type', $payment_type);
@@ -829,7 +851,7 @@ class PaymentController {
                 } catch (PDOException $e) {
                     if ($e->getCode() === '23000') {
                         if (!empty($transaction_reference)) {
-                            $existing = $this->findPaymentByTransactionReference($transaction_reference);
+                            $existing = $this->findPaymentByTransactionReference($transaction_reference, $school_id);
                             if ($existing) {
                                 Response::success([
                                     'id' => intval($existing['id']),
@@ -869,6 +891,7 @@ class PaymentController {
      */
     public function getStudentFeeBalance($student_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $student_id = Middleware::validateInteger($student_id, 'student_id');
         
         // Check access permissions
@@ -909,12 +932,13 @@ class PaymentController {
             $query = "SELECT sfb.*, fs.*
                       FROM student_fee_balances sfb
                       JOIN fee_structures fs ON sfb.class_id = fs.class_id AND sfb.term = fs.term AND sfb.academic_year = fs.academic_year
-                      WHERE sfb.student_id = :student_id AND sfb.term = :term AND sfb.academic_year = :academic_year";
+                      WHERE sfb.student_id = :student_id AND sfb.term = :term AND sfb.academic_year = :academic_year AND sfb.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':student_id', $student_id);
             $stmt->bindParam(':term', $term);
             $stmt->bindParam(':academic_year', $academic_year);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $fee_balance = $stmt->fetch();
@@ -934,7 +958,8 @@ class PaymentController {
      * Get Payment Reports
      */
     public function getPaymentReports() {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $date_from = isset($_GET['date_from']) ? Middleware::validateDate($_GET['date_from']) : date('Y-m-01');
@@ -950,11 +975,12 @@ class PaymentController {
                                 COUNT(CASE WHEN payment_method = 'Cash' THEN 1 END) as cash_payments,
                                 COUNT(CASE WHEN payment_method = 'POS' THEN 1 END) as pos_payments
                               FROM payments 
-                              WHERE recorded_date BETWEEN :date_from AND :date_to";
+                              WHERE recorded_date BETWEEN :date_from AND :date_to AND school_id = :school_id";
             
             $summary_stmt = $this->conn->prepare($summary_query);
             $summary_stmt->bindParam(':date_from', $date_from);
             $summary_stmt->bindParam(':date_to', $date_to);
+            $summary_stmt->bindParam(':school_id', $school_id);
             $summary_stmt->execute();
             $summary = $summary_stmt->fetch();
             
@@ -963,13 +989,14 @@ class PaymentController {
                               COUNT(*) as transactions,
                               COALESCE(SUM(amount), 0) as total_amount
                             FROM payments 
-                            WHERE recorded_date BETWEEN :date_from AND :date_to
+                            WHERE recorded_date BETWEEN :date_from AND :date_to AND school_id = :school_id
                             GROUP BY DATE(recorded_date)
                             ORDER BY date";
             
             $daily_stmt = $this->conn->prepare($daily_query);
             $daily_stmt->bindParam(':date_from', $date_from);
             $daily_stmt->bindParam(':date_to', $date_to);
+            $daily_stmt->bindParam(':school_id', $school_id);
             $daily_stmt->execute();
             $daily_breakdown = $daily_stmt->fetchAll();
             
@@ -978,13 +1005,14 @@ class PaymentController {
                              COUNT(*) as count,
                              COALESCE(SUM(amount), 0) as total
                            FROM payments 
-                           WHERE recorded_date BETWEEN :date_from AND :date_to AND status = 'Verified'
+                           WHERE recorded_date BETWEEN :date_from AND :date_to AND status = 'Verified' AND school_id = :school_id
                            GROUP BY payment_type
                            ORDER BY total DESC";
             
             $type_stmt = $this->conn->prepare($type_query);
             $type_stmt->bindParam(':date_from', $date_from);
             $type_stmt->bindParam(':date_to', $date_to);
+            $type_stmt->bindParam(':school_id', $school_id);
             $type_stmt->execute();
             $type_breakdown = $type_stmt->fetchAll();
             
@@ -1010,7 +1038,8 @@ class PaymentController {
      * Provides method/status totals for a period for daily/weekly reconciliation.
      */
     public function getReconciliationSummary() {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $date_from = isset($_GET['date_from']) ? Middleware::validateDate($_GET['date_from']) : date('Y-m-d');
@@ -1022,13 +1051,14 @@ class PaymentController {
                                 COUNT(*) as count,
                                 COALESCE(SUM(amount),0) as total
                               FROM payments
-                              WHERE DATE(recorded_date) BETWEEN :date_from AND :date_to
+                              WHERE DATE(recorded_date) BETWEEN :date_from AND :date_to AND school_id = :school_id
                               GROUP BY status, payment_method
                               ORDER BY status, payment_method";
 
             $stmt = $this->conn->prepare($summary_query);
             $stmt->bindParam(':date_from', $date_from);
             $stmt->bindParam(':date_to', $date_to);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1046,7 +1076,8 @@ class PaymentController {
      * Flags payments that require attention: pending too long.
      */
     public function getPaymentExceptions() {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $pending_online_minutes = isset($_GET['pending_online_minutes']) ? intval($_GET['pending_online_minutes']) : 60;
@@ -1061,9 +1092,11 @@ class PaymentController {
                              WHERE p.status = 'Pending'
                                AND p.payment_method = 'Online Payment'
                                AND p.recorded_date <= :cutoff
+                               AND p.school_id = :school_id
                              ORDER BY p.recorded_date ASC";
             $online_stmt = $this->conn->prepare($online_query);
             $online_stmt->bindParam(':cutoff', $online_cutoff);
+            $online_stmt->bindParam(':school_id', $school_id);
             $online_stmt->execute();
 
             $bank_query = "SELECT p.*, s.first_name, s.last_name, s.admission_number
@@ -1072,9 +1105,11 @@ class PaymentController {
                            WHERE p.status = 'Pending'
                              AND p.payment_method = 'Bank Transfer'
                              AND p.recorded_date <= :cutoff
+                             AND p.school_id = :school_id
                            ORDER BY p.recorded_date ASC";
             $bank_stmt = $this->conn->prepare($bank_query);
             $bank_stmt->bindParam(':cutoff', $bank_cutoff);
+            $bank_stmt->bindParam(':school_id', $school_id);
             $bank_stmt->execute();
 
             Response::success([
@@ -1095,7 +1130,8 @@ class PaymentController {
      */
     public function initializeOnlinePayment() {
         $token_data = Middleware::requireAuth();
-        Middleware::requireAnyRole(['parent']);
+        $token_data2 = Middleware::requireAnyRole(['parent']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -1140,9 +1176,10 @@ class PaymentController {
             }
             
             // Get student and parent details
-            $student_query = "SELECT first_name, last_name, admission_number FROM students WHERE id = :student_id";
+            $student_query = "SELECT first_name, last_name, admission_number FROM students WHERE id = :student_id AND school_id = :school_id";
             $student_stmt = $this->conn->prepare($student_query);
             $student_stmt->bindParam(':student_id', $student_id);
+            $student_stmt->bindParam(':school_id', $school_id);
             $student_stmt->execute();
             $student = $student_stmt->fetch();
             
@@ -1169,7 +1206,7 @@ class PaymentController {
                 Response::serverError('Paystack secret key not configured');
             }
             
-            $callback_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]/GG/payment-callback";
+            $callback_url = rtrim(Config::get('API_BASE_URL', 'https://smugflex.com'), '/') . '/payment-callback';
             
             $metadata = [
                 'student_id' => $student_id,
@@ -1226,7 +1263,7 @@ class PaymentController {
             $paystack_response = json_decode($response, true);
             
             if (!isset($paystack_response['status']) || $paystack_response['status'] !== true) {
-                Response::serverError('Paystack initialization failed: ' . ($paystack_response['message'] ?? 'Unknown error'));
+                Response::serverError('Payment initialization failed');
             }
             
             $paystack_data = $paystack_response['data'];
@@ -1236,13 +1273,13 @@ class PaymentController {
             $receipt_number = null;
 
             if (empty($invoice_id)) {
-                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year);
+                $invoice_id = $this->getActiveInvoiceIdForStudent($student_id, $term, $academic_year, $school_id);
             }
             
             // Insert pending payment record (retry on receipt_number collision)
-            $query = "INSERT INTO payments (student_id, invoice_id, amount, payment_type, term, academic_year, payment_method, 
+            $query = "INSERT INTO payments (student_id, school_id, invoice_id, amount, payment_type, term, academic_year, payment_method, 
                                           transaction_reference, receipt_number, recorded_by, notes, status)
-                      VALUES (:student_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method,
+                      VALUES (:student_id, :school_id, :invoice_id, :amount, :payment_type, :term, :academic_year, :payment_method,
                               :transaction_reference, :receipt_number, :recorded_by, :notes, 'Pending')";
 
             $payment_method = 'Online Payment';
@@ -1254,6 +1291,7 @@ class PaymentController {
                 try {
                     $stmt = $this->conn->prepare($query);
                     $stmt->bindParam(':student_id', $student_id);
+                    $stmt->bindParam(':school_id', $school_id);
                     $stmt->bindParam(':invoice_id', $invoice_id);
                     $stmt->bindParam(':amount', $amount);
                     $stmt->bindParam(':payment_type', $payment_type);
@@ -1270,7 +1308,7 @@ class PaymentController {
                 } catch (PDOException $e) {
                     if ($e->getCode() === '23000') {
                         // Duplicate gateway reference should return existing payment (retry-safe)
-                        $existing = $this->findPaymentByTransactionReference($reference);
+                        $existing = $this->findPaymentByTransactionReference($reference, $school_id);
                         if ($existing) {
                             Response::success([
                                 'payment_id' => intval($existing['id']),
@@ -1319,7 +1357,8 @@ class PaymentController {
      */
     public function verifyOnlinePayment() {
         $token_data = Middleware::requireAuth();
-        Middleware::requireAnyRole(['parent', 'admin', 'accountant']);
+        $token_data2 = Middleware::requireAnyRole(['parent', 'admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $reference = isset($_GET['reference']) ? Middleware::sanitizeString($_GET['reference']) : null;
         
@@ -1332,9 +1371,10 @@ class PaymentController {
             $payment_query = "SELECT p.*, s.first_name, s.last_name, s.admission_number
                               FROM payments p
                               JOIN students s ON p.student_id = s.id
-                              WHERE p.transaction_reference = :reference";
+                              WHERE p.transaction_reference = :reference AND p.school_id = :school_id";
             $payment_stmt = $this->conn->prepare($payment_query);
             $payment_stmt->bindParam(':reference', $reference);
+            $payment_stmt->bindParam(':school_id', $school_id);
             $payment_stmt->execute();
             
             $payment = $payment_stmt->fetch();
@@ -1418,7 +1458,7 @@ class PaymentController {
             $paystack_response = json_decode($response, true);
             
             if (!isset($paystack_response['status']) || $paystack_response['status'] !== true) {
-                Response::serverError('Paystack verification failed: ' . ($paystack_response['message'] ?? 'Unknown error'));
+                Response::serverError('Payment verification failed');
             }
             
             $paystack_data = $paystack_response['data'];
@@ -1437,12 +1477,13 @@ class PaymentController {
             if ($paystack_status === 'success') {
                 // Update payment as verified
                 $update_query = "UPDATE payments SET status = 'Verified', verified_by = :verified_by, verified_date = NOW() 
-                                WHERE id = :id";
+                                WHERE id = :id AND school_id = :school_id";
                 
                 $update_stmt = $this->conn->prepare($update_query);
                 $verified_by = $token_data['role'] === 'parent' ? $payment['recorded_by'] : ($token_data['linked_id'] ?? $token_data['user_id']);
                 $update_stmt->bindParam(':verified_by', $verified_by);
                 $update_stmt->bindParam(':id', $payment['id']);
+                $update_stmt->bindParam(':school_id', $school_id);
                 $update_stmt->execute();
                 
                 // Update student fee balance
@@ -1472,11 +1513,12 @@ class PaymentController {
             } else {
                 // Payment failed or abandoned
                 $update_query = "UPDATE payments SET status = 'Rejected', notes = CONCAT(IFNULL(notes, ''), '\nPaystack status: ', :paystack_status) 
-                                WHERE id = :id";
+                                WHERE id = :id AND school_id = :school_id";
                 
                 $update_stmt = $this->conn->prepare($update_query);
                 $update_stmt->bindParam(':paystack_status', $paystack_status);
                 $update_stmt->bindParam(':id', $payment['id']);
+                $update_stmt->bindParam(':school_id', $school_id);
                 $update_stmt->execute();
                 
                 Response::badRequest('Payment was not successful. Status: ' . $paystack_status);
@@ -1491,7 +1533,12 @@ class PaymentController {
      * Generate Receipt Number
      */
     private function generateReceiptNumber() {
-        $prefix = 'GRA';
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
+        $suffix_query = "SELECT suffix FROM schools WHERE id = :sid LIMIT 1";
+        $suffix_stmt = $this->conn->prepare($suffix_query);
+        $suffix_stmt->execute([':sid' => $school_id]);
+        $school_row = $suffix_stmt->fetch(PDO::FETCH_ASSOC);
+        $prefix = $school_row ? strtoupper($school_row['suffix']) : 'SCH';
 
         try {
             $date = date('Ymd');

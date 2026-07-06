@@ -1,6 +1,6 @@
-import { BarChart, BarChart3, ArrowLeft, Download, Eye, ClipboardCheck } from 'lucide-react';
+import { ChartBar, ArrowLeft, Download, Eye, CheckSquare } from '@phosphor-icons/react';
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -18,7 +18,6 @@ import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { shouldShowPosition as checkShouldShowPosition, getGrade } from "../../utils/classHelpers";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
-import schoolLogo from "../../assets/images/school-logo.jpg";
 import { API_CONFIG } from "../../config/api";
 import { formatPositionWithSuffix } from "../../utils/position";
 import { generatePDFFromData as generateStudentResultPdf, generateCumulativePDF } from "../../utils/pdfGenerator";
@@ -47,11 +46,11 @@ class ResultsManagementErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="p-4">
-          <Card className="border-red-200">
-            <CardHeader>
-              <CardTitle className="text-red-700">Results Management Error</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <div className="p-4 bg-red-50 rounded-xl border border-red-200">
+            <div className="mb-4">
+              <h3 className="text-red-700">Results Management Error</h3>
+            </div>
+            <div className="space-y-3">
               <div className="text-sm text-gray-700">
                 The page encountered an error and could not render.
               </div>
@@ -61,8 +60,8 @@ class ResultsManagementErrorBoundary extends React.Component<
                   Reload
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       );
     }
@@ -93,11 +92,11 @@ class FullPageErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-          <Card className="border-red-200 max-w-lg w-full">
-            <CardHeader>
-              <CardTitle className="text-red-700">Error Loading Result</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <div className="p-4 bg-red-50 rounded-xl border border-red-200 max-w-lg w-full">
+            <div className="mb-4">
+              <h3 className="text-red-700">Error Loading Result</h3>
+            </div>
+            <div className="space-y-3">
               <div className="text-sm text-gray-700">
                 The result could not be displayed due to an error.
               </div>
@@ -112,8 +111,8 @@ class FullPageErrorBoundary extends React.Component<
                   Back to Results
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       );
     }
@@ -156,18 +155,18 @@ export function ResultsManagementPage() {
   if (!currentUser) {
     return (
       <div className="p-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Results Management</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="section-band">
+          <div className="mb-4">
+            <h3>Results Management</h3>
+          </div>
+          <div className="space-y-2">
             <div className="text-sm text-gray-700">You must be logged in to view this page.</div>
             <div className="text-xs text-gray-500">If you just logged in, refresh the page.</div>
             <Button variant="outline" onClick={() => window.location.reload()}>
               Refresh
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -559,10 +558,7 @@ export function ResultsManagementPage() {
 
     let logoLoaded = false;
     const logoCandidates = [
-      // Use same asset as LoginPage first to guarantee a reliable logo.
-      schoolLogo,
-      schoolSettings?.school_logo_url,
-      './assets/images/graceland-logo.jpg',
+      schoolSettings?.school_logo_url || '',
     ].filter(Boolean) as string[];
 
     for (const candidate of logoCandidates) {
@@ -1692,10 +1688,10 @@ export function ResultsManagementPage() {
             onClick={() => setViewMode("management")}
             className="rounded-xl"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-4 h-4 mr-2" weight="bold" />
             Back to Management
           </Button>
-          <h1 className="text-[#0A2540]">View Result Sheets</h1>
+          <h1 className="text-[#0A2540] font-heading font-bold">View Result Sheets</h1>
         </div>
         <ViewResultSheetsPage onBack={() => setViewMode("management")} />
       </div>
@@ -2032,10 +2028,10 @@ export function ResultsManagementPage() {
     <ResultsManagementErrorBoundary>
       <div className="p-2 sm:p-4 space-y-3 sm:space-y-4 max-w-full overflow-x-hidden">
       {/* Compact Header - Mobile Responsive */}
-      <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 shadow-sm">
+      <div className="bg-white rounded-lg border border-gray-100 p-3 sm:p-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Results Management</h1>
+            <h1 className="text-lg sm:text-xl font-heading font-bold text-gray-900">Results Management</h1>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">Approve and manage student results</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2053,8 +2049,8 @@ export function ResultsManagementPage() {
       </div>
 
       {/* Compact Filters */}
-      <Card className="border-gray-200 shadow-sm">
-        <CardContent className="p-4">
+      <div className="section-band">
+        <div className="p-4">
           <div className="flex items-center gap-3 mb-3">
             <span className="w-4 h-4 text-gray-500" />
             <span className="text-sm font-medium text-gray-700">Filters</span>
@@ -2128,15 +2124,15 @@ export function ResultsManagementPage() {
                   <span>Historical</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-md">
+                <div className="flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">
                   <span className="w-3 h-3" />
                   <span>Current</span>
                 </div>
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Compact Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -2146,7 +2142,7 @@ export function ResultsManagementPage() {
             <span className="sm:hidden">P</span>
             ({tabCounts.pending})
           </TabsTrigger>
-          <TabsTrigger value="approved" className="rounded-md text-xs data-[state=active]:bg-green-100 data-[state=active]:text-green-800">
+          <TabsTrigger value="approved" className="rounded-md text-xs data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-800">
             <span className="hidden sm:inline">Approved</span>
             <span className="sm:hidden">A</span>
             ({tabCounts.approved})
@@ -2156,13 +2152,13 @@ export function ResultsManagementPage() {
             <span className="sm:hidden">R</span>
             ({tabCounts.rejected})
           </TabsTrigger>
-          <TabsTrigger value="all" className="rounded-md text-xs data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800">
+          <TabsTrigger value="all" className="rounded-md text-xs data-[state=active]:bg-[#0A2540]/10 data-[state=active]:text-[#0A2540]">
             <span className="hidden sm:inline">All</span>
             <span className="sm:hidden">All</span>
             ({tabCounts.all})
           </TabsTrigger>
           {selectedTerm === "Third Term" && (
-            <TabsTrigger value="cumulative" className="rounded-md text-xs data-[state=active]:bg-purple-100 data-[state=active]:text-purple-800">
+            <TabsTrigger value="cumulative" className="rounded-md text-xs data-[state=active]:bg-[#0A2540]/10 data-[state=active]:text-[#0A2540]">
               <span className="hidden sm:inline">Cumulative</span>
               <span className="sm:hidden">C</span>
             </TabsTrigger>
@@ -2174,8 +2170,8 @@ export function ResultsManagementPage() {
           <TabsContent value={activeTab} className="mt-4">
           {/* Compact Bulk Actions */}
           {activeTab === "pending" && filteredResults.length > 0 && (
-            <Card className="border-gray-200 shadow-sm mb-3">
-              <CardContent className="p-2 sm:p-3">
+            <div className="section-band mb-3">
+              <div className="p-2 sm:p-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <label className="inline-flex items-center gap-2">
@@ -2183,7 +2179,7 @@ export function ResultsManagementPage() {
                         type="checkbox"
                         checked={selectedResults.length === filteredResults.length && filteredResults.length > 0}
                         onChange={handleSelectAll}
-                        className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                        className="w-4 h-4 text-[#0A2540] rounded border-gray-300"
                         aria-label="Select all results"
                       />
                       <span className="sr-only">Select all results</span>
@@ -2197,7 +2193,7 @@ export function ResultsManagementPage() {
                       size="sm"
                       onClick={() => setShowBulkApproveDialog(true)}
                       disabled={selectedResults.length === 0}
-                      className="bg-green-600 hover:bg-green-700 text-white h-7 sm:h-8 text-xs"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 sm:h-8 text-xs"
                     >
                       <span className="w-3 h-3 mr-1" />
                       Approve ({selectedResults.length})
@@ -2214,22 +2210,22 @@ export function ResultsManagementPage() {
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Compact Results List */}
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-              <CardTitle className="text-sm font-medium text-gray-700">
+          <div className="section-band">
+            <div className="mb-4 bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <h3 className="text-sm font-medium text-gray-700">
                 {activeTab === "pending" && "Pending Approval"}
                 {activeTab === "approved" && "Approved Results"}
                 {activeTab === "rejected" && "Rejected Results"}
                 {activeTab === "all" && "All Results"}
                 <span className="ml-2 text-xs text-gray-500">({filteredResults.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
+              </h3>
+            </div>
+            <div className="p-4">
               {studentsWithResults.length === 0 ? (
                 <div className="text-center py-8">
                   <span className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -2246,7 +2242,7 @@ export function ResultsManagementPage() {
                   {paginatedStudentsWithResults.map((studentData) => (
                     <div
                       key={studentData!.id}
-                      className="p-2 sm:p-3 border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all"
+                      className="p-2 sm:p-3 border border-gray-100 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all"
                     >
                       <div className="flex flex-col gap-3">
                         <div className="flex items-start gap-3">
@@ -2256,13 +2252,13 @@ export function ResultsManagementPage() {
                                 type="checkbox"
                                 checked={selectedResults.includes(studentData!.result.id)}
                                 onChange={() => handleSelectResult(studentData!.result.id)}
-                                className="w-4 h-4 text-blue-600 rounded border-gray-300 mt-1"
+                                className="w-4 h-4 text-[#0A2540] rounded border-gray-300 mt-1"
                                 aria-label={`Select result for ${studentData!.firstName} ${studentData!.lastName}`}
                               />
                               <span className="sr-only">Select result for {studentData!.firstName} {studentData!.lastName}</span>
                             </label>
                           )}
-                          <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-medium flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#0A2540] text-white flex items-center justify-center text-xs font-medium flex-shrink-0">
                             {studentData!.firstName[0]}
                             {studentData!.lastName[0]}
                           </div>
@@ -2288,7 +2284,7 @@ export function ResultsManagementPage() {
 
                             <div className="text-left sm:text-right">
                               <p className="text-xs text-gray-500 font-medium">Position</p>
-                              <Badge className="bg-green-50 text-green-700 border-green-200 rounded-lg text-xs font-medium px-2 py-1">
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 rounded-lg text-xs font-medium px-2 py-1">
                                 {studentData!.result.position}/{studentData!.result.total_students}
                               </Badge>
                             </div>
@@ -2299,7 +2295,7 @@ export function ResultsManagementPage() {
                                   studentData!.result.status === "Submitted"
                                     ? "bg-yellow-50 text-yellow-700 border-yellow-200"
                                     : studentData!.result.status === "Approved"
-                                    ? "bg-green-50 text-green-700 border-green-200"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                     : "bg-red-50 text-red-700 border-red-200"
                                 }`}
                               >
@@ -2312,24 +2308,24 @@ export function ResultsManagementPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-purple-200 text-purple-700 hover:bg-purple-50 h-7 sm:h-8 text-xs"
+                              className="border-[#0A2540]/20 text-[#0A2540] hover:bg-[#0A2540]/5 h-7 sm:h-8 text-xs"
                               onClick={() => {
                                 if (isClosingFullPageView) return;
                                 setFullPageView({ studentId: studentData!.id, resultId: studentData!.result.id });
                               }}
                             >
-                              <Eye className="w-4 h-4 mr-1.5" />
+                              <Eye className="w-4 h-4 mr-1.5" weight="bold" />
                               View
                             </Button>
                             
                             <Button
                               size="sm"
                               variant="outline"
-                              className={studentData!.result.status === 'Approved' ? "border-green-200 text-green-700 hover:bg-green-50 h-7 sm:h-8 text-xs" : "border-gray-200 text-gray-500 hover:bg-gray-50 h-7 sm:h-8 text-xs"}
+                              className={studentData!.result.status === 'Approved' ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-7 sm:h-8 text-xs" : "border-gray-200 text-gray-500 hover:bg-gray-50 h-7 sm:h-8 text-xs"}
                               onClick={() => handleDownloadStudentPDF(studentData!, studentData!.result)}
                               disabled={!!downloadingResultIds[Number(studentData!.result.id)]}
                             >
-                              <Download className="w-4 h-4 mr-1.5" />
+                              <Download className="w-4 h-4 mr-1.5" weight="bold" />
                               <span className="hidden sm:inline">{!!downloadingResultIds[Number(studentData!.result.id)] ? 'Preparing…' : (studentData!.result.status === 'Approved' ? 'Download PDF' : `PDF (${studentData!.result.status})`)}</span>
                               <span className="sm:hidden">PDF</span>
                             </Button>
@@ -2338,10 +2334,10 @@ export function ResultsManagementPage() {
                               <DialogTrigger asChild>
                                 <Button
                                   size="sm"
-                                  className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl h-7 sm:h-8 text-xs"
+                                  className="bg-[#0A2540] hover:bg-[#082030] text-white rounded-xl h-7 sm:h-8 text-xs"
                                   onClick={() => setSelectedResult(studentData!.result.id)}
                                 >
-                                  <ClipboardCheck className="w-4 h-4 mr-1.5" />
+                                  <CheckSquare className="w-4 h-4 mr-1.5" weight="bold" />
                                   <span className="hidden sm:inline">Review</span>
                                   <span className="sm:hidden">R</span>
                                 </Button>
@@ -2354,7 +2350,7 @@ export function ResultsManagementPage() {
                                       onClick={() => setSelectedResult(null)}
                                       className="flex items-center gap-2"
                                     >
-                                      <ArrowLeft className="w-4 h-4" />
+                                      <ArrowLeft className="w-4 h-4" weight="bold" />
                                       Back to Results
                                     </Button>
                                     <div>
@@ -2431,20 +2427,20 @@ export function ResultsManagementPage() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+              </div>
+            </div>
         </TabsContent>
         )}
 
         {/* Cumulative tab content */}
         {activeTab === "cumulative" && (
           <TabsContent value="cumulative" className="mt-4">
-            <Card className="border-gray-200 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-t-xl px-4 py-3">
+            <div className="section-band">
+              <div className="mb-4 bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 text-white rounded-t-xl px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">
+                  <h3 className="text-sm font-medium">
                     Cumulative Results - {selectedYear} Session
-                  </CardTitle>
+                  </h3>
                   {currentUser?.role === 'admin' && (
                     <Button
                       size="sm"
@@ -2469,21 +2465,21 @@ export function ResultsManagementPage() {
                           toast.error(result.message);
                         }
                       }}
-                      className="bg-white text-purple-700 hover:bg-purple-50 h-7 text-xs"
+                      className="bg-white text-[#0A2540] hover:bg-[#0A2540]/5 h-7 text-xs"
                     >
                       {loadingCumulative ? 'Compiling...' : 'Compile Cumulative'}
                     </Button>
                   )}
                 </div>
-              </CardHeader>
-              <CardContent className="p-4">
+              </div>
+              <div className="p-4">
                 {selectedClassId === "all" ? (
                   <div className="text-center py-8">
                     <p className="text-sm text-gray-500">Select a specific class to view cumulative results</p>
                   </div>
                 ) : loadingCumulative ? (
                   <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-3"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0A2540] mx-auto mb-3"></div>
                     <p className="text-sm text-gray-500">Loading cumulative results...</p>
                   </div>
                 ) : cumulativeResults.length === 0 ? (
@@ -2513,7 +2509,7 @@ export function ResultsManagementPage() {
                           <div className="flex items-center gap-2">
                             <Dialog>
                               <DialogTrigger asChild>
-                                <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white h-7 text-xs rounded-lg">
+                                <Button size="sm" className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white h-7 text-xs rounded-lg">
                                   View
                                 </Button>
                               </DialogTrigger>
@@ -2536,9 +2532,9 @@ export function ResultsManagementPage() {
                                         toast.success('PDF downloaded');
                                       } catch { toast.error('Failed to generate PDF'); }
                                     }}
-                                    className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                                    className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-lg"
                                   >
-                                    <Download className="w-4 h-4 mr-2" />
+                                    <Download className="w-4 h-4 mr-2" weight="bold" />
                                     {loadingCumulative ? 'Loading...' : 'Download PDF'}
                                   </Button>
                                 </div>
@@ -2550,8 +2546,8 @@ export function ResultsManagementPage() {
                     })}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
         )}
       </Tabs>
@@ -2560,7 +2556,7 @@ export function ResultsManagementPage() {
       <Dialog open={showBulkApproveDialog} onOpenChange={setShowBulkApproveDialog}>
         <DialogContent className="sm:max-w-md max-w-[95vw]">
           <DialogHeader>
-            <DialogTitle className="text-green-600">Bulk Approve Results</DialogTitle>
+            <DialogTitle className="text-emerald-600">Bulk Approve Results</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
@@ -2569,7 +2565,7 @@ export function ResultsManagementPage() {
             <div className="flex gap-2 pt-4">
               <Button
                 onClick={handleBulkApprove}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <span className="w-4 h-4 mr-2" />
                 Approve {selectedResults.length} Results

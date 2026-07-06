@@ -123,8 +123,8 @@ class TokenManagerImpl implements TokenManager {
       }
     }
 
-    // For other token formats, check reasonable length
-    return token.length >= 10;
+    // Reject non-JWT tokens — only JWT tokens are valid
+    return false;
   }
 
   /**

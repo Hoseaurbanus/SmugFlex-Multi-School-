@@ -37,7 +37,8 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
     classes,
     currentTerm,
     currentAcademicYear,
-    getUnreadNotifications
+    getUnreadNotifications,
+    schoolSettings
   } = useSchool();
   const [activeItem, setActiveItem] = useState("dashboard");
 
@@ -76,6 +77,13 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
   // Get current accountant
   const currentAccountant = currentUser && accountants.length > 0 ? accountants.find(a => a.id === currentUser.linked_id) : null;
   const accountantName = currentAccountant ? `${currentAccountant.firstName || ''} ${currentAccountant.lastName || ''}`.trim() : 'Accountant';
+
+  const sidebarSections = [
+    { label: 'Overview', ids: ['dashboard'] },
+    { label: 'Finance', ids: ['set-fees', 'record-payments', 'verify-receipts', 'payment-reports', 'payment-history'] },
+    { label: 'Settings', ids: ['bank-settings', 'scholarships'] },
+    { label: 'Communication', ids: ['message-parents'] },
+  ];
 
   const sidebarItems = [
     { icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard", id: "dashboard" },
@@ -159,10 +167,11 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
         items={sidebarItems}
         activeItem={activeItem}
         onItemClick={handleItemClick}
-        themeColor="#007C91"
+        sections={sidebarSections}
+        schoolName={schoolSettings.school_name || currentUser?.school_name || 'School'}
       />
 
-      <div className="lg:pl-64">
+      <div className="lg:pl-[var(--sidebar-width,256px)]">
         <DashboardTopBar
           userName={accountantName}
           userRole="Accountant"
@@ -173,6 +182,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
             toast.success('Opening Password Change');
             setActiveItem('change-password');
           }}
+          schoolName={schoolSettings.school_name || currentUser?.school_name || 'School'}
         />
 
         <main className="p-4 md:p-6 max-w-7xl mx-auto">

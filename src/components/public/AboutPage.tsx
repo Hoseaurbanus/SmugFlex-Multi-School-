@@ -20,8 +20,8 @@ export function AboutPage({ onBack }: AboutPageProps) {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Home
           </Button>
-          <h1 className="text-3xl mb-2">About Graceland Royal Academy Gombe</h1>
-          <p className="text-blue-100">Wisdom & Illumination</p>
+          <h1 className="text-3xl mb-2">About Our School</h1>
+          <p className="text-blue-100">Excellence & Character</p>
         </div>
       </header>
 
@@ -109,19 +109,18 @@ export function AboutPage({ onBack }: AboutPageProps) {
             <h2 className="text-2xl mb-4">Our History</h2>
             <div className="prose max-w-none text-gray-600">
               <p className="mb-4">
-                Founded in 2010, Graceland Royal Academy Gombe was established with a
-                clear vision: to provide quality education that combines academic
+                Founded with a clear vision: to provide quality education that combines academic
                 excellence with strong moral values and practical skills.
               </p>
               <p className="mb-4">
                 Over the years, we have grown from a small primary school to a
                 comprehensive institution serving both primary and secondary students.
-                Our commitment to "Wisdom & Illumination" has guided us in creating
+                Our commitment to "Excellence & Character" has guided us in creating
                 an environment where students not only excel academically but also
                 develop into well-rounded individuals.
               </p>
               <p>
-                Today, we are proud to be one of the leading schools in Gombe State,
+                Today, we are proud to be one of the leading schools in the region,
                 with a track record of excellent results, talented alumni, and a
                 reputation for producing students of character and capability.
               </p>
@@ -215,24 +214,21 @@ export function AboutPage({ onBack }: AboutPageProps) {
             <h2 className="text-2xl mb-4">Our Leadership</h2>
             <div className="space-y-4">
               <div className="border-l-4 border-[#2563EB] pl-4">
-                <h3 className="mb-1">Mrs. Grace Okoro</h3>
-                <p className="text-sm text-gray-600 mb-2">Principal</p>
+                <h3 className="mb-1">Principal</h3>
                 <p className="text-sm text-gray-600">
                   M.Ed Educational Administration, 15+ years in educational leadership
                 </p>
               </div>
 
               <div className="border-l-4 border-[#10B981] pl-4">
-                <h3 className="mb-1">Mr. Ibrahim Mohammed</h3>
-                <p className="text-sm text-gray-600 mb-2">Vice Principal (Academics)</p>
+                <h3 className="mb-1">Vice Principal (Academics)</h3>
                 <p className="text-sm text-gray-600">
                   M.Sc Mathematics Education, Curriculum development specialist
                 </p>
               </div>
 
               <div className="border-l-4 border-purple-600 pl-4">
-                <h3 className="mb-1">Mrs. Fatima Abdullahi</h3>
-                <p className="text-sm text-gray-600 mb-2">Vice Principal (Administration)</p>
+                <h3 className="mb-1">Vice Principal (Administration)</h3>
                 <p className="text-sm text-gray-600">
                   B.Ed Administration, Expert in school operations management
                 </p>

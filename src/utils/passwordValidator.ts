@@ -1,6 +1,6 @@
 /**
  * Password Validator Utility
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Management Platform
  */
 
 export interface PasswordValidationResult {
@@ -37,7 +37,7 @@ const commonPasswords = [
   'password', '123456', 'password123', 'admin', 'qwerty',
   'abc123', 'letmein', 'welcome', 'monkey', 'dragon',
   'master', 'sunshine', 'iloveyou', 'football', 'baseball',
-  'teacher', 'student', 'parent', 'school', 'graceland',
+  'teacher', 'student', 'parent', 'school', 'graceland', 'smugflex',
   'admin123', 'teacher123', 'parent123', 'student123'
 ];
 

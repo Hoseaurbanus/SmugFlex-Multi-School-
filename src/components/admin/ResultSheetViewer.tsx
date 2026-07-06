@@ -1,4 +1,4 @@
-import { Book, BookOpen, Loader2, Printer, Download } from 'lucide-react';
+import { Book, BookOpen, Loader2, Printer, Download, Eye } from 'lucide-react';
 import { useState, useEffect, useRef } from "react";
 import { useSchool } from "../../contexts/SchoolContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '../ui/card';
+import { Plus } from '@phosphor-icons/react';
+
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -228,37 +228,37 @@ export function RegisterUserPage() {
       {/* Page Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center shadow-lg">
-            <Plus className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 rounded-xl bg-[#0A2540] flex items-center justify-center shadow-lg">
+            <Plus className="w-6 h-6 text-white" weight="bold" />
           </div>
           <div>
-            <h1 className="text-[#1F2937] mb-1">Register User</h1>
+            <h1 className="font-heading font-bold text-[#1F2937] mb-1">Register User</h1>
             <p className="text-[#6B7280]">Register teachers, parents, or accountants with login credentials</p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit}>
-        <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical hover:shadow-clinical-lg transition-all">
-          <CardHeader className="bg-gradient-to-r from-[#F9FAFB] to-white p-6 border-b border-[#E5E7EB]">
+        <div className="section-band">
+          <div className="mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#3B82F6] flex items-center justify-center shadow-sm">
-                <Plus className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-lg bg-[#0A2540] flex items-center justify-center shadow-sm">
+                <Plus className="w-5 h-5 text-white" weight="bold" />
               </div>
-              <h3 className="text-[#1F2937]">User Information</h3>
+              <h3 className="font-heading font-semibold text-lg text-slate-800">User Information</h3>
             </div>
-          </CardHeader>
-          <CardContent className="p-8 space-y-8">
+          </div>
+          <div className="p-8 space-y-8">
             {/* Role Selection - Prominent */}
             <div className="space-y-3">
               <Label className="text-[#1F2937]">
                 Select Role <span className="text-[#EF4444]">*</span>
               </Label>
               <Select value={selectedRole} onValueChange={(value: string) => setSelectedRole(value as 'teacher' | 'parent' | 'accountant' | '')}>
-                <SelectTrigger className="h-14 rounded-xl border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-[#F9FAFB] text-[#1F2937] hover:bg-white transition-all shadow-sm">
+                <SelectTrigger className="h-14 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-[#F9FAFB] text-[#1F2937] hover:bg-white transition-all shadow-sm">
                   <SelectValue placeholder="Choose user role to continue" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-[#E5E7EB] rounded-xl shadow-lg">
+                <SelectContent className="bg-white border-gray-100 rounded-xl shadow-lg">
                   <SelectItem value="teacher" className="text-[#1F2937] hover:bg-[#F9FAFB] rounded-lg m-1">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-[#10B981]" />
@@ -267,7 +267,7 @@ export function RegisterUserPage() {
                   </SelectItem>
                   <SelectItem value="parent" className="text-[#1F2937] hover:bg-[#F9FAFB] rounded-lg m-1">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
+                      <div className="w-2 h-2 rounded-full bg-[#0A2540]" />
                       Parent/Guardian
                     </div>
                   </SelectItem>
@@ -285,7 +285,7 @@ export function RegisterUserPage() {
             {selectedRole && (
               <>
                 {/* Photo Upload - Enhanced */}
-                <div className="space-y-3 p-6 bg-[#F9FAFB] rounded-xl border-2 border-dashed border-[#E5E7EB]">
+                <div className="space-y-3 p-6 bg-[#F9FAFB] rounded-xl border-2 border-dashed border-gray-100">
                   <Label className="text-[#1F2937]">Profile Photo (Optional)</Label>
                   <div className="flex items-start gap-6">
                     <div className="flex-shrink-0">
@@ -294,7 +294,7 @@ export function RegisterUserPage() {
                           <img
                             src={photoPreview}
                             alt="Preview"
-                            className="w-32 h-32 rounded-xl object-cover border-4 border-white shadow-lg ring-2 ring-[#3B82F6]/20"
+                            className="w-32 h-32 rounded-xl object-cover border-4 border-white shadow-lg ring-2 ring-[#0A2540]/20"
                           />
                           <button
                             type="button"
@@ -305,8 +305,8 @@ export function RegisterUserPage() {
                           </button>
                         </div>
                       ) : (
-                        <div className="w-32 h-32 rounded-xl border-2 border-dashed border-[#CBD5E1] flex flex-col items-center justify-center bg-white hover:border-[#3B82F6] transition-all group cursor-pointer">
-                          <span className="w-8 h-8 text-[#94A3B8] group-hover:text-[#3B82F6] mb-2 transition-colors" />
+                        <div className="w-32 h-32 rounded-xl border-2 border-dashed border-[#CBD5E1] flex flex-col items-center justify-center bg-white hover:border-[#0A2540] transition-all group cursor-pointer">
+                          <span className="w-8 h-8 text-[#94A3B8] group-hover:text-[#0A2540] mb-2 transition-colors" />
                           <span className="text-xs text-[#6B7280]">Click to upload</span>
                         </div>
                       )}
@@ -323,7 +323,7 @@ export function RegisterUserPage() {
                         type="button"
                         variant="outline"
                         onClick={() => document.getElementById('photo-upload')?.click()}
-                        className="rounded-xl border-2 border-[#E5E7EB] text-[#1F2937] hover:bg-white hover:border-[#3B82F6] transition-all shadow-sm"
+                        className="rounded-xl border-2 border-gray-100 text-[#1F2937] hover:bg-white hover:border-[#0A2540] transition-all shadow-sm"
                       >
                         <span className="w-4 h-4 mr-2" />
                         {photoPreview ? 'Change Photo' : 'Upload Photo'}
@@ -338,12 +338,12 @@ export function RegisterUserPage() {
                 </div>
 
                 {/* Personal Information */}
-                <div className="space-y-4 pt-6 border-t-2 border-[#E5E7EB]">
+                <div className="space-y-4 pt-6 border-t-2 border-gray-100">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
-                      <span className="text-[#3B82F6]">1</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#0A2540]/10 flex items-center justify-center">
+                      <span className="text-[#0A2540]">1</span>
                     </div>
-                    <h4 className="text-[#1F2937]">Personal Details</h4>
+                    <h4 className="font-heading font-semibold text-[#1F2937]">Personal Details</h4>
                   </div>
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -355,7 +355,7 @@ export function RegisterUserPage() {
                         value={formData.firstName}
                         onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                         placeholder="Enter first name"
-                        className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937] transition-all"
+                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
                       />
                     </div>
                     <div className="space-y-2">
@@ -367,7 +367,7 @@ export function RegisterUserPage() {
                         value={formData.lastName}
                         onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                         placeholder="Enter last name"
-                        className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937] transition-all"
+                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
                       />
                     </div>
                     <div className="space-y-2">
@@ -377,7 +377,7 @@ export function RegisterUserPage() {
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         placeholder="email@example.com"
-                        className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937] transition-all"
+                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
                       />
                     </div>
                     <div className="space-y-2">
@@ -390,7 +390,7 @@ export function RegisterUserPage() {
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         placeholder="080XXXXXXXX"
-                        className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937] transition-all"
+                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
                       />
                     </div>
                   </div>
@@ -398,12 +398,12 @@ export function RegisterUserPage() {
 
                 {/* Role-specific fields */}
                 {selectedRole === 'teacher' && (
-                  <div className="space-y-4 pt-6 border-t-2 border-[#E5E7EB]">
+                  <div className="space-y-4 pt-6 border-t-2 border-gray-100">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 rounded-lg bg-[#10B981]/10 flex items-center justify-center">
                         <span className="text-[#10B981]">2</span>
                       </div>
-                      <h4 className="text-[#1F2937]">Teacher Details</h4>
+                      <h4 className="font-heading font-semibold text-[#1F2937]">Teacher Details</h4>
                     </div>
                     <div className="grid md:grid-cols-1 gap-6">
                       <div className="space-y-2">
@@ -414,10 +414,10 @@ export function RegisterUserPage() {
                           value={formData.qualification}
                           onValueChange={(value: string) => setFormData({ ...formData, qualification: value })}
                         >
-                          <SelectTrigger className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937] transition-all">
+                          <SelectTrigger className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all">
                             <SelectValue placeholder="Select qualification" />
                           </SelectTrigger>
-                          <SelectContent className="bg-white border-[#E5E7EB] rounded-xl">
+                          <SelectContent className="bg-white border-gray-100 rounded-xl">
                             <SelectItem value="NCE" className="text-[#1F2937] rounded-lg">NCE</SelectItem>
                             <SelectItem value="B.Ed" className="text-[#1F2937] rounded-lg">B.Ed</SelectItem>
                             <SelectItem value="B.Sc" className="text-[#1F2937] rounded-lg">B.Sc</SelectItem>
@@ -431,7 +431,7 @@ export function RegisterUserPage() {
                     </div>
 
                     {/* Class Teacher Assignment */}
-                    <div className="p-6 bg-gradient-to-br from-[#EBF5FF] to-[#F0F9FF] rounded-xl border-2 border-[#BFDBFE] space-y-4 shadow-sm">
+                    <div className="p-6 bg-gradient-to-br from-[#F0F4F8] to-[#F8FAFC] rounded-xl border-2 border-[#0A2540]/20 space-y-4 shadow-sm">
                       <div className="flex items-center space-x-3">
                         <Checkbox
                           id="classTeacher"
@@ -443,7 +443,7 @@ export function RegisterUserPage() {
                               classTeacherId: checked ? formData.classTeacherId : null,
                             })
                           }
-                          className="border-2 border-[#3B82F6] data-[state=checked]:bg-[#3B82F6]"
+                          className="border-2 border-[#0A2540] data-[state=checked]:bg-[#0A2540]"
                         />
                         <Label htmlFor="classTeacher" className="text-[#1F2937] cursor-pointer">
                           Assign as Class Teacher
@@ -460,10 +460,10 @@ export function RegisterUserPage() {
                               setFormData({ ...formData, classTeacherId: parseInt(value) })
                             }
                           >
-                            <SelectTrigger className="h-12 rounded-xl border-2 border-[#BFDBFE] focus:border-[#3B82F6] bg-white text-[#1F2937] transition-all">
+                            <SelectTrigger className="h-12 rounded-xl border-2 border-[#0A2540]/20 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all">
                               <SelectValue placeholder="Select class for this teacher" />
                             </SelectTrigger>
-                            <SelectContent className="bg-white border-[#E5E7EB] rounded-xl">
+                            <SelectContent className="bg-white border-gray-100 rounded-xl">
                               {classes
                                 .filter((c) => c.status === 'Active')
                                 .map((cls) => (
@@ -480,12 +480,12 @@ export function RegisterUserPage() {
                 )}
 
                 {selectedRole === 'accountant' && (
-                  <div className="space-y-4 pt-6 border-t-2 border-[#E5E7EB]">
+                  <div className="space-y-4 pt-6 border-t-2 border-gray-100">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
                         <span className="text-[#F59E0B]">2</span>
                       </div>
-                      <h4 className="text-[#1F2937]">Accountant Details</h4>
+                      <h4 className="font-heading font-semibold text-[#1F2937]">Accountant Details</h4>
                     </div>
                     <div className="grid md:grid-cols-1 gap-6">
                       <div className="space-y-2">
@@ -497,7 +497,7 @@ export function RegisterUserPage() {
                           value={formData.department}
                           onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                           placeholder="e.g., Finance"
-                          className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937] transition-all"
+className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
                         />
                       </div>
                     </div>
@@ -505,12 +505,12 @@ export function RegisterUserPage() {
                 )}
 
                 {/* Login Credentials */}
-                <div className="space-y-4 pt-6 border-t-2 border-[#E5E7EB]">
+                <div className="space-y-4 pt-6 border-t-2 border-gray-100">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center">
-                      <span className="text-[#8B5CF6]">{selectedRole === 'parent' ? '2' : '3'}</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#FB923C]/10 flex items-center justify-center">
+                      <span className="text-[#FB923C]">{selectedRole === 'parent' ? '2' : '3'}</span>
                     </div>
-                    <h4 className="text-[#1F2937]">Login Credentials</h4>
+                    <h4 className="font-heading font-semibold text-[#1F2937]">Login Credentials</h4>
                   </div>
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -534,7 +534,7 @@ export function RegisterUserPage() {
                           usernameValidation.isChecking 
                             ? 'border-[#F59E0B] focus:border-[#F59E0B]' 
                             : usernameValidation.isValid 
-                              ? 'border-[#E5E7EB] focus:border-[#3B82F6]' 
+                              ? 'border-gray-100 focus:border-[#0A2540]' 
                               : 'border-[#EF4444] focus:border-[#EF4444]'
                         } bg-white text-[#1F2937] transition-all`}
                       />
@@ -561,7 +561,7 @@ export function RegisterUserPage() {
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                         placeholder="Leave blank for default password (1234567)"
-                        className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-[#3B82F6] bg-white text-[#1F2937] transition-all"
+                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all"
                       />
                       <p className="text-xs text-[#6B7280]">Default password: 1234567 (user can change after first login)</p>
                     </div>
@@ -569,12 +569,12 @@ export function RegisterUserPage() {
                 </div>
               </>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Action Buttons - Enhanced */}
         {selectedRole && (
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-8 p-6 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB]">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-8 p-6 bg-[#F9FAFB] rounded-xl border border-gray-100">
             <p className="text-sm text-[#6B7280]">
               Please review all information before submitting
             </p>
@@ -583,13 +583,13 @@ export function RegisterUserPage() {
                 type="button"
                 onClick={handleReset}
                 variant="outline"
-                className="rounded-xl border-2 border-[#E5E7EB] text-[#1F2937] hover:bg-white hover:border-[#CBD5E1] transition-all h-12 px-6"
+                className="rounded-xl border-2 border-gray-100 text-[#1F2937] hover:bg-white hover:border-[#CBD5E1] transition-all h-12 px-6"
               >
                 Reset Form
               </Button>
               <Button
                 type="submit"
-                className="bg-gradient-to-r from-[#10B981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white rounded-xl shadow-lg hover:shadow-xl transition-all h-12 px-8 hover-lift"
+                className="bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 hover:from-[#0A2540]/90 hover:to-[#0A2540] text-white rounded-xl shadow-lg hover:shadow-xl transition-all h-12 px-8 hover-lift"
               >
                 <span className="w-5 h-5 mr-2" />
                 Register {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}

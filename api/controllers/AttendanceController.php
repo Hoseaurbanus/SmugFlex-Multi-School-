@@ -1,13 +1,14 @@
 <?php
 /**
  * Attendance Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class AttendanceController {
     private $conn;
@@ -22,15 +23,17 @@ class AttendanceController {
      */
     public function getAttendance() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $pagination = Middleware::getPaginationParams();
-        $search_params = Middleware::getSearchParams();
+        $search_params = Middleware::getSearchParams(['id', 'date', 'status', 'created_at']);
         
         try {
             // ============ NEW: GET CURRENT SETTINGS FOR DEFAULT FILTERING ============
             $settings_query = "SELECT setting_key, setting_value FROM school_settings 
-                              WHERE setting_key IN ('current_academic_year', 'current_term')";
+                              WHERE setting_key IN ('current_academic_year', 'current_term') AND school_id = :school_id";
             $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->bindParam(':school_id', $school_id);
             $settings_stmt->execute();
             $settings = [];
             while ($setting = $settings_stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -55,8 +58,8 @@ class AttendanceController {
                            JOIN classes c ON s.class_id = c.id";
             
             // Add search conditions
-            $conditions = [];
-            $params = [];
+            $conditions = ["a.school_id = :school_id"];
+            $params = [':school_id' => $school_id];
             
             if (!empty($search_params['search'])) {
                 $conditions[] = "(s.first_name LIKE :search OR s.last_name LIKE :search OR s.admission_number LIKE :search OR c.name LIKE :search)";
@@ -157,6 +160,7 @@ class AttendanceController {
      */
     public function getAttendanceByDate($date) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $date = Middleware::validateDate($date);
         $class_id = isset($_GET['class_id']) ? Middleware::validateInteger($_GET['class_id'], 'class_id') : null;
@@ -164,8 +168,9 @@ class AttendanceController {
         try {
             // ============ NEW: GET CURRENT SETTINGS FOR DEFAULT FILTERING ============
             $settings_query = "SELECT setting_key, setting_value FROM school_settings 
-                              WHERE setting_key IN ('current_academic_year', 'current_term')";
+                              WHERE setting_key IN ('current_academic_year', 'current_term') AND school_id = :school_id";
             $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->bindParam(':school_id', $school_id);
             $settings_stmt->execute();
             $settings = [];
             while ($setting = $settings_stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -188,10 +193,11 @@ class AttendanceController {
                 }
                 
                 // Verify teacher has access to this class
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -200,15 +206,16 @@ class AttendanceController {
             }
             
             $query = "SELECT a.*, s.first_name, s.last_name, s.admission_number,
-                             c.name as class_name, c.level
-                      FROM attendance a
-                      JOIN students s ON a.student_id = s.id
-                      JOIN classes c ON s.class_id = c.id
-                      WHERE a.date = :date
-                            AND a.academic_year = :academic_year
-                            AND a.term = :term";
+                              c.name as class_name, c.level
+                       FROM attendance a
+                       JOIN students s ON a.student_id = s.id
+                       JOIN classes c ON s.class_id = c.id
+                       WHERE a.date = :date
+                             AND a.academic_year = :academic_year
+                             AND a.term = :term
+                             AND a.school_id = :school_id";
             
-            $params = [':date' => $date, ':academic_year' => $academic_year, ':term' => $term];
+            $params = [':date' => $date, ':academic_year' => $academic_year, ':term' => $term, ':school_id' => $school_id];
             
             if ($class_id) {
                 $query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";
@@ -244,6 +251,7 @@ class AttendanceController {
      */
     public function markAttendance() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         if ($token_data['role'] !== 'teacher' && $token_data['role'] !== 'admin') {
             Response::forbidden('Only teachers and admins can mark attendance');
@@ -260,10 +268,11 @@ class AttendanceController {
             
             // Teacher can only mark attendance for their classes
             if ($token_data['role'] === 'teacher') {
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -272,9 +281,10 @@ class AttendanceController {
             }
             
             // Get all students in the class
-            $students_query = "SELECT id FROM students WHERE class_id = :class_id AND status = 'Active'";
+            $students_query = "SELECT id FROM students WHERE class_id = :class_id AND status = 'Active' AND school_id = :school_id";
             $students_stmt = $this->conn->prepare($students_query);
             $students_stmt->bindParam(':class_id', $class_id);
+            $students_stmt->bindParam(':school_id', $school_id);
             $students_stmt->execute();
             $students = $students_stmt->fetchAll(PDO::FETCH_COLUMN, 0);
             
@@ -315,10 +325,11 @@ class AttendanceController {
                 $notes = $record['notes'];
                 
                 // Check if attendance already exists for this date and student
-                $check_query = "SELECT id FROM attendance WHERE student_id = :student_id AND date = :date";
+                $check_query = "SELECT id FROM attendance WHERE student_id = :student_id AND date = :date AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':student_id', $student_id);
                 $check_stmt->bindParam(':date', $date);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 $existing_attendance = $check_stmt->fetch();
@@ -326,18 +337,20 @@ class AttendanceController {
                 if ($existing_attendance) {
                     // Update existing attendance
                     $update_query = "UPDATE attendance SET status = :status, remarks = :remarks, marked_by = :marked_by, marked_date = NOW()
-                                     WHERE id = :id";
+                                     WHERE id = :id AND school_id = :school_id";
                     
                     $update_stmt = $this->conn->prepare($update_query);
                     $update_stmt->bindParam(':status', $status);
                     $update_stmt->bindParam(':remarks', $notes);
                     $update_stmt->bindParam(':marked_by', $token_data['user_id']);
                     $update_stmt->bindParam(':id', $existing_attendance['id']);
+                    $update_stmt->bindParam(':school_id', $school_id);
                     $update_stmt->execute();
                 } else {
                     // Get current term and academic year from settings
-                    $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year')";
+                    $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year') AND school_id = :school_id";
                     $settings_stmt = $this->conn->prepare($settings_query);
+                    $settings_stmt->bindParam(':school_id', $school_id);
                     $settings_stmt->execute();
                     $settings_results = $settings_stmt->fetchAll(PDO::FETCH_ASSOC);
                     $settings = [];
@@ -346,8 +359,8 @@ class AttendanceController {
                     }
                     
                     // Insert new attendance
-                    $insert_query = "INSERT INTO attendance (student_id, class_id, date, status, remarks, marked_by, term, academic_year)
-                                     VALUES (:student_id, :class_id, :date, :status, :remarks, :marked_by, :term, :academic_year)";
+                    $insert_query = "INSERT INTO attendance (student_id, class_id, date, status, remarks, marked_by, term, academic_year, school_id)
+                                     VALUES (:student_id, :class_id, :date, :status, :remarks, :marked_by, :term, :academic_year, :school_id)";
                     
                     $insert_stmt = $this->conn->prepare($insert_query);
                     $insert_stmt->bindParam(':student_id', $student_id);
@@ -358,6 +371,7 @@ class AttendanceController {
                     $insert_stmt->bindParam(':marked_by', $token_data['user_id']);
                     $insert_stmt->bindParam(':term', $settings['current_term']);
                     $insert_stmt->bindParam(':academic_year', $settings['current_academic_year']);
+                    $insert_stmt->bindParam(':school_id', $school_id);
                     $insert_stmt->execute();
                 }
             }
@@ -394,15 +408,17 @@ class AttendanceController {
      */
     public function getStudentAttendanceSummary($student_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $student_id = Middleware::validateInteger($student_id, 'student_id');
         
         // Check access permissions
         if ($token_data['role'] === 'parent') {
             // Verify parent owns this student
-            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':parent_id', $token_data['linked_id']);
             $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -412,10 +428,11 @@ class AttendanceController {
             // Verify teacher has access to this student's class
             $check_query = "SELECT COUNT(*) as count FROM students s
                            JOIN subject_assignments sa ON s.class_id = sa.class_id
-                           WHERE s.id = :student_id AND sa.teacher_id = :teacher_id";
+                           WHERE s.id = :student_id AND sa.teacher_id = :teacher_id AND s.school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':student_id', $student_id);
             $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -436,12 +453,13 @@ class AttendanceController {
                                 SUM(CASE WHEN status = 'Excused' THEN 1 ELSE 0 END) as excused_days,
                                 ROUND((SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) as attendance_percentage
                               FROM attendance 
-                              WHERE student_id = :student_id AND date BETWEEN :date_from AND :date_to";
+                              WHERE student_id = :student_id AND date BETWEEN :date_from AND :date_to AND school_id = :school_id";
             
             $summary_stmt = $this->conn->prepare($summary_query);
             $summary_stmt->bindParam(':student_id', $student_id);
             $summary_stmt->bindParam(':date_from', $date_from);
             $summary_stmt->bindParam(':date_to', $date_to);
+            $summary_stmt->bindParam(':school_id', $school_id);
             $summary_stmt->execute();
             
             $summary = $summary_stmt->fetch();
@@ -451,13 +469,14 @@ class AttendanceController {
                               FROM attendance a
                               JOIN students s ON a.student_id = s.id
                               JOIN classes c ON s.class_id = c.id
-                              WHERE a.student_id = :student_id AND a.date BETWEEN :date_from AND :date_to
+                              WHERE a.student_id = :student_id AND a.date BETWEEN :date_from AND :date_to AND a.school_id = :school_id
                               ORDER BY a.date DESC";
             
             $details_stmt = $this->conn->prepare($details_query);
             $details_stmt->bindParam(':student_id', $student_id);
             $details_stmt->bindParam(':date_from', $date_from);
             $details_stmt->bindParam(':date_to', $date_to);
+            $details_stmt->bindParam(':school_id', $school_id);
             $details_stmt->execute();
             
             $details = $details_stmt->fetchAll();
@@ -483,14 +502,16 @@ class AttendanceController {
      */
     public function getClassAttendanceSummary($class_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $class_id = Middleware::validateInteger($class_id, 'class_id');
         
         // Teacher can only see attendance for their classes
         if ($token_data['role'] === 'teacher') {
-            $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+            $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
             $check_stmt->bindParam(':class_id', $class_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -511,11 +532,12 @@ class AttendanceController {
                                 ROUND((SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) as attendance_percentage
                               FROM students s
                               LEFT JOIN attendance a ON s.id = a.student_id AND a.date = :date
-                              WHERE s.class_id = :class_id AND s.status = 'Active'";
+                              WHERE s.class_id = :class_id AND s.status = 'Active' AND s.school_id = :school_id";
             
             $summary_stmt = $this->conn->prepare($summary_query);
             $summary_stmt->bindParam(':date', $date);
             $summary_stmt->bindParam(':class_id', $class_id);
+            $summary_stmt->bindParam(':school_id', $school_id);
             $summary_stmt->execute();
             
             $summary = $summary_stmt->fetch();
@@ -526,12 +548,13 @@ class AttendanceController {
                                      a.notes, a.recorded_at
                               FROM students s
                               LEFT JOIN attendance a ON s.id = a.student_id AND a.date = :date
-                              WHERE s.class_id = :class_id AND s.status = 'Active'
+                              WHERE s.class_id = :class_id AND s.status = 'Active' AND s.school_id = :school_id
                               ORDER BY s.last_name, s.first_name";
             
             $details_stmt = $this->conn->prepare($details_query);
             $details_stmt->bindParam(':date', $date);
             $details_stmt->bindParam(':class_id', $class_id);
+            $details_stmt->bindParam(':school_id', $school_id);
             $details_stmt->execute();
             
             $details = $details_stmt->fetchAll();
@@ -557,7 +580,8 @@ class AttendanceController {
      * Get Attendance Reports
      */
     public function getAttendanceReports() {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $date_from = isset($_GET['date_from']) ? Middleware::validateDate($_GET['date_from']) : date('Y-m-01');
@@ -565,7 +589,6 @@ class AttendanceController {
             $class_id = isset($_GET['class_id']) ? Middleware::validateInteger($_GET['class_id'], 'class_id') : null;
             
             // Teacher can only see reports for their classes
-            $token_data = Middleware::requireAuth();
             $conditions = [];
             $params = [];
             
@@ -592,9 +615,12 @@ class AttendanceController {
                            JOIN classes c ON s.class_id = c.id";
             
             if ($class_id) {
-                $stats_query .= " WHERE a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";
+                $stats_query .= " WHERE a.student_id IN (SELECT id FROM students WHERE class_id = :class_id) AND a.school_id = :school_id";
                 $params[':class_id'] = $class_id;
+            } else {
+                $stats_query .= " WHERE a.school_id = :school_id";
             }
+            $params[':school_id'] = $school_id;
             
             $stats_query .= " AND a.date BETWEEN :date_from AND :date_to";
             $params[':date_from'] = $date_from;
@@ -609,13 +635,13 @@ class AttendanceController {
             
             // Daily breakdown
             $daily_query = "SELECT DATE(a.date) as date,
-                               COUNT(*) as total_records,
-                               SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) as present_count,
-                               SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) as absent_count,
-                               ROUND((SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) as percentage
-                           FROM attendance a
-                           JOIN students s ON a.student_id = s.id
-                           WHERE a.date BETWEEN :date_from AND :date_to";
+                                COUNT(*) as total_records,
+                                SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) as present_count,
+                                SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) as absent_count,
+                                ROUND((SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) as percentage
+                            FROM attendance a
+                            JOIN students s ON a.student_id = s.id
+                            WHERE a.date BETWEEN :date_from AND :date_to AND a.school_id = :school_id";
             
             if ($class_id) {
                 $daily_query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";
@@ -624,7 +650,7 @@ class AttendanceController {
             $daily_query .= " GROUP BY DATE(a.date) ORDER BY date";
             
             $daily_stmt = $this->conn->prepare($daily_query);
-            $daily_params = [':date_from' => $date_from, ':date_to' => $date_to];
+            $daily_params = [':date_from' => $date_from, ':date_to' => $date_to, ':school_id' => $school_id];
             if ($class_id) {
                 $daily_params[':class_id'] = $class_id;
             }
@@ -644,13 +670,14 @@ class AttendanceController {
                                 FROM attendance a
                                 JOIN students s ON a.student_id = s.id
                                 JOIN classes c ON s.class_id = c.id
-                                WHERE a.date BETWEEN :date_from AND :date_to
+                                WHERE a.date BETWEEN :date_from AND :date_to AND a.school_id = :school_id
                                 GROUP BY c.id, c.name, c.level
                                 ORDER BY c.level, c.name";
                 
                 $class_stmt = $this->conn->prepare($class_query);
                 $class_stmt->bindParam(':date_from', $date_from);
                 $class_stmt->bindParam(':date_to', $date_to);
+                $class_stmt->bindParam(':school_id', $school_id);
                 $class_stmt->execute();
                 $class_breakdown = $class_stmt->fetchAll();
             }

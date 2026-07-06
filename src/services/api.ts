@@ -1,6 +1,6 @@
 /**
  * API Service
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Management Platform
  */
 
 import { API_CONFIG, buildUrl, getAuthToken, setAuthToken, removeAuthToken } from '../config/api';

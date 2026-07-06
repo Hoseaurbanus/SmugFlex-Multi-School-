@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Edit, Trash2 } from 'lucide-react';
+import { PencilSimple, Trash } from '@phosphor-icons/react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -78,8 +78,8 @@ export function ExamTimetablePage() {
       duration_minutes: duration,
       venue: formData.venue || undefined,
       supervisor_id: undefined,
-      term: currentTerm,
-      academic_year: currentAcademicYear,
+      term: currentTerm || '',
+      academic_year: currentAcademicYear || '',
       instructions: formData.instructions || undefined,
       created_by: currentUser?.id || undefined,
       created_at: new Date().toISOString(),
@@ -164,15 +164,15 @@ export function ExamTimetablePage() {
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-slate-900 mb-2">Exam Timetable Management</h1>
-          <p className="text-slate-600">Create and manage examination schedules</p>
+          <h1 className="text-[#0A2540] mb-2 font-heading font-bold">Exam Timetable Management</h1>
+          <p className="text-gray-500">Create and manage examination schedules</p>
         </div>
         <div className="flex gap-3">
-          <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700 text-white">
+          <Button onClick={handleExportPDF} className="bg-[#0A2540] hover:bg-[#082030] text-white">
             <span className="w-4 h-4 mr-2" />
             Export PDF
           </Button>
-          <Button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button onClick={() => setShowForm(!showForm)} className="bg-[#0A2540] hover:bg-[#082030] text-white">
             <span className="w-4 h-4 mr-2" />
             {showForm ? 'Cancel' : 'Add Exam'}
           </Button>
@@ -181,17 +181,17 @@ export function ExamTimetablePage() {
 
       {/* Create/Edit Form */}
       {showForm && (
-        <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-slate-800 mb-4">{editingId ? 'Edit' : 'Create'} Exam Schedule</h3>
+        <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-[#0A2540] mb-4 font-heading font-semibold">{editingId ? 'Edit' : 'Create'} Exam Schedule</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block mb-2 text-slate-700 text-sm">Class <span className="text-red-500">*</span></label>
+              <label className="block mb-2 text-gray-600 text-sm">Class <span className="text-red-500">*</span></label>
               <select
                 name="classId"
                 value={formData.classId}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               >
                 <option value={0}>Select Class</option>
                 {classes.filter(c => c.status === 'Active').map(cls => (
@@ -201,12 +201,12 @@ export function ExamTimetablePage() {
             </div>
 
             <div>
-              <label className="block mb-2 text-slate-700 text-sm">Subject <span className="text-red-500">*</span></label>
+              <label className="block mb-2 text-gray-600 text-sm">Subject <span className="text-red-500">*</span></label>
               <select
                 name="subjectId"
                 value={formData.subjectId}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               >
                 <option value={0}>Select Subject</option>
                 {subjects.filter(s => s.status === 'Active').map(sub => (
@@ -216,12 +216,12 @@ export function ExamTimetablePage() {
             </div>
 
             <div>
-              <label className="block mb-2 text-slate-700 text-sm">Exam Type <span className="text-red-500">*</span></label>
+              <label className="block mb-2 text-gray-600 text-sm">Exam Type <span className="text-red-500">*</span></label>
               <select
                 name="examType"
                 value={formData.examType}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               >
                 <option value="CA1">CA1</option>
                 <option value="CA2">CA2</option>
@@ -231,76 +231,76 @@ export function ExamTimetablePage() {
             </div>
 
             <div>
-              <label className="block mb-2 text-slate-700 text-sm">Exam Date <span className="text-red-500">*</span></label>
+              <label className="block mb-2 text-gray-600 text-sm">Exam Date <span className="text-red-500">*</span></label>
               <input
                 type="date"
                 name="examDate"
                 value={formData.examDate}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-slate-700 text-sm">Venue <span className="text-red-500">*</span></label>
+              <label className="block mb-2 text-gray-600 text-sm">Venue <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 name="venue"
                 value={formData.venue}
                 onChange={handleInputChange}
                 placeholder="e.g., Exam Hall A, Classroom 201"
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-slate-700 text-sm">Start Time <span className="text-red-500">*</span></label>
+              <label className="block mb-2 text-gray-600 text-sm">Start Time <span className="text-red-500">*</span></label>
               <input
                 type="time"
                 name="startTime"
                 value={formData.startTime}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-slate-700 text-sm">End Time <span className="text-red-500">*</span></label>
+              <label className="block mb-2 text-gray-600 text-sm">End Time <span className="text-red-500">*</span></label>
               <input
                 type="time"
                 name="endTime"
                 value={formData.endTime}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block mb-2 text-slate-700 text-sm">Special Instructions</label>
+              <label className="block mb-2 text-gray-600 text-sm">Special Instructions</label>
               <textarea
                 name="instructions"
                 value={formData.instructions}
                 onChange={handleInputChange}
                 placeholder="Add any special instructions for the exam..."
                 rows={3}
-                className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
           </div>
 
           {formData.startTime && formData.endTime && (
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-blue-800 text-sm">
+            <div className="mt-4 p-3 bg-[#0A2540]/5 border border-[#0A2540]/10 rounded-lg">
+              <p className="text-[#0A2540] text-sm">
                 Duration: {calculateDuration(formData.startTime, formData.endTime)} minutes
               </p>
             </div>
           )}
 
           <div className="mt-6 flex justify-end gap-3">
-            <Button onClick={resetForm} className="bg-gray-200 text-gray-700 hover:bg-gray-300">
+            <Button onClick={resetForm} className="bg-gray-100 text-gray-600 hover:bg-gray-200">
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button onClick={handleSubmit} className="bg-[#0A2540] hover:bg-[#082030] text-white">
               {editingId ? 'Update' : 'Create'} Exam Schedule
             </Button>
           </div>
@@ -308,20 +308,20 @@ export function ExamTimetablePage() {
       )}
 
       {/* Filter */}
-      <Card className="p-4 bg-white rounded-xl shadow-sm border border-slate-200">
+      <Card className="p-4 bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-4">
-          <label className="text-slate-700">Filter by Class:</label>
+          <label className="text-gray-600">Filter by Class:</label>
           <select
             value={selectedClassId}
             onChange={(e) => setSelectedClassId(Number(e.target.value))}
-            className="p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
           >
             <option value={0}>All Classes</option>
             {classes.filter(c => c.status === 'Active').map(cls => (
               <option key={cls.id} value={cls.id}>{cls.name}</option>
             ))}
           </select>
-          <span className="text-slate-600 ml-auto">
+          <span className="text-gray-500 ml-auto">
             {filteredTimetables.length} exam{filteredTimetables.length !== 1 ? 's' : ''} scheduled
           </span>
         </div>
@@ -329,37 +329,37 @@ export function ExamTimetablePage() {
 
       {/* Timetable Display */}
       {Object.keys(groupedTimetables).length === 0 ? (
-        <Card className="p-12 bg-white rounded-xl shadow-sm border border-slate-200 text-center">
-          <span className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-slate-900 mb-2">No Exams Scheduled</h3>
-          <p className="text-slate-600">Click "Add Exam" to create an examination schedule</p>
+        <Card className="p-12 bg-white rounded-xl shadow-sm border border-gray-100 text-center">
+          <span className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-[#0A2540] mb-2">No Exams Scheduled</h3>
+          <p className="text-gray-500">Click "Add Exam" to create an examination schedule</p>
         </Card>
       ) : (
         <div className="space-y-6">
           {Object.keys(groupedTimetables).sort().map(className => (
-            <Card key={className} className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
-              <h3 className="text-slate-800 mb-4">{className}</h3>
+            <Card key={className} className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+              <h3 className="text-[#0A2540] mb-4 font-heading font-semibold">{className}</h3>
               
               <div className="space-y-3">
                 {groupedTimetables[className].map(timetable => (
                   <div
                     key={timetable.id}
-                    className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 transition-colors"
+                    className="p-4 border border-gray-100 rounded-lg hover:border-[#FFD700]/30 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h4 className="text-slate-900">{timetable.subject_name}</h4>
-                          <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                          <h4 className="text-[#0A2540]">{timetable.subject_name}</h4>
+                          <span className="px-3 py-1 bg-[#0A2540]/10 text-[#0A2540] rounded-full text-sm">
                             {timetable.exam_type}
                           </span>
-                          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                          <span className="px-3 py-1 bg-[#FFD700]/10 text-[#0A2540] rounded-full text-sm">
                             {timetable.duration_minutes} mins
                           </span>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                          <div className="flex items-center gap-2 text-slate-600">
+                          <div className="flex items-center gap-2 text-gray-500">
                             <span className="w-4 h-4" />
                             {new Date(timetable.exam_date).toLocaleDateString('en-US', {
                               weekday: 'short',
@@ -368,18 +368,18 @@ export function ExamTimetablePage() {
                               year: 'numeric',
                             })}
                           </div>
-                          <div className="flex items-center gap-2 text-slate-600">
+                          <div className="flex items-center gap-2 text-gray-500">
                             <span className="w-4 h-4" />
                             {timetable.start_time} - {timetable.end_time}
                           </div>
-                          <div className="text-slate-600">
+                          <div className="text-gray-500">
                             📍 {timetable.venue}
                           </div>
                         </div>
 
                         {timetable.instructions && (
-                          <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p className="text-yellow-800 text-sm">{timetable.instructions}</p>
+                          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p className="text-amber-700 text-sm">{timetable.instructions}</p>
                           </div>
                         )}
                       </div>
@@ -387,15 +387,15 @@ export function ExamTimetablePage() {
                       <div className="flex gap-2">
                         <Button
                           onClick={() => handleEdit(timetable)}
-                          className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700"
+                          className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600"
                         >
-                          <Edit className="w-4 h-4" />
+                          <PencilSimple weight="bold" className="w-4 h-4" />
                         </Button>
                         <Button
                           onClick={() => handleDelete(timetable.id)}
-                          className="p-2 bg-red-100 hover:bg-red-200 text-red-700"
+                          className="p-2 bg-red-50 hover:bg-red-100 text-red-600"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash weight="bold" className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>

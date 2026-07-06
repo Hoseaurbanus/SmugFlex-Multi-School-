@@ -7,8 +7,8 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 
-// The staff data you provided
-const GRACELAND_STAFF_DATA = [
+// Legacy staff data for import
+const LEGACY_STAFF_DATA = [
   { lastName: "AHMED", firstName: "HASSANA", otherName: "SOYA", gender: "FEMALE", phone: "", username: "hassana2@gra", email: "", role: "CLASS TEACHER" },
   { lastName: "CHRIS", firstName: "RHEMA", otherName: "", gender: "FEMALE", phone: "", username: "rhema1@gra", email: "cr@gmail.com", role: "CLASS TEACHER" },
   { lastName: "Dike", firstName: "Stella", otherName: "Onyeka", gender: "FEMALE", phone: "8068651255", username: "stella1@gra", email: "kachidike4@gmail.com", role: "MEDICAL OFFICER" },
@@ -34,8 +34,8 @@ export function QuickStaffImportPage() {
   const [importComplete, setImportComplete] = useState(false);
   const [importResults, setImportResults] = useState({ success: 0, failed: 0, skipped: 0 });
 
-  const handleQuickImport = async () => { // Async function for staff import
-    if (!confirm(`This will import ${GRACELAND_STAFF_DATA.length} staff members from Graceland Royal Academy Gombe. Continue?`)) {
+  const handleQuickImport = async () => {
+    if (!confirm(`This will import ${LEGACY_STAFF_DATA.length} staff members. Continue?`)) {
       return;
     }
 
@@ -46,7 +46,7 @@ export function QuickStaffImportPage() {
 
     const existingUsernames = users.map((u: any) => u.username);
 
-    for (const staff of GRACELAND_STAFF_DATA) {
+    for (const staff of LEGACY_STAFF_DATA) {
       try {
         // Check if username already exists
         if (existingUsernames.includes(staff.username)) {
@@ -103,7 +103,7 @@ export function QuickStaffImportPage() {
   const handleDownloadCSV = () => {
     const csvContent = [
       ["Last Name", "First Name", "Other Name", "Gender", "Phone", "Username", "Email", "Role"],
-      ...GRACELAND_STAFF_DATA.map(staff => [
+      ...LEGACY_STAFF_DATA.map(staff => [
         staff.lastName,
         staff.firstName,
         staff.otherName,
@@ -119,7 +119,7 @@ export function QuickStaffImportPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "graceland_staff_data.csv";
+    a.download = "legacy_staff_data.csv";
     a.click();
     URL.revokeObjectURL(url);
     toast.success("CSV file downloaded successfully");
@@ -128,9 +128,9 @@ export function QuickStaffImportPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="mb-6">
-        <h1 className="text-[#0A2540] mb-2">Quick Staff Import - Graceland Royal Academy</h1>
+        <h1 className="text-[#0A2540] mb-2">Quick Staff Import</h1>
         <p className="text-gray-600">
-          Import all 17 staff members from Graceland Royal Academy Gombe with one click
+          Import all 17 legacy staff members with one click
         </p>
       </div>
 
@@ -139,7 +139,7 @@ export function QuickStaffImportPage() {
         <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl">
           <CardTitle className="flex items-center gap-2">
             <span className="w-5 h-5" />
-            Staff Members to Import ({GRACELAND_STAFF_DATA.length})
+            Staff Members to Import ({LEGACY_STAFF_DATA.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -159,7 +159,7 @@ export function QuickStaffImportPage() {
                 </tr>
               </thead>
               <tbody>
-                {GRACELAND_STAFF_DATA.map((staff, index) => (
+                {LEGACY_STAFF_DATA.map((staff, index) => (
                   <tr key={index} className="border-t border-gray-200 hover:bg-gray-50">
                     <td className="px-3 py-2">{index + 1}</td>
                     <td className="px-3 py-2 font-medium">{staff.lastName}</td>
@@ -213,28 +213,28 @@ export function QuickStaffImportPage() {
             <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
               <p className="text-green-900 font-medium mb-1">Class Teachers</p>
               <p className="text-2xl font-bold text-green-600">
-                {GRACELAND_STAFF_DATA.filter(s => s.role.includes("CLASS")).length}
+                {LEGACY_STAFF_DATA.filter(s => s.role.includes("CLASS")).length}
               </p>
             </div>
 
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
               <p className="text-blue-900 font-medium mb-1">Subject Teachers</p>
               <p className="text-2xl font-bold text-blue-600">
-                {GRACELAND_STAFF_DATA.filter(s => s.role.includes("SUBJECT")).length}
+                {LEGACY_STAFF_DATA.filter(s => s.role.includes("SUBJECT")).length}
               </p>
             </div>
 
             <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl">
               <p className="text-purple-900 font-medium mb-1">Medical Officer</p>
               <p className="text-2xl font-bold text-purple-600">
-                {GRACELAND_STAFF_DATA.filter(s => s.role.includes("MEDICAL")).length}
+                {LEGACY_STAFF_DATA.filter(s => s.role.includes("MEDICAL")).length}
               </p>
             </div>
 
             <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
               <p className="text-orange-900 font-medium mb-1">Total Staff</p>
               <p className="text-2xl font-bold text-orange-600">
-                {GRACELAND_STAFF_DATA.length}
+                {LEGACY_STAFF_DATA.length}
               </p>
             </div>
           </div>
@@ -258,7 +258,7 @@ export function QuickStaffImportPage() {
               ) : (
                 <>
                   <Plus className="w-5 h-5 mr-2" />
-                  Import All {GRACELAND_STAFF_DATA.length} Staff Members
+                  Import All {LEGACY_STAFF_DATA.length} Staff Members
                 </>
               )}
             </Button>

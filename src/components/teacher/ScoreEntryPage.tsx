@@ -27,6 +27,7 @@ export function ScoreEntryPage() {
     loadCbtAttemptsFromAPI,
     cbtExams,
     loadCbtExamsFromAPI,
+    schoolSettings,
   } = useSchool();
 
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -792,7 +793,7 @@ export function ScoreEntryPage() {
 
       {/* Footer */}
       <div className="mt-6 text-center">
-        <p className="text-xs text-slate-400">SmugFlex-Venture © — {new Date().getFullYear()}</p>
+        <p className="text-xs text-slate-400">{schoolSettings.school_name || 'School'} © — {new Date().getFullYear()}</p>
       </div>
     </div>
   );

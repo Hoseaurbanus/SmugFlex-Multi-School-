@@ -6,15 +6,6 @@
 import { getAuthToken, API_CONFIG, getCurrentUser as getApiCurrentUser } from '../config/api';
 import { tokenManager } from '../utils/tokenManager';
 
-// Production database configuration
-const DB_CONFIG = {
-  host: 'localhost',
-  database: 'mdpjhtua_graceland_academy',
-  username: 'mdpjhtua_graceland_academy',
-  password: '159075321@Au',
-  port: 3306
-};
-
 class SQLDatabaseService {
   // Request debouncing and retry mechanism
   private requestQueue = new Map<string, Promise<any>>();
@@ -220,13 +211,25 @@ class SQLDatabaseService {
   // Utility functions for automatic ID generation
   generateAdmissionNumber(): string {
     const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    return `GRA/${random}`;
+    const suffix = this.getSchoolSuffix();
+    return suffix ? `${suffix.toUpperCase()}/${random}` : `STU/${random}`;
   }
 
   generateEmployeeId(role: string): string {
     const prefix = role === 'teacher' ? 'TCH' : role === 'accountant' ? 'ACC' : 'EMP';
     const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     return `${prefix}${random}`;
+  }
+
+  private getSchoolSuffix(): string {
+    try {
+      const userStr = localStorage.getItem(API_CONFIG.AUTH.USER_KEY);
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.school_suffix || '';
+      }
+    } catch {}
+    return '';
   }
 
   // Student operations - Updated to match exact XAMPP schema
@@ -318,104 +321,24 @@ class SQLDatabaseService {
     }
   }
 
-  // Password hashing method compatible with PHP password_verify
-  async hashPassword(password: string): Promise<string> {
-    // Create a salt (in production, use a proper random salt)
-    const salt = '$2y$10$' + btoa(Math.random().toString()).substring(0, 22).replace(/[+/=]/g, '.');
-
-    // For now, we'll use a simple approach - create a hash that PHP can verify
-    // In a real implementation, you'd want to use the same bcrypt algorithm
-    // For demonstration, we'll create a basic hash that works with password_verify
-
-    // Create a simple hash (this is a simplified approach for demonstration)
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password + salt);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    // Return in a format that PHP password_verify can handle
-    // Using SHA-256 format that PHP can verify
-    return '$sha256$' + salt.substring(7) + '$' + hashHex;
-  }
-
-  // User account operations - Updated to match exact XAMPP schema
+  // User account operations - Delegates to PHP backend for proper password hashing
   async createUser(userData: any): Promise<any> {
     try {
-      // Use role-based default password
-      const defaultPassword = userData.password || (userData.role + '123');
-      let linkedId = 0;
-
-      // Create linked record FIRST based on role
-      if (userData.role === 'teacher') {
-        const teacherData = {
-          first_name: userData.firstName,
-          last_name: userData.lastName,
-          email: userData.email || '',
-          phone: userData.phone || '',
-          qualification: userData.qualification || '',
-          specialization: userData.specialization || ''
-        };
-
-        const createdTeacher = await this.createTeacher(teacherData);
-        linkedId = createdTeacher.id;
-
-        // Handle class teacher assignment
-        if (userData.isClassTeacher && userData.assignedClassId) {
-          await this.updateRecord('classes', userData.assignedClassId, {
-            class_teacher_id: linkedId,
-            class_teacher: `${userData.firstName} ${userData.lastName}`
-          });
-        }
-
-      } else if (userData.role === 'parent') {
-        const parentData = {
-          first_name: userData.firstName,
-          last_name: userData.lastName,
-          email: userData.email,
-          phone: userData.phone || null,
-          alternate_phone: userData.alternatePhone || null,
-          address: userData.address || null,
-          occupation: userData.occupation || null,
-          status: userData.status || 'Active'
-        };
-
-        const createdParent = await this.createParent(parentData);
-        linkedId = createdParent.id;
-
-      } else if (userData.role === 'accountant') {
-        const accountantData = {
-          first_name: userData.firstName,
-          last_name: userData.lastName,
-          email: userData.email,
-          phone: userData.phone || null,
-          department: userData.department || null,
-          employee_id: userData.employeeId || `ACC-${Date.now()}`,
-          status: userData.status || 'Active'
-        };
-
-        const createdAccountant = await this.createAccountant(accountantData);
-        linkedId = createdAccountant.id;
-      }
-
-      // Now create the user record with proper linked_id
-      const sqlData = {
+      // Always delegate to the PHP backend which handles password hashing properly
+      const response = await this.api('POST', '/users', {
         username: userData.username,
-        password_hash: defaultPassword, // Store as plain text, PHP will handle hashing during first login
+        password: userData.password || (userData.role + '123'),
         role: userData.role,
-        linked_id: linkedId, // Use the actual linked_id from the created record
-        email: userData.email,
-        status: userData.status || 'Active'
-      };
+        linked_id: 0, // Backend will set this based on the linked record
+        email: userData.email || '',
+        first_name: userData.firstName,
+        last_name: userData.lastName,
+        ...(userData.phone && { phone: userData.phone }),
+        ...(userData.qualification && { qualification: userData.qualification }),
+        ...(userData.department && { department: userData.department }),
+      });
 
-      const userId = await this.insertRecord('users', sqlData);
-
-      return {
-        id: userId,
-        ...userData,
-        linkedId: linkedId, // Return the actual linked_id
-        password: defaultPassword // Return the actual password for immediate use
-      };
+      return response;
     } catch (error) {
       throw error;
     }

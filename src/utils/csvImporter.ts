@@ -1,5 +1,5 @@
 /**
- * Enhanced CSV Import Utilities for Graceland Royal Academy
+ * Enhanced CSV Import Utilities for SMugFlex 2.0
  * Import CSV files into database with proper validation and class selection
  */
 

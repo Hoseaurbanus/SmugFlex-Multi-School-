@@ -10,7 +10,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
   const news = [
     {
       id: 1,
-      title: "Graceland Royal Academy Wins Inter-School Science Competition",
+      title: "Our School Wins Inter-School Science Competition",
       date: "November 20, 2025",
       author: "Admin",
       category: "Achievement",
@@ -95,7 +95,7 @@ export function SchoolNewsPage({ onBack }: ContactPageProps) {
             Back to Home
           </Button>
           <h1 className="text-3xl mb-2">School News & Announcements</h1>
-          <p className="text-blue-100">Stay updated with the latest from Graceland Royal Academy</p>
+          <p className="text-blue-100">Stay updated with the latest school news</p>
         </div>
       </header>
 

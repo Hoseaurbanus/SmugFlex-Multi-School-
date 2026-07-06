@@ -1,4 +1,4 @@
-import { Calculator, GraduationCap, Users } from 'lucide-react';
+import { Calculator, GraduationCap, Users } from '@phosphor-icons/react';
 import { useState, type FormEvent } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
@@ -116,7 +116,7 @@ export function NotificationSystemPage() {
       case 'error':
         return 'bg-[#DC3545]';
       default:
-        return 'bg-[#1E90FF]';
+        return 'bg-[#0A2540]';
     }
   };
 
@@ -124,16 +124,16 @@ export function NotificationSystemPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Notification System</h1>
+          <h1 className="text-2xl font-bold font-heading text-gray-900">Notification System</h1>
           <p className="text-gray-600 mt-1">Send notifications and announcements to users</p>
         </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
-            <CardHeader className="p-5 border-b border-gray-200">
-              <h3 className="text-gray-900 font-semibold">Create New Notification</h3>
+          <Card className="rounded-xl bg-white border border-gray-100 shadow-sm">
+            <CardHeader className="p-5 border-b border-gray-100">
+              <h3 className="text-gray-900 font-heading font-semibold">Create New Notification</h3>
             </CardHeader>
 
             <CardContent className="p-6">
@@ -146,7 +146,7 @@ export function NotificationSystemPage() {
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       placeholder="e.g., School fees reminder"
-                      className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900"
+                      className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
                     />
                   </div>
 
@@ -156,10 +156,10 @@ export function NotificationSystemPage() {
                       value={formData.recipient}
                       onValueChange={(value: string) => setFormData({ ...formData, recipient: value })}
                     >
-                      <SelectTrigger className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900">
+                      <SelectTrigger className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-[#0A2540]/20 focus:border-[#0A2540]">
                         <SelectValue placeholder="Select recipient group" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-200">
+                      <SelectContent className="bg-white border-gray-100">
                         <SelectItem value="all" className="text-gray-900">All Users</SelectItem>
                         <SelectItem value="teachers" className="text-gray-900">All Teachers</SelectItem>
                         <SelectItem value="parents" className="text-gray-900">All Parents</SelectItem>
@@ -177,10 +177,10 @@ export function NotificationSystemPage() {
                         setFormData({ ...formData, priority: value as 'info' | 'warning' | 'success' | 'error' })
                       }
                     >
-                      <SelectTrigger className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900">
+                      <SelectTrigger className="h-11 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-[#0A2540]/20 focus:border-[#0A2540]">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-200">
+                      <SelectContent className="bg-white border-gray-100">
                         <SelectItem value="info" className="text-gray-900">Info</SelectItem>
                         <SelectItem value="success" className="text-gray-900">Success</SelectItem>
                         <SelectItem value="warning" className="text-gray-900">Warning</SelectItem>
@@ -191,7 +191,7 @@ export function NotificationSystemPage() {
                 </div>
 
                 {formData.recipient === 'custom' && (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                  <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <Label className="text-gray-700">Select User Roles</Label>
                       <span className="text-xs text-gray-500">Optional (defaults to All)</span>
@@ -207,7 +207,7 @@ export function NotificationSystemPage() {
                           className="border-gray-300"
                         />
                         <Label htmlFor="teachers" className="text-gray-800 cursor-pointer flex items-center gap-2">
-                          <GraduationCap className="w-4 h-4" />
+                          <GraduationCap className="w-4 h-4" weight="bold" />
                           Teachers
                         </Label>
                       </div>
@@ -221,7 +221,7 @@ export function NotificationSystemPage() {
                           className="border-gray-300"
                         />
                         <Label htmlFor="parents" className="text-gray-800 cursor-pointer flex items-center gap-2">
-                          <Users className="w-4 h-4" />
+                          <Users className="w-4 h-4" weight="bold" />
                           Parents
                         </Label>
                       </div>
@@ -235,7 +235,7 @@ export function NotificationSystemPage() {
                           className="border-gray-300"
                         />
                         <Label htmlFor="accountants" className="text-gray-800 cursor-pointer flex items-center gap-2">
-                          <Calculator className="w-4 h-4" />
+                          <Calculator className="w-4 h-4" weight="bold" />
                           Accountants
                         </Label>
                       </div>
@@ -250,12 +250,12 @@ export function NotificationSystemPage() {
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     placeholder="Write the message you want recipients to see"
-                    className="min-h-36 rounded-xl border border-gray-300 bg-white text-gray-900"
+                    className="min-h-36 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
                   />
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white h-11 rounded-xl sm:flex-1">
+                  <Button type="submit" className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white h-11 rounded-xl sm:flex-1">
                     Send Notification
                   </Button>
                   <Button
@@ -276,25 +276,25 @@ export function NotificationSystemPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
-            <CardHeader className="p-5 border-b border-gray-200">
-              <h3 className="text-gray-900 font-semibold">Notification Analytics</h3>
+          <Card className="rounded-xl bg-white border border-gray-100 shadow-sm">
+            <CardHeader className="p-5 border-b border-gray-100">
+              <h3 className="text-gray-900 font-heading font-semibold">Notification Analytics</h3>
             </CardHeader>
             <CardContent className="p-5">
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                   <p className="text-gray-600 text-xs">Sent This Week</p>
                   <p className="text-gray-900 font-bold text-xl mt-1">{sentThisWeek}</p>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                   <p className="text-gray-600 text-xs">Total Sent</p>
                   <p className="text-gray-900 font-bold text-xl mt-1">{totalSent}</p>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                   <p className="text-gray-600 text-xs">Read Rate</p>
                   <p className="text-gray-900 font-bold text-xl mt-1">{readRate}%</p>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                   <p className="text-gray-600 text-xs">Delivery Rate</p>
                   <p className="text-gray-900 font-bold text-xl mt-1">{deliveryRate}%</p>
                 </div>
@@ -302,16 +302,16 @@ export function NotificationSystemPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl bg-white border border-gray-200 shadow-sm">
-            <CardHeader className="p-5 border-b border-gray-200">
-              <h3 className="text-gray-900 font-semibold">Recent Notifications</h3>
+          <Card className="rounded-xl bg-white border border-gray-100 shadow-sm">
+            <CardHeader className="p-5 border-b border-gray-100">
+              <h3 className="text-gray-900 font-heading font-semibold">Recent Notifications</h3>
             </CardHeader>
             <CardContent className="p-5 space-y-3">
               {recentNotifications.length === 0 ? (
                 <p className="text-gray-600 text-sm">No notifications sent yet</p>
               ) : (
                 recentNotifications.map((notification, index) => (
-                  <div key={index} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <div key={index} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <Badge className={`${getPriorityColor(notification.type)} text-white text-xs`}>
                         {String(notification.type || '').toUpperCase()}

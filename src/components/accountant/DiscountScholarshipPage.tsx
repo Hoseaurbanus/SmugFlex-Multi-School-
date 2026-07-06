@@ -72,8 +72,8 @@ export function DiscountScholarshipPage() {
       name: scholarship.name,
       type: scholarship.type,
       value: scholarship.value.toString(),
-      description: scholarship.description,
-      eligibility_criteria: scholarship.eligibility_criteria,
+      description: scholarship.description || '',
+      eligibility_criteria: scholarship.eligibility_criteria || '',
       total_budget: scholarship.total_budget.toString(),
       status: scholarship.status
     });

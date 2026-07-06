@@ -1,7 +1,7 @@
 <?php
 /**
  * Database Configuration
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 class Database {
@@ -45,32 +45,19 @@ class Database {
             }
         }
 
-        if (!$envFile) {
-            error_log("Config: No .env file found in any of these locations: " . implode(', ', $possiblePaths));
-            return;
-        }
-
-        if (!is_readable($envFile)) {
-            error_log("Config: .env file exists but is not readable: $envFile");
+        if (!$envFile || !is_readable($envFile)) {
             return;
         }
 
         $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if ($lines === false) {
-            error_log("Config: Failed to read .env file: $envFile");
             return;
         }
 
         foreach ($lines as $line) {
             $line = trim($line);
-            if (empty($line) || strpos($line, '#') === 0) {
-                error_log("Config: Skipping line: '$line'");
-                continue;
-            }
-            if (strpos($line, '=') === false) {
-                error_log("Config: No equals sign in line: '$line'");
-                continue;
-            }
+            if (empty($line) || strpos($line, '#') === 0) continue;
+            if (strpos($line, '=') === false) continue;
 
                 list($name, $value) = explode('=', $line, 2);
                 $name = trim($name);
@@ -85,13 +72,8 @@ class Database {
                 if (!array_key_exists($name, $_ENV)) {
                     $_ENV[$name] = $value;
                     putenv("$name=$value");
-                    error_log("Config: Successfully loaded $name = " . (strpos($name, 'PASS') !== false ? '[HIDDEN]' : "'$value'"));
-                } else {
-                    error_log("Config: Skipping $name (already exists)");
                 }
         }
-
-        error_log("Config: Successfully loaded environment variables from: $envFile");
     }
     
     public function getConnection() {
@@ -106,7 +88,7 @@ class Database {
             ]);
         } catch(PDOException $exception) {
             error_log("Database connection failed: " . $exception->getMessage());
-            throw new Exception("Database connection failed: " . $exception->getMessage());
+            throw new Exception("Database connection failed");
         }
         
         return $this->conn;
@@ -127,13 +109,12 @@ class Config {
     }
 
     private static function loadEnvFile() {
-        // Try multiple possible .env file locations
         $possiblePaths = [
-            __DIR__ . '/../.env',           // Standard location
-            __DIR__ . '/../../.env',        // One level up
-            dirname(__DIR__) . '/.env',     // Alternative path
-            $_SERVER['DOCUMENT_ROOT'] . '/.env', // Document root
-            getcwd() . '/.env'              // Current working directory
+            __DIR__ . '/../.env',
+            __DIR__ . '/../../.env',
+            dirname(__DIR__) . '/.env',
+            $_SERVER['DOCUMENT_ROOT'] . '/.env',
+            getcwd() . '/.env'
         ];
 
         $envFile = null;
@@ -144,38 +125,24 @@ class Config {
             }
         }
 
-        if (!$envFile) {
-            error_log("Config: No .env file found in any of these locations: " . implode(', ', $possiblePaths));
-            return;
-        }
-
-        if (!is_readable($envFile)) {
-            error_log("Config: .env file exists but is not readable: $envFile");
+        if (!$envFile || !is_readable($envFile)) {
             return;
         }
 
         $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if ($lines === false) {
-            error_log("Config: Failed to read .env file: $envFile");
             return;
         }
 
         foreach ($lines as $line) {
             $line = trim($line);
-            if (empty($line) || strpos($line, '#') === 0) {
-                error_log("Config: Skipping line: '$line'");
-                continue;
-            }
-            if (strpos($line, '=') === false) {
-                error_log("Config: No equals sign in line: '$line'");
-                continue;
-            }
+            if (empty($line) || strpos($line, '#') === 0) continue;
+            if (strpos($line, '=') === false) continue;
 
                 list($name, $value) = explode('=', $line, 2);
                 $name = trim($name);
                 $value = trim($value);
 
-                // Remove quotes if present
                 if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
                     (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
                     $value = substr($value, 1, -1);
@@ -184,13 +151,8 @@ class Config {
                 if (!array_key_exists($name, $_ENV)) {
                     $_ENV[$name] = $value;
                     putenv("$name=$value");
-                    error_log("Config: Successfully loaded $name = " . (strpos($name, 'PASS') !== false ? '[HIDDEN]' : "'$value'"));
-                } else {
-                    error_log("Config: Skipping $name (already exists)");
                 }
         }
-
-        error_log("Config: Successfully loaded environment variables from: $envFile");
     }
 
     // Database Settings
@@ -227,26 +189,34 @@ class Config {
     const DEFAULT_PAGE_SIZE = 20;
     const MAX_PAGE_SIZE = 100;
     
-    // School Settings
+    // School Settings (multi-tenant: resolve from DB/JWT, not hardcoded)
     public static function getSchoolName() {
-        return self::get('SCHOOL_NAME', 'Graceland Royal Academy');
+        $name = self::get('SCHOOL_NAME');
+        if (!$name) {
+            throw new Exception('SCHOOL_NAME environment variable is required for multi-tenant mode. Set per-school name via .env or resolve from JWT.');
+        }
+        return $name;
     }
     
     public static function getSchoolEmail() {
-        return self::get('SCHOOL_EMAIL', 'info@gracelandacademy.com');
+        $email = self::get('SCHOOL_EMAIL');
+        if (!$email) {
+            throw new Exception('SCHOOL_EMAIL environment variable is required for multi-tenant mode.');
+        }
+        return $email;
     }
     
     public static function getSchoolPhone() {
-        return self::get('SCHOOL_PHONE', '+234-800-000-0000');
+        return self::get('SCHOOL_PHONE', '');
     }
     
     public static function getSchoolAddress() {
-        return self::get('SCHOOL_ADDRESS', '123 Education Street, Lagos, Nigeria');
+        return self::get('SCHOOL_ADDRESS', '');
     }
     
     // CORS Headers
     public static function getAllowedOrigins() {
-        $origins = self::get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173,https://gracelandroyalacademy.com.ng');
+        $origins = self::get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173');
         return array_map('trim', explode(',', $origins));
     }
     

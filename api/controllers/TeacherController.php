@@ -1,12 +1,13 @@
 <?php
 /**
  * Teacher Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class TeacherController {
@@ -21,19 +22,20 @@ class TeacherController {
      * Get All Teachers (without pagination for frontend compatibility)
      */
     public function getAllTeachers() {
-        Middleware::requireAnyRole(['admin', 'teacher', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
-        $search_params = Middleware::getSearchParams();
+        $search_params = Middleware::getSearchParams(['id', 'first_name', 'last_name', 'employee_id', 'email', 'phone', 'status']);
         
         try {
             $query = "SELECT t.*, d.name as department_name, c.name as class_teacher_of,
-                             (SELECT COUNT(*) FROM subject_assignments WHERE teacher_id = t.id) as assignments_count
+                             (SELECT COUNT(*) FROM subject_assignments WHERE teacher_id = t.id AND school_id = :school_id) as assignments_count
                       FROM teachers t
                       LEFT JOIN departments d ON t.department_id = d.id
-                      LEFT JOIN classes c ON t.is_class_teacher = TRUE AND t.id = c.class_teacher_id";
+                      LEFT JOIN classes c ON t.is_class_teacher = TRUE AND t.id = c.class_teacher_id AND c.school_id = :school_id_cls";
             
             // Add search conditions
-            $conditions = [];
+            $conditions = ["t.school_id = :school_id2"];
             $params = [];
             
             if (!empty($search_params['search'])) {
@@ -48,6 +50,9 @@ class TeacherController {
             
             $query .= " ORDER BY t.first_name, t.last_name";
             
+            $params[':school_id'] = $school_id;
+            $params[':school_id2'] = $school_id;
+            $params[':school_id_cls'] = $school_id;
             $stmt = $this->conn->prepare($query);
             
             foreach ($params as $key => $value) {
@@ -95,6 +100,7 @@ class TeacherController {
      */
     public function getTeacherById($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $teacher_id = Middleware::validateInteger($id, 'teacher_id');
         
         // Check access permissions
@@ -107,14 +113,17 @@ class TeacherController {
                              (SELECT GROUP_CONCAT(sa.class_id, ':', sub.name) 
                               FROM subject_assignments sa 
                               JOIN subjects sub ON sa.subject_id = sub.id 
-                              WHERE sa.teacher_id = t.id AND sa.status = 'Active') as assignments
+                              WHERE sa.teacher_id = t.id AND sa.status = 'Active' AND sa.school_id = :school_id) as assignments
                       FROM teachers t
                     LEFT JOIN departments d ON t.department_id = d.id
-                    LEFT JOIN classes c ON t.is_class_teacher = TRUE AND t.id = c.class_teacher_id
-                    WHERE t.id = :id";
+                    LEFT JOIN classes c ON t.is_class_teacher = TRUE AND t.id = c.class_teacher_id AND c.school_id = :school_id3
+                    WHERE t.id = :id AND t.school_id = :school_id2";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $teacher_id);
+            $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':school_id2', $school_id);
+            $stmt->bindParam(':school_id3', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             
             $teacher = $stmt->fetch();
@@ -154,7 +163,8 @@ class TeacherController {
      * Create New Teacher
      */
     public function createTeacher() {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -166,9 +176,10 @@ class TeacherController {
             $email = Middleware::sanitizeString($data['email']);
             Middleware::validateEmail($email);
             
-            $check_query = "SELECT id FROM teachers WHERE email = :email";
+            $check_query = "SELECT id FROM teachers WHERE email = :email AND school_id = :school_id_em";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':email', $email);
+            $check_stmt->bindParam(':school_id_em', $school_id, PDO::PARAM_INT);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()) {
@@ -178,18 +189,27 @@ class TeacherController {
             // Generate employee ID if not provided
             $employee_id = isset($data['employee_id']) ? Middleware::sanitizeString($data['employee_id']) : '';
             if (empty($employee_id)) {
+                $school_id = TenantMiddleware::resolveSchoolId($this->conn);
+                $suffix_query = "SELECT suffix FROM schools WHERE id = :sid LIMIT 1";
+                $suffix_stmt = $this->conn->prepare($suffix_query);
+                $suffix_stmt->execute([':sid' => $school_id]);
+                $school_row = $suffix_stmt->fetch(PDO::FETCH_ASSOC);
+                $prefix = $school_row ? strtoupper($school_row['suffix']) : 'SCH';
+
                 $year = date('Y');
-                $sequence_query = "SELECT COUNT(*) as count FROM teachers WHERE YEAR(created_at) = :year";
+                $sequence_query = "SELECT COUNT(*) as count FROM teachers WHERE YEAR(created_at) = :year AND school_id = :sid";
                 $sequence_stmt = $this->conn->prepare($sequence_query);
                 $sequence_stmt->bindParam(':year', $year);
+                $sequence_stmt->bindParam(':sid', $school_id);
                 $sequence_stmt->execute();
                 $count = $sequence_stmt->fetch()['count'] + 1;
-                $employee_id = 'GRA-TCH-' . $year . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
+                $employee_id = $prefix . '-TCH-' . $year . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
             } else {
                 // Check if employee ID already exists
-                $emp_check_query = "SELECT id FROM teachers WHERE employee_id = :employee_id";
+                $emp_check_query = "SELECT id FROM teachers WHERE employee_id = :employee_id AND school_id = :school_id_emp";
                 $emp_check_stmt = $this->conn->prepare($emp_check_query);
                 $emp_check_stmt->bindParam(':employee_id', $employee_id);
+                $emp_check_stmt->bindParam(':school_id_emp', $school_id, PDO::PARAM_INT);
                 $emp_check_stmt->execute();
                 
                 if ($emp_check_stmt->fetch()) {
@@ -210,9 +230,9 @@ class TeacherController {
             
             // Insert teacher
             $query = "INSERT INTO teachers (first_name, last_name, other_name, employee_id, email, phone, gender, 
-                                          qualification, specialization, department_id, is_class_teacher, status)
+                                           qualification, specialization, department_id, is_class_teacher, status, school_id)
                       VALUES (:first_name, :last_name, :other_name, :employee_id, :email, :phone, :gender,
-                              :qualification, :specialization, :department_id, :is_class_teacher, 'Active')";
+                              :qualification, :specialization, :department_id, :is_class_teacher, 'Active', :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':first_name', $first_name);
@@ -226,12 +246,13 @@ class TeacherController {
             $stmt->bindParam(':specialization', $specialization);
             $stmt->bindParam(':department_id', $department_id);
             $stmt->bindParam(':is_class_teacher', $is_class_teacher);
+            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
             $teacher_id = $this->conn->lastInsertId();
             
             // Create user account for teacher
-            $this->createTeacherUserAccount($teacher_id, $first_name, $last_name, $email);
+            $this->createTeacherUserAccount($teacher_id, $first_name, $last_name, $email, $school_id);
             
             // Log activity
             Middleware::logActivity(
@@ -264,6 +285,7 @@ class TeacherController {
      */
     public function updateTeacher($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $teacher_id = Middleware::validateInteger($id, 'teacher_id');
         
         // Check permissions
@@ -275,9 +297,10 @@ class TeacherController {
         
         try {
             // Check if teacher exists
-            $check_query = "SELECT * FROM teachers WHERE id = :id";
+            $check_query = "SELECT * FROM teachers WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $teacher_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $existing_teacher = $check_stmt->fetch();
@@ -316,7 +339,8 @@ class TeacherController {
                 Response::badRequest('No valid fields to update');
             }
             
-            $query = "UPDATE teachers SET " . implode(', ', $update_fields) . " WHERE id = :id";
+            $query = "UPDATE teachers SET " . implode(', ', $update_fields) . " WHERE id = :id AND school_id = :school_id";
+            $params[':school_id'] = $school_id;
             $stmt = $this->conn->prepare($query);
             
             foreach ($params as $key => $value) {
@@ -352,15 +376,17 @@ class TeacherController {
      * Delete Teacher
      */
     public function deleteTeacher($id) {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $teacher_id = Middleware::validateInteger($id, 'teacher_id');
         
         try {
             // Check if teacher exists
-            $check_query = "SELECT first_name, last_name, employee_id FROM teachers WHERE id = :id";
+            $check_query = "SELECT first_name, last_name, employee_id FROM teachers WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $teacher_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $teacher = $check_stmt->fetch();
@@ -369,9 +395,10 @@ class TeacherController {
             }
             
             // Check for existing assignments
-            $assignment_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id";
+            $assignment_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND school_id = :school_id";
             $assignment_check_stmt = $this->conn->prepare($assignment_check_query);
             $assignment_check_stmt->bindParam(':teacher_id', $teacher_id);
+            $assignment_check_stmt->bindParam(':school_id', $school_id);
             $assignment_check_stmt->execute();
             
             if ($assignment_check_stmt->fetch()['count'] > 0) {
@@ -379,9 +406,10 @@ class TeacherController {
             }
             
             // Delete teacher (cascade will handle user account)
-            $query = "DELETE FROM teachers WHERE id = :id";
+            $query = "DELETE FROM teachers WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $teacher_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             // Log activity
@@ -412,6 +440,7 @@ class TeacherController {
      */
     public function getTeacherAssignments($teacher_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         // Check permissions
         if ($token_data['role'] === 'teacher' && $token_data['linked_id'] != $teacher_id) {
@@ -420,13 +449,14 @@ class TeacherController {
         
         try {
             // Get current academic year and term from settings
-            $settings_query = "SELECT current_academic_year, current_term FROM school_settings LIMIT 1";
+            $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE school_id = :school_id AND setting_key IN ('current_academic_year', 'current_term')";
             $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->bindParam(':school_id', $school_id);
             $settings_stmt->execute();
-            $settings = $settings_stmt->fetch();
+            $settings_rows = $settings_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             
-            $academic_year = $settings ? $settings['current_academic_year'] : '2025/2026';
-            $term = $settings ? $settings['current_term'] : 'First Term';
+            $academic_year = $settings_rows['current_academic_year'] ?? '2025/2026';
+            $term = $settings_rows['current_term'] ?? 'First Term';
             
             // Optional query parameters to override defaults (admin only)
             if ($token_data['role'] === 'admin' && isset($_GET['academic_year'])) {
@@ -438,18 +468,20 @@ class TeacherController {
             
             $query = "SELECT sa.*, sub.name as subject_name, sub.code as subject_code, c.name as class_name, c.level
                       FROM subject_assignments sa
-                      JOIN subjects sub ON sa.subject_id = sub.id
-                      JOIN classes c ON sa.class_id = c.id
+                      JOIN subjects sub ON sa.subject_id = sub.id AND sub.school_id = :school_id
+                      JOIN classes c ON sa.class_id = c.id AND c.school_id = :school_id
                       WHERE sa.teacher_id = :teacher_id 
                       AND sa.academic_year = :academic_year 
                       AND sa.term = :term 
                       AND sa.status = 'Active'
+                      AND sa.school_id = :school_id
                       ORDER BY c.level, c.name, sub.name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':teacher_id', $teacher_id);
             $stmt->bindParam(':academic_year', $academic_year);
             $stmt->bindParam(':term', $term);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $assignments = $stmt->fetchAll();
@@ -466,6 +498,7 @@ class TeacherController {
      */
     public function getTeacherClassStudents($teacher_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         // Check permissions
         if ($token_data['role'] === 'teacher' && $token_data['linked_id'] != $teacher_id) {
@@ -479,10 +512,12 @@ class TeacherController {
                       JOIN classes c ON s.class_id = c.id
                       JOIN subject_assignments sa ON c.id = sa.class_id
                       WHERE sa.teacher_id = :teacher_id AND s.status = 'Active'
+                      AND sa.school_id = :school_id AND s.school_id = :school_id
                       ORDER BY c.level, c.name, s.last_name, s.first_name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':teacher_id', $teacher_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $students = $stmt->fetchAll();
@@ -497,7 +532,7 @@ class TeacherController {
     /**
      * Create Teacher User Account
      */
-    private function createTeacherUserAccount($teacher_id, $first_name, $last_name, $email) {
+    private function createTeacherUserAccount($teacher_id, $first_name, $last_name, $email, $school_id) {
         try {
             // Generate username
             $username = strtolower(substr($first_name, 0, 1) . $last_name);
@@ -506,9 +541,10 @@ class TeacherController {
             $counter = 1;
             $original_username = $username;
             while (true) {
-                $check_query = "SELECT id FROM users WHERE username = :username";
+                $check_query = "SELECT id FROM users WHERE username = :username AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':username', $username);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if (!$check_stmt->fetch()) {
@@ -519,18 +555,19 @@ class TeacherController {
                 $counter++;
             }
             
-            // Create user account with default password
-            $default_password = 'teacher123';
-            $password_hash = password_hash($default_password, PASSWORD_DEFAULT);
+            // Generate random password and force change
+            $temp_password = bin2hex(random_bytes(6));
+            $password_hash = password_hash($temp_password, PASSWORD_DEFAULT);
             
-            $user_query = "INSERT INTO users (username, password_hash, role, linked_id, email, status)
-                           VALUES (:username, :password_hash, 'teacher', :linked_id, :email, 'Active')";
+            $user_query = "INSERT INTO users (username, password_hash, role, linked_id, email, status, school_id, must_change_password)
+                            VALUES (:username, :password_hash, 'teacher', :linked_id, :email, 'Active', :school_id, TRUE)";
             
             $user_stmt = $this->conn->prepare($user_query);
             $user_stmt->bindParam(':username', $username);
             $user_stmt->bindParam(':password_hash', $password_hash);
             $user_stmt->bindParam(':linked_id', $teacher_id);
             $user_stmt->bindParam(':email', $email);
+            $user_stmt->bindParam(':school_id', $school_id);
             $user_stmt->execute();
             
         } catch (PDOException $e) {

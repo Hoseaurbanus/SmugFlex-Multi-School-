@@ -8,7 +8,6 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Save } from "lucide-react";
 import { useSchool, Score, Subject, SubjectAssignment } from "../../contexts/SchoolContext";

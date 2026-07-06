@@ -1,13 +1,14 @@
 <?php
 /**
  * Results Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class ResultsController
 {
@@ -252,22 +253,34 @@ class ResultsController
         return $status;
     }
 
-    private function getScoreWithAssignmentAndClass($score_id) {
+    private function getScoreWithAssignmentAndClass($score_id, $school_id = null) {
         $query = "SELECT sc.*, sa.class_id, sa.teacher_id as subject_teacher_id, sa.term as assignment_term, sa.academic_year as assignment_year
                   FROM scores sc
                   JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
                   WHERE sc.id = :score_id";
+        if ($school_id !== null) {
+            $query .= " AND sc.school_id = :school_id";
+        }
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':score_id', $score_id);
+        if ($school_id !== null) {
+            $stmt->bindParam(':school_id', $school_id);
+        }
         $stmt->execute();
         return $stmt->fetch();
     }
 
-    private function requireClassTeacherForClass($token_data, $class_id) {
+    private function requireClassTeacherForClass($token_data, $class_id, $school_id = null) {
         $check_query = "SELECT COUNT(*) as count FROM classes WHERE id = :class_id AND class_teacher_id = :teacher_id";
+        if ($school_id !== null) {
+            $check_query .= " AND school_id = :school_id";
+        }
         $check_stmt = $this->conn->prepare($check_query);
         $check_stmt->bindParam(':class_id', $class_id);
         $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
+        if ($school_id !== null) {
+            $check_stmt->bindParam(':school_id', $school_id);
+        }
         $check_stmt->execute();
         if ($check_stmt->fetchColumn() == 0) {
             Response::forbidden('Only the class teacher can approve or reject scores for this class');
@@ -288,24 +301,26 @@ class ResultsController
         if (($token_data['role'] ?? null) !== 'teacher') {
             Response::forbidden('Only teachers can approve scores');
         }
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $score_id = Middleware::validateInteger($score_id, 'score_id');
-            $row = $this->getScoreWithAssignmentAndClass($score_id);
+            $row = $this->getScoreWithAssignmentAndClass($score_id, $school_id);
             if (!$row) {
                 Response::notFound('Score not found');
             }
 
-            $this->requireClassTeacherForClass($token_data, (int)$row['class_id']);
+            $this->requireClassTeacherForClass($token_data, (int)$row['class_id'], $school_id);
 
             $update = $this->conn->prepare(
                 "UPDATE scores
                  SET status = 'Approved', approved_by = :approved_by, approved_date = NOW(),
                      rejection_reason = NULL, rejected_by = NULL, rejected_date = NULL
-                 WHERE id = :score_id"
+                 WHERE id = :score_id AND school_id = :school_id"
             );
             $update->bindParam(':approved_by', $token_data['user_id']);
             $update->bindParam(':score_id', $score_id);
+            $update->bindParam(':school_id', $school_id);
             $update->execute();
 
             RealtimeEvents::publish(['scores', 'compiled_results'], [
@@ -338,6 +353,7 @@ class ResultsController
         if (($token_data['role'] ?? null) !== 'teacher') {
             Response::forbidden('Only teachers can reject scores');
         }
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         $reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : '';
@@ -348,22 +364,23 @@ class ResultsController
 
         try {
             $score_id = Middleware::validateInteger($score_id, 'score_id');
-            $row = $this->getScoreWithAssignmentAndClass($score_id);
+            $row = $this->getScoreWithAssignmentAndClass($score_id, $school_id);
             if (!$row) {
                 Response::notFound('Score not found');
             }
 
-            $this->requireClassTeacherForClass($token_data, (int)$row['class_id']);
+            $this->requireClassTeacherForClass($token_data, (int)$row['class_id'], $school_id);
 
             $update = $this->conn->prepare(
                 "UPDATE scores
                  SET status = 'Rejected', rejection_reason = :reason, rejected_by = :rejected_by, rejected_date = NOW(),
                      approved_by = NULL, approved_date = NULL
-                 WHERE id = :score_id"
+                 WHERE id = :score_id AND school_id = :school_id"
             );
             $update->bindParam(':reason', $reason);
             $update->bindParam(':rejected_by', $token_data['user_id']);
             $update->bindParam(':score_id', $score_id);
+            $update->bindParam(':school_id', $school_id);
             $update->execute();
 
             RealtimeEvents::publish(['scores', 'compiled_results'], [
@@ -397,6 +414,7 @@ class ResultsController
             if (($token_data['role'] ?? null) !== 'teacher' && ($token_data['role'] ?? null) !== 'admin') {
                 Response::forbidden('Only teachers and admins can view pending approvals');
             }
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
             $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : null;
             $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
@@ -406,8 +424,9 @@ class ResultsController
             }
 
             if (!$term || !$academic_year) {
-                $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year')";
+                $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year') AND school_id = :school_id";
                 $settings_stmt = $this->conn->prepare($settings_query);
+                $settings_stmt->bindParam(':school_id', $school_id);
                 $settings_stmt->execute();
                 $settings_results = $settings_stmt->fetchAll(PDO::FETCH_ASSOC);
                 $settings = [];
@@ -430,11 +449,13 @@ class ResultsController
                       JOIN classes c ON cr.class_id = c.id
                       WHERE cr.status = 'Submitted'
                         AND cr.term = :term
-                        AND cr.academic_year = :academic_year";
+                        AND cr.academic_year = :academic_year
+                        AND cr.school_id = :school_id";
 
             $params = [
                 ':term' => $term,
-                ':academic_year' => $academic_year
+                ':academic_year' => $academic_year,
+                ':school_id' => $school_id
             ];
 
             if ($class_id) {
@@ -454,6 +475,7 @@ class ResultsController
                       AND cta.term = :cta_term
                       AND cta.academic_year = :cta_academic_year
                       AND cta.status = 'Active'
+                      AND cta.school_id = :school_id
                 )";
                 $params[':teacher_id'] = $token_data['linked_id'];
                 $params[':cta_term'] = $term;
@@ -492,16 +514,18 @@ class ResultsController
         }
 
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $assignment_id = Middleware::validateInteger($assignment_id, 'assignment_id');
 
         try {
             // Check if teacher has access to this assignment
             if ($token_data['role'] === 'teacher') {
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE id = :assignment_id AND teacher_id = :teacher_id";
-                $check_stmt = $this->conn->prepare($check_query);
-                $check_stmt->bindParam(':assignment_id', $assignment_id);
-                $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
-                $check_stmt->execute();
+                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE id = :assignment_id AND teacher_id = :teacher_id AND school_id = :school_id";
+            $check_stmt = $this->conn->prepare($check_query);
+            $check_stmt->bindParam(':assignment_id', $assignment_id);
+            $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
+            $check_stmt->bindParam(':school_id', $school_id);
+            $check_stmt->execute();
 
                 if ($check_stmt->fetch()['count'] == 0) {
                     Response::forbidden('Access denied to this assignment');
@@ -517,10 +541,12 @@ class ResultsController
                       JOIN subjects sub ON sa.subject_id = sub.id
                       JOIN classes c ON sa.class_id = c.id
                       WHERE sc.subject_assignment_id = :assignment_id
+                        AND sc.school_id = :school_id
                       ORDER BY s.last_name, s.first_name";
 
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':assignment_id', $assignment_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
 
             $scores = $stmt->fetchAll();
@@ -542,6 +568,7 @@ class ResultsController
         if ($token_data['role'] !== 'teacher') {
             Response::forbidden('Only teachers can enter scores');
         }
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
 
@@ -556,7 +583,7 @@ class ResultsController
             $check_query = "SELECT sa.id, sa.class_id, c.name as class_name, c.level as class_level 
                             FROM subject_assignments sa 
                             JOIN classes c ON sa.class_id = c.id 
-                            WHERE sa.id = :assignment_id AND sa.teacher_id = :teacher_id";
+                            WHERE sa.id = :assignment_id AND sa.teacher_id = :teacher_id AND sa.school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':assignment_id', $assignment_id);
             $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
@@ -620,10 +647,11 @@ class ResultsController
             $student_id = Middleware::validateInteger($score_data['student_id'], 'student_id');
 
             // CRITICAL: Validate that student is active and belongs to the class
-            $student_check_query = "SELECT COUNT(*) as count FROM students WHERE id = :student_id AND class_id = :class_id AND status = 'Active'";
+            $student_check_query = "SELECT COUNT(*) as count FROM students WHERE id = :student_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id";
             $student_check_stmt = $this->conn->prepare($student_check_query);
             $student_check_stmt->bindParam(':student_id', $student_id);
             $student_check_stmt->bindParam(':class_id', $class_id);
+            $student_check_stmt->bindParam(':school_id', $school_id);
             $student_check_stmt->execute();
             $student_exists = $student_check_stmt->fetchColumn();
 
@@ -669,19 +697,21 @@ class ResultsController
             $class_stats = $this->calculateClassStatistics($assignment_id, $total);
 
             // Check if score exists
-            $existing_query = "SELECT id FROM scores WHERE subject_assignment_id = :assignment_id AND student_id = :student_id";
+            $existing_query = "SELECT id FROM scores WHERE subject_assignment_id = :assignment_id AND student_id = :student_id AND school_id = :school_id";
             $existing_stmt = $this->conn->prepare($existing_query);
             $existing_stmt->bindParam(':assignment_id', $assignment_id);
             $existing_stmt->bindParam(':student_id', $student_id);
+            $existing_stmt->bindParam(':school_id', $school_id);
             $existing_stmt->execute();
 
             $existing_score = $existing_stmt->fetch();
 
             if ($existing_score) {
                 // Prevent overwriting already-approved scores
-                $status_check_query = "SELECT status FROM scores WHERE id = :score_id";
+                $status_check_query = "SELECT status FROM scores WHERE id = :score_id AND school_id = :school_id";
                 $status_check_stmt = $this->conn->prepare($status_check_query);
                 $status_check_stmt->bindParam(':score_id', $existing_score['id']);
+                $status_check_stmt->bindParam(':school_id', $school_id);
                 $status_check_stmt->execute();
                 $current_status = $status_check_stmt->fetchColumn();
 
@@ -691,9 +721,10 @@ class ResultsController
                 }
 
                 // Preserve existing values for components that were not provided in the request
-                $existing_values_query = "SELECT ca1, ca2, exam FROM scores WHERE id = :score_id";
+                $existing_values_query = "SELECT ca1, ca2, exam FROM scores WHERE id = :score_id AND school_id = :school_id";
                 $existing_values_stmt = $this->conn->prepare($existing_values_query);
                 $existing_values_stmt->bindParam(':score_id', $existing_score['id']);
+                $existing_values_stmt->bindParam(':school_id', $school_id);
                 $existing_values_stmt->execute();
                 $existing_values = $existing_values_stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -716,7 +747,7 @@ class ResultsController
                                  grade = :grade, remark = :remark, class_average = :class_average,
                                  class_min = :class_min, class_max = :class_max, status = :status,
                                  term = :term, academic_year = :academic_year
-                                 WHERE id = :score_id";
+                                 WHERE id = :score_id AND school_id = :school_id";
 
                 $update_stmt = $this->conn->prepare($update_query);
                 $update_stmt->bindParam(':ca1', $ca1);
@@ -732,13 +763,14 @@ class ResultsController
                 $update_stmt->bindParam(':term', $assignment_term);
                 $update_stmt->bindParam(':academic_year', $assignment_year);
                 $update_stmt->bindParam(':score_id', $existing_score['id']);
+                $update_stmt->bindParam(':school_id', $school_id);
                 $update_stmt->execute();
             } else {
                 // Insert new score
                 $insert_query = "INSERT INTO scores (student_id, subject_assignment_id, ca1, ca2, exam, total,
-                                 grade, remark, class_average, class_min, class_max, entered_by, status, term, academic_year)
+                                 grade, remark, class_average, class_min, class_max, entered_by, status, term, academic_year, school_id)
                                  VALUES (:student_id, :assignment_id, :ca1, :ca2, :exam, :total,
-                                        :grade, :remark, :class_average, :class_min, :class_max, :entered_by, :status, :term, :academic_year)";
+                                        :grade, :remark, :class_average, :class_min, :class_max, :entered_by, :status, :term, :academic_year, :school_id)";
 
                 $insert_stmt = $this->conn->prepare($insert_query);
                 $insert_stmt->bindParam(':student_id', $student_id);
@@ -756,6 +788,7 @@ class ResultsController
                 $insert_stmt->bindParam(':status', $row_status);
                 $insert_stmt->bindParam(':term', $assignment_term);
                 $insert_stmt->bindParam(':academic_year', $assignment_year);
+                $insert_stmt->bindParam(':school_id', $school_id);
                 $insert_stmt->execute();
             }
         }
@@ -804,15 +837,17 @@ class ResultsController
         if (($token_data['role'] ?? null) !== 'teacher') {
             Response::forbidden('Only teachers can submit scores');
         }
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $assignment_id = Middleware::validateInteger($assignment_id, 'assignment_id');
 
         try {
             // Verify teacher owns this assignment
-            $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE id = :assignment_id AND teacher_id = :teacher_id";
+            $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE id = :assignment_id AND teacher_id = :teacher_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':assignment_id', $assignment_id);
             $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
 
             if ((int)$check_stmt->fetchColumn() === 0) {
@@ -820,9 +855,10 @@ class ResultsController
             }
 
             // Require at least one score exists for this assignment
-            $scores_query = "SELECT COUNT(*) as entered_scores FROM scores WHERE subject_assignment_id = :assignment_id";
+            $scores_query = "SELECT COUNT(*) as entered_scores FROM scores WHERE subject_assignment_id = :assignment_id AND school_id = :school_id";
             $scores_stmt = $this->conn->prepare($scores_query);
             $scores_stmt->bindParam(':assignment_id', $assignment_id);
+            $scores_stmt->bindParam(':school_id', $school_id);
             $scores_stmt->execute();
             $entered_scores = (int)$scores_stmt->fetchColumn();
 
@@ -831,9 +867,10 @@ class ResultsController
             }
 
             // Update all existing scores status to Submitted
-            $update_query = "UPDATE scores SET status = 'Submitted' WHERE subject_assignment_id = :assignment_id";
+            $update_query = "UPDATE scores SET status = 'Submitted' WHERE subject_assignment_id = :assignment_id AND school_id = :school_id";
             $update_stmt = $this->conn->prepare($update_query);
             $update_stmt->bindParam(':assignment_id', $assignment_id);
+            $update_stmt->bindParam(':school_id', $school_id);
             $update_stmt->execute();
 
             RealtimeEvents::publish(['scores', 'compiled_results'], [
@@ -869,6 +906,7 @@ class ResultsController
 
         try {
             $token_data = Middleware::requireAuth();
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             $role = strtolower(trim((string)($token_data['role'] ?? '')));
 
             $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : 'First Term';
@@ -887,11 +925,13 @@ class ResultsController
                       JOIN teachers t ON sa.teacher_id = t.id
                       JOIN students s ON sc.student_id = s.id
                       JOIN classes c ON sa.class_id = c.id
-                      WHERE sc.term = :term AND sc.academic_year = :academic_year";
+                      WHERE sc.term = :term AND sc.academic_year = :academic_year
+                        AND sc.school_id = :school_id";
 
             $params = [
                 ':term' => $term,
-                ':academic_year' => $academic_year
+                ':academic_year' => $academic_year,
+                ':school_id' => $school_id
             ];
 
             // Role-based filtering
@@ -988,6 +1028,7 @@ class ResultsController
                 return;
             }
 
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             $role = strtolower(trim((string)$token_data['role']));
 
             $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : null;
@@ -1030,6 +1071,7 @@ class ResultsController
             if ($role === 'parent') {
                 // Build WHERE clause based on available parameters
                 $where_clause = "WHERE 1=1";
+                $where_clause .= " AND cr.school_id = :school_id";
                 if ($term) {
                     $where_clause .= " AND cr.term = :term";
                 }
@@ -1045,6 +1087,7 @@ class ResultsController
             } else {
                 // Build WHERE clause based on available parameters
                 $where_clause = "WHERE 1=1";
+                $where_clause .= " AND cr.school_id = :school_id";
                 if ($term) {
                     $where_clause .= " AND cr.term = :term";
                 }
@@ -1059,7 +1102,7 @@ class ResultsController
                           $where_clause";
             }
 
-            $params = [];
+            $params = [':school_id' => $school_id];
             if ($term) {
                 $params[':term'] = $term;
             }
@@ -1077,9 +1120,10 @@ class ResultsController
 
                 // First check if parent has any linked children
                 $children_check = "SELECT COUNT(*) as count FROM parent_student_links psl
-                                   WHERE psl.parent_id = :parent_id";
+                                   WHERE psl.parent_id = :parent_id AND psl.school_id = :school_id";
                 $children_stmt = $this->conn->prepare($children_check);
                 $children_stmt->bindValue(':parent_id', $token_data['linked_id']);
+                $children_stmt->bindValue(':school_id', $school_id);
                 $children_stmt->execute();
 
                 $has_children = $children_stmt->fetch()['count'] > 0;
@@ -1092,7 +1136,7 @@ class ResultsController
                 // Add parent filtering - only show results for parent's linked children
                 $query .= " AND cr.student_id IN (
                     SELECT psl.student_id FROM parent_student_links psl
-                    WHERE psl.parent_id = :parent_id
+                    WHERE psl.parent_id = :parent_id AND psl.school_id = :school_id
                 )";
                 $params[':parent_id'] = $token_data['linked_id'];
             } else if ($role === 'teacher') {
@@ -1111,8 +1155,9 @@ class ResultsController
                 $check_academic_year = $academic_year;
 
                 if (!$check_term || !$check_academic_year) {
-                    $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year')";
+                    $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year') AND school_id = :school_id";
                     $settings_stmt = $this->conn->prepare($settings_query);
+                    $settings_stmt->bindValue(':school_id', $school_id);
                     $settings_stmt->execute();
                     $settings_results = $settings_stmt->fetchAll(PDO::FETCH_ASSOC);
                     $settings = [];
@@ -1392,10 +1437,12 @@ class ResultsController
 
             // Get current school settings to ensure compliance
             $__validation_step = 'school_settings_current_term_year';
-            $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year')";
+            $__tenant_data = Middleware::requireAuth();
+            $__school_id = (int)($__tenant_data['school_id'] ?? 0);
+            $settings_query = "SELECT setting_key, setting_value FROM school_settings WHERE setting_key IN ('current_term', 'current_academic_year') AND school_id = :school_id";
             $__validation_query = $settings_query;
             $settings_stmt = $this->conn->prepare($settings_query);
-            $settings_stmt->execute();
+            $settings_stmt->execute([':school_id' => $__school_id]);
             $settings = $settings_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             // Validate that compilation uses current school settings
@@ -1448,6 +1495,7 @@ class ResultsController
                                      JOIN students s ON sc.student_id = s.id
                                      JOIN subjects sub ON sa.subject_id = sub.id
                                      WHERE sa.class_id = :class_id AND sa.term = :term AND sa.academic_year = :academic_year
+                                     AND sa.school_id = :school_id
                                      AND sc.student_id IN ($student_placeholders)
                                      AND sc.status = 'Draft'";
 
@@ -1456,6 +1504,7 @@ class ResultsController
             $submitted_stmt->bindParam(':class_id', $class_id);
             $submitted_stmt->bindParam(':term', $term);
             $submitted_stmt->bindParam(':academic_year', $academic_year);
+            $submitted_stmt->bindParam(':school_id', $__school_id, PDO::PARAM_INT);
             foreach ($student_ids as $i => $sid) {
                 $submitted_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
             }
@@ -1469,10 +1518,11 @@ class ResultsController
             // Check 3: Attendance data meets school requirements
             $__validation_step = 'check_attendance_required_days_setting';
             $attendance_setting_key = 'attendance_' . strtolower(str_replace(' ', '_', $term));
-            $required_days_query = "SELECT setting_value FROM school_settings WHERE setting_key = :setting_key";
+            $required_days_query = "SELECT setting_value FROM school_settings WHERE setting_key = :setting_key AND school_id = :school_id";
             $__validation_query = $required_days_query;
             $required_days_stmt = $this->conn->prepare($required_days_query);
             $required_days_stmt->bindParam(':setting_key', $attendance_setting_key);
+            $required_days_stmt->bindParam(':school_id', $__school_id, PDO::PARAM_INT);
             $required_days_stmt->execute();
             $required_days = $required_days_stmt->fetchColumn() ?: 0;
 
@@ -1985,9 +2035,10 @@ class ResultsController
                 "SELECT u.id as user_id FROM classes c
                  JOIN teachers t ON t.id = c.class_teacher_id
                  JOIN users u ON u.linked_id = t.id AND u.role = 'teacher'
-                 WHERE c.id = :class_id LIMIT 1"
+                 WHERE c.id = :class_id AND c.school_id = :school_id LIMIT 1"
             );
             $teacher_stmt->bindValue(':class_id', $result['class_id']);
+            $teacher_stmt->bindValue(':school_id', (int)($token_data['school_id'] ?? 0), PDO::PARAM_INT);
             $teacher_stmt->execute();
             $teacher_user = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
             if ($teacher_user) {
@@ -2155,14 +2206,16 @@ class ResultsController
             $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
             $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $school_id = (int)($token_data['school_id'] ?? 0);
 
             // Get student info and class
             $student_query = "SELECT s.id, s.first_name, s.last_name, s.class_id, c.name as class_name
                              FROM students s
                              JOIN classes c ON s.class_id = c.id
-                             WHERE s.id = :student_id AND s.status = 'Active'";
+                             WHERE s.id = :student_id AND s.status = 'Active' AND s.school_id = :school_id";
             $student_stmt = $this->conn->prepare($student_query);
             $student_stmt->bindParam(':student_id', $student_id);
+            $student_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $student_stmt->execute();
             $student = $student_stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -2224,9 +2277,10 @@ class ResultsController
 
             // Check attendance for this student
             $attendance_setting_key = 'attendance_' . strtolower(str_replace(' ', '_', $term));
-            $required_days_query = "SELECT setting_value FROM school_settings WHERE setting_key = :setting_key";
+            $required_days_query = "SELECT setting_value FROM school_settings WHERE setting_key = :setting_key AND school_id = :school_id";
             $required_days_stmt = $this->conn->prepare($required_days_query);
             $required_days_stmt->bindParam(':setting_key', $attendance_setting_key);
+            $required_days_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $required_days_stmt->execute();
             $required_days = $required_days_stmt->fetchColumn() ?: 0;
 
@@ -2399,12 +2453,14 @@ class ResultsController
             $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
             $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $school_id = (int)($token_data['school_id'] ?? 0);
 
             // Verify teacher is class teacher for this class
-            $check_query = "SELECT COUNT(*) as count FROM classes WHERE id = :class_id AND class_teacher_id = :teacher_id";
+            $check_query = "SELECT COUNT(*) as count FROM classes WHERE id = :class_id AND class_teacher_id = :teacher_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':class_id', $class_id);
             $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
+            $check_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $check_stmt->execute();
 
             if ($check_stmt->fetch()['count'] == 0) {
@@ -2429,7 +2485,7 @@ class ResultsController
             $validation_errors = $this->validateCompilationRequirements($class_id, $term, $academic_year, $student_results);
 
             // Check detailed component status
-            $status = $this->getDetailedCompilationStatus($class_id, $term, $academic_year, $students);
+            $status = $this->getDetailedCompilationStatus($class_id, $term, $academic_year, $students, $school_id);
 
             $response = [
                 'can_compile' => empty($validation_errors),
@@ -2448,7 +2504,7 @@ class ResultsController
     /**
      * Get Detailed Compilation Status
      */
-    private function getDetailedCompilationStatus($class_id, $term, $academic_year, $students)
+    private function getDetailedCompilationStatus($class_id, $term, $academic_year, $students, $school_id = 0)
     {
         $status = [
             'scores' => ['completed' => true, 'missing_students' => []],
@@ -2485,9 +2541,10 @@ class ResultsController
 
             // Check attendance completion
             $attendance_setting_key = 'attendance_' . strtolower(str_replace(' ', '_', $term));
-            $required_days_query = "SELECT setting_value FROM school_settings WHERE setting_key = :setting_key";
+            $required_days_query = "SELECT setting_value FROM school_settings WHERE setting_key = :setting_key AND school_id = :school_id";
             $required_days_stmt = $this->conn->prepare($required_days_query);
             $required_days_stmt->bindParam(':setting_key', $attendance_setting_key);
+            $required_days_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $required_days_stmt->execute();
             $required_days = $required_days_stmt->fetchColumn() ?: 0;
 
@@ -2836,8 +2893,9 @@ class ResultsController
             $academic_year = Middleware::sanitizeString($data['academic_year']);
 
             // Check current term is Third Term
-            $term_check = $this->conn->prepare("SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' LIMIT 1");
-            $term_check->execute();
+            $__school_id_for_term = (int)($token_data['school_id'] ?? 0);
+            $term_check = $this->conn->prepare("SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' AND school_id = :school_id LIMIT 1");
+            $term_check->execute([':school_id' => $__school_id_for_term]);
             $current_term = $term_check->fetchColumn();
             if (strtolower($current_term) !== 'third term') {
                 Response::badRequest('Cumulative results can only be compiled during Third Term');
@@ -2900,11 +2958,13 @@ class ResultsController
                                  WHERE s.student_id = :student_id
                                    AND s.academic_year = :academic_year
                                    AND s.status = 'Approved'
+                                   AND sa.school_id = :school_id
                                  ORDER BY sa.subject_id,
                                           FIELD(s.term, 'First Term','Second Term','Third Term')";
                 $scores_stmt = $this->conn->prepare($scores_query);
                 $scores_stmt->bindValue(':student_id', $student_id, PDO::PARAM_INT);
                 $scores_stmt->bindValue(':academic_year', $academic_year);
+                $scores_stmt->bindValue(':school_id', $__school_id_for_term, PDO::PARAM_INT);
                 $scores_stmt->execute();
                 $all_scores = $scores_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -3129,6 +3189,8 @@ class ResultsController
                 return;
             }
 
+            $school_id = (int)($token_data['school_id'] ?? 0);
+
             // Role-based access control
             $role = $token_data['role'] ?? 'admin';
             if ($role === 'parent') {
@@ -3152,10 +3214,12 @@ class ResultsController
                       FROM cumulative_results cr
                       JOIN students s ON cr.student_id = s.id
                       JOIN classes c ON cr.class_id = c.id
-                      WHERE cr.student_id = :student_id AND cr.academic_year = :academic_year
+                      WHERE cr.student_id = :student_id AND cr.academic_year = :academic_year AND s.school_id = :school_id
                       LIMIT 1";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':student_id', $student_id, PDO::PARAM_INT);
+            $stmt->bindValue(':academic_year', $academic_year);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->bindValue(':academic_year', $academic_year);
             $stmt->execute();
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -3204,6 +3268,8 @@ class ResultsController
                 return;
             }
 
+            $school_id = (int)($token_data['school_id'] ?? 0);
+
             // Role-based access control
             $role = $token_data['role'] ?? 'admin';
             if ($role === 'parent') {
@@ -3228,11 +3294,12 @@ class ResultsController
                       FROM cumulative_results cr
                       JOIN students s ON cr.student_id = s.id
                       JOIN classes c ON cr.class_id = c.id
-                      WHERE cr.class_id = :class_id AND cr.academic_year = :academic_year
+                      WHERE cr.class_id = :class_id AND cr.academic_year = :academic_year AND c.school_id = :school_id
                       ORDER BY cr.position ASC";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':class_id', $class_id, PDO::PARAM_INT);
             $stmt->bindValue(':academic_year', $academic_year);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

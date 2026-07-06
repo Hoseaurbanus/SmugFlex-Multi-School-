@@ -8,7 +8,7 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { TrendingUp, DollarSign, Users, CheckCircle, AlertCircle, Clock, Download, FileText, Filter, Search } from 'lucide-react';
+import { TrendingUp, DollarSign, Users, CheckCircle, AlertCircle, Clock, Download, FileText } from 'lucide-react';
 
 export function PaymentReportsPage() {
   const {

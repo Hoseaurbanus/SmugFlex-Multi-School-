@@ -1,11 +1,10 @@
-import { Database, GraduationCap, HardDrive } from 'lucide-react';
+import { Database, GraduationCap, HardDrive } from '@phosphor-icons/react';
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Progress } from "../ui/progress";
 import { Alert, AlertDescription } from "../ui/alert";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "../ui/dialog";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
 import { 
@@ -79,8 +78,8 @@ export function DataBackupPage() {
       <div className="flex items-center justify-center min-h-screen">
         <Card className="max-w-md w-full">
           <CardContent className="text-center py-12">
-            <span className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+            <span className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-2 font-heading">Access Denied</h2>
             <p className="text-gray-600 mb-6">
               You do not have permission to access Data Backup.
               This page requires administrator-level privileges.
@@ -488,7 +487,7 @@ export function DataBackupPage() {
 
     // Download after short delay
     setTimeout(() => {
-      downloadJSON(completeData, `graceland_complete_backup_${new Date().toISOString().split('T')[0]}.json`);
+      downloadJSON(completeData, `${(schoolSettings.school_name || 'school').toLowerCase().replace(/\s+/g, '_')}_backup_${new Date().toISOString().split('T')[0]}.json`);
       setBackupProgress(100);
       
       setTimeout(() => {
@@ -502,35 +501,35 @@ export function DataBackupPage() {
   const dataCategories = [
     {
       title: 'Student Data',
-      icon: <GraduationCap className="w-5 h-5" />,
+      icon: <GraduationCap className="w-5 h-5" weight="bold" />,
       items: [
-        { name: 'Students', count: students.length, export: handleExportStudents, color: 'bg-blue-50 text-blue-600' },
-        { name: 'Student Fee Balances', count: studentFeeBalances.length, export: handleExportFeeBalances, color: 'bg-blue-50 text-blue-600' },
-        { name: 'Attendance', count: attendances.length, export: handleExportAttendance, color: 'bg-blue-50 text-blue-600' },
+        { name: 'Students', count: students.length, export: handleExportStudents, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
+        { name: 'Student Fee Balances', count: studentFeeBalances.length, export: handleExportFeeBalances, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
+        { name: 'Attendance', count: attendances.length, export: handleExportAttendance, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
       ]
     },
     {
       title: 'Staff Data',
       icon: <span className="w-5 h-5" />,
       items: [
-        { name: 'Teachers', count: teachers.length, export: handleExportTeachers, color: 'bg-green-50 text-green-600' },
-        { name: 'Parents', count: parents.length, export: handleExportParents, color: 'bg-green-50 text-green-600' },
+        { name: 'Teachers', count: teachers.length, export: handleExportTeachers, color: 'bg-emerald-50 text-emerald-600' },
+        { name: 'Parents', count: parents.length, export: handleExportParents, color: 'bg-emerald-50 text-emerald-600' },
         { name: 'Accountants', count: accountants.length, export: () => {
           const headers = ['id', 'firstName', 'lastName', 'employeeId', 'email', 'phone', 'department', 'status'];
           const csv = convertToCSV(accountants, headers);
           downloadFile(csv, `accountants_${new Date().toISOString().split('T')[0]}.csv`);
           toast.success(`Exported ${accountants.length} accountants`);
-        }, color: 'bg-green-50 text-green-600' },
+        }, color: 'bg-emerald-50 text-emerald-600' },
       ]
     },
     {
       title: 'Academic Data',
       icon: <span className="w-5 h-5" />,
       items: [
-        { name: 'Classes', count: classes.length, export: handleExportClasses, color: 'bg-purple-50 text-purple-600' },
-        { name: 'Subjects', count: subjects.length, export: handleExportSubjects, color: 'bg-purple-50 text-purple-600' },
-        { name: 'Scores', count: scores.length, export: handleExportScores, color: 'bg-purple-50 text-purple-600' },
-        { name: 'Compiled Results', count: compiledResults.length, export: handleExportResults, color: 'bg-purple-50 text-purple-600' },
+        { name: 'Classes', count: classes.length, export: handleExportClasses, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
+        { name: 'Subjects', count: subjects.length, export: handleExportSubjects, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
+        { name: 'Scores', count: scores.length, export: handleExportScores, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
+        { name: 'Compiled Results', count: compiledResults.length, export: handleExportResults, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
       ]
     },
     {
@@ -543,7 +542,7 @@ export function DataBackupPage() {
     },
     {
       title: 'System Data',
-      icon: <Database className="w-5 h-5" />,
+      icon: <Database className="w-5 h-5" weight="bold" />,
       items: [
         { name: 'Activity Logs', count: activityLogs.length, export: handleExportActivityLogs, color: 'bg-gray-50 text-gray-600' },
         { name: 'Notifications', count: notifications.length, export: () => {
@@ -565,13 +564,13 @@ export function DataBackupPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-[#1F2937] mb-2">Data Backup & Export</h1>
+            <h1 className="text-[#1F2937] mb-2 font-heading font-bold">Data Backup & Export</h1>
             <p className="text-[#6B7280]">Download all system data for backup and archival purposes</p>
           </div>
           <Button
             onClick={refreshAllData}
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+            className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl"
           >
             {isLoading ? 'Loading...' : 'Refresh Data'}
           </Button>
@@ -579,7 +578,7 @@ export function DataBackupPage() {
       </div>
 
       {isBackingUp && (
-        <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-sm">
+        <Card className="rounded-xl bg-white border border-gray-100 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -599,13 +598,13 @@ export function DataBackupPage() {
 
       {/* Loading Indicator */}
       {isLoading && (
-        <Card className="rounded-xl bg-blue-50 border border-blue-200">
+        <Card className="rounded-xl bg-[#0A2540]/10 border border-[#0A2540]/20">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
-              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-2 border-[#0A2540] border-t-transparent rounded-full animate-spin"></div>
               <div>
-                <p className="text-blue-900 font-medium">Loading System Data...</p>
-                <p className="text-blue-700 text-sm">Please wait while we fetch all your data</p>
+                <p className="text-[#0A2540] font-medium">Loading System Data...</p>
+                <p className="text-[#0A2540]/70 text-sm">Please wait while we fetch all your data</p>
               </div>
             </div>
           </CardContent>
@@ -613,12 +612,12 @@ export function DataBackupPage() {
       )}
 
       {/* Storage Info Card */}
-      <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-sm">
-        <CardHeader className="p-5 border-b border-[#E5E7EB]">
+      <Card className="rounded-xl bg-white border border-gray-100 shadow-sm">
+        <CardHeader className="p-5 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <HardDrive className="w-5 h-5 text-blue-600" />
+              <div className="p-2 bg-[#0A2540]/10 rounded-lg">
+                <HardDrive className="w-5 h-5 text-[#0A2540]" weight="bold" />
               </div>
               <div>
                 <CardTitle className="text-lg text-[#1F2937]">Local Storage Manager</CardTitle>
@@ -637,7 +636,7 @@ export function DataBackupPage() {
             <Button
               onClick={exportCompleteBackup}
               disabled={isBackingUp}
-              className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl h-auto py-4 flex-col gap-2"
+              className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl h-auto py-4 flex-col gap-2"
             >
               <span className="w-6 h-6" />
               <div className="text-center">
@@ -649,7 +648,7 @@ export function DataBackupPage() {
             <Button
               onClick={() => fileInputRef.current?.click()}
               variant="outline"
-              className="rounded-xl h-auto py-4 flex-col gap-2 border-2 hover:border-[#3B82F6] hover:bg-blue-50"
+              className="rounded-xl h-auto py-4 flex-col gap-2 border-2 hover:border-[#0A2540] hover:bg-[#0A2540]/10"
             >
               <span className="w-6 h-6" />
               <div className="text-center">
@@ -669,13 +668,13 @@ export function DataBackupPage() {
       </Card>
 
       {/* Complete Backup Card */}
-      <Card className="rounded-xl bg-gradient-to-r from-[#2563EB] to-[#3B82F6] border-0 shadow-lg">
+      <Card className="rounded-xl bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 border-0 shadow-lg">
         <CardContent className="p-6">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <Database className="w-6 h-6 text-white" />
-                <h3 className="text-white text-xl">CSV Export Center</h3>
+                <Database className="w-6 h-6 text-white" weight="bold" />
+                <h3 className="text-white text-xl font-heading font-bold">CSV Export Center</h3>
               </div>
               <p className="text-white/90 mb-4">
                 Export individual data tables as CSV files for external use
@@ -695,8 +694,8 @@ export function DataBackupPage() {
       </Card>
 
       {/* Information Alert */}
-      <Alert className="bg-blue-50 border-blue-200 rounded-xl">
-        <span className="h-4 w-4 text-blue-600" />
+      <Alert className="bg-[#0A2540]/10 border-[#0A2540]/20 rounded-xl">
+        <span className="h-4 w-4 text-[#0A2540]" />
         <AlertDescription className="text-[#1F2937]">
           <strong>Backup Best Practices:</strong> Download regular backups to prevent data loss. 
           Store backups in a secure location. Complete backup includes all system data in JSON format 
@@ -706,13 +705,13 @@ export function DataBackupPage() {
 
       {/* Individual Data Category Cards */}
       {dataCategories.map((category, index) => (
-        <Card key={index} className="rounded-xl bg-white border border-[#E5E7EB] shadow-sm">
-          <CardHeader className="p-5 border-b border-[#E5E7EB]">
+        <Card key={index} className="rounded-xl bg-white border border-gray-100 shadow-sm">
+          <CardHeader className="p-5 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-[#F3F4F6] rounded-lg">
                 {category.icon}
               </div>
-              <h3 className="text-[#1F2937]">{category.title}</h3>
+              <h3 className="text-[#1F2937] font-heading font-bold">{category.title}</h3>
             </div>
           </CardHeader>
           <CardContent className="p-5">
@@ -753,7 +752,7 @@ export function DataBackupPage() {
       ))}
 
       {/* Footer Information */}
-      <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-sm">
+      <Card className="rounded-xl bg-white border border-gray-100 shadow-sm">
         <CardContent className="p-5">
           <div className="flex items-start gap-3">
             <span className="w-5 h-5 text-[#6B7280] mt-0.5" />

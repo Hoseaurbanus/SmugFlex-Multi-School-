@@ -1,6 +1,6 @@
 // Shared PDF generation utility for both admin and parent dashboards
 import { useSchool } from "../contexts/SchoolContext";
-import schoolLogo from "../assets/images/school-logo.jpg";
+import schoolLogo from "../assets/images/smug-logo.png";
 import { API_CONFIG } from "../config/api";
 import { formatPositionWithSuffix } from "./position";
 import { generateQrDataUrl } from "./qrCode";
@@ -572,7 +572,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
     [
       // Row 2: 4 cells - Admission No, Admission No value, Term, Term value
       { type: 'label', text: 'Admission No:', width: 0.15 },
-      { type: 'value', text: student?.admissionNumber || 'GRA/XXXXX', width: 0.35 },
+      { type: 'value', text: student?.admissionNumber || 'N/A', width: 0.35 },
       { type: 'label', text: 'Term:', width: 0.15 },
       { type: 'value', text: result.term || '', width: 0.35 }
     ],

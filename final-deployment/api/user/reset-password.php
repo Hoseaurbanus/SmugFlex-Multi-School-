@@ -1,7 +1,7 @@
 <?php
 /**
  * Reset Password API Endpoint
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 header('Content-Type: application/json');

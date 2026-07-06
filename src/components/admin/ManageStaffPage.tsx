@@ -6,14 +6,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Badge } from "../ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from "../ui/dialog";
 import { Label } from "../ui/label";
-import { Alert, AlertDescription } from "../ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import { Check, X, Square, Key, FileSignature, Trash2 } from "lucide-react";
 import { exportTeachersToCSV } from "../../utils/csvExporter";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "../ui/dropdown-menu";
 import { SimpleDropdown, SimpleDropdownTrigger, SimpleDropdownContent, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
 
 export function ManageStaffPage() {

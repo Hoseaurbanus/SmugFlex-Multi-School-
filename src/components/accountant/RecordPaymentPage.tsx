@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Badge } from "../ui/badge";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
-import { Search, User, DollarSign, CreditCard, Banknote, CheckCircle, AlertCircle, FileText, Download, RefreshCw, Printer, X, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { CheckCircle, AlertCircle, FileText, Printer, X, ChevronDown, ChevronUp, Info } from 'lucide-react';
 
 export function RecordPaymentPage() {
   const {

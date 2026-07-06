@@ -562,8 +562,8 @@ export function ApproveResultsPage() {
                 return (
                   <>
                     <div className="text-center border-b border-gray-200 pb-4">
-                      <h2 className="text-xl text-gray-900">Graceland Royal Academy Gombe</h2>
-                      <p className="text-sm text-gray-600">Wisdom & Illumination</p>
+                      <h2 className="text-xl text-gray-900">{currentUser?.school_name || 'School Name'}</h2>
+                      <p className="text-sm text-gray-600">{currentUser?.school_suffix ? `${currentUser.school_suffix.toUpperCase()} Portal` : 'School Portal'}</p>
                       <p className="text-sm text-gray-600 mt-2">
                         {selectedResultData.term} - {selectedResultData.academic_year}
                       </p>

@@ -1,13 +1,13 @@
 /**
  * API Configuration
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Management Platform
  */
 
 export const API_CONFIG = {
   // Base URL - change this to match your server
   BASE_URL: (() => {
     if (typeof window === 'undefined') {
-      return (import.meta as any).env?.VITE_API_BASE_URL || 'https://gracelandroyalacademy.com.ng/api';
+      return (import.meta as any).env?.VITE_API_BASE_URL || `${(globalThis as any).location?.origin || 'http://localhost:3000'}/api`;
     }
 
     const host = window.location.hostname;
@@ -148,6 +148,38 @@ export const API_CONFIG = {
       REPORTS: '/payments/reports'
     },
     
+    // Tenant / School Registration
+    TENANT: {
+      REGISTER: '/schools/register',
+      PUBLIC_INFO: '/schools/public-info',
+      PROFILE: '/schools/profile',
+      LOGO: '/schools/logo',
+      CHECK_SUFFIX: '/schools/check-suffix'
+    },
+
+    // Super Admin
+    SUPER_ADMIN: {
+      LOGIN: '/super-admin/login',
+      SCHOOLS: '/super-admin/schools',
+      SCHOOL_DETAIL: (id: number) => `/super-admin/schools/${id}`,
+      PENDING: '/super-admin/schools/pending',
+      APPROVE: (id: number) => `/super-admin/schools/${id}/approve`,
+      REJECT: (id: number) => `/super-admin/schools/${id}/reject`,
+      ACTIVATE: (id: number) => `/super-admin/schools/${id}/activate`,
+      DEACTIVATE: (id: number) => `/super-admin/schools/${id}/deactivate`,
+      SUSPEND: (id: number) => `/super-admin/schools/${id}/suspend`,
+      DELETE: (id: number) => `/super-admin/schools/${id}/delete`,
+      EXTEND_ACCESS: (id: number) => `/super-admin/schools/${id}/extend-access`,
+      SET_PLAN: (id: number) => `/super-admin/schools/${id}/set-plan`,
+      RESET_ADMIN_PASSWORD: (id: number) => `/super-admin/schools/${id}/reset-admin-password`,
+      STATS: '/super-admin/stats',
+      ACTIVITY_LOGS: '/super-admin/activity-logs',
+      EDIT_SCHOOL: (id: number) => `/super-admin/schools/${id}`,
+      CREDENTIALS: (id: number) => `/super-admin/schools/${id}/credentials`,
+      MODULES: (id: number) => `/super-admin/schools/${id}/modules`,
+      CREATE_SCHOOL: '/super-admin/schools',
+    },
+
     // Attendance
     ATTENDANCE: {
       LIST: '/attendance',

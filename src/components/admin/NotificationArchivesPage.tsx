@@ -24,6 +24,16 @@ import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { useSchool } from '../../contexts/SchoolContext';
 import { toast } from 'sonner';
+import {
+  Trash,
+  PaperPlane,
+  Megaphone,
+  Warning,
+  Users,
+  MagnifyingGlass,
+  Eye,
+  ArrowBendUpLeft,
+} from '@phosphor-icons/react';
 
 export function NotificationArchivesPage() {
   const { notifications, addNotification, currentUser, markNotificationAsRead } = useSchool();
@@ -98,17 +108,17 @@ export function NotificationArchivesPage() {
   const getTypeBadge = (type: string) => {
     switch (type) {
       case 'parent_message':
-        return <Badge className="bg-purple-100 text-purple-800 border-purple-300"><span className="w-3 h-3 mr-1" />Parent Message</Badge>;
+        return <Badge className="bg-[#0A2540]/10 text-[#0A2540] border-gray-100"><span className="w-3 h-3 mr-1" />Parent Message</Badge>;
       case 'announcement':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300"><span className="w-3 h-3 mr-1" />Announcement</Badge>;
+        return <Badge className="bg-[#0A2540]/10 text-[#0A2540] border-gray-100"><span className="w-3 h-3 mr-1" />Announcement</Badge>;
       case 'alert':
         return <Badge className="bg-red-100 text-red-800 border-red-300"><span className="w-3 h-3 mr-1" />Alert</Badge>;
       case 'reminder':
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300"><span className="w-3 h-3 mr-1" />Reminder</Badge>;
       case 'update':
-        return <Badge className="bg-green-100 text-green-800 border-green-300"><span className="w-3 h-3 mr-1" />Update</Badge>;
+        return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300"><span className="w-3 h-3 mr-1" />Update</Badge>;
       default:
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-300"><span className="w-3 h-3 mr-1" />Unknown</Badge>;
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-100"><span className="w-3 h-3 mr-1" />Unknown</Badge>;
     }
   };
 
@@ -193,7 +203,7 @@ export function NotificationArchivesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[#0A2540] mb-2">Notification Archives</h1>
+          <h1 className="text-[#0A2540] mb-2 font-heading font-bold">Notification Archives</h1>
           <p className="text-gray-600">View and manage all sent notifications</p>
         </div>
         {selectedIds.length > 0 && (
@@ -202,7 +212,7 @@ export function NotificationArchivesPage() {
             variant="destructive"
             className="rounded-xl"
           >
-            <span className="w-4 h-4 mr-2" />
+            <Trash className="w-4 h-4 mr-2" weight="bold" />
             Delete {selectedIds.length} Selected
           </Button>
         )}
@@ -210,35 +220,35 @@ export function NotificationArchivesPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-[#0A2540]/10">
+        <Card className="border-gray-100">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm mb-1">Total Sent</p>
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.status === 'sent').length}</p>
               </div>
-              <div className="bg-green-100 p-3 rounded-xl">
-                <span className="w-6 h-6 text-green-600" />
+              <div className="bg-emerald-100 p-3 rounded-xl">
+                <PaperPlane className="w-6 h-6 text-emerald-600" weight="bold" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-[#0A2540]/10">
+        <Card className="border-gray-100">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm mb-1">Announcements</p>
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.type === 'announcement').length}</p>
               </div>
-              <div className="bg-blue-100 p-3 rounded-xl">
-                <span className="w-6 h-6 text-blue-600" />
+              <div className="bg-[#0A2540]/10 p-3 rounded-xl">
+                <Megaphone className="w-6 h-6 text-[#0A2540]" weight="bold" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-[#0A2540]/10">
+        <Card className="border-gray-100">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -246,21 +256,21 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.type === 'alert').length}</p>
               </div>
               <div className="bg-red-100 p-3 rounded-xl">
-                <span className="w-6 h-6 text-red-600" />
+                <Warning className="w-6 h-6 text-red-600" weight="bold" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-[#0A2540]/10">
+        <Card className="border-gray-100">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm mb-1">Total Recipients</p>
                 <p className="text-[#0A2540]">{notificationsData.reduce((sum, n) => sum + n.recipientCount, 0)}</p>
               </div>
-              <div className="bg-purple-100 p-3 rounded-xl">
-                <span className="w-6 h-6 text-purple-600" />
+              <div className="bg-[#0A2540]/10 p-3 rounded-xl">
+                <Users className="w-6 h-6 text-[#0A2540]" weight="bold" />
               </div>
             </div>
           </CardContent>
@@ -268,24 +278,24 @@ export function NotificationArchivesPage() {
       </div>
 
       {/* Filters and Search */}
-      <Card className="border-[#0A2540]/10">
+      <Card className="border-gray-100">
         <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" weight="bold" />
               <Input
                 type="text"
                 placeholder="Search notifications..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-[#0A2540]/20 focus:border-[#FFD700] rounded-xl"
+                className="pl-10 border-gray-100 focus:border-[#FFD700] rounded-xl"
               />
             </div>
 
             {/* Type Filter */}
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="border-[#0A2540]/20 rounded-xl">
+              <SelectTrigger className="border-gray-100 rounded-xl">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
@@ -300,7 +310,7 @@ export function NotificationArchivesPage() {
 
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="border-[#0A2540]/20 rounded-xl">
+              <SelectTrigger className="border-gray-100 rounded-xl">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -315,8 +325,8 @@ export function NotificationArchivesPage() {
       </Card>
 
       {/* Notifications Table */}
-      <Card className="border-[#0A2540]/10">
-        <CardHeader className="border-b border-[#0A2540]/10 bg-[#0A2540]/5">
+      <Card className="border-gray-100">
+        <CardHeader className="border-b border-gray-100 bg-[#0A2540]/5">
           <CardTitle className="text-[#0A2540]">Archived Notifications ({filteredNotifications.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -391,17 +401,17 @@ export function NotificationArchivesPage() {
                             onClick={() => handleViewNotification(notification)}
                             className="text-[#0A2540] hover:text-[#FFD700] hover:bg-[#FFD700]/10 rounded-xl"
                           >
-                            <span className="w-4 h-4" />
+                            <Eye className="w-4 h-4" weight="bold" />
                           </Button>
                           {notification.isParentMessage && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleReply(notification)}
-                              className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 rounded-xl"
+                              className="text-[#0A2540] hover:text-[#0A2540]/80 hover:bg-[#0A2540]/10 rounded-xl"
                               title="Reply to parent"
                             >
-                              <span className="w-4 h-4" />
+                              <ArrowBendUpLeft className="w-4 h-4" weight="bold" />
                             </Button>
                           )}
                         </div>
@@ -476,7 +486,7 @@ export function NotificationArchivesPage() {
                 value={replyMessage}
                 onChange={(e) => setReplyMessage(e.target.value)}
                 placeholder="Type your reply here..."
-                className="min-32 rounded-xl border-[#0A2540]/20 focus:border-[#FFD700]"
+                className="min-32 rounded-xl border-gray-100 focus:border-[#FFD700]"
                 required
               />
             </div>
@@ -492,7 +502,7 @@ export function NotificationArchivesPage() {
                 onClick={handleSendReply}
                 className="bg-[#FFD700] hover:bg-[#FFC700] text-[#0A2540] rounded-xl"
               >
-                <span className="w-4 h-4 mr-2" />
+                <PaperPlane className="w-4 h-4 mr-2" weight="bold" />
                 Send Reply
               </Button>
             </div>

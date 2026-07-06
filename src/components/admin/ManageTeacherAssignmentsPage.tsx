@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { api } from '../../services/api';
 import { API_CONFIG } from '../../config/api';
-import { Plus, Search, Edit, Trash2, BookOpen, Users, X, Check, AlertCircle, Award, Clock, Activity, UserCheck, Calendar, Filter, ChevronDown, ChevronUp, Grid3x3, List, User, Loader2, Save, FileText } from 'lucide-react';
+import { Plus, MagnifyingGlass, PencilSimple, Trash, BookOpen, Users, X, Check, Warning, Trophy, Clock, Lightning, UserCheck, Calendar, Funnel, CaretDown, CaretUp, SquaresFour, List, User, CircleNotch, FloppyDisk, FileText } from '@phosphor-icons/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -567,15 +567,15 @@ export function ManageTeacherAssignmentsPage() {
   }, [activeTab, currentAcademicYear, currentTerm]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-[#0A2540]/5">
       {/* Modern Header */}
       <div className="bg-white border-b border-gray-200/80 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <div className="p-2 bg-blue-600 rounded-lg">
-                  <UserCheck className="w-6 h-6 text-white" />
+              <h1 className="text-3xl font-heading font-bold text-gray-900 flex items-center gap-3">
+                <div className="p-2 bg-[#0A2540] rounded-lg">
+                  <UserCheck weight="bold" className="w-6 h-6 text-white" />
                 </div>
                 Teacher Assignments
               </h1>
@@ -584,10 +584,10 @@ export function ManageTeacherAssignmentsPage() {
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <Button
                 onClick={handleOpenAssignDialog}
-                className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-4 sm:px-6 w-full sm:w-auto flex items-center justify-center gap-2 h-10 sm:h-auto"
+                className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-4 sm:px-6 w-full sm:w-auto flex items-center justify-center gap-2 h-10 sm:h-auto"
                 size="sm"
               >
-                <Plus className="w-4 h-4 flex-shrink-0" />
+                <Plus weight="bold" className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline whitespace-nowrap">New Assignment</span>
                 <span className="sm:hidden whitespace-nowrap">Assignment</span>
               </Button>
@@ -597,7 +597,7 @@ export function ManageTeacherAssignmentsPage() {
                 className="border-gray-300 hover:bg-gray-50 transition-all duration-200 px-4 sm:px-6 w-full sm:w-auto flex items-center justify-center gap-2 h-10 sm:h-auto"
                 size="sm"
               >
-                <UserCheck className="w-4 h-4 flex-shrink-0" />
+                <UserCheck weight="bold" className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline whitespace-nowrap">Class Teachers</span>
                 <span className="sm:hidden whitespace-nowrap">Teachers</span>
               </Button>
@@ -610,80 +610,80 @@ export function ManageTeacherAssignmentsPage() {
         {/* Loading State */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24">
-            <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+            <CircleNotch weight="bold" className="w-10 h-10 text-[#0A2540] animate-spin mb-4" />
             <p className="text-gray-600 font-medium">Loading teacher assignments...</p>
           </div>
         ) : (<>
         
         {/* Modern Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
+          <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-medium">Total Assignments</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalAssignments}</p>
-                  <p className="text-xs text-green-600 mt-2 flex items-center">
-                    <Activity className="w-3 h-3 mr-1" />
+                  <p className="text-xs text-emerald-600 mt-2 flex items-center">
+                    <Lightning weight="bold" className="w-3 h-3 mr-1" />
                     Active this term
                   </p>
                 </div>
-                <div className="p-3 bg-blue-100 rounded-xl">
-                  <BookOpen className="w-6 h-6 text-blue-600" />
+                <div className="p-3 bg-[#0A2540]/10 rounded-xl">
+                  <BookOpen weight="bold" className="w-6 h-6 text-[#0A2540]" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
+          <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-medium">Active Teachers</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">{stats.uniqueTeachers}</p>
-                  <p className="text-xs text-purple-600 mt-2 flex items-center">
-                    <Users className="w-3 h-3 mr-1" />
+                  <p className="text-xs text-[#0A2540] mt-2 flex items-center">
+                    <Users weight="bold" className="w-3 h-3 mr-1" />
                     With assignments
                   </p>
                 </div>
-                <div className="p-3 bg-purple-100 rounded-xl">
-                  <Users className="w-6 h-6 text-purple-600" />
+                <div className="p-3 bg-[#0A2540]/10 rounded-xl">
+                  <Users weight="bold" className="w-6 h-6 text-[#0A2540]" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
+          <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-medium">Subjects Covered</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">{stats.uniqueSubjects}</p>
                   <p className="text-xs text-orange-600 mt-2 flex items-center">
-                    <Award className="w-3 h-3 mr-1" />
+                    <Trophy weight="bold" className="w-3 h-3 mr-1" />
                     Across curriculum
                   </p>
                 </div>
                 <div className="p-3 bg-orange-100 rounded-xl">
-                  <Award className="w-6 h-6 text-orange-600" />
+                  <Trophy weight="bold" className="w-6 h-6 text-orange-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
+          <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-medium">Classes Served</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">{stats.uniqueClasses}</p>
-                  <p className="text-xs text-green-600 mt-2 flex items-center">
-                    <Calendar className="w-3 h-3 mr-1" />
+                  <p className="text-xs text-emerald-600 mt-2 flex items-center">
+                    <Calendar weight="bold" className="w-3 h-3 mr-1" />
                     All levels
                   </p>
                 </div>
-                <div className="p-3 bg-green-100 rounded-xl">
-                  <Calendar className="w-6 h-6 text-green-600" />
+                <div className="p-3 bg-emerald-100 rounded-xl">
+                  <Calendar weight="bold" className="w-6 h-6 text-emerald-600" />
                 </div>
               </div>
             </CardContent>
@@ -691,17 +691,17 @@ export function ManageTeacherAssignmentsPage() {
         </div>
 
         {/* Modern Filters and Search */}
-        <Card className="bg-white border-0 shadow-lg rounded-2xl mb-8">
+        <Card className="bg-white border border-gray-100 shadow-lg rounded-2xl mb-8">
           <CardContent className="p-6">
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <Input
                     placeholder="Search by teacher, subject, or class..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
+                    className="pl-10 h-12 rounded-xl border-gray-200 focus:border-[#0A2540] focus:ring-[#0A2540]/20"
                   />
                 </div>
               </div>
@@ -709,7 +709,7 @@ export function ManageTeacherAssignmentsPage() {
                 <Select value={filterTeacher} onValueChange={setFilterTeacher}>
                   <SelectTrigger className="w-48 h-12 rounded-xl border-gray-200">
                     <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-400" />
+                      <User weight="bold" className="w-4 h-4 text-gray-400" />
                       <SelectValue placeholder="All Teachers" />
                     </div>
                   </SelectTrigger>
@@ -731,7 +731,7 @@ export function ManageTeacherAssignmentsPage() {
                 <Select value={filterClass} onValueChange={setFilterClass}>
                   <SelectTrigger className="w-48 h-12 rounded-xl border-gray-200">
                     <div className="flex items-center gap-2">
-                      <Grid3x3 className="w-4 h-4 text-gray-400" />
+                      <SquaresFour weight="bold" className="w-4 h-4 text-gray-400" />
                       <SelectValue placeholder="All Classes" />
                     </div>
                   </SelectTrigger>
@@ -752,7 +752,7 @@ export function ManageTeacherAssignmentsPage() {
                     onClick={() => setViewMode('table')}
                     className={`rounded-lg ${viewMode === 'table' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'} p-2`}
                   >
-                    <List className="w-4 h-4" />
+                    <List weight="bold" className="w-4 h-4" />
                   </Button>
                   <Button
                     variant={viewMode === 'grid' ? 'default' : 'ghost'}
@@ -760,7 +760,7 @@ export function ManageTeacherAssignmentsPage() {
                     onClick={() => setViewMode('grid')}
                     className={`rounded-lg ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'} p-2`}
                   >
-                    <Grid3x3 className="w-4 h-4" />
+                    <SquaresFour weight="bold" className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -769,26 +769,26 @@ export function ManageTeacherAssignmentsPage() {
         </Card>
 
         {/* Main Content Area */}
-        <Card className="bg-white border-0 shadow-lg rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
+        <Card className="bg-white border border-gray-100 shadow-lg rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-[#0A2540]/5 to-indigo-50 border-b border-gray-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'subjects' | 'class-teachers')} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 bg-gray-100/50 p-1 rounded-xl">
                     <TabsTrigger value="subjects" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm sm:text-base py-2 px-3">
-                      <BookOpen className="w-4 h-4 flex-shrink-0" />
+                      <BookOpen weight="bold" className="w-4 h-4 flex-shrink-0" />
                       <span className="hidden sm:inline">Subject Assignments</span>
                       <span className="sm:hidden">Subjects</span>
                     </TabsTrigger>
                     <TabsTrigger value="class-teachers" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm sm:text-base py-2 px-3">
-                      <UserCheck className="w-4 h-4 flex-shrink-0" />
+                      <UserCheck weight="bold" className="w-4 h-4 flex-shrink-0" />
                       <span className="hidden sm:inline">Class Teachers</span>
                       <span className="sm:hidden">Teachers</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
-              <Badge className="bg-blue-100 text-blue-800 px-3 py-1">
+              <Badge className="bg-[#0A2540]/10 text-[#0A2540] px-3 py-1">
                 {currentTerm} - {currentAcademicYear}
               </Badge>
             </div>
@@ -815,7 +815,7 @@ export function ManageTeacherAssignmentsPage() {
                             <TableCell colSpan={5} className="text-center py-16">
                               <div className="flex flex-col items-center gap-4">
                                 <div className="p-4 bg-gray-100 rounded-full">
-                                  <BookOpen className="w-8 h-8 text-gray-400" />
+                                  <BookOpen weight="bold" className="w-8 h-8 text-gray-400" />
                                 </div>
                                 <div>
                                   <p className="text-gray-900 font-medium">No assignments found</p>
@@ -823,9 +823,9 @@ export function ManageTeacherAssignmentsPage() {
                                 </div>
                                 <Button
                                   onClick={handleOpenAssignDialog}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                  className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white"
                                 >
-                                  <Plus className="w-4 h-4 mr-2" />
+                                  <Plus weight="bold" className="w-4 h-4 mr-2" />
                                   Create First Assignment
                                 </Button>
                               </div>
@@ -836,7 +836,7 @@ export function ManageTeacherAssignmentsPage() {
                         <TableRow key={assignment.id} className="hover:bg-gray-50 border-b border-gray-100">
                           <TableCell className="py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+                              <div className="w-10 h-10 bg-gradient-to-br from-[#0A2540] to-[#0A2540]/80 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
                                 {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                               </div>
                               <div className="min-w-0">
@@ -848,7 +848,7 @@ export function ManageTeacherAssignmentsPage() {
                           <TableCell className="py-4">
                             <div className="flex items-center gap-2">
                               <div className="p-2 bg-orange-100 rounded-lg flex-shrink-0">
-                                <BookOpen className="w-4 h-4 text-orange-600" />
+                                <BookOpen weight="bold" className="w-4 h-4 text-orange-600" />
                               </div>
                               <div className="min-w-0">
                                 <p className="font-medium text-gray-900 truncate">{assignment.subject_name}</p>
@@ -858,8 +858,8 @@ export function ManageTeacherAssignmentsPage() {
                           </TableCell>
                           <TableCell className="py-4">
                             <div className="flex items-center gap-2">
-                              <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
-                                <Users className="w-4 h-4 text-green-600" />
+                              <div className="p-2 bg-emerald-100 rounded-lg flex-shrink-0">
+                                <Users weight="bold" className="w-4 h-4 text-emerald-600" />
                               </div>
                               <div className="min-w-0">
                                 <p className="font-medium text-gray-900 truncate">{assignment.class_name}</p>
@@ -884,7 +884,7 @@ export function ManageTeacherAssignmentsPage() {
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
                               aria-label="Delete assignment"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash weight="bold" className="w-4 h-4" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -899,18 +899,18 @@ export function ManageTeacherAssignmentsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
                     {filteredAssignments.length === 0 ? (
                       <div className="col-span-full">
-                        <Card className="bg-white border-0 shadow-lg rounded-2xl">
+                        <Card className="bg-white border border-gray-100 shadow-lg rounded-2xl">
                           <CardContent className="p-12 text-center">
                             <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                              <BookOpen className="w-8 h-8 text-gray-400" />
+                              <BookOpen weight="bold" className="w-8 h-8 text-gray-400" />
                             </div>
                             <p className="text-gray-900 font-medium text-lg mb-2">No assignments found</p>
                             <p className="text-gray-500 text-sm mb-6">Try adjusting your search or filters</p>
                             <Button
                               onClick={handleOpenAssignDialog}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white"
                             >
-                              <Plus className="w-4 h-4 mr-2" />
+                              <Plus weight="bold" className="w-4 h-4 mr-2" />
                               Create First Assignment
                             </Button>
                           </CardContent>
@@ -918,11 +918,11 @@ export function ManageTeacherAssignmentsPage() {
                       </div>
                     ) : (
                       paginatedFilteredAssignments.map((assignment) => (
-                        <Card key={assignment.id} className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
+                        <Card key={assignment.id} className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
                           <CardContent className="p-6">
                             <div className="flex items-start justify-between mb-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                                <div className="w-10 h-10 bg-gradient-to-br from-[#0A2540] to-[#0A2540]/80 rounded-full flex items-center justify-center text-white font-semibold">
                                   {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                                 </div>
                                 <div>
@@ -941,13 +941,13 @@ export function ManageTeacherAssignmentsPage() {
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
                                 aria-label="Delete assignment"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash weight="bold" className="w-4 h-4" />
                               </Button>
                             </div>
                             <div className="space-y-3">
                               <div className="flex items-center gap-2">
                                 <div className="p-2 bg-orange-100 rounded-lg">
-                                  <BookOpen className="w-4 h-4 text-orange-600" />
+                                  <BookOpen weight="bold" className="w-4 h-4 text-orange-600" />
                                 </div>
                                 <div>
                                   <p className="font-medium text-gray-900">{assignment.subject_name}</p>
@@ -955,8 +955,8 @@ export function ManageTeacherAssignmentsPage() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <div className="p-2 bg-green-100 rounded-lg">
-                                  <Users className="w-4 h-4 text-green-600" />
+                                <div className="p-2 bg-emerald-100 rounded-lg">
+                                  <Users weight="bold" className="w-4 h-4 text-emerald-600" />
                                 </div>
                                 <div>
                                   <p className="font-medium text-gray-900">{assignment.class_name}</p>
@@ -964,10 +964,10 @@ export function ManageTeacherAssignmentsPage() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <Badge className="bg-blue-100 text-blue-800">
+                                <Badge className="bg-[#0A2540]/10 text-[#0A2540]">
                                   {assignment.term}
                                 </Badge>
-                                <Badge className="bg-blue-100 text-blue-800">
+                                <Badge className="bg-[#0A2540]/10 text-[#0A2540]">
                                   {assignment.academic_year}
                                 </Badge>
                               </div>
@@ -1026,14 +1026,14 @@ export function ManageTeacherAssignmentsPage() {
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Class Teacher Assignments</h3>
+                      <h3 className="text-lg font-heading font-bold text-gray-900">Class Teacher Assignments</h3>
                       <p className="text-sm text-gray-500">Manage class teachers for {currentTerm} {currentAcademicYear}</p>
                     </div>
                     <Button
                       onClick={() => setIsClassTeacherDialogOpen(true)}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-10 sm:h-auto w-full sm:w-auto"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-10 sm:h-auto w-full sm:w-auto"
                     >
-                      <Plus className="w-4 h-4 flex-shrink-0" />
+                      <Plus weight="bold" className="w-4 h-4 flex-shrink-0" />
                       <span className="hidden sm:inline whitespace-nowrap">Assign Class Teacher</span>
                       <span className="sm:hidden whitespace-nowrap">Assign Teacher</span>
                     </Button>
@@ -1042,15 +1042,15 @@ export function ManageTeacherAssignmentsPage() {
                   {classTeacherAssignments.length === 0 ? (
                     <div className="text-center py-16">
                       <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                        <UserCheck className="w-8 h-8 text-gray-400" />
+                        <UserCheck weight="bold" className="w-8 h-8 text-gray-400" />
                       </div>
                       <p className="text-gray-900 font-medium text-lg mb-2">No class teachers assigned</p>
                       <p className="text-gray-500 text-sm mb-6">Assign class teachers to manage classes</p>
                       <Button
                         onClick={() => setIsClassTeacherDialogOpen(true)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-10 sm:h-auto w-full sm:w-auto"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-10 sm:h-auto w-full sm:w-auto"
                       >
-                        <Plus className="w-4 h-4 flex-shrink-0" />
+                        <Plus weight="bold" className="w-4 h-4 flex-shrink-0" />
                         <span className="hidden sm:inline whitespace-nowrap">Assign First Class Teacher</span>
                         <span className="sm:hidden whitespace-nowrap">Assign Teacher</span>
                       </Button>
@@ -1060,7 +1060,7 @@ export function ManageTeacherAssignmentsPage() {
                       {paginatedClassTeacherAssignments.map((assignment) => (
                         <div key={assignment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#0A2540] rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
                               {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                             </div>
                             <div className="min-w-0">
@@ -1070,8 +1070,8 @@ export function ManageTeacherAssignmentsPage() {
                           </div>
 
                           <div className="flex items-center gap-2 ml-0 sm:ml-auto">
-                            <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg flex-shrink-0">
-                              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />
+                            <div className="p-1.5 sm:p-2 bg-[#0A2540]/10 rounded-lg flex-shrink-0">
+                              <Users weight="bold" className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A2540]" />
                             </div>
                             <div className="min-w-0">
                               <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{assignment.class_name}</p>
@@ -1080,10 +1080,10 @@ export function ManageTeacherAssignmentsPage() {
                           </div>
 
                           <div className="flex items-center gap-1.5 sm:gap-2">
-                            <Badge className="bg-green-100 text-green-800 text-xs whitespace-nowrap">
+                            <Badge className="bg-emerald-100 text-emerald-800 text-xs whitespace-nowrap">
                               {assignment.term}
                             </Badge>
-                            <Badge className="bg-green-100 text-green-800 text-xs whitespace-nowrap">
+                            <Badge className="bg-emerald-100 text-emerald-800 text-xs whitespace-nowrap">
                               {assignment.academic_year}
                             </Badge>
                           </div>
@@ -1101,7 +1101,7 @@ export function ManageTeacherAssignmentsPage() {
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
                               aria-label="Remove class teacher"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash weight="bold" className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
@@ -1161,7 +1161,7 @@ export function ManageTeacherAssignmentsPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-red-600" />
+                <Warning weight="bold" className="w-5 h-5 text-red-600" />
                 Confirm Deletion
               </AlertDialogTitle>
               <AlertDialogDescription>
@@ -1179,7 +1179,7 @@ export function ManageTeacherAssignmentsPage() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
-                <Trash2 className="w-4 h-4 mr-2" />
+                <Trash weight="bold" className="w-4 h-4 mr-2" />
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1201,20 +1201,20 @@ export function ManageTeacherAssignmentsPage() {
                 {saveStatus !== 'idle' && (
                   <div className="flex items-center gap-2">
                     {saveStatus === 'saving' && (
-                      <div className="flex items-center gap-1 text-blue-600">
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                      <div className="flex items-center gap-1 text-[#0A2540]">
+                        <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
                         <span className="text-sm">Saving...</span>
                       </div>
                     )}
                     {saveStatus === 'saved' && (
-                      <div className="flex items-center gap-1 text-green-600">
-                        <Check className="w-4 h-4" />
+                      <div className="flex items-center gap-1 text-emerald-600">
+                        <Check weight="bold" className="w-4 h-4" />
                         <span className="text-sm">Saved</span>
                       </div>
                     )}
                     {saveStatus === 'error' && (
                       <div className="flex items-center gap-1 text-red-600">
-                        <AlertCircle className="w-4 h-4" />
+                        <Warning weight="bold" className="w-4 h-4" />
                         <span className="text-sm">Error</span>
                       </div>
                     )}
@@ -1228,13 +1228,13 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Teacher</Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search teachers..."
                     value={teacherSearchTerm}
                     onChange={(e) => setTeacherSearchTerm(e.target.value)}
-                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-[#0A2540] focus:ring-[#0A2540]"
                   />
                 </div>
                 <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
@@ -1250,12 +1250,12 @@ export function ManageTeacherAssignmentsPage() {
                           setSelectedTeacherId(Number(teacher.id));
                           setTeacherSearchTerm(`${teacher.firstName} ${teacher.lastName}`);
                         }}
-                        className={`p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 ${
-                          selectedTeacherId === Number(teacher.id) ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                        className={`p-3 cursor-pointer hover:bg-[#0A2540]/5 border-b border-gray-100 last:border-b-0 ${
+                          selectedTeacherId === Number(teacher.id) ? 'bg-[#0A2540]/5 border-l-4 border-l-[#0A2540]' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                          <div className="w-8 h-8 bg-gradient-to-br from-[#0A2540] to-[#0A2540]/80 rounded-full flex items-center justify-center text-white text-xs font-semibold">
                             {teacher.firstName?.[0]}{teacher.lastName?.[0]}
                           </div>
                           <div className="flex-1">
@@ -1265,7 +1265,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="text-xs text-gray-500">ID: {teacher.id}</p>
                           </div>
                           {selectedTeacherId === teacher.id && (
-                            <Check className="w-4 h-4 text-blue-600" />
+                            <Check weight="bold" className="w-4 h-4 text-[#0A2540]" />
                           )}
                         </div>
                       </div>
@@ -1278,13 +1278,13 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Class</Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search classes..."
                     value={classSearchTerm}
                     onChange={(e) => setClassSearchTerm(e.target.value)}
-                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-[#0A2540] focus:ring-[#0A2540]"
                   />
                 </div>
                 <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
@@ -1300,12 +1300,12 @@ export function ManageTeacherAssignmentsPage() {
                           setSelectedClassIdForAssignments(cls.id);
                           setClassSearchTerm(cls.name);
                         }}
-                        className={`p-3 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-b-0 ${
-                          selectedClassIdForAssignments === cls.id ? 'bg-green-50 border-l-4 border-l-green-500' : ''
+                        className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
+                          selectedClassIdForAssignments === cls.id ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                          <div className="w-8 h-8 bg-[#0A2540] rounded-full flex items-center justify-center text-white text-xs font-semibold">
                             {cls.name?.[0]}
                           </div>
                           <div className="flex-1">
@@ -1313,7 +1313,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="text-xs text-gray-500">{cls.level}</p>
                           </div>
                           {selectedClassIdForAssignments === cls.id && (
-                            <Check className="w-4 h-4 text-green-600" />
+                            <Check weight="bold" className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>
@@ -1332,12 +1332,12 @@ export function ManageTeacherAssignmentsPage() {
                   </Label>
                   
                   {/* Subject Selection Info */}
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="mb-4 p-3 bg-[#0A2540]/5 rounded-lg border border-[#0A2540]/20">
                     <div className="flex items-start gap-2">
-                      <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-blue-600 text-xs font-semibold">i</span>
+                      <div className="w-5 h-5 bg-[#0A2540]/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-[#0A2540] text-xs font-semibold">i</span>
                       </div>
-                      <div className="text-sm text-blue-800">
+                      <div className="text-sm text-[#0A2540]">
                         <p className="font-medium">Registered Subjects for {
                           classes?.find(c => c.id === selectedClassIdForAssignments)?.name || 'Selected Class'
                         }</p>
@@ -1373,15 +1373,15 @@ export function ManageTeacherAssignmentsPage() {
                             }
                           >
                             <div className="flex items-center gap-2">
-                              <div className="p-1 bg-blue-100 rounded">
-                                <BookOpen className="w-3 h-3 text-blue-600" />
+                              <div className="p-1 bg-[#0A2540]/10 rounded">
+                                <BookOpen weight="bold" className="w-3 h-3 text-[#0A2540]" />
                               </div>
                               <div>
                                 <p className="font-medium text-gray-900 text-sm">{subject.name}</p>
                                 <p className="text-xs text-gray-500">{subject.code} • {subject.category}</p>
                               </div>
                               {subject.is_core && (
-                                <Badge variant="outline" className="bg-purple-100 text-purple-800 text-xs ml-2">
+                                <Badge variant="outline" className="bg-[#0A2540]/10 text-[#0A2540] text-xs ml-2">
                                   Core
                                 </Badge>
                               )}
@@ -1402,8 +1402,8 @@ export function ManageTeacherAssignmentsPage() {
 
               {/* Selected Assignments Summary */}
               {selectedAssignments.length > 0 && (
-                <div className="p-4 bg-blue-50 rounded-xl">
-                  <p className="text-sm font-medium text-blue-900 mb-2">
+                <div className="p-4 bg-[#0A2540]/5 rounded-xl">
+                  <p className="text-sm font-medium text-[#0A2540] mb-2">
                     {selectedAssignments.length} assignment{selectedAssignments.length > 1 ? 's' : ''} selected
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -1411,7 +1411,7 @@ export function ManageTeacherAssignmentsPage() {
                       const subject = subjects?.find(s => s.id === assignment.subject_id);
                       const cls = classes?.find(c => c.id === assignment.class_id);
                       return (
-                        <Badge key={index} className="bg-blue-100 text-blue-800">
+                        <Badge key={index} className="bg-[#0A2540]/10 text-[#0A2540]">
                           {subject?.name} → {cls?.name}
                         </Badge>
                       );
@@ -1432,16 +1432,16 @@ export function ManageTeacherAssignmentsPage() {
               <Button
                 onClick={handleSaveAssignments}
                 disabled={!selectedTeacherId || selectedAssignments.length === 0 || isSaving}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+                className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white px-6"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <CircleNotch weight="bold" className="w-4 h-4 mr-2 animate-spin" />
                     Saving...
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4 mr-2" />
+                    <FloppyDisk weight="bold" className="w-4 h-4 mr-2" />
                     Save Assignments ({selectedAssignments.length})
                   </>
                 )}
@@ -1463,13 +1463,13 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Teacher</Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search teachers..."
                     value={teacherSearchTerm}
                     onChange={(e) => setTeacherSearchTerm(e.target.value)}
-                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-green-500 focus:ring-green-500"
+                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
                 </div>
                 <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
@@ -1485,12 +1485,12 @@ export function ManageTeacherAssignmentsPage() {
                           setSelectedTeacherId(Number(teacher.id));
                           setTeacherSearchTerm(`${teacher.firstName} ${teacher.lastName}`);
                         }}
-                        className={`p-3 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-b-0 ${
-                          selectedTeacherId === Number(teacher.id) ? 'bg-green-50 border-l-4 border-l-green-500' : ''
+                        className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
+                          selectedTeacherId === Number(teacher.id) ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                          <div className="w-8 h-8 bg-[#0A2540] rounded-full flex items-center justify-center text-white text-xs font-semibold">
                             {teacher.firstName?.[0]}{teacher.lastName?.[0]}
                           </div>
                           <div className="flex-1">
@@ -1500,7 +1500,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="text-xs text-gray-500">ID: {teacher.id}</p>
                           </div>
                           {selectedTeacherId === teacher.id && (
-                            <Check className="w-4 h-4 text-green-600" />
+                            <Check weight="bold" className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>
@@ -1513,13 +1513,13 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Class</Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search classes..."
                     value={classSearchTerm}
                     onChange={(e) => setClassSearchTerm(e.target.value)}
-                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-green-500 focus:ring-green-500"
+                    className="pl-10 h-12 rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
                 </div>
                 <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
@@ -1535,12 +1535,12 @@ export function ManageTeacherAssignmentsPage() {
                           setSelectedClassForTeacher(cls.id.toString());
                           setClassSearchTerm(cls.name);
                         }}
-                        className={`p-3 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-b-0 ${
-                          selectedClassForTeacher === cls.id.toString() ? 'bg-green-50 border-l-4 border-l-green-500' : ''
+                        className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
+                          selectedClassForTeacher === cls.id.toString() ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                          <div className="w-8 h-8 bg-[#0A2540] rounded-full flex items-center justify-center text-white text-xs font-semibold">
                             {cls.name?.[0]}
                           </div>
                           <div className="flex-1">
@@ -1548,7 +1548,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="text-xs text-gray-500">{cls.level}</p>
                           </div>
                           {selectedClassForTeacher === cls.id.toString() && (
-                            <Check className="w-4 h-4 text-green-600" />
+                            <Check weight="bold" className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>
@@ -1569,7 +1569,7 @@ export function ManageTeacherAssignmentsPage() {
               <Button
                 onClick={handleAssignClassTeacher}
                 disabled={!selectedTeacherId || !selectedClassForTeacher}
-                className="bg-green-600 hover:bg-green-700 text-white px-6"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6"
               >
                 Assign Class Teacher
               </Button>

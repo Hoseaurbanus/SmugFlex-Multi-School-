@@ -1,13 +1,14 @@
 <?php
 /**
  * Subject Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class SubjectController {
     private $conn;
@@ -21,21 +22,22 @@ class SubjectController {
      * Get All Subjects
      */
     public function getAllSubjects() {
-        Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $pagination = Middleware::getPaginationParams();
-        $search_params = Middleware::getSearchParams();
+        $search_params = Middleware::getSearchParams(['id', 'name', 'code', 'category']);
         
         try {
             $query = "SELECT s.*, 
-                             (SELECT COUNT(*) FROM subject_assignments WHERE subject_id = s.id AND status = 'Active') as assignment_count
-                      FROM subjects s";
+                             (SELECT COUNT(*) FROM subject_assignments WHERE subject_id = s.id AND status = 'Active' AND school_id = :school_id_sub) as assignment_count
+                       FROM subjects s";
             
             $count_query = "SELECT COUNT(*) as total FROM subjects s";
             
             // Add search conditions
-            $conditions = [];
-            $params = [];
+            $conditions = ["s.school_id = :school_id"];
+            $params = [':school_id' => $school_id, ':school_id_sub' => $school_id];
             
             if (!empty($search_params['search'])) {
                 $conditions[] = "(s.name LIKE :search OR s.code LIKE :search OR s.description LIKE :search)";
@@ -92,13 +94,14 @@ class SubjectController {
      * Get Subject by ID
      */
     public function getSubjectById($id) {
-        Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $subject_id = Middleware::validateInteger($id, 'subject_id');
         
         try {
             $query = "SELECT s.*, 
-                             (SELECT COUNT(*) FROM subject_assignments WHERE subject_id = s.id AND status = 'Active') as assignment_count,
+                             (SELECT COUNT(*) FROM subject_assignments WHERE subject_id = s.id AND status = 'Active' AND school_id = :school_id_sub1) as assignment_count,
                              (SELECT GROUP_CONCAT(
                                  JSON_OBJECT(
                                      'class_id', sa.class_id,
@@ -112,12 +115,15 @@ class SubjectController {
                               FROM subject_assignments sa 
                               JOIN classes c ON sa.class_id = c.id 
                               JOIN teachers t ON sa.teacher_id = t.id
-                              WHERE sa.subject_id = s.id AND sa.status = 'Active') as assignments
-                      FROM subjects s
-                      WHERE s.id = :id";
+                              WHERE sa.subject_id = s.id AND sa.status = 'Active' AND sa.school_id = :school_id_sub2) as assignments
+                       FROM subjects s
+                       WHERE s.id = :id AND s.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $subject_id);
+            $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':school_id_sub1', $school_id);
+            $stmt->bindParam(':school_id_sub2', $school_id);
             $stmt->execute();
             
             $subject = $stmt->fetch();
@@ -144,7 +150,8 @@ class SubjectController {
      * Create New Subject
      */
     public function createSubject() {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -156,9 +163,10 @@ class SubjectController {
             $code = Middleware::sanitizeString($data['code']);
             $name = Middleware::sanitizeString($data['name']);
             
-            $check_query = "SELECT id FROM subjects WHERE code = :code";
+            $check_query = "SELECT id FROM subjects WHERE code = :code AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':code', $code);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()) {
@@ -172,8 +180,8 @@ class SubjectController {
             $is_core = isset($data['is_core']) ? (bool)$data['is_core'] : false;
             
             // Insert subject
-            $query = "INSERT INTO subjects (name, code, category, department, description, is_core, status)
-                      VALUES (:name, :code, :category, :department, :description, :is_core, 'Active')";
+            $query = "INSERT INTO subjects (name, code, category, department, description, is_core, status, school_id)
+                      VALUES (:name, :code, :category, :department, :description, :is_core, 'Active', :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':name', $name);
@@ -182,6 +190,7 @@ class SubjectController {
             $stmt->bindParam(':department', $department);
             $stmt->bindParam(':description', $description);
             $stmt->bindParam(':is_core', $is_core);
+            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
             $subject_id = $this->conn->lastInsertId();
@@ -216,16 +225,18 @@ class SubjectController {
      * Update Subject
      */
     public function updateSubject($id) {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $subject_id = Middleware::validateInteger($id, 'subject_id');
         $data = json_decode(file_get_contents('php://input'), true);
         
         try {
             // Check if subject exists
-            $check_query = "SELECT * FROM subjects WHERE id = :id";
+            $check_query = "SELECT * FROM subjects WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $subject_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $existing_subject = $check_stmt->fetch();
@@ -262,7 +273,8 @@ class SubjectController {
                 Response::badRequest('No valid fields to update');
             }
             
-            $query = "UPDATE subjects SET " . implode(', ', $update_fields) . " WHERE id = :id";
+            $query = "UPDATE subjects SET " . implode(', ', $update_fields) . " WHERE id = :id AND school_id = :school_id";
+            $params[':school_id'] = $school_id;
             $stmt = $this->conn->prepare($query);
             
             foreach ($params as $key => $value) {
@@ -298,15 +310,17 @@ class SubjectController {
      * Delete Subject
      */
     public function deleteSubject($id) {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $subject_id = Middleware::validateInteger($id, 'subject_id');
         
         try {
             // Check if subject exists
-            $check_query = "SELECT name, code FROM subjects WHERE id = :id";
+            $check_query = "SELECT name, code FROM subjects WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $subject_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $subject = $check_stmt->fetch();
@@ -315,9 +329,10 @@ class SubjectController {
             }
             
             // Check for active assignments
-            $assignment_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE subject_id = :subject_id AND status = 'Active'";
+            $assignment_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE subject_id = :subject_id AND status = 'Active' AND school_id = :school_id";
             $assignment_check_stmt = $this->conn->prepare($assignment_check_query);
             $assignment_check_stmt->bindParam(':subject_id', $subject_id);
+            $assignment_check_stmt->bindParam(':school_id', $school_id);
             $assignment_check_stmt->execute();
             
             if ($assignment_check_stmt->fetch()['count'] > 0) {
@@ -325,9 +340,10 @@ class SubjectController {
             }
             
             // Delete subject
-            $query = "DELETE FROM subjects WHERE id = :id";
+            $query = "DELETE FROM subjects WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $subject_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             // Log activity
@@ -357,19 +373,22 @@ class SubjectController {
      * Get Subjects by Category
      */
     public function getSubjectsByCategory($category) {
-        Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $category = Middleware::validateEnum($category, ['Creche', 'Nursery', 'Primary', 'JSS', 'SS', 'General'], 'category');
         
         try {
             $query = "SELECT s.*, 
-                             (SELECT COUNT(*) FROM subject_assignments WHERE subject_id = s.id AND status = 'Active') as assignment_count
-                      FROM subjects s
-                      WHERE s.category = :category AND s.status = 'Active'
-                      ORDER BY s.is_core DESC, s.name";
+                             (SELECT COUNT(*) FROM subject_assignments WHERE subject_id = s.id AND status = 'Active' AND school_id = :school_id_sub) as assignment_count
+                       FROM subjects s
+                       WHERE s.category = :category AND s.status = 'Active' AND s.school_id = :school_id
+                       ORDER BY s.is_core DESC, s.name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':category', $category);
+            $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':school_id_sub', $school_id);
             $stmt->execute();
             
             $subjects = $stmt->fetchAll();
@@ -385,7 +404,8 @@ class SubjectController {
      * Assign Subject to Class and Teacher
      */
     public function assignSubject() {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -410,20 +430,22 @@ class SubjectController {
             // - Same subject in different classes with any teacher
             // - Same teacher teaching same subject in different classes
             $check_query = "SELECT id, teacher_id FROM subject_assignments 
-                           WHERE subject_id = :subject_id AND class_id = :class_id AND academic_year = :academic_year AND term = :term AND status = 'Active'";
+                           WHERE subject_id = :subject_id AND class_id = :class_id AND academic_year = :academic_year AND term = :term AND status = 'Active' AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':subject_id', $subject_id);
             $check_stmt->bindParam(':class_id', $class_id);
             $check_stmt->bindParam(':academic_year', $academic_year);
             $check_stmt->bindParam(':term', $term);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $existing_assignment = $check_stmt->fetch();
             if ($existing_assignment) {
                 // Get the existing teacher's name for a clearer error message
-                $teacher_query = "SELECT CONCAT(first_name, ' ', last_name) as teacher_name FROM teachers WHERE id = :teacher_id";
+                $teacher_query = "SELECT CONCAT(first_name, ' ', last_name) as teacher_name FROM teachers WHERE id = :teacher_id AND school_id = :school_id";
                 $teacher_stmt = $this->conn->prepare($teacher_query);
                 $teacher_stmt->bindParam(':teacher_id', $existing_assignment['teacher_id']);
+                $teacher_stmt->bindParam(':school_id', $school_id);
                 $teacher_stmt->execute();
                 $teacher_name = $teacher_stmt->fetch()['teacher_name'];
                 
@@ -434,11 +456,13 @@ class SubjectController {
             $verify_query = "SELECT s.name as subject_name, c.name as class_name, CONCAT(t.first_name, ' ', t.last_name) as teacher_name
                             FROM subjects s, classes c, teachers t
                             WHERE s.id = :subject_id AND c.id = :class_id AND t.id = :teacher_id
-                            AND s.status = 'Active' AND c.status = 'Active' AND t.status = 'Active'";
+                            AND s.status = 'Active' AND c.status = 'Active' AND t.status = 'Active'
+                            AND s.school_id = :school_id AND c.school_id = :school_id AND t.school_id = :school_id";
             $verify_stmt = $this->conn->prepare($verify_query);
             $verify_stmt->bindParam(':subject_id', $subject_id);
             $verify_stmt->bindParam(':class_id', $class_id);
             $verify_stmt->bindParam(':teacher_id', $teacher_id);
+            $verify_stmt->bindParam(':school_id', $school_id);
             $verify_stmt->execute();
             
             $verification = $verify_stmt->fetch();
@@ -447,8 +471,8 @@ class SubjectController {
             }
             
             // Create assignment
-            $query = "INSERT INTO subject_assignments (subject_id, class_id, teacher_id, academic_year, term, status)
-                      VALUES (:subject_id, :class_id, :teacher_id, :academic_year, :term, 'Active')";
+            $query = "INSERT INTO subject_assignments (subject_id, class_id, teacher_id, academic_year, term, status, school_id)
+                      VALUES (:subject_id, :class_id, :teacher_id, :academic_year, :term, 'Active', :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':subject_id', $subject_id);
@@ -456,6 +480,7 @@ class SubjectController {
             $stmt->bindParam(':teacher_id', $teacher_id);
             $stmt->bindParam(':academic_year', $academic_year);
             $stmt->bindParam(':term', $term);
+            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
             $assignment_id = $this->conn->lastInsertId();
@@ -463,19 +488,21 @@ class SubjectController {
             // Update teacher assignment count in real-time
             $update_count_query = "UPDATE teachers SET assignment_count = (
                 SELECT COUNT(*) FROM subject_assignments 
-                WHERE teacher_id = :teacher_id AND status = 'Active'
-            ) WHERE id = :teacher_id";
+                WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id
+            ) WHERE id = :teacher_id AND school_id = :school_id";
             $update_stmt = $this->conn->prepare($update_count_query);
             $update_stmt->bindParam(':teacher_id', $teacher_id);
+            $update_stmt->bindParam(':school_id', $school_id);
             $update_stmt->execute();
             
             // Update class assignment count in real-time
             $update_class_count_query = "UPDATE classes SET current_assignments = (
                 SELECT COUNT(*) FROM subject_assignments 
-                WHERE class_id = :class_id AND status = 'Active'
-            ) WHERE id = :class_id";
+                WHERE class_id = :class_id AND status = 'Active' AND school_id = :school_id
+            ) WHERE id = :class_id AND school_id = :school_id";
             $update_class_stmt = $this->conn->prepare($update_class_count_query);
             $update_class_stmt->bindParam(':class_id', $class_id);
+            $update_class_stmt->bindParam(':school_id', $school_id);
             $update_class_stmt->execute();
             
             // Log activity
@@ -503,8 +530,8 @@ class SubjectController {
                 'id' => $assignment_id,
                 'message' => 'Subject assigned successfully',
                 'updated_counts' => [
-                    'teacher_assignment_count' => $this->getTeacherAssignmentCount($teacher_id),
-                    'class_assignment_count' => $this->getClassAssignmentCount($class_id)
+                    'teacher_assignment_count' => $this->getTeacherAssignmentCount($teacher_id, $school_id),
+                    'class_assignment_count' => $this->getClassAssignmentCount($class_id, $school_id)
                 ]
             ], 'Subject assigned successfully');
             
@@ -516,11 +543,12 @@ class SubjectController {
     /**
      * Get teacher assignment count
      */
-    private function getTeacherAssignmentCount($teacher_id) {
+    private function getTeacherAssignmentCount($teacher_id, $school_id) {
         $query = "SELECT COUNT(*) as count FROM subject_assignments 
-                 WHERE teacher_id = :teacher_id AND status = 'Active'";
+                 WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':teacher_id', $teacher_id);
+        $stmt->bindParam(':school_id', $school_id);
         $stmt->execute();
         $result = $stmt->fetch();
         return $result['count'] ?? 0;
@@ -529,11 +557,12 @@ class SubjectController {
     /**
      * Get class assignment count
      */
-    private function getClassAssignmentCount($class_id) {
+    private function getClassAssignmentCount($class_id, $school_id) {
         $query = "SELECT COUNT(*) as count FROM subject_assignments 
-                 WHERE class_id = :class_id AND status = 'Active'";
+                 WHERE class_id = :class_id AND status = 'Active' AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':class_id', $class_id);
+        $stmt->bindParam(':school_id', $school_id);
         $stmt->execute();
         $result = $stmt->fetch();
         return $result['count'] ?? 0;
@@ -543,16 +572,18 @@ class SubjectController {
      * Update Subject Assignment
      */
     public function updateAssignment($id) {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $assignment_id = Middleware::validateInteger($id, 'assignment_id');
         $data = json_decode(file_get_contents('php://input'), true);
         
         try {
             // Check if assignment exists
-            $check_query = "SELECT * FROM subject_assignments WHERE id = :id";
+            $check_query = "SELECT * FROM subject_assignments WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $assignment_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $existing_assignment = $check_stmt->fetch();
@@ -585,7 +616,8 @@ class SubjectController {
                 Response::badRequest('No valid fields to update');
             }
             
-            $query = "UPDATE subject_assignments SET " . implode(', ', $update_fields) . " WHERE id = :id";
+            $query = "UPDATE subject_assignments SET " . implode(', ', $update_fields) . " WHERE id = :id AND school_id = :school_id";
+            $params[':school_id'] = $school_id;
             $stmt = $this->conn->prepare($query);
             
             foreach ($params as $key => $value) {
@@ -609,7 +641,8 @@ class SubjectController {
      * Delete Subject Assignment
      */
     public function deleteAssignment($id) {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $assignment_id = Middleware::validateInteger($id, 'assignment_id');
         
@@ -620,9 +653,10 @@ class SubjectController {
                             JOIN subjects s ON sa.subject_id = s.id
                             JOIN classes c ON sa.class_id = c.id
                             JOIN teachers t ON sa.teacher_id = t.id
-                            WHERE sa.id = :id";
+                            WHERE sa.id = :id AND sa.school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $assignment_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $assignment = $check_stmt->fetch();
@@ -631,9 +665,10 @@ class SubjectController {
             }
             
             // Check for existing scores
-            $score_check_query = "SELECT COUNT(*) as count FROM scores WHERE subject_assignment_id = :assignment_id";
+            $score_check_query = "SELECT COUNT(*) as count FROM scores WHERE subject_assignment_id = :assignment_id AND school_id = :school_id";
             $score_check_stmt = $this->conn->prepare($score_check_query);
             $score_check_stmt->bindParam(':assignment_id', $assignment_id);
+            $score_check_stmt->bindParam(':school_id', $school_id);
             $score_check_stmt->execute();
             
             if ($score_check_stmt->fetch()['count'] > 0) {
@@ -641,9 +676,10 @@ class SubjectController {
             }
             
             // Delete assignment
-            $query = "DELETE FROM subject_assignments WHERE id = :id";
+            $query = "DELETE FROM subject_assignments WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $assignment_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             // Log activity
@@ -672,7 +708,8 @@ class SubjectController {
      * Get Subject Assignments
      */
     public function getAssignments() {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
@@ -685,10 +722,10 @@ class SubjectController {
                       JOIN subjects sub ON sa.subject_id = sub.id
                       JOIN classes c ON sa.class_id = c.id
                       JOIN teachers t ON sa.teacher_id = t.id
-                      WHERE sa.status = 'Active'";
+                      WHERE sa.status = 'Active' AND sa.school_id = :school_id";
             
             $conditions = [];
-            $params = [];
+            $params = [':school_id' => $school_id];
             
             // Add optional term/year filters
             if (!empty($_GET['term'])) {

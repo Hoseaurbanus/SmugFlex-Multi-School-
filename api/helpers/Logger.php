@@ -1,7 +1,7 @@
 <?php
 /**
  * Logger Helper
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 class Logger {

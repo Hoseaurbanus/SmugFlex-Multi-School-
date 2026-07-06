@@ -1,6 +1,5 @@
-import { Book, BookOpen, FileText, Plus } from 'lucide-react';
+import { Books, BookOpen, FileText, Plus } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -10,11 +9,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Checkbox } from "../ui/checkbox";
-import { Alert, AlertDescription } from "../ui/alert";
 import { Textarea } from "../ui/textarea";
 import { toast } from "sonner";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "../ui/dropdown-menu";
-import { SimpleDropdown, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
 import { useSchool } from "../../contexts/SchoolContext";
 import { exportSubjectsToCSV } from "../../utils/csvExporter";
 import { importSubjectsFromCSV, generateSubjectTemplate } from "../../utils/csvImporter";
@@ -237,7 +233,7 @@ export function ManageSubjectsPageFixed() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[#0A2540] mb-2">Manage Subjects</h1>
+          <h1 className="text-[#0A2540] font-heading font-bold mb-2">Manage Subjects</h1>
           <p className="text-gray-600">Create and manage academic subjects</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -250,7 +246,7 @@ export function ManageSubjectsPageFixed() {
             size="sm"
             className="w-full sm:w-auto flex items-center gap-2"
           >
-            <FileText className="w-4 h-4" />
+            <FileText weight="bold" className="w-4 h-4" />
             <span className="hidden sm:inline">Export CSV</span>
             <span className="sm:hidden">Export</span>
           </Button>
@@ -260,10 +256,10 @@ export function ManageSubjectsPageFixed() {
               setSelectedSubject(null);
               setShowSubjectForm(true);
             }}
-            className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
+            className="bg-[#0A2540] hover:bg-[#082030] text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
             size="sm"
           >
-            <Plus className="w-4 h-4" />
+            <Plus weight="bold" className="w-4 h-4" />
             <span className="hidden sm:inline">Create New Subject</span>
             <span className="sm:hidden">New Subject</span>
           </Button>
@@ -406,7 +402,7 @@ export function ManageSubjectsPageFixed() {
                   <Button
                     onClick={handleEditSubject}
                     disabled={actionLoading === 'edit'}
-                    className="bg-[#3B82F6] hover:bg-[#2563EB] text-white"
+                    className="bg-[#0A2540] hover:bg-[#082030] text-white"
                   >
                     {actionLoading === 'edit' ? 'Saving...' : 'Save Changes'}
                   </Button>
@@ -419,66 +415,57 @@ export function ManageSubjectsPageFixed() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-[#0A2540]/10 shadow-lg">
-          <CardContent className="p-6">
+        <div className="section-band p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Subjects</p>
                 <p className="text-2xl font-bold text-[#0A2540]">{stats.totalSubjects}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Book className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-[#FFD700]/10 rounded-full flex items-center justify-center">
+                <Books weight="bold" className="w-6 h-6 text-[#0A2540]" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </div>
 
-        <Card className="border-[#0A2540]/10 shadow-lg">
-          <CardContent className="p-6">
+        <div className="section-band p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Active Subjects</p>
-                <p className="text-2xl font-bold text-green-600">{stats.activeSubjects}</p>
+                <p className="text-2xl font-bold text-emerald-600">{stats.activeSubjects}</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center">
+                <BookOpen weight="bold" className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </div>
 
-        <Card className="border-[#0A2540]/10 shadow-lg">
-          <CardContent className="p-6">
+        <div className="section-band p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Core Subjects</p>
-                <p className="text-2xl font-bold text-purple-600">{stats.coreSubjects}</p>
+                <p className="text-2xl font-bold text-[#0A2540]">{stats.coreSubjects}</p>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <Book className="w-6 h-6 text-purple-600" />
+              <div className="w-12 h-12 bg-[#0A2540]/5 rounded-full flex items-center justify-center">
+                <Books weight="bold" className="w-6 h-6 text-[#0A2540]" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </div>
 
-        <Card className="border-[#0A2540]/10 shadow-lg">
-          <CardContent className="p-6">
+        <div className="section-band p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Assigned Subjects</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.assignedSubjects}</p>
+                <p className="text-2xl font-bold text-[#FFD700]">{stats.assignedSubjects}</p>
               </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 bg-[#FFD700]/10 rounded-full flex items-center justify-center">
+                <BookOpen weight="bold" className="w-6 h-6 text-[#FFD700]" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
       {/* Filters */}
-      <Card className="border-[#0A2540]/10 shadow-lg">
-        <CardContent className="p-6">
+      <div className="section-band p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-700">Search</Label>
@@ -519,12 +506,10 @@ export function ManageSubjectsPageFixed() {
               </Select>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Subjects Table */}
-      <Card className="border-[#0A2540]/10 shadow-lg">
-        <CardContent className="p-6">
+      <div className="section-band p-6">
           {filteredSubjects.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
@@ -604,7 +589,7 @@ export function ManageSubjectsPageFixed() {
             </div>
           ) : (
             <div className="text-center py-12">
-              <Book className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <Books weight="light" className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <h3 className="text-lg font-medium mb-2">No Subjects Found</h3>
               <p className="text-gray-500">Try adjusting your filters or create a new subject.</p>
             </div>
@@ -651,8 +636,7 @@ export function ManageSubjectsPageFixed() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

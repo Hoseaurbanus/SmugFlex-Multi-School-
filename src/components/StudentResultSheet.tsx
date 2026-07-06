@@ -646,11 +646,11 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
                   <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 500, fontSize: '10px' }}>{score.subject_name || 'UNKNOWN'}</td>
                   {!studentClass?.name?.toUpperCase().includes('CRECHE') && (
                     <>
-                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.first_ca ?? score.ca1 ?? 0}</td>
-                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.second_ca ?? score.ca2 ?? 0}</td>
+                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.ca1 ?? 0}</td>
+                      <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.ca2 ?? 0}</td>
                     </>
                   )}
-                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.exams ?? score.exam ?? 0}</td>
+                  <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.exam ?? 0}</td>
                   <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 700, fontSize: '10px' }}>{score.total || 0}</td>
                   <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 700, fontSize: '10px' }}>{score.grade}</td>
                   <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center', fontSize: '10px' }}>{score.remark}</td>

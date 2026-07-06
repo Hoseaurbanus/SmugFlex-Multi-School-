@@ -2,37 +2,46 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 
 interface TimerProps {
-  startedAt: string;
-  durationMinutes: number;
+  startedAt?: string;
+  durationMinutes?: number;
+  remainingSeconds?: number;
   onTimeUp: () => void;
 }
 
-export function Timer({ startedAt, durationMinutes, onTimeUp }: TimerProps) {
+export function Timer({ startedAt, durationMinutes, remainingSeconds: initialRemaining, onTimeUp }: TimerProps) {
   const [remaining, setRemaining] = useState(0);
   const firedRef = useRef(false);
   const onTimeUpRef = useRef(onTimeUp);
   onTimeUpRef.current = onTimeUp;
 
   useEffect(() => {
-    const startTime = new Date(startedAt).getTime();
-    const durationMs = durationMinutes * 60 * 1000;
+    let totalMs: number;
 
-    if (isNaN(startTime)) return;
+    if (initialRemaining !== undefined) {
+      totalMs = initialRemaining * 1000;
+    } else if (startedAt && durationMinutes) {
+      const startTime = new Date(startedAt).getTime();
+      if (isNaN(startTime)) return;
+      totalMs = durationMinutes * 60 * 1000 - (Date.now() - startTime);
+    } else {
+      return;
+    }
 
     const tick = () => {
-      const elapsed = Date.now() - startTime;
-      const left = Math.max(0, durationMs - elapsed);
-      setRemaining(left);
-      if (left <= 0 && !firedRef.current) {
-        firedRef.current = true;
-        onTimeUpRef.current();
-      }
+      setRemaining(prev => {
+        const next = prev - 1000;
+        if (next <= 0 && !firedRef.current) {
+          firedRef.current = true;
+          onTimeUpRef.current();
+        }
+        return Math.max(0, next);
+      });
     };
 
-    tick();
+    setRemaining(Math.max(0, totalMs));
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [startedAt, durationMinutes]);
+  }, [startedAt, durationMinutes, initialRemaining]);
 
   const totalSecs = Math.ceil(remaining / 1000);
   const mins = Math.floor(totalSecs / 60);
@@ -40,8 +49,9 @@ export function Timer({ startedAt, durationMinutes, onTimeUp }: TimerProps) {
   const isLow = totalSecs < 300;
   const isCritical = totalSecs < 60;
 
-  const percent = durationMinutes > 0
-    ? ((durationMinutes * 60 - totalSecs) / (durationMinutes * 60)) * 100
+  const totalDuration = durationMinutes ? durationMinutes * 60 : (initialRemaining ?? totalSecs);
+  const percent = totalDuration > 0
+    ? ((totalDuration - totalSecs) / totalDuration) * 100
     : 0;
 
   return (

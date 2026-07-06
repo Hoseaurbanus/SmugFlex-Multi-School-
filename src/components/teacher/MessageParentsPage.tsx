@@ -6,7 +6,6 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Badge } from "../ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { useSchool } from "../../contexts/SchoolContext";
 import { useNotificationService } from "../../contexts/NotificationService";
 import { toast } from "sonner";

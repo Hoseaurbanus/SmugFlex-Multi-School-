@@ -1,13 +1,14 @@
 <?php
 /**
  * SQL Database Query API Endpoint - Working Version
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  * Handles direct MySQL database operations for CSV imports
  * Integrates with existing database configuration
  */
 
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -82,6 +83,39 @@ try {
     
     if (!$pdo) {
         throw new Exception('Database connection failed');
+    }
+
+    // Inject school_id scoping for multi-tenant isolation
+    $school_id = TenantMiddleware::resolveSchoolId($pdo);
+    $school_id = (int)$school_id;
+
+    // Audit log for all queries
+    error_log("SQL_QUERY_AUDIT: user=" . ($token_data['username'] ?? 'unknown') . " role={$role} type={$queryType} school_id={$school_id}");
+
+    if ($queryType === 'SELECT') {
+        // Wrap user query as subquery and filter at outer level — prevents UNION/subquery bypass
+        $query = "SELECT _inner.* FROM ($query) AS _inner WHERE _inner.school_id = :_school_id_";
+        $params[':_school_id_'] = $school_id;
+    } elseif ($queryType === 'INSERT') {
+        $query = preg_replace(
+            '/^INSERT\s+INTO\s+`?(\w+)`?\s*\(/i',
+            "INSERT INTO $1 (school_id, ",
+            $query
+        );
+        $query = preg_replace(
+            '/^INSERT\s+INTO\s+`?(\w+)`?\s*\)?\s*VALUES\s*\(/i',
+            "INSERT INTO $1 (school_id) VALUES (:_school_id_, ",
+            $query
+        );
+        $params[':_school_id_'] = $school_id;
+    } elseif (in_array($queryType, ['UPDATE', 'DELETE'], true)) {
+        $hasWhere = (bool)preg_match('/\bWHERE\b/i', $query);
+        if ($hasWhere) {
+            $query .= ' AND school_id = :_school_id_';
+        } else {
+            $query .= ' WHERE school_id = :_school_id_';
+        }
+        $params[':_school_id_'] = $school_id;
     }
     
     // Prepare and execute query

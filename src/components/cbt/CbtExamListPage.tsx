@@ -1,4 +1,4 @@
-import { Plus, Search, Clock, Users, BarChart3, MoreHorizontal, Play, Archive, Pencil, Trash2, EyeOff } from 'lucide-react';
+import { Plus, MagnifyingGlass, Clock, Users, ChartBar, DotsThree, Play, Archive, PencilSimple, Trash, EyeSlash } from '@phosphor-icons/react';
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
@@ -144,12 +144,12 @@ export function CbtExamListPage() {
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold text-[#1F2937]">CBT Exams</h2>
+              <h2 className="text-xl font-heading font-bold text-[#1F2937]">CBT Exams</h2>
               <p className="text-sm text-[#6B7280] mt-1">Manage computer-based tests and examinations</p>
             </div>
             {canManage && (
-              <Button onClick={handleCreate} className="bg-[#3B82F6] hover:bg-[#2563EB]">
-                <Plus className="w-4 h-4 mr-2" />
+              <Button onClick={handleCreate} className="bg-[#0A2540] hover:bg-[#0A2540]/90">
+                <Plus className="w-4 h-4 mr-2" weight="bold" />
                 Create Exam
               </Button>
             )}
@@ -158,7 +158,7 @@ export function CbtExamListPage() {
         <CardContent>
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
+              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" weight="bold" />
               <Input
                 placeholder="Search exams..."
                 value={searchQuery}
@@ -178,7 +178,7 @@ export function CbtExamListPage() {
             </Select>
           </div>
 
-          <div className="rounded-lg border border-[#E5E7EB] overflow-hidden">
+          <div className="rounded-lg border border-gray-100 overflow-hidden">
             {/* Desktop table - hidden on small screens */}
             <div className="hidden md:block">
               <Table>
@@ -209,20 +209,20 @@ export function CbtExamListPage() {
                         <TableCell>{exam.class_name || '—'}</TableCell>
                         <TableCell>
                           <span className="inline-flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-[#6B7280]" />
+                            <Clock className="w-3.5 h-3.5 text-[#6B7280]" weight="bold" />
                             {exam.duration_minutes} min
                           </span>
                         </TableCell>
                         <TableCell>{exam.total_marks}</TableCell>
                         <TableCell>
                           {exam.feed_into_scores ? (
-                            <Badge className="bg-[#10B981]">{exam.score_slot === 'second_test' ? 'CA2' : 'CA1'}</Badge>
+                            <Badge className="bg-emerald-500">{exam.score_slot === 'second_test' ? 'CA2' : 'CA1'}</Badge>
                           ) : (
                             <Badge variant="outline" className="text-[#6B7280]">No</Badge>
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge className={exam.published ? 'bg-[#3B82F6]' : 'bg-[#F59E0B]'}>
+                          <Badge className={exam.published ? 'bg-[#0A2540]' : 'bg-[#F59E0B]'}>
                             {exam.published ? 'Published' : 'Draft'}
                           </Badge>
                         </TableCell>
@@ -230,44 +230,44 @@ export function CbtExamListPage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="w-4 h-4" />
+                                <DotsThree className="w-4 h-4" weight="bold" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => handleManageQuestions(exam)}>
-                                <BarChart3 className="w-4 h-4 mr-2" />
+                                <ChartBar className="w-4 h-4 mr-2" weight="bold" />
                                 Questions
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleViewResults(exam)}>
-                                <Users className="w-4 h-4 mr-2" />
+                                <Users className="w-4 h-4 mr-2" weight="bold" />
                                 Results
                               </DropdownMenuItem>
                               {canManage && (
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleEdit(exam)}>
-                                    <Pencil className="w-4 h-4 mr-2" />
+                                    <PencilSimple className="w-4 h-4 mr-2" weight="bold" />
                                     Edit
                                   </DropdownMenuItem>
                                   {!exam.published ? (
                                     <DropdownMenuItem onClick={() => handlePublish(exam.id)} disabled={actionLoading === `publish-${exam.id}`}>
-                                      <Play className="w-4 h-4 mr-2" />
+                                      <Play className="w-4 h-4 mr-2" weight="bold" />
                                       Publish
                                     </DropdownMenuItem>
                                   ) : (
                                     <DropdownMenuItem onClick={() => handleUnpublish(exam.id)} disabled={actionLoading === `unpublish-${exam.id}`}>
-                                      <EyeOff className="w-4 h-4 mr-2" />
+                                      <EyeSlash className="w-4 h-4 mr-2" weight="bold" />
                                       Unpublish
                                     </DropdownMenuItem>
                                   )}
                                   {exam.status !== 'Archived' && (
                                     <DropdownMenuItem onClick={() => handleArchive(exam.id)} disabled={actionLoading === `archive-${exam.id}`}>
-                                      <Archive className="w-4 h-4 mr-2" />
+                                      <Archive className="w-4 h-4 mr-2" weight="bold" />
                                       Archive
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem onClick={() => { setExamToDelete(exam.id); setDeleteDialogOpen(true); }} className="text-red-600">
-                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    <Trash className="w-4 h-4 mr-2" weight="bold" />
                                     Delete
                                   </DropdownMenuItem>
                                 </>
@@ -296,47 +296,47 @@ export function CbtExamListPage() {
                         <p className="font-medium text-[#1F2937] truncate">{exam.title}</p>
                         <p className="text-xs text-[#6B7280] mt-0.5">{exam.subject_name || '—'} · {exam.class_name || '—'}</p>
                       </div>
-                      <Badge className={exam.published ? 'bg-[#3B82F6] shrink-0' : 'bg-[#F59E0B] shrink-0'}>
+                      <Badge className={exam.published ? 'bg-[#0A2540] shrink-0' : 'bg-[#F59E0B] shrink-0'}>
                         {exam.published ? 'Published' : 'Draft'}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-[#6B7280]">
-                      <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {exam.duration_minutes} min</span>
+                      <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" weight="bold" /> {exam.duration_minutes} min</span>
                       <span>{exam.total_marks} marks</span>
                       {exam.feed_into_scores ? (
-                        <Badge className="bg-[#10B981] text-xs">{exam.score_slot === 'second_test' ? 'CA2' : 'CA1'}</Badge>
+                        <Badge className="bg-emerald-500 text-xs">{exam.score_slot === 'second_test' ? 'CA2' : 'CA1'}</Badge>
                       ) : (
                         <Badge variant="outline" className="text-xs text-[#6B7280]">No feed</Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-2 pt-1">
                       <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleManageQuestions(exam)}>
-                        <BarChart3 className="w-3 h-3 mr-1" /> Questions
+                        <ChartBar className="w-3 h-3 mr-1" weight="bold" /> Questions
                       </Button>
                       <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleViewResults(exam)}>
-                        <Users className="w-3 h-3 mr-1" /> Results
+                        <Users className="w-3 h-3 mr-1" weight="bold" /> Results
                       </Button>
                       {canManage && (
                         <>
                           <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleEdit(exam)}>
-                            <Pencil className="w-3 h-3" />
+                            <PencilSimple className="w-3 h-3" weight="bold" />
                           </Button>
                           {!exam.published ? (
                             <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handlePublish(exam.id)} disabled={actionLoading === `publish-${exam.id}`}>
-                              <Play className="w-3 h-3" />
+                              <Play className="w-3 h-3" weight="bold" />
                             </Button>
                           ) : (
                             <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleUnpublish(exam.id)} disabled={actionLoading === `unpublish-${exam.id}`}>
-                              <EyeOff className="w-3 h-3" />
+                              <EyeSlash className="w-3 h-3" weight="bold" />
                             </Button>
                           )}
                           {exam.status !== 'Archived' && (
                             <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleArchive(exam.id)} disabled={actionLoading === `archive-${exam.id}`}>
-                              <Archive className="w-3 h-3" />
+                              <Archive className="w-3 h-3" weight="bold" />
                             </Button>
                           )}
                           <Button variant="outline" size="sm" className="text-xs h-8 text-red-600" onClick={() => { setExamToDelete(exam.id); setDeleteDialogOpen(true); }}>
-                            <Trash2 className="w-3 h-3" />
+                            <Trash className="w-3 h-3" weight="bold" />
                           </Button>
                         </>
                       )}

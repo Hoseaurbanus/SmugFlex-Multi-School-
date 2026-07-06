@@ -7,9 +7,11 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class CbtController {
     private $conn;
+    const CA_MAX = 20;
 
     public function __construct() {
         $database = new Database();
@@ -20,12 +22,13 @@ class CbtController {
 
     public function getAllExams() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $pagination = Middleware::getPaginationParams();
-        $search = Middleware::getSearchParams();
+        $search = Middleware::getSearchParams(['id', 'title', 'status', 'created_at', 'duration_minutes', 'total_marks']);
 
         try {
-            $where = "1=1";
-            $params = [];
+            $where = "e.school_id = :school_id";
+            $params = [':school_id' => $school_id];
 
             if ($token_data['role'] === 'teacher') {
                 $where .= " AND e.teacher_id = :teacher_id";
@@ -86,6 +89,7 @@ class CbtController {
 
     public function getExamById($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $id = Middleware::validateInteger($id, 'exam_id');
@@ -94,9 +98,10 @@ class CbtController {
                       FROM cbt_exams e
                       LEFT JOIN subjects s ON e.subject_id = s.id
                       LEFT JOIN classes c ON e.class_id = c.id
-                      WHERE e.id = :id";
+                      WHERE e.id = :id AND e.school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -112,6 +117,7 @@ class CbtController {
 
     public function createExam() {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['title', 'class_id', 'subject_id', 'duration_minutes']);
@@ -121,14 +127,17 @@ class CbtController {
                 ? $token_data['linked_id']
                 : ($data['teacher_id'] ?? $token_data['linked_id']);
 
+            $questionsPerStudent = isset($data['questions_per_student']) && $data['questions_per_student'] !== '' && $data['questions_per_student'] !== null
+                ? (int)$data['questions_per_student'] : null;
+
             $query = "INSERT INTO cbt_exams
                       (title, instructions, class_id, subject_id, teacher_id, academic_year, term,
                        duration_minutes, total_marks, score_slot, feed_into_scores, shuffle_questions,
-                       published, allow_review, starts_at, ends_at, status)
+                       published, allow_review, starts_at, ends_at, status, questions_per_student, school_id)
                       VALUES
                       (:title, :instructions, :class_id, :subject_id, :teacher_id, :academic_year, :term,
                        :duration_minutes, 0, :score_slot, :feed_into_scores, :shuffle_questions,
-                       0, :allow_review, :starts_at, :ends_at, 'Active')";
+                       0, :allow_review, :starts_at, :ends_at, 'Active', :questions_per_student, :school_id)";
 
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':title', Middleware::sanitizeString($data['title']));
@@ -145,6 +154,8 @@ class CbtController {
             $stmt->bindValue(':allow_review', !empty($data['allow_review']) ? 1 : 0);
             $stmt->bindValue(':starts_at', $data['starts_at'] ?? null);
             $stmt->bindValue(':ends_at', $data['ends_at'] ?? null);
+            $stmt->bindValue(':questions_per_student', $questionsPerStudent, $questionsPerStudent === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
 
             $examId = $this->conn->lastInsertId();
@@ -156,6 +167,7 @@ class CbtController {
 
     public function updateExam($id) {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         if (!$data) {
@@ -165,9 +177,10 @@ class CbtController {
         try {
             $id = Middleware::validateInteger($id, 'exam_id');
 
-            $query = "SELECT * FROM cbt_exams WHERE id = :id";
+            $query = "SELECT * FROM cbt_exams WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -184,7 +197,7 @@ class CbtController {
 
             $allowedFields = ['title', 'instructions', 'duration_minutes', 'score_slot', 'feed_into_scores',
                              'shuffle_questions', 'allow_review', 'starts_at', 'ends_at', 'status',
-                             'total_marks', 'published'];
+                             'total_marks', 'published', 'questions_per_student'];
 
             foreach ($allowedFields as $field) {
                 if (isset($data[$field])) {
@@ -197,7 +210,8 @@ class CbtController {
                 Response::badRequest('No valid fields to update');
             }
 
-            $query = "UPDATE cbt_exams SET " . implode(', ', $fields) . " WHERE id = :id";
+            $params[':school_id'] = $school_id;
+            $query = "UPDATE cbt_exams SET " . implode(', ', $fields) . " WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             foreach ($params as $key => $value) {
                 $stmt->bindValue($key, $value);
@@ -212,13 +226,15 @@ class CbtController {
 
     public function deleteExam($id) {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $id = Middleware::validateInteger($id, 'exam_id');
 
-            $query = "SELECT * FROM cbt_exams WHERE id = :id";
+            $query = "SELECT * FROM cbt_exams WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -243,8 +259,9 @@ class CbtController {
             $stmt->bindParam(':id', $id);
             $stmt->execute();
 
-            $stmt = $this->conn->prepare("DELETE FROM cbt_exams WHERE id = :id");
+            $stmt = $this->conn->prepare("DELETE FROM cbt_exams WHERE id = :id AND school_id = :school_id");
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
 
             $this->conn->commit();
@@ -257,13 +274,15 @@ class CbtController {
 
     public function publishExam($id) {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $id = Middleware::validateInteger($id, 'exam_id');
 
-            $query = "SELECT * FROM cbt_exams WHERE id = :id";
+            $query = "SELECT * FROM cbt_exams WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -280,9 +299,15 @@ class CbtController {
                 Response::badRequest('Cannot publish an exam with no questions');
             }
 
-            $query = "UPDATE cbt_exams SET published = 1, published_at = NOW() WHERE id = :id";
+            $qps = $exam['questions_per_student'] ?? null;
+            if ($qps !== null && (int)$qps > $questionCount) {
+                Response::badRequest("Questions per student ($qps) exceeds total questions ($questionCount). Add more questions or reduce the per-student count.");
+            }
+
+            $query = "UPDATE cbt_exams SET published = 1, published_at = NOW() WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
 
             Response::success(['id' => $id], 'Exam published successfully');
@@ -294,14 +319,16 @@ class CbtController {
     // ─── QUESTIONS ───────────────────────────────────────────
 
     public function getExamQuestions($exam_id) {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $exam_id = Middleware::validateInteger($exam_id, 'exam_id');
 
-            $query = "SELECT * FROM cbt_questions WHERE exam_id = :exam_id ORDER BY sort_order ASC";
+            $query = "SELECT * FROM cbt_questions WHERE exam_id = :exam_id AND school_id = :school_id ORDER BY sort_order ASC";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':exam_id', $exam_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -320,7 +347,8 @@ class CbtController {
     }
 
     public function addQuestion($exam_id) {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['question_text', 'question_type', 'correct_answer']);
@@ -333,8 +361,8 @@ class CbtController {
 
             $sort_order = $data['sort_order'] ?? $this->getNextSortOrder($exam_id);
 
-            $query = "INSERT INTO cbt_questions (exam_id, question_type, question_text, passage_text, image_url, options_json, correct_answer_json, marks, sort_order, section, section_instructions)
-                      VALUES (:exam_id, :question_type, :question_text, :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :sort_order, :section, :section_instructions)";
+            $query = "INSERT INTO cbt_questions (exam_id, question_type, question_text, passage_text, image_url, options_json, correct_answer_json, marks, sort_order, section, section_instructions, school_id)
+                      VALUES (:exam_id, :question_type, :question_text, :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :sort_order, :section, :section_instructions, :school_id)";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':exam_id', $exam_id);
             $stmt->bindValue(':question_type', $data['question_type']);
@@ -347,6 +375,7 @@ class CbtController {
             $stmt->bindValue(':sort_order', $sort_order);
             $stmt->bindValue(':section', $data['section'] ?? null);
             $stmt->bindValue(':section_instructions', $data['section_instructions'] ?? null);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
 
             $questionId = $this->conn->lastInsertId();
@@ -361,7 +390,8 @@ class CbtController {
     }
 
     public function updateQuestion($exam_id, $question_id) {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         if (!$data) {
@@ -373,7 +403,7 @@ class CbtController {
             $question_id = Middleware::validateInteger($question_id, 'question_id');
 
             $fields = [];
-            $params = [':id' => $question_id, ':exam_id' => $exam_id];
+            $params = [':id' => $question_id, ':exam_id' => $exam_id, ':school_id' => $school_id];
 
             if (isset($data['question_text'])) {
                 $fields[] = "question_text = :question_text";
@@ -420,7 +450,7 @@ class CbtController {
                 Response::badRequest('No valid fields to update');
             }
 
-            $query = "UPDATE cbt_questions SET " . implode(', ', $fields) . " WHERE id = :id AND exam_id = :exam_id";
+            $query = "UPDATE cbt_questions SET " . implode(', ', $fields) . " WHERE id = :id AND exam_id = :exam_id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             foreach ($params as $key => $value) {
                 $stmt->bindValue($key, $value);
@@ -436,16 +466,18 @@ class CbtController {
     }
 
     public function deleteQuestion($exam_id, $question_id) {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $exam_id = Middleware::validateInteger($exam_id, 'exam_id');
             $question_id = Middleware::validateInteger($question_id, 'question_id');
 
-            $query = "DELETE FROM cbt_questions WHERE id = :id AND exam_id = :exam_id";
+            $query = "DELETE FROM cbt_questions WHERE id = :id AND exam_id = :exam_id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':id', $question_id);
             $stmt->bindValue(':exam_id', $exam_id);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
 
             $this->recalculateTotalMarks($exam_id);
@@ -457,7 +489,8 @@ class CbtController {
     }
 
     public function reorderQuestions($exam_id) {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['order']);
@@ -466,9 +499,10 @@ class CbtController {
             $exam_id = Middleware::validateInteger($exam_id, 'exam_id');
             $order = $data['order'];
 
-            $query = "UPDATE cbt_questions SET sort_order = :sort_order WHERE id = :id AND exam_id = :exam_id";
+            $query = "UPDATE cbt_questions SET sort_order = :sort_order WHERE id = :id AND exam_id = :exam_id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':exam_id', $exam_id);
+            $stmt->bindValue(':school_id', $school_id);
 
             foreach ($order as $item) {
                 $stmt->bindValue(':sort_order', $item['sort_order']);
@@ -486,13 +520,14 @@ class CbtController {
 
     public function getQuestionBank() {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $pagination = Middleware::getPaginationParams();
-        $search = Middleware::getSearchParams();
+        $search = Middleware::getSearchParams(['id', 'title', 'status', 'created_at', 'duration_minutes', 'total_marks']);
 
         try {
-            $where = "1=1";
-            $params = [];
+            $where = "qb.school_id = :school_id";
+            $params = [':school_id' => $school_id];
 
             if ($token_data['role'] === 'teacher') {
                 $where .= " AND (qb.teacher_id = :teacher_id OR qb.teacher_id IS NULL)";
@@ -561,6 +596,7 @@ class CbtController {
 
     public function addToQuestionBank() {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['question_text', 'question_type', 'correct_answer', 'subject_id']);
@@ -572,10 +608,10 @@ class CbtController {
 
             $query = "INSERT INTO cbt_question_bank
                       (teacher_id, subject_id, class_id, question_type, question_text,
-                       passage_text, image_url, options_json, correct_answer_json, marks, difficulty, topic, tags_json)
+                       passage_text, image_url, options_json, correct_answer_json, marks, difficulty, topic, tags_json, school_id)
                       VALUES
                       (:teacher_id, :subject_id, :class_id, :question_type, :question_text,
-                       :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :difficulty, :topic, :tags_json)";
+                       :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :difficulty, :topic, :tags_json, :school_id)";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':teacher_id', $token_data['linked_id']);
             $stmt->bindValue(':subject_id', (int)$data['subject_id']);
@@ -590,6 +626,7 @@ class CbtController {
             $stmt->bindValue(':difficulty', $data['difficulty'] ?? 'medium');
             $stmt->bindValue(':topic', $data['topic'] ?? null);
             $stmt->bindValue(':tags_json', $tags_json);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
 
             $id = $this->conn->lastInsertId();
@@ -600,14 +637,16 @@ class CbtController {
     }
 
     public function deleteFromQuestionBank($id) {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $id = Middleware::validateInteger($id, 'question_id');
 
-            $query = "UPDATE cbt_question_bank SET status = 'Archived' WHERE id = :id";
+            $query = "UPDATE cbt_question_bank SET status = 'Archived' WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
 
             Response::noContent('Question removed from bank');
@@ -617,7 +656,8 @@ class CbtController {
     }
 
     public function importFromBank($exam_id) {
-        Middleware::requireAnyRole(['admin', 'teacher']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['question_ids']);
@@ -627,11 +667,12 @@ class CbtController {
             $question_ids = $data['question_ids'];
 
             $placeholders = implode(',', array_fill(0, count($question_ids), '?'));
-            $query = "SELECT * FROM cbt_question_bank WHERE id IN ($placeholders) AND status = 'Active'";
+            $query = "SELECT * FROM cbt_question_bank WHERE id IN ($placeholders) AND status = 'Active' AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             foreach ($question_ids as $i => $qid) {
                 $stmt->bindValue($i + 1, (int)$qid);
             }
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
             $bankQuestions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -639,8 +680,8 @@ class CbtController {
             $insertedIds = [];
 
             $insertQuery = "INSERT INTO cbt_questions
-                           (exam_id, question_type, question_text, passage_text, image_url, options_json, correct_answer_json, marks, sort_order, section, section_instructions)
-                           VALUES (:exam_id, :question_type, :question_text, :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :sort_order, :section, :section_instructions)";
+                           (exam_id, question_type, question_text, passage_text, image_url, options_json, correct_answer_json, marks, sort_order, section, section_instructions, school_id)
+                           VALUES (:exam_id, :question_type, :question_text, :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :sort_order, :section, :section_instructions, :school_id)";
             $insertStmt = $this->conn->prepare($insertQuery);
 
             foreach ($bankQuestions as $q) {
@@ -655,6 +696,7 @@ class CbtController {
                 $insertStmt->bindValue(':sort_order', $nextSort++);
                 $insertStmt->bindValue(':section', $q['section'] ?? null);
                 $insertStmt->bindValue(':section_instructions', $q['section_instructions'] ?? null);
+                $insertStmt->bindValue(':school_id', $school_id);
                 $insertStmt->execute();
                 $insertedIds[] = $this->conn->lastInsertId();
             }
@@ -671,13 +713,14 @@ class CbtController {
 
     public function getStudentAttempts() {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $student_id = $_GET['student_id'] ?? null;
             $exam_id = $_GET['exam_id'] ?? null;
 
-            $where = "1=1";
-            $params = [];
+            $where = "e.school_id = :school_id";
+            $params = [':school_id' => $school_id];
 
             if ($student_id) {
                 $where .= " AND a.student_id = :student_id";
@@ -714,6 +757,7 @@ class CbtController {
 
     public function getAttemptById($attempt_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $attempt_id = Middleware::validateInteger($attempt_id, 'attempt_id');
@@ -723,9 +767,10 @@ class CbtController {
                       FROM cbt_attempts a
                       JOIN cbt_exams e ON a.exam_id = e.id
                       LEFT JOIN subjects s ON e.subject_id = s.id
-                      WHERE a.id = :id";
+                      WHERE a.id = :id AND e.school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $attempt_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $attempt = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -748,10 +793,12 @@ class CbtController {
                              cbt_questions.options_json, cbt_questions.correct_answer_json, cbt_questions.marks as max_marks
                       FROM cbt_answers
                       JOIN cbt_questions ON cbt_answers.question_id = cbt_questions.id
-                      WHERE cbt_answers.attempt_id = :attempt_id
+                      JOIN cbt_exams e ON cbt_questions.exam_id = e.id
+                      WHERE cbt_answers.attempt_id = :attempt_id AND e.school_id = :school_id
                       ORDER BY cbt_questions.sort_order";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':attempt_id', $attempt_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $answers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -768,6 +815,18 @@ class CbtController {
             }
 
             $attempt['answers'] = $answers;
+            // If still in progress, compute remaining time
+            if ($attempt['status'] === 'in_progress') {
+                $examQuery = "SELECT duration_minutes FROM cbt_exams WHERE id = :id AND school_id = :school_id";
+                $eStmt = $this->conn->prepare($examQuery);
+                $eStmt->bindValue(':id', $attempt['exam_id']);
+                $eStmt->bindValue(':school_id', $school_id);
+                $eStmt->execute();
+                $duration = (int)$eStmt->fetchColumn();
+                $attempt['remaining_seconds'] = max(0, strtotime($attempt['started_at']) + $duration * 60 - time());
+            } else {
+                $attempt['remaining_seconds'] = 0;
+            }
             Response::success($attempt, 'Attempt retrieved successfully');
         } catch (PDOException $e) {
             Response::serverError('Database error retrieving attempt');
@@ -776,6 +835,7 @@ class CbtController {
 
     public function getMyAttempts() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $student_id = $token_data['linked_id'];
@@ -786,10 +846,11 @@ class CbtController {
                       FROM cbt_attempts a
                       JOIN cbt_exams e ON a.exam_id = e.id
                       LEFT JOIN subjects s ON e.subject_id = s.id
-                      WHERE a.student_id = :student_id
+                      WHERE a.student_id = :student_id AND e.school_id = :school_id
                       ORDER BY a.created_at DESC";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':student_id', $student_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $attempts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -801,6 +862,7 @@ class CbtController {
 
     public function startAttempt($exam_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         if ($token_data['role'] !== 'student') {
             Response::forbidden('Only students can start exams');
         }
@@ -808,9 +870,10 @@ class CbtController {
         try {
             $exam_id = Middleware::validateInteger($exam_id, 'exam_id');
 
-            $query = "SELECT * FROM cbt_exams WHERE id = :id AND published = 1 AND status = 'Active'";
+            $query = "SELECT * FROM cbt_exams WHERE id = :id AND published = 1 AND status = 'Active' AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $exam_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -830,9 +893,10 @@ class CbtController {
             $student_id = $token_data['linked_id'];
 
             // Ensure the student belongs to the exam class
-            $studentClassQuery = "SELECT class_id FROM students WHERE id = :student_id";
+            $studentClassQuery = "SELECT class_id FROM students WHERE id = :student_id AND school_id = :school_id";
             $stmt = $this->conn->prepare($studentClassQuery);
             $stmt->bindValue(':student_id', $student_id);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
             $student = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -840,10 +904,13 @@ class CbtController {
                 Response::forbidden('You are not registered for this class exam');
             }
 
-            $query = "SELECT id, status FROM cbt_attempts WHERE exam_id = :exam_id AND student_id = :student_id ORDER BY created_at DESC LIMIT 1";
+            $query = "SELECT a.id, a.status FROM cbt_attempts a
+                      JOIN cbt_exams e ON a.exam_id = e.id
+                      WHERE a.exam_id = :exam_id AND a.student_id = :student_id AND e.school_id = :school_id ORDER BY a.created_at DESC LIMIT 1";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':exam_id', $exam_id);
             $stmt->bindValue(':student_id', $student_id);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
             $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -858,31 +925,50 @@ class CbtController {
 
             $this->conn->beginTransaction();
 
+            // Get all questions ordered by sort_order
+            $questionQuery = "SELECT * FROM cbt_questions WHERE exam_id = :exam_id AND school_id = :school_id ORDER BY sort_order ASC";
+            $stmt = $this->conn->prepare($questionQuery);
+            $stmt->bindValue(':exam_id', $exam_id);
+            $stmt->bindValue(':school_id', $school_id);
+            $stmt->execute();
+            $allQuestions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Determine how many questions each student must answer
+            $questionsPerStudent = isset($exam['questions_per_student']) && $exam['questions_per_student'] !== null && $exam['questions_per_student'] > 0
+                ? (int)$exam['questions_per_student'] : count($allQuestions);
+
+            if ($questionsPerStudent > count($allQuestions)) {
+                $questionsPerStudent = count($allQuestions);
+            }
+
+            if ($exam['shuffle_questions']) {
+                shuffle($allQuestions);
+            }
+
+            // Slice to the number of questions per student
+            $questions = array_slice($allQuestions, 0, $questionsPerStudent);
+
+            // Calculate max_score from selected subset
+            $subsetMaxScore = 0;
+            foreach ($questions as $q) {
+                $subsetMaxScore += (int)$q['marks'];
+            }
+
             $query = "INSERT INTO cbt_attempts
-                      (exam_id, student_id, academic_year, term, status, started_at, score, max_score, percentage, ip_address, user_agent)
+                      (exam_id, student_id, academic_year, term, status, started_at, score, max_score, percentage, ip_address, user_agent, school_id)
                       VALUES
-                      (:exam_id, :student_id, :academic_year, :term, 'in_progress', NOW(), 0, :max_score, 0, :ip, :ua)";
+                      (:exam_id, :student_id, :academic_year, :term, 'in_progress', NOW(), 0, :max_score, 0, :ip, :ua, :school_id)";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':exam_id', $exam_id);
             $stmt->bindValue(':student_id', $student_id);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->bindValue(':academic_year', $exam['academic_year']);
             $stmt->bindValue(':term', $exam['term']);
-            $stmt->bindValue(':max_score', $exam['total_marks']);
+            $stmt->bindValue(':max_score', $subsetMaxScore);
             $stmt->bindValue(':ip', $_SERVER['REMOTE_ADDR'] ?? null);
             $stmt->bindValue(':ua', $_SERVER['HTTP_USER_AGENT'] ?? null);
             $stmt->execute();
             $attempt_id = $this->conn->lastInsertId();
-
-            // Get full questions with shuffle
-            $questionQuery = "SELECT * FROM cbt_questions WHERE exam_id = :exam_id ORDER BY sort_order ASC";
-            $stmt = $this->conn->prepare($questionQuery);
-            $stmt->bindValue(':exam_id', $exam_id);
-            $stmt->execute();
-            $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            if ($exam['shuffle_questions']) {
-                shuffle($questions);
-            }
 
             $questionOrder = array_map(function($question) {
                 return (int)$question['id'];
@@ -909,23 +995,26 @@ class CbtController {
             }
 
             try {
-                $metaJson = json_encode(['question_order' => $questionOrder]);
-                $upd = $this->conn->prepare("UPDATE cbt_attempts SET metadata = :meta WHERE id = :id");
+                $metaJson = json_encode(['question_order' => $questionOrder, 'questions_per_student' => $questionsPerStudent]);
+                $upd = $this->conn->prepare("UPDATE cbt_attempts SET metadata = :meta WHERE id = :id AND school_id = :school_id");
                 $upd->bindValue(':meta', $metaJson);
                 $upd->bindValue(':id', $attempt_id);
+                $upd->bindValue(':school_id', $school_id);
                 $upd->execute();
             } catch (PDOException $e) {
                 error_log('Failed to persist CBT attempt metadata: ' . $e->getMessage());
             }
 
             // Fetch the just-inserted attempt for start time
-            $attemptQuery = "SELECT * FROM cbt_attempts WHERE id = :id";
+            $attemptQuery = "SELECT * FROM cbt_attempts WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($attemptQuery);
             $stmt->bindValue(':id', $attempt_id);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
             $attemptData = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $this->conn->commit();
+            $remaining_seconds = max(0, strtotime($attemptData['started_at']) + (int)$exam['duration_minutes'] * 60 - time());
             Response::created([
                 'attempt' => [
                     'id' => (int)$attempt_id,
@@ -934,10 +1023,12 @@ class CbtController {
                     'status' => 'in_progress',
                     'started_at' => $attemptData['started_at'],
                     'score' => 0,
-                    'max_score' => (int)$exam['total_marks'],
+                    'max_score' => $subsetMaxScore,
+                    'remaining_seconds' => $remaining_seconds,
                 ],
                 'questions' => $responseQuestions,
                 'duration_minutes' => (int)$exam['duration_minutes'],
+                'remaining_seconds' => $remaining_seconds,
             ], 'Attempt started');
         } catch (PDOException $e) {
             $this->conn->rollBack();
@@ -946,9 +1037,11 @@ class CbtController {
     }
 
     private function getAttemptResponse($attempt_id, $exam) {
-        $query = "SELECT * FROM cbt_attempts WHERE id = :id";
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
+        $query = "SELECT * FROM cbt_attempts WHERE id = :id AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindValue(':id', $attempt_id);
+        $stmt->bindValue(':school_id', $school_id);
         $stmt->execute();
         $attempt = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -969,8 +1062,9 @@ class CbtController {
         if (!empty($questionOrder)) {
             // Fetch questions in bulk and reorder according to saved order
             $in = implode(',', array_map('intval', $questionOrder));
-            $q = "SELECT * FROM cbt_questions WHERE id IN ($in)";
+            $q = "SELECT * FROM cbt_questions WHERE id IN ($in) AND school_id = :school_id";
             $stmt = $this->conn->prepare($q);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
             $fetched = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $byId = [];
@@ -979,9 +1073,10 @@ class CbtController {
                 if (isset($byId[$qid])) $questions[] = $byId[$qid];
             }
         } else {
-            $questionQuery = "SELECT * FROM cbt_questions WHERE exam_id = :exam_id ORDER BY sort_order ASC";
+            $questionQuery = "SELECT * FROM cbt_questions WHERE exam_id = :exam_id AND school_id = :school_id ORDER BY sort_order ASC";
             $stmt = $this->conn->prepare($questionQuery);
             $stmt->bindValue(':exam_id', $exam['id']);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
             $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -993,10 +1088,11 @@ class CbtController {
         $responseQuestions = [];
         foreach ($questions as $q) {
             // Load any previously saved answer
-            $answerQuery = "SELECT answer_json FROM cbt_answers WHERE attempt_id = :attempt_id AND question_id = :question_id";
+            $answerQuery = "SELECT answer_json FROM cbt_answers WHERE attempt_id = :attempt_id AND question_id = :question_id AND school_id = :school_id";
             $aStmt = $this->conn->prepare($answerQuery);
             $aStmt->bindValue(':attempt_id', $attempt_id);
             $aStmt->bindValue(':question_id', $q['id']);
+            $aStmt->bindValue(':school_id', $school_id);
             $aStmt->execute();
             $savedAnswer = $aStmt->fetchColumn();
 
@@ -1011,16 +1107,20 @@ class CbtController {
             ];
         }
 
+        $remaining_seconds = max(0, strtotime($attempt['started_at']) + (int)$exam['duration_minutes'] * 60 - time());
+        $attempt['remaining_seconds'] = $remaining_seconds;
         Response::success([
             'attempt' => $attempt,
             'questions' => $responseQuestions,
             'duration_minutes' => (int)$exam['duration_minutes'],
             'resumed' => true,
+            'remaining_seconds' => $remaining_seconds,
         ], 'Resuming existing attempt');
     }
 
     public function saveAnswer($attempt_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['question_id']);
@@ -1032,10 +1132,11 @@ class CbtController {
             $query = "SELECT a.*, e.duration_minutes, e.title
                       FROM cbt_attempts a
                       JOIN cbt_exams e ON a.exam_id = e.id
-                      WHERE a.id = :id AND a.student_id = :student_id AND a.status = 'in_progress'";
+                      WHERE a.id = :id AND a.student_id = :student_id AND a.status = 'in_progress' AND e.school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':id', $attempt_id);
             $stmt->bindValue(':student_id', $token_data['linked_id']);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
             $attempt = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1052,13 +1153,14 @@ class CbtController {
 
             $answer_json = json_encode($data['answer'] ?? null);
 
-            $query = "INSERT INTO cbt_answers (attempt_id, question_id, answer_json, updated_at)
-                      VALUES (:attempt_id, :question_id, :answer_json, NOW())
+            $query = "INSERT INTO cbt_answers (attempt_id, question_id, answer_json, updated_at, school_id)
+                      VALUES (:attempt_id, :question_id, :answer_json, NOW(), :school_id)
                       ON DUPLICATE KEY UPDATE answer_json = VALUES(answer_json), updated_at = NOW()";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':answer_json', $answer_json);
             $stmt->bindValue(':attempt_id', $attempt_id);
             $stmt->bindValue(':question_id', $question_id);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
 
             Response::success(null, 'Answer saved');
@@ -1069,6 +1171,7 @@ class CbtController {
 
     public function submitAttempt($attempt_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $attempt_id = Middleware::validateInteger($attempt_id, 'attempt_id');
@@ -1080,10 +1183,11 @@ class CbtController {
                              e.feed_into_scores, e.score_slot, e.academic_year, e.term, e.teacher_id
                       FROM cbt_attempts a
                       JOIN cbt_exams e ON a.exam_id = e.id
-                      WHERE a.id = :id AND a.student_id = :student_id AND a.status = 'in_progress'";
+                      WHERE a.id = :id AND a.student_id = :student_id AND a.status = 'in_progress' AND e.school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':id', $attempt_id);
             $stmt->bindValue(':student_id', $student_id);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
             $attempt = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1095,9 +1199,11 @@ class CbtController {
             $query = "SELECT ca.*, q.correct_answer_json, q.marks, q.question_type
                       FROM cbt_answers ca
                       JOIN cbt_questions q ON ca.question_id = q.id
-                      WHERE ca.attempt_id = :attempt_id";
+                      JOIN cbt_exams e ON q.exam_id = e.id
+                      WHERE ca.attempt_id = :attempt_id AND e.school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':attempt_id', $attempt_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $answers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1197,7 +1303,7 @@ class CbtController {
                       score = :score, max_score = :max_score, percentage = :percentage,
                       remark = :remark, metadata = :metadata, tab_switch_count = :tab_switch_count,
                       ip_address = :ip_address, user_agent = :user_agent
-                      WHERE id = :id";
+                      WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':score', $totalScore, PDO::PARAM_INT);
             $stmt->bindValue(':max_score', $maxScore, PDO::PARAM_INT);
@@ -1208,6 +1314,7 @@ class CbtController {
             $stmt->bindValue(':ip_address', $ip_address);
             $stmt->bindValue(':user_agent', $user_agent);
             $stmt->bindValue(':id', $attempt_id, PDO::PARAM_INT);
+            $stmt->bindValue(':school_id', $school_id);
             $stmt->execute();
 
             // Feed into scores if enabled
@@ -1231,13 +1338,15 @@ class CbtController {
 
     public function getStudentAvailableExams() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $student_id = $token_data['linked_id'];
 
-            $query = "SELECT s.class_id FROM students s WHERE s.id = :student_id";
+            $query = "SELECT s.class_id FROM students s WHERE s.id = :student_id AND s.school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':student_id', $student_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $student = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1255,11 +1364,13 @@ class CbtController {
                            WHERE e.class_id = :class_id
                            AND e.published = 1
                            AND e.status = 'Active'
+                           AND e.school_id = :school_id
                            AND (e.starts_at IS NULL OR e.starts_at <= :now1)
                            AND (e.ends_at IS NULL OR e.ends_at >= :now2)
                            ORDER BY e.created_at DESC";
             $stmt = $this->conn->prepare($examsQuery);
             $stmt->bindParam(':class_id', $class_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->bindValue(':now1', $now);
             $stmt->bindValue(':now2', $now);
             $stmt->execute();
@@ -1267,12 +1378,15 @@ class CbtController {
 
             // Attach attempt status
             foreach ($exams as &$exam) {
-                $query = "SELECT id, status, score, percentage, started_at, submitted_at
-                          FROM cbt_attempts WHERE exam_id = :exam_id AND student_id = :student_id
-                          ORDER BY created_at DESC LIMIT 1";
+                $query = "SELECT a.id, a.status, a.score, a.percentage, a.started_at, a.submitted_at
+                          FROM cbt_attempts a
+                          JOIN cbt_exams e ON a.exam_id = e.id
+                          WHERE a.exam_id = :exam_id AND a.student_id = :student_id AND e.school_id = :school_id
+                          ORDER BY a.created_at DESC LIMIT 1";
                 $stmt2 = $this->conn->prepare($query);
                 $stmt2->bindValue(':exam_id', $exam['id']);
                 $stmt2->bindValue(':student_id', $student_id);
+                $stmt2->bindValue(':school_id', $school_id);
                 $stmt2->execute();
                 $attempt = $stmt2->fetch(PDO::FETCH_ASSOC);
                 $exam['attempt'] = $attempt ? $attempt : null;
@@ -1288,15 +1402,17 @@ class CbtController {
 
     public function getExamResults($exam_id) {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $exam_id = Middleware::validateInteger($exam_id, 'exam_id');
 
             // Restrict teachers to their own exams
             if ($token_data['role'] === 'teacher') {
-                $q = "SELECT teacher_id FROM cbt_exams WHERE id = :id";
+                $q = "SELECT teacher_id FROM cbt_exams WHERE id = :id AND school_id = :school_id";
                 $s = $this->conn->prepare($q);
                 $s->bindValue(':id', $exam_id);
+                $s->bindValue(':school_id', $school_id);
                 $s->execute();
                 $ex = $s->fetch(PDO::FETCH_ASSOC);
                 if (!$ex) Response::notFound('Exam not found');
@@ -1309,10 +1425,12 @@ class CbtController {
                              s.admission_number
                       FROM cbt_attempts a
                       JOIN students s ON a.student_id = s.id
-                      WHERE a.exam_id = :exam_id AND a.status IN ('submitted', 'scored')
+                      JOIN cbt_exams e ON a.exam_id = e.id
+                      WHERE a.exam_id = :exam_id AND a.status IN ('submitted', 'scored') AND e.school_id = :school_id
                       ORDER BY a.percentage DESC";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':exam_id', $exam_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1324,15 +1442,17 @@ class CbtController {
 
     public function deleteAttempt($attempt_id) {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $attempt_id = Middleware::validateInteger($attempt_id, 'attempt_id');
 
             $query = "SELECT a.*, e.teacher_id FROM cbt_attempts a
                       JOIN cbt_exams e ON a.exam_id = e.id
-                      WHERE a.id = :id";
+                      WHERE a.id = :id AND e.school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $attempt_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $attempt = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1345,12 +1465,14 @@ class CbtController {
             }
 
             $this->conn->beginTransaction();
-            $stmt = $this->conn->prepare("DELETE FROM cbt_answers WHERE attempt_id = :id");
+            $stmt = $this->conn->prepare("DELETE FROM cbt_answers WHERE attempt_id = :id AND school_id = :school_id");
             $stmt->bindParam(':id', $attempt_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
 
-            $stmt = $this->conn->prepare("DELETE FROM cbt_attempts WHERE id = :id");
+            $stmt = $this->conn->prepare("DELETE FROM cbt_attempts WHERE id = :id AND school_id = :school_id");
             $stmt->bindParam(':id', $attempt_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
 
             $this->conn->commit();
@@ -1365,15 +1487,17 @@ class CbtController {
 
     public function feedExamScores($exam_id) {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
 
         try {
             $exam_id = Middleware::validateInteger($exam_id, 'exam_id');
 
-            $query = "SELECT * FROM cbt_exams WHERE id = :id";
+            $query = "SELECT * FROM cbt_exams WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $exam_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1392,10 +1516,12 @@ class CbtController {
             }
 
             // Find all submitted attempts
-            $query = "SELECT id, student_id, percentage FROM cbt_attempts
-                      WHERE exam_id = :exam_id AND status IN ('submitted', 'scored')";
+            $query = "SELECT a.id, a.student_id, a.percentage FROM cbt_attempts a
+                      JOIN cbt_exams e ON a.exam_id = e.id
+                      WHERE a.exam_id = :exam_id AND a.status IN ('submitted', 'scored') AND e.school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':exam_id', $exam_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $attempts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1404,19 +1530,26 @@ class CbtController {
             }
 
             $fed = 0;
-            foreach ($attempts as $attempt) {
-                $this->feedIntoScores(
-                    $attempt['student_id'],
-                    $exam['subject_id'],
-                    $exam['class_id'],
-                    $exam['academic_year'],
-                    $exam['term'],
-                    $score_slot,
-                    $attempt['percentage'],
-                    $token_data['linked_id'],
-                    $exam_id
-                );
-                $fed++;
+            $this->conn->beginTransaction();
+            try {
+                foreach ($attempts as $attempt) {
+                    $this->feedIntoScores(
+                        $attempt['student_id'],
+                        $exam['subject_id'],
+                        $exam['class_id'],
+                        $exam['academic_year'],
+                        $exam['term'],
+                        $score_slot,
+                        $attempt['percentage'],
+                        $token_data['linked_id'],
+                        $exam_id
+                    );
+                    $fed++;
+                }
+                $this->conn->commit();
+            } catch (Exception $e) {
+                $this->conn->rollBack();
+                throw $e;
             }
 
             Response::success(['fed_count' => $fed], "$fed score(s) fed successfully");
@@ -1427,13 +1560,15 @@ class CbtController {
 
     public function deleteExamScores($exam_id) {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $exam_id = Middleware::validateInteger($exam_id, 'exam_id');
 
-            $query = "SELECT * FROM cbt_exams WHERE id = :id";
+            $query = "SELECT * FROM cbt_exams WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $exam_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1464,6 +1599,7 @@ class CbtController {
 
     public function bulkImportQuestions($exam_id) {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         if (!is_array($data) || !isset($data['questions']) || !is_array($data['questions'])) {
@@ -1490,8 +1626,8 @@ class CbtController {
                     $sort = $nextSort + $imported;
 
                     $stmt = $this->conn->prepare(
-                        "INSERT INTO cbt_questions (exam_id, question_type, question_text, passage_text, image_url, options_json, correct_answer_json, marks, sort_order, section, section_instructions)
-                         VALUES (:exam_id, :question_type, :question_text, :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :sort_order, :section, :section_instructions)"
+                        "INSERT INTO cbt_questions (exam_id, question_type, question_text, passage_text, image_url, options_json, correct_answer_json, marks, sort_order, section, section_instructions, school_id)
+                         VALUES (:exam_id, :question_type, :question_text, :passage_text, :image_url, :options_json, :correct_answer_json, :marks, :sort_order, :section, :section_instructions, :school_id)"
                     );
                     $stmt->bindValue(':exam_id', $exam_id);
                     $stmt->bindValue(':question_type', $q['question_type']);
@@ -1504,6 +1640,7 @@ class CbtController {
                     $stmt->bindValue(':sort_order', $sort);
                     $stmt->bindValue(':section', $q['section'] ?? null);
                     $stmt->bindValue(':section_instructions', $q['section_instructions'] ?? null);
+                    $stmt->bindValue(':school_id', $school_id);
                     $stmt->execute();
                     $imported++;
                 } catch (\Exception $e) {
@@ -1589,7 +1726,7 @@ class CbtController {
                 Response::success(['questions' => $questions], count($questions) . ' questions generated (local mode) — Set GEMINI_API_KEY for AI-powered generation');
             }
         } catch (\Exception $e) {
-            Response::serverError('Error generating questions: ' . $e->getMessage());
+            Response::serverError('Error generating questions');
         }
     }
 
@@ -1666,10 +1803,9 @@ class CbtController {
         $content = $result['candidates'][0]['content']['parts'][0]['text'] ?? '[]';
         $content = trim($content);
 
-        // Remove markdown code fences if present
-        if (str_starts_with($content, '```')) {
-            $content = preg_replace('/^```(?:json)?\s*/i', '', $content);
-            $content = preg_replace('/\s*```$/', '', $content);
+        // Extract JSON from markdown code fences (handles leading/trailing text)
+        if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/', $content, $matches)) {
+            $content = trim($matches[1]);
         }
 
         $generated = json_decode($content, true);
@@ -1831,8 +1967,8 @@ class CbtController {
 
             $assignment_id = $assignment['id'];
 
-            // Scale percentage (0-100) to CA max (usually 20)
-            $ca_score = round(($percentage / 100) * 20, 1);
+            // Scale percentage (0-100) to CA max
+            $ca_score = round(($percentage / 100) * self::CA_MAX, 1);
 
             // Check existing score
             $query = "SELECT id, ca1, ca2 FROM scores WHERE student_id = :student_id AND subject_assignment_id = :assignment_id LIMIT 1";

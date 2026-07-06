@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class RealtimeController {
@@ -34,12 +35,8 @@ class RealtimeController {
         header('Connection: keep-alive');
         header('X-Accel-Buffering: no'); // nginx
 
-        // CORS - reuse origin whitelist behavior from index.php as best effort
-        $allowed_origins = [
-            'https://gracelandroyalacademy.com.ng',
-            'https://www.gracelandroyalacademy.com.ng',
-            'http://localhost:3000',
-        ];
+        // CORS - use dynamic origins from config
+        $allowed_origins = Config::getAllowedOrigins();
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         if (in_array($origin, $allowed_origins, true)) {
             header('Access-Control-Allow-Origin: ' . $origin);
@@ -78,12 +75,15 @@ class RealtimeController {
             exit;
         }
 
+        // Extract school_id from token for scoped event streaming
+        $school_id = ($tokenData && isset($tokenData['school_id'])) ? (int)$tokenData['school_id'] : null;
+
         while (true) {
             if (connection_aborted()) {
                 break;
             }
 
-            $events = RealtimeEvents::fetchSince($this->conn, $lastId, 50);
+            $events = RealtimeEvents::fetchSince($this->conn, $lastId, 50, $school_id);
             if (!empty($events)) {
                 foreach ($events as $ev) {
                     $id = intval($ev['id'] ?? 0);

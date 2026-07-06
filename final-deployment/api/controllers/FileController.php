@@ -2,6 +2,7 @@
 require_once 'config/database.php';
 require_once 'helpers/Response.php';
 require_once 'helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class FileController {
     private $db;
@@ -20,7 +21,8 @@ class FileController {
     public function uploadLogo() {
         try {
             // Only admins can upload system assets (logo/signatures)
-            Middleware::requireRole('admin');
+            $token_data = Middleware::requireRole('admin');
+            $school_id = TenantMiddleware::resolveSchoolId($this->db);
 
             // Check if file was uploaded
             if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
@@ -74,14 +76,15 @@ class FileController {
             ], 'File uploaded successfully');
             
         } catch (Exception $e) {
-            Response::error('Upload failed: ' . $e->getMessage(), 500);
+            Response::error('Upload failed: An error occurred', 500);
         }
     }
     
     public function deleteFile($filename) {
         try {
             // CRITICAL SECURITY FIX: Require admin authentication
-            Middleware::requireRole('admin');
+            $token_data = Middleware::requireRole('admin');
+            $school_id = TenantMiddleware::resolveSchoolId($this->db);
             
             $filepath = $this->uploadDir . $filename;
             
@@ -95,7 +98,7 @@ class FileController {
                 Response::error('File not found', 404);
             }
         } catch (Exception $e) {
-            Response::error('Delete failed: ' . $e->getMessage(), 500);
+            Response::error('Delete failed: An error occurred', 500);
         }
     }
 }

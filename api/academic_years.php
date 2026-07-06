@@ -1,75 +1,69 @@
 <?php
 // Academic Years endpoint
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+require_once 'config/database.php';
+require_once 'helpers/Response.php';
+require_once 'helpers/JWT.php';
+require_once 'helpers/Middleware.php';
+require_once 'helpers/TenantMiddleware.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
+    Response::options();
 }
 
-require_once 'config/database.php';
-require_once 'helpers/JWT.php';
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    Response::error('Method not allowed', 405);
+}
 
 try {
     $database = new Database();
     $conn = $database->getConnection();
     
-    $method = $_SERVER['REQUEST_METHOD'];
+    $token_data = Middleware::requireAuth();
+    $school_id = TenantMiddleware::resolveSchoolId($conn);
     
-    switch ($method) {
-        case 'GET':
-            // Get all academic years
-            try {
-                $sql = "SELECT DISTINCT academic_year FROM compiled_results ORDER BY academic_year DESC";
-                $stmt = $conn->prepare($sql);
-                $stmt->execute();
-                $result = $stmt;
-                
-                $years = [];
-                if ($result && $result->rowCount() > 0) {
-                    while($row = $result->fetch(PDO::FETCH_ASSOC)) {
-                        $years[] = $row['academic_year'];
-                    }
-                }
-                
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Academic years loaded successfully',
-                    'data' => $years,
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
-            } catch (PDOException $e) {
-                error_log("Academic Years Error: " . $e->getMessage());
-                
-                // If table doesn't exist, return current year as fallback
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Using fallback academic year',
-                    'data' => ['2025/2026'],
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
+    try {
+        $sql = "SELECT id, year, start_date, end_date, status 
+                FROM academic_years 
+                WHERE school_id = :school_id 
+                ORDER BY year DESC";
+        $stmt = $conn->prepare($sql);
+        $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        $years = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $years[] = [
+                'id' => (int)$row['id'],
+                'year' => $row['year'],
+                'start_date' => $row['start_date'],
+                'end_date' => $row['end_date'],
+                'status' => $row['status'],
+            ];
+        }
+        
+        Response::success($years, 'Academic years loaded successfully');
+    } catch (PDOException $e) {
+        error_log("Academic Years Error: " . $e->getMessage());
+        // Fallback: extract years from compiled_results if academic_years table has no data
+        try {
+            $fallback = $conn->prepare(
+                "SELECT DISTINCT academic_year FROM compiled_results WHERE school_id = :school_id ORDER BY academic_year DESC"
+            );
+            $fallback->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+            $fallback->execute();
+            $fallback_years = [];
+            while ($row = $fallback->fetch(PDO::FETCH_ASSOC)) {
+                $fallback_years[] = [
+                    'year' => $row['academic_year'],
+                    'status' => 'Active',
+                ];
             }
-            break;
-            
-        default:
-            http_response_code(405);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Method not allowed',
-                'timestamp' => date('Y-m-d H:i:s')
-            ]);
-            break;
+            Response::success($fallback_years, 'Academic years loaded from compiled results');
+        } catch (PDOException $e2) {
+            Response::success([], 'No academic years found');
+        }
     }
-    
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Database error: ' . $e->getMessage(),
-        'timestamp' => date('Y-m-d H:i:s')
-    ]);
+    error_log("Academic Years Error: " . $e->getMessage());
+    Response::serverError('Failed to load academic years');
 }
-?>

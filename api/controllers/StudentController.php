@@ -1,12 +1,13 @@
 <?php
 /**
  * Student Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
 
 class StudentController {
@@ -22,6 +23,7 @@ class StudentController {
      */
     public function getAllStudents() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         
@@ -34,7 +36,8 @@ class StudentController {
                       LEFT JOIN classes c ON s.class_id = c.id
                       LEFT JOIN parent_student_links psl ON s.id = psl.student_id 
                       LEFT JOIN parents p ON psl.parent_id = p.id
-                      WHERE 1=1";
+                      WHERE 1=1
+                      AND s.school_id = :school_id";
 
             $params = [];
 
@@ -51,15 +54,16 @@ class StudentController {
                 if (empty($teacher_id)) {
                     Response::forbidden('Teacher account not properly linked');
                 }
-                // Teachers can see students for classes they teach (via subject assignments)
-                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id)";
+                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND school_id = :school_id_ta)";
                 $params[':teacher_id'] = (int)$teacher_id;
+                $params[':school_id_ta'] = $school_id;
             } elseif (($token_data['role'] ?? null) === 'accountant' || ($token_data['role'] ?? null) === 'admin') {
                 // Full access
             } else {
                 Response::forbidden('Access denied');
             }
 
+            $params[':school_id'] = $school_id;
             $query .= " ORDER BY c.name, s.last_name, s.first_name";
             
             $stmt = $this->conn->prepare($query);
@@ -113,6 +117,7 @@ class StudentController {
      */
     public function getStudentById($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $student_id = Middleware::validateInteger($id, 'student_id');
         
         try {
@@ -126,9 +131,9 @@ class StudentController {
                       LEFT JOIN parent_student_links psl ON s.id = psl.student_id 
                       LEFT JOIN parents p ON psl.parent_id = p.id
                       LEFT JOIN student_fee_balances sfb ON s.id = sfb.student_id 
-                        AND sfb.term = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_term')
-                        AND sfb.academic_year = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_academic_year')
-                      WHERE s.id = :id";
+                        AND sfb.term = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' AND school_id = s.school_id)
+                        AND sfb.academic_year = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_academic_year' AND school_id = s.school_id)
+                      WHERE s.id = :id AND s.school_id = :school_id";
             
             // Add role-based conditions
             if ($token_data['role'] === 'parent') {
@@ -139,6 +144,7 @@ class StudentController {
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $student_id);
+            $stmt->bindParam(':school_id', $school_id);
             
             if ($token_data['role'] === 'parent') {
                 $stmt->bindParam(':parent_id', $token_data['linked_id']);
@@ -156,7 +162,7 @@ class StudentController {
             // Get additional data for admin
             if ($token_data['role'] === 'admin') {
                 $student['attendance_summary'] = $this->getStudentAttendanceSummary($student_id);
-                $student['recent_scores'] = $this->getStudentRecentScores($student_id);
+                $student['recent_scores'] = $this->getStudentRecentScores($student_id, $school_id);
                 $student['payment_history'] = $this->getStudentPaymentHistory($student_id);
             }
             
@@ -206,7 +212,8 @@ class StudentController {
      * Create New Student
      */
     public function createStudent() {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -216,24 +223,32 @@ class StudentController {
         try {
             // Check if admission number already exists
             if (!empty($data['admission_number'])) {
-                $check_query = "SELECT id FROM students WHERE admission_number = :admission_number";
+                $check_query = "SELECT id FROM students WHERE admission_number = :admission_number AND school_id = :school_id_chk";
                 $check_stmt = $this->conn->prepare($check_query);
                 $admission_number = Middleware::sanitizeString($data['admission_number']);
                 $check_stmt->bindParam(':admission_number', $admission_number);
+                $check_stmt->bindParam(':school_id_chk', $school_id, PDO::PARAM_INT);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()) {
                     Response::conflict('Admission number already exists');
                 }
             } else {
-                // Generate admission number
+                $school_id = TenantMiddleware::resolveSchoolId($this->conn);
+                $suffix_query = "SELECT suffix FROM schools WHERE id = :sid LIMIT 1";
+                $suffix_stmt = $this->conn->prepare($suffix_query);
+                $suffix_stmt->execute([':sid' => $school_id]);
+                $school_row = $suffix_stmt->fetch(PDO::FETCH_ASSOC);
+                $prefix = $school_row ? strtoupper($school_row['suffix']) : 'SCH';
+
                 $year = date('Y');
-                $sequence_query = "SELECT COUNT(*) as count FROM students WHERE YEAR(created_at) = :year";
+                $sequence_query = "SELECT COUNT(*) as count FROM students WHERE YEAR(created_at) = :year AND school_id = :sid";
                 $sequence_stmt = $this->conn->prepare($sequence_query);
                 $sequence_stmt->bindParam(':year', $year);
+                $sequence_stmt->bindParam(':sid', $school_id);
                 $sequence_stmt->execute();
                 $count = $sequence_stmt->fetch()['count'] + 1;
-                $admission_number = 'GRA/' . $year . '/' . str_pad($count, 4, '0', STR_PAD_LEFT);
+                $admission_number = $prefix . '/' . $year . '/' . str_pad($count, 4, '0', STR_PAD_LEFT);
             }
             
             // Validate and prepare data
@@ -248,9 +263,10 @@ class StudentController {
             $admission_date = isset($data['admission_date']) ? Middleware::validateDate($data['admission_date']) : date('Y-m-d');
             
             // Get class info
-            $class_query = "SELECT name, level FROM classes WHERE id = :class_id";
+            $class_query = "SELECT name, level FROM classes WHERE id = :class_id AND school_id = :school_id_cls";
             $class_stmt = $this->conn->prepare($class_query);
             $class_stmt->bindParam(':class_id', $class_id);
+            $class_stmt->bindParam(':school_id_cls', $school_id, PDO::PARAM_INT);
             $class_stmt->execute();
             $class_info = $class_stmt->fetch();
             
@@ -260,9 +276,9 @@ class StudentController {
             
             // Insert student
             $query = "INSERT INTO students (first_name, last_name, other_name, admission_number, class_id, level, 
-                                           parent_id, date_of_birth, gender, academic_year, admission_date, status)
+                                            parent_id, date_of_birth, gender, academic_year, admission_date, status, school_id)
                       VALUES (:first_name, :last_name, :other_name, :admission_number, :class_id, :level,
-                              :parent_id, :date_of_birth, :gender, :academic_year, :admission_date, 'Active')";
+                              :parent_id, :date_of_birth, :gender, :academic_year, :admission_date, 'Active', :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':first_name', $first_name);
@@ -276,17 +292,19 @@ class StudentController {
             $stmt->bindParam(':gender', $gender);
             $stmt->bindParam(':academic_year', $academic_year);
             $stmt->bindParam(':admission_date', $admission_date);
+            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
             $student_id = $this->conn->lastInsertId();
             
             // Link with parent if provided
             if ($parent_id) {
-                $link_query = "INSERT INTO parent_student_links (parent_id, student_id, relationship, is_primary) 
-                               VALUES (:parent_id, :student_id, 'Guardian', TRUE)";
+                $link_query = "INSERT INTO parent_student_links (parent_id, student_id, relationship, is_primary, school_id) 
+                               VALUES (:parent_id, :student_id, 'Guardian', TRUE, :school_id_link)";
                 $link_stmt = $this->conn->prepare($link_query);
                 $link_stmt->bindParam(':parent_id', $parent_id);
                 $link_stmt->bindParam(':student_id', $student_id);
+                $link_stmt->bindParam(':school_id_link', $school_id, PDO::PARAM_INT);
                 $link_stmt->execute();
             }
             
@@ -324,16 +342,18 @@ class StudentController {
      * Update Student
      */
     public function updateStudent($id) {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $student_id = Middleware::validateInteger($id, 'student_id');
         $data = json_decode(file_get_contents('php://input'), true);
         
         try {
             // Check if student exists
-            $check_query = "SELECT * FROM students WHERE id = :id";
+            $check_query = "SELECT * FROM students WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $existing_student = $check_stmt->fetch();
@@ -371,9 +391,10 @@ class StudentController {
             
             // Update level if class is changed
             if (isset($data['class_id'])) {
-                $class_query = "SELECT level FROM classes WHERE id = :class_id";
+                $class_query = "SELECT level FROM classes WHERE id = :class_id AND school_id = :school_id";
                 $class_stmt = $this->conn->prepare($class_query);
                 $class_stmt->bindParam(':class_id', $params[':class_id']);
+                $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                 $class_stmt->execute();
                 $class_info = $class_stmt->fetch();
                 
@@ -383,7 +404,8 @@ class StudentController {
                 }
             }
             
-            $query = "UPDATE students SET " . implode(', ', $update_fields) . " WHERE id = :id";
+            $query = "UPDATE students SET " . implode(', ', $update_fields) . " WHERE id = :id AND school_id = :school_id";
+            $params[':school_id'] = $school_id;
             $stmt = $this->conn->prepare($query);
             
             foreach ($params as $key => $value) {
@@ -424,15 +446,17 @@ class StudentController {
      * Delete Student
      */
     public function deleteStudent($id) {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $student_id = Middleware::validateInteger($id, 'student_id');
         
         try {
             // Check if student exists
-            $check_query = "SELECT first_name, last_name, admission_number FROM students WHERE id = :id";
+            $check_query = "SELECT first_name, last_name, admission_number FROM students WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $student = $check_stmt->fetch();
@@ -441,9 +465,10 @@ class StudentController {
             }
             
             // Delete student (cascade will handle related records)
-            $query = "DELETE FROM students WHERE id = :id";
+            $query = "DELETE FROM students WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $student_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
 
             RealtimeEvents::publish(['students', 'classes', 'payments', 'compiled_results', 'scores'], [
@@ -474,16 +499,18 @@ class StudentController {
      */
     public function getStudentsByClass($class_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $class_id = Middleware::validateInteger($class_id, 'class_id');
         
         try {
             // Check access permissions
             if ($token_data['role'] === 'teacher') {
                 // Verify teacher has access to this class
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -498,11 +525,12 @@ class StudentController {
                       FROM students s
                       LEFT JOIN parent_student_links psl ON s.id = psl.student_id AND psl.is_primary = TRUE
                       LEFT JOIN parents p ON psl.parent_id = p.id
-                      WHERE s.class_id = :class_id AND s.status = 'Active'
+                      WHERE s.class_id = :class_id AND s.status = 'Active' AND s.school_id = :school_id
                       ORDER BY s.last_name, s.first_name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':class_id', $class_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $students = $stmt->fetchAll();
@@ -519,6 +547,7 @@ class StudentController {
      */
     public function promoteStudents() {
         $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -528,7 +557,8 @@ class StudentController {
             // Promotion is only allowed at the end of the session (Third Term).
             // This is enforced server-side to guarantee correctness.
             try {
-                $term_stmt = $this->conn->prepare("SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' LIMIT 1");
+                $term_stmt = $this->conn->prepare("SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' AND school_id = :school_id LIMIT 1");
+                $term_stmt->bindValue(':school_id', $school_id);
                 $term_stmt->execute();
                 $term_row = $term_stmt->fetch(PDO::FETCH_ASSOC);
                 $current_term = $term_row ? ($term_row['setting_value'] ?? '') : '';
@@ -592,10 +622,12 @@ class StudentController {
                                      WHERE student_id = :student_id
                                        AND academic_year = :academic_year
                                        AND status = 'Approved'
+                                       AND school_id = :school_id
                                        AND term IN ('First Term','Second Term','Third Term')";
                         $cr_stmt = $this->conn->prepare($cr_query);
                         $cr_stmt->bindParam(':student_id', $student_id);
                         $cr_stmt->bindParam(':academic_year', $from_academic_year);
+                        $cr_stmt->bindParam(':school_id', $school_id);
                         $cr_stmt->execute();
                         $rows = $cr_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -627,11 +659,12 @@ class StudentController {
                         if (!$validation['valid']) {
                             // Check if this class has NO active progression rules (terminal/graduating class)
                             $grad_check = "SELECT 1 FROM class_progression_rules 
-                                           WHERE from_class_id = :fid AND is_active = 1 
-                                           AND academic_year = :ay LIMIT 1";
+                                            WHERE from_class_id = :fid AND is_active = 1 
+                                            AND academic_year = :ay AND school_id = :school_id LIMIT 1";
                             $grad_stmt = $this->conn->prepare($grad_check);
                             $grad_stmt->bindParam(':fid', $from_class_id);
                             $grad_stmt->bindParam(':ay', $to_academic_year);
+                            $grad_stmt->bindParam(':school_id', $school_id);
                             $grad_stmt->execute();
                             
                             if (!$grad_stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -654,60 +687,67 @@ class StudentController {
                     // - Repeated: can stay in same class or move to a different class (demotion)
                     if (!$is_graduation && in_array($status, ['Promoted', 'Manual', 'Repeated'], true)) {
                         // Find current class_id in DB to keep class counts accurate even if payload is stale
-                        $current_class_query = "SELECT class_id FROM students WHERE id = :student_id";
+                        $current_class_query = "SELECT class_id FROM students WHERE id = :student_id AND school_id = :school_id";
                         $current_class_stmt = $this->conn->prepare($current_class_query);
                         $current_class_stmt->bindParam(':student_id', $student_id);
+                        $current_class_stmt->bindParam(':school_id', $school_id);
                         $current_class_stmt->execute();
                         $current_student = $current_class_stmt->fetch(PDO::FETCH_ASSOC);
                         $actual_from_class_id = $current_student ? (int)$current_student['class_id'] : $from_class_id;
 
-                        $update_query = "UPDATE students SET class_id = :to_class_id, academic_year = :to_academic_year WHERE id = :student_id";
+                        $update_query = "UPDATE students SET class_id = :to_class_id, academic_year = :to_academic_year WHERE id = :student_id AND school_id = :school_id";
                         $update_stmt = $this->conn->prepare($update_query);
                         $update_stmt->bindParam(':to_class_id', $to_class_id);
                         $update_stmt->bindParam(':to_academic_year', $to_academic_year);
                         $update_stmt->bindParam(':student_id', $student_id);
+                        $update_stmt->bindParam(':school_id', $school_id);
                         $update_stmt->execute();
                         
                         // Update level based on new class
-                        $class_query = "SELECT level FROM classes WHERE id = :class_id";
+                        $class_query = "SELECT level FROM classes WHERE id = :class_id AND school_id = :school_id";
                         $class_stmt = $this->conn->prepare($class_query);
                         $class_stmt->bindParam(':class_id', $to_class_id);
+                        $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                         $class_stmt->execute();
                         $class_info = $class_stmt->fetch(PDO::FETCH_ASSOC);
                         
                         if ($class_info) {
-                            $level_update_query = "UPDATE students SET level = :level WHERE id = :student_id";
+                            $level_update_query = "UPDATE students SET level = :level WHERE id = :student_id AND school_id = :school_id";
                             $level_update_stmt = $this->conn->prepare($level_update_query);
                             $level_update_stmt->bindParam(':level', $class_info['level']);
                             $level_update_stmt->bindParam(':student_id', $student_id);
+                            $level_update_stmt->bindParam(':school_id', $school_id);
                             $level_update_stmt->execute();
                         }
                         
                         // Update class counts only if class actually changed
                         if ($actual_from_class_id !== (int)$to_class_id) {
-                            $this->updateClassCounts($actual_from_class_id, $to_class_id);
+                            $this->updateClassCounts($actual_from_class_id, $to_class_id, $school_id);
                         }
                     }
 
                     // Handle graduation: mark student as Graduated, keep class_id unchanged
                     if ($is_graduation) {
-                        $grad_update = "UPDATE students SET status = 'Graduated', academic_year = :ay WHERE id = :sid";
+                        $grad_update = "UPDATE students SET status = 'Graduated', academic_year = :ay WHERE id = :sid AND school_id = :school_id";
                         $grad_stmt2 = $this->conn->prepare($grad_update);
                         $grad_stmt2->bindParam(':ay', $to_academic_year);
                         $grad_stmt2->bindParam(':sid', $student_id);
+                        $grad_stmt2->bindParam(':school_id', $school_id);
                         $grad_stmt2->execute();
                     }
 
                     // Update students.status for applicable non-default statuses
                     if ($status === 'Transferred') {
-                        $status_update = "UPDATE students SET status = 'Transferred' WHERE id = :sid";
+                        $status_update = "UPDATE students SET status = 'Transferred' WHERE id = :sid AND school_id = :school_id";
                         $status_stmt = $this->conn->prepare($status_update);
                         $status_stmt->bindParam(':sid', $student_id);
+                        $status_stmt->bindParam(':school_id', $school_id);
                         $status_stmt->execute();
                     } elseif ($status === 'Withdrawn') {
-                        $status_update = "UPDATE students SET status = 'Inactive' WHERE id = :sid";
+                        $status_update = "UPDATE students SET status = 'Inactive' WHERE id = :sid AND school_id = :school_id";
                         $status_stmt = $this->conn->prepare($status_update);
                         $status_stmt->bindParam(':sid', $student_id);
+                        $status_stmt->bindParam(':school_id', $school_id);
                         $status_stmt->execute();
                     }
                 
@@ -743,7 +783,7 @@ class StudentController {
                 } catch (Exception $re) {
                     // Savepoint rollback failed — abort entire transaction
                     $this->conn->rollBack();
-                    Response::serverError('Transaction aborted: ' . $e->getMessage());
+                    Response::serverError('Transaction aborted due to an error');
                     return;
                 }
                 $failed_students[] = [
@@ -783,18 +823,20 @@ class StudentController {
     /**
      * Update class counts after promotion
      */
-    private function updateClassCounts($fromClassId, $toClassId) {
+    private function updateClassCounts($fromClassId, $toClassId, $schoolId) {
         try {
             // Decrement from class
-            $decrement_query = "UPDATE classes SET current_students = current_students - 1 WHERE id = :from_class_id AND current_students > 0";
+            $decrement_query = "UPDATE classes SET current_students = current_students - 1 WHERE id = :from_class_id AND school_id = :school_id AND current_students > 0";
             $decrement_stmt = $this->conn->prepare($decrement_query);
             $decrement_stmt->bindParam(':from_class_id', $fromClassId);
+            $decrement_stmt->bindParam(':school_id', $schoolId, PDO::PARAM_INT);
             $decrement_stmt->execute();
             
             // Increment to class
-            $increment_query = "UPDATE classes SET current_students = current_students + 1 WHERE id = :to_class_id";
+            $increment_query = "UPDATE classes SET current_students = current_students + 1 WHERE id = :to_class_id AND school_id = :school_id";
             $increment_stmt = $this->conn->prepare($increment_query);
             $increment_stmt->bindParam(':to_class_id', $toClassId);
+            $increment_stmt->bindParam(':school_id', $schoolId, PDO::PARAM_INT);
             $increment_stmt->execute();
             
         } catch (PDOException $e) {
@@ -808,6 +850,7 @@ class StudentController {
      */
     public function manualClassChange() {
         $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['student_id', 'from_class_id', 'to_class_id', 'reason']);
@@ -822,32 +865,35 @@ class StudentController {
             $this->conn->beginTransaction();
             
             // Update student class
-            $update_query = "UPDATE students SET class_id = :to_class_id, academic_year = :academic_year WHERE id = :student_id";
+            $update_query = "UPDATE students SET class_id = :to_class_id, academic_year = :academic_year WHERE id = :student_id AND school_id = :school_id";
             $update_stmt = $this->conn->prepare($update_query);
             $update_stmt->bindParam(':to_class_id', $to_class_id);
             $update_stmt->bindParam(':academic_year', $academic_year);
             $update_stmt->bindParam(':student_id', $student_id);
+            $update_stmt->bindParam(':school_id', $school_id);
             $update_stmt->execute();
             
             // Update student level
-            $class_query = "SELECT level FROM classes WHERE id = :class_id";
+            $class_query = "SELECT level FROM classes WHERE id = :class_id AND school_id = :school_id";
             $class_stmt = $this->conn->prepare($class_query);
             $class_stmt->bindParam(':class_id', $to_class_id);
+            $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $class_stmt->execute();
             $class_info = $class_stmt->fetch();
             
             if ($class_info) {
-                $level_update_query = "UPDATE students SET level = :level WHERE id = :student_id";
+                $level_update_query = "UPDATE students SET level = :level WHERE id = :student_id AND school_id = :school_id";
                 $level_update_stmt = $this->conn->prepare($level_update_query);
                 $level_update_stmt->bindParam(':level', $class_info['level']);
                 $level_update_stmt->bindParam(':student_id', $student_id);
+                $level_update_stmt->bindParam(':school_id', $school_id);
                 $level_update_stmt->execute();
             }
             
             // Record manual change
             $change_query = "INSERT INTO manual_class_changes 
-                           (student_id, from_class_id, to_class_id, reason, changed_by, change_date) 
-                           VALUES (:student_id, :from_class_id, :to_class_id, :reason, :changed_by, :change_date)";
+                           (student_id, from_class_id, to_class_id, reason, changed_by, change_date, school_id) 
+                           VALUES (:student_id, :from_class_id, :to_class_id, :reason, :changed_by, :change_date, :school_id_mcc)";
             
             $change_stmt = $this->conn->prepare($change_query);
             $change_stmt->bindParam(':student_id', $student_id);
@@ -858,10 +904,11 @@ class StudentController {
             $change_stmt->bindParam(':changed_by', $changed_by);
             $change_date = date('Y-m-d H:i:s');
             $change_stmt->bindParam(':change_date', $change_date);
+            $change_stmt->bindParam(':school_id_mcc', $school_id, PDO::PARAM_INT);
             $change_stmt->execute();
             
             // Update class counts
-            $this->updateClassCounts($from_class_id, $to_class_id);
+            $this->updateClassCounts($from_class_id, $to_class_id, $school_id);
             
             $this->conn->commit();
             
@@ -888,7 +935,8 @@ class StudentController {
      * Get Promotion History
      */
     public function getPromotionHistory() {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $query = "SELECT sp.*, 
@@ -896,14 +944,16 @@ class StudentController {
                      c_from.name as from_class_name, c_to.name as to_class_name,
                      u.username as promoted_by_name
                      FROM student_promotions sp 
-                     LEFT JOIN students s ON sp.student_id = s.id
+                     LEFT JOIN students s ON sp.student_id = s.id AND s.school_id = :school_id
                      LEFT JOIN classes c_from ON sp.from_class_id = c_from.id
                      LEFT JOIN classes c_to ON sp.to_class_id = c_to.id
                      LEFT JOIN users u ON sp.promoted_by = u.id
+                     WHERE sp.school_id = :school_id
                      ORDER BY sp.promotion_date DESC 
                      LIMIT 50";
             
             $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $promotions = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -918,19 +968,22 @@ class StudentController {
      * Initialize Student Fee Balance
      */
     private function initializeStudentFeeBalance($student_id, $class_id, $academic_year) {
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         try {
             // Get current term
-            $term_query = "SELECT setting_value FROM school_settings WHERE setting_key = 'current_term'";
+            $term_query = "SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' AND school_id = :school_id";
             $term_stmt = $this->conn->prepare($term_query);
+            $term_stmt->bindValue(':school_id', $school_id);
             $term_stmt->execute();
             $current_term = $term_stmt->fetch()['setting_value'] ?? 'First Term';
             
             // Get fee structure for this class
-            $fee_query = "SELECT total_fee FROM fee_structures WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year";
+            $fee_query = "SELECT total_fee FROM fee_structures WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id2";
             $fee_stmt = $this->conn->prepare($fee_query);
             $fee_stmt->bindParam(':class_id', $class_id);
             $fee_stmt->bindParam(':term', $current_term);
             $fee_stmt->bindParam(':academic_year', $academic_year);
+            $fee_stmt->bindValue(':school_id2', $school_id);
             $fee_stmt->execute();
             
             $fee_structure = $fee_stmt->fetch();
@@ -939,8 +992,8 @@ class StudentController {
                 $total_fee = $fee_structure['total_fee'];
                 
                 // Insert fee balance record
-                $balance_query = "INSERT INTO student_fee_balances (student_id, class_id, term, academic_year, total_fee_required)
-                                  VALUES (:student_id, :class_id, :term, :academic_year, :total_fee)";
+                $balance_query = "INSERT INTO student_fee_balances (student_id, class_id, term, academic_year, total_fee_required, school_id)
+                                  VALUES (:student_id, :class_id, :term, :academic_year, :total_fee, :school_id3)";
                 
                 $balance_stmt = $this->conn->prepare($balance_query);
                 $balance_stmt->bindParam(':student_id', $student_id);
@@ -948,6 +1001,7 @@ class StudentController {
                 $balance_stmt->bindParam(':term', $current_term);
                 $balance_stmt->bindParam(':academic_year', $academic_year);
                 $balance_stmt->bindParam(':total_fee', $total_fee);
+                $balance_stmt->bindValue(':school_id3', $school_id);
                 $balance_stmt->execute();
             }
         } catch (PDOException $e) {
@@ -979,17 +1033,18 @@ class StudentController {
     /**
      * Get Student Recent Scores
      */
-    private function getStudentRecentScores($student_id) {
+    private function getStudentRecentScores($student_id, $school_id) {
         $query = "SELECT sc.total, sc.grade, sc.remark, sub.name as subject_name, sc.entered_date
                   FROM scores sc
                   JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
                   JOIN subjects sub ON sa.subject_id = sub.id
-                  WHERE sc.student_id = :student_id
+                  WHERE sc.student_id = :student_id AND sa.school_id = :school_id
                   ORDER BY sc.entered_date DESC
                   LIMIT 5";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':student_id', $student_id);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return $stmt->fetchAll();
@@ -1016,12 +1071,14 @@ class StudentController {
      * Get Student Statistics
      */
     public function getStudentStatistics() {
-        Middleware::requireAnyRole(['admin', 'teacher', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             // Get total students
-            $totalQuery = "SELECT COUNT(*) as total FROM students";
+            $totalQuery = "SELECT COUNT(*) as total FROM students WHERE school_id = :school_id";
             $totalStmt = $this->conn->prepare($totalQuery);
+            $totalStmt->bindParam(':school_id', $school_id);
             $totalStmt->execute();
             $totalStudents = $totalStmt->fetch()['total'];
             
@@ -1029,8 +1086,9 @@ class StudentController {
             $linkedQuery = "SELECT COUNT(DISTINCT s.id) as linked 
                           FROM students s 
                           LEFT JOIN parent_student_links psl ON s.id = psl.student_id 
-                          WHERE psl.parent_id IS NOT NULL";
+                          WHERE psl.parent_id IS NOT NULL AND s.school_id = :school_id2";
             $linkedStmt = $this->conn->prepare($linkedQuery);
+            $linkedStmt->bindValue(':school_id2', $school_id);
             $linkedStmt->execute();
             $linkedStudents = $linkedStmt->fetch()['linked'];
             
@@ -1055,6 +1113,7 @@ class StudentController {
      */
     public function saveAffectiveDomains() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         if ($token_data['role'] !== 'teacher' && $token_data['role'] !== 'admin') {
             Response::forbidden('Only teachers and admins can save affective domains');
@@ -1072,10 +1131,11 @@ class StudentController {
             $domains = $data['domains'];
             
             // Verify student exists and is in the class
-            $check_query = "SELECT COUNT(*) as count FROM students WHERE id = :student_id AND class_id = :class_id AND status = 'Active'";
+            $check_query = "SELECT COUNT(*) as count FROM students WHERE id = :student_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':student_id', $student_id);
             $check_stmt->bindParam(':class_id', $class_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -1086,12 +1146,13 @@ class StudentController {
             if ($token_data['role'] === 'teacher') {
                 $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments 
                                        WHERE teacher_id = :teacher_id AND class_id = :class_id 
-                                       AND academic_year = :academic_year AND term = :term AND status = 'Active'";
+                                       AND academic_year = :academic_year AND term = :term AND status = 'Active' AND school_id = :school_id2";
                 $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
                 $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $teacher_check_stmt->bindParam(':class_id', $class_id);
                 $teacher_check_stmt->bindParam(':academic_year', $academic_year);
                 $teacher_check_stmt->bindParam(':term', $term);
+                $teacher_check_stmt->bindValue(':school_id2', $school_id);
                 $teacher_check_stmt->execute();
                 
                 if ($teacher_check_stmt->fetch()['count'] == 0) {
@@ -1102,12 +1163,13 @@ class StudentController {
             $this->conn->beginTransaction();
             
             // Check if record exists
-            $exist_query = "SELECT id FROM affective_domains WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year";
+            $exist_query = "SELECT id FROM affective_domains WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id3";
             $exist_stmt = $this->conn->prepare($exist_query);
             $exist_stmt->bindParam(':student_id', $student_id);
             $exist_stmt->bindParam(':class_id', $class_id);
             $exist_stmt->bindParam(':term', $term);
             $exist_stmt->bindParam(':academic_year', $academic_year);
+            $exist_stmt->bindValue(':school_id3', $school_id);
             $exist_stmt->execute();
             
             $existing = $exist_stmt->fetch();
@@ -1134,23 +1196,25 @@ class StudentController {
                 }
                 
                 if (!empty($update_fields)) {
-                    $update_query = "UPDATE affective_domains SET " . implode(', ', $update_fields) . " WHERE id = :id";
+                    $update_query = "UPDATE affective_domains SET " . implode(', ', $update_fields) . " WHERE id = :id AND school_id = :school_id_ad";
                     $update_stmt = $this->conn->prepare($update_query);
                     foreach ($params as $key => $value) {
                         $update_stmt->bindValue($key, $value);
                     }
+                    $update_stmt->bindValue(':school_id_ad', $school_id, PDO::PARAM_INT);
                     $update_stmt->execute();
                 }
             } else {
                 // Insert new record
-                $insert_fields = ['student_id', 'class_id', 'term', 'academic_year', 'entered_by'];
-                $insert_values = [':student_id', ':class_id', ':term', ':academic_year', ':entered_by'];
+                $insert_fields = ['student_id', 'class_id', 'term', 'academic_year', 'entered_by', 'school_id'];
+                $insert_values = [':student_id', ':class_id', ':term', ':academic_year', ':entered_by', ':school_id'];
                 $params = [
                     ':student_id' => $student_id,
                     ':class_id' => $class_id,
                     ':term' => $term,
                     ':academic_year' => $academic_year,
-                    ':entered_by' => $token_data['user_id']
+                    ':entered_by' => $token_data['user_id'],
+                    ':school_id' => $school_id
                 ];
                 
                 $domain_fields = ['attentiveness', 'honesty', 'neatness', 'obedience', 'sense_of_responsibility'];
@@ -1194,6 +1258,7 @@ class StudentController {
      */
     public function savePsychomotorDomains() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         if ($token_data['role'] !== 'teacher' && $token_data['role'] !== 'admin') {
             Response::forbidden('Only teachers and admins can save psychomotor domains');
@@ -1211,10 +1276,11 @@ class StudentController {
             $domains = $data['domains'];
             
             // Verify student exists and is in the class
-            $check_query = "SELECT COUNT(*) as count FROM students WHERE id = :student_id AND class_id = :class_id AND status = 'Active'";
+            $check_query = "SELECT COUNT(*) as count FROM students WHERE id = :student_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':student_id', $student_id);
             $check_stmt->bindParam(':class_id', $class_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -1225,12 +1291,13 @@ class StudentController {
             if ($token_data['role'] === 'teacher') {
                 $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments 
                                        WHERE teacher_id = :teacher_id AND class_id = :class_id 
-                                       AND academic_year = :academic_year AND term = :term AND status = 'Active'";
+                                       AND academic_year = :academic_year AND term = :term AND status = 'Active' AND school_id = :school_id2";
                 $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
                 $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $teacher_check_stmt->bindParam(':class_id', $class_id);
                 $teacher_check_stmt->bindParam(':academic_year', $academic_year);
                 $teacher_check_stmt->bindParam(':term', $term);
+                $teacher_check_stmt->bindValue(':school_id2', $school_id);
                 $teacher_check_stmt->execute();
                 
                 if ($teacher_check_stmt->fetch()['count'] == 0) {
@@ -1241,12 +1308,13 @@ class StudentController {
             $this->conn->beginTransaction();
             
             // Check if record exists
-            $exist_query = "SELECT id FROM psychomotor_domains WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year";
+            $exist_query = "SELECT id FROM psychomotor_domains WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id3";
             $exist_stmt = $this->conn->prepare($exist_query);
             $exist_stmt->bindParam(':student_id', $student_id);
             $exist_stmt->bindParam(':class_id', $class_id);
             $exist_stmt->bindParam(':term', $term);
             $exist_stmt->bindParam(':academic_year', $academic_year);
+            $exist_stmt->bindValue(':school_id3', $school_id);
             $exist_stmt->execute();
             
             $existing = $exist_stmt->fetch();
@@ -1273,23 +1341,25 @@ class StudentController {
                 }
                 
                 if (!empty($update_fields)) {
-                    $update_query = "UPDATE psychomotor_domains SET " . implode(', ', $update_fields) . " WHERE id = :id";
+                    $update_query = "UPDATE psychomotor_domains SET " . implode(', ', $update_fields) . " WHERE id = :id AND school_id = :school_id_pd";
                     $update_stmt = $this->conn->prepare($update_query);
                     foreach ($params as $key => $value) {
                         $update_stmt->bindValue($key, $value);
                     }
+                    $update_stmt->bindValue(':school_id_pd', $school_id, PDO::PARAM_INT);
                     $update_stmt->execute();
                 }
             } else {
                 // Insert new record
-                $insert_fields = ['student_id', 'class_id', 'term', 'academic_year', 'entered_by'];
-                $insert_values = [':student_id', ':class_id', ':term', ':academic_year', ':entered_by'];
+                $insert_fields = ['student_id', 'class_id', 'term', 'academic_year', 'entered_by', 'school_id'];
+                $insert_values = [':student_id', ':class_id', ':term', ':academic_year', ':entered_by', ':school_id'];
                 $params = [
                     ':student_id' => $student_id,
                     ':class_id' => $class_id,
                     ':term' => $term,
                     ':academic_year' => $academic_year,
-                    ':entered_by' => $token_data['user_id']
+                    ':entered_by' => $token_data['user_id'],
+                    ':school_id' => $school_id
                 ];
                 
                 $domain_fields = ['attention_to_direction', 'considerate_of_others', 'handwriting', 'sports', 'verbal_fluency', 'works_well_independently'];

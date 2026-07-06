@@ -1,6 +1,6 @@
-import { Book, BookOpen, GraduationCap, ArrowLeft, Plus, FileText, Search, Loader2, Upload, AlertTriangle, Trash2 } from 'lucide-react';
+import { Book, BookOpenText, GraduationCap, ArrowLeft, Plus, FileText, MagnifyingGlass, CircleNotch, Upload, Warning, Trash } from '@phosphor-icons/react';
 import { useState, useRef, useMemo, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+/* Card removed - using flat design */
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -418,7 +418,7 @@ function ManageClassesPageDesktop() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-[#0A2540] mb-2">Manage Classes</h1>
+              <h1 className="text-[#0A2540] mb-2 font-heading font-bold">Manage Classes</h1>
               <p className="text-gray-600">Click on a class to view details and manage subjects</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -441,7 +441,7 @@ function ManageClassesPageDesktop() {
                 size="sm"
                 className="rounded-xl border-gray-300 text-gray-600 hover:bg-gray-100 w-full sm:w-auto flex items-center gap-2"
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="w-4 h-4" weight="bold" />
                 <span className="hidden sm:inline">Template</span>
                 <span className="sm:hidden">Template</span>
               </Button>
@@ -451,7 +451,7 @@ function ManageClassesPageDesktop() {
                 size="sm"
                 className="rounded-xl border-gray-300 text-gray-600 hover:bg-gray-100 w-full sm:w-auto flex items-center gap-2"
               >
-                <Upload className="w-4 h-4" />
+                <Upload className="w-4 h-4" weight="bold" />
                 <span className="hidden sm:inline">Bulk Import</span>
                 <span className="sm:hidden">Import</span>
               </Button>
@@ -462,9 +462,9 @@ function ManageClassesPageDesktop() {
                 }}
                 variant="outline"
                 size="sm"
-                className="rounded-xl border-[#3B82F6] text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white w-full sm:w-auto flex items-center gap-2"
+                className="rounded-xl border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white w-full sm:w-auto flex items-center gap-2"
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="w-4 h-4" weight="bold" />
                 <span className="hidden sm:inline">Export CSV</span>
                 <span className="sm:hidden">Export</span>
               </Button>
@@ -472,10 +472,10 @@ function ManageClassesPageDesktop() {
                 onClick={() => {
                   setShowClassForm(true);
                 }}
-                className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
+                className="bg-[#0A2540] hover:bg-[#082030] text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
                 size="sm"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4" weight="bold" />
                 <span className="hidden sm:inline">Create New Class</span>
                 <span className="sm:hidden">New Class</span>
               </Button>
@@ -500,71 +500,71 @@ function ManageClassesPageDesktop() {
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-[#0A2540]/10 shadow-lg">
-              <CardContent className="p-6">
+            <div className="section-band">
+              <div className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Total Classes</p>
                     <p className="text-2xl font-bold text-[#0A2540]">{stats.totalClasses}</p>
                   </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <BookOpen className="w-6 h-6 text-blue-600" />
+                  <div className="w-12 h-12 bg-[#FFD700]/10 rounded-full flex items-center justify-center">
+                    <BookOpenText className="w-6 h-6 text-[#0A2540]" weight="bold" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="border-[#0A2540]/10 shadow-lg">
-              <CardContent className="p-6">
+            <div className="section-band">
+              <div className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Active Classes</p>
-                    <p className="text-2xl font-bold text-green-600">{stats.activeClasses}</p>
+                    <p className="text-2xl font-bold text-emerald-600">{stats.activeClasses}</p>
                   </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                    <GraduationCap className="w-6 h-6 text-green-600" />
+                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <GraduationCap className="w-6 h-6 text-emerald-600" weight="bold" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="border-[#0A2540]/10 shadow-lg">
-              <CardContent className="p-6">
+            <div className="section-band">
+              <div className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Total Students</p>
                     <p className="text-2xl font-bold text-[#0A2540]">{stats.totalStudents}</p>
                   </div>
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                    <Book className="w-6 h-6 text-purple-600" />
+                  <div className="w-12 h-12 bg-[#0A2540]/10 rounded-full flex items-center justify-center">
+                    <Book className="w-6 h-6 text-[#0A2540]" weight="bold" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="border-[#0A2540]/10 shadow-lg">
-              <CardContent className="p-6">
+            <div className="section-band">
+              <div className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Avg Capacity</p>
                     <p className="text-2xl font-bold text-orange-600">{stats.averageCapacity}%</p>
                   </div>
                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <BookOpen className="w-6 h-6 text-orange-600" />
+                    <BookOpenText className="w-6 h-6 text-orange-600" weight="bold" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* Filters */}
-          <Card className="border-[#0A2540]/10 shadow-lg">
-            <CardContent className="p-6">
+          <div className="section-band">
+            <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">Search</Label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" weight="bold" />
                     <Input
                       type="text"
                       placeholder="Search classes..."
@@ -615,14 +615,14 @@ function ManageClassesPageDesktop() {
                   </Select>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Loading indicator */}
           {isLoading && (
             <div className="flex items-center justify-center py-12">
               <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <CircleNotch className="w-5 h-5 animate-spin" weight="bold" />
                 Loading classes...
               </div>
             </div>
@@ -631,34 +631,32 @@ function ManageClassesPageDesktop() {
           {!isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedClasses.map((cls: Class) => (
-              <Card 
+              <div 
                 key={cls.id} 
-                className="border-[#0A2540]/10 shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
+                className="hover:bg-white/60 rounded-xl p-4 transition-all cursor-pointer border border-gray-100"
                 onClick={() => handleClassClick(cls)}
               >
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-lg font-semibold text-[#0A2540]">{cls.name}</h3>
-                    <Badge variant={cls.status === 'Active' ? 'default' : 'secondary'}>
-                      {cls.status}
-                    </Badge>
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-semibold text-[#0A2540]">{cls.name}</h3>
+                  <Badge variant={cls.status === 'Active' ? 'default' : 'secondary'}>
+                    {cls.status}
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Level:</span>
+                    <span className="text-sm font-medium">{cls.level}</span>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Level:</span>
-                      <span className="text-sm font-medium">{cls.level}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Teacher:</span>
-                      <span className="text-sm font-medium">{cls.classTeacher || 'Not Assigned'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Students:</span>
-                      <span className="text-sm font-medium">{cls.currentStudents}/{cls.capacity}</span>
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Teacher:</span>
+                    <span className="text-sm font-medium">{cls.classTeacher || 'Not Assigned'}</span>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Students:</span>
+                    <span className="text-sm font-medium">{cls.currentStudents}/{cls.capacity}</span>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
           )}
@@ -706,15 +704,15 @@ function ManageClassesPageDesktop() {
           )}
 
           {!isLoading && filteredClasses.length === 0 && (
-            <Card className="border-[#0A2540]/10 shadow-lg">
-              <CardContent className="p-12 text-center">
+            <div className="section-band">
+              <div className="p-12 text-center">
                 <div className="text-gray-500">
-                  <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <BookOpenText className="w-16 h-16 mx-auto mb-4 text-gray-300" weight="bold" />
                   <h3 className="text-lg font-medium mb-2">No Classes Found</h3>
                   <p>Try adjusting your filters or create a new class.</p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
         </>
       ) : (
@@ -725,16 +723,16 @@ function ManageClassesPageDesktop() {
             variant="outline"
             className="mb-6"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-4 h-4 mr-2" weight="bold" />
             Back to Classes
           </Button>
 
           {selectedClass && (
-            <Card className="border-[#0A2540]/10 shadow-lg">
-              <CardHeader>
+            <div className="section-band">
+              <div>
                 <div className="flex justify-between items-center">
                   <div>
-                    <h2 className="text-2xl font-bold text-[#0A2540]">{selectedClass.name}</h2>
+                    <h2 className="text-2xl font-heading font-bold text-[#0A2540]">{selectedClass.name}</h2>
                     <p className="text-gray-600">{selectedClass.level} • {selectedClass.category}</p>
                   </div>
                   <div className="flex gap-2">
@@ -757,13 +755,13 @@ function ManageClassesPageDesktop() {
                           Deleting...
                         </>
                       ) : (
-                        <Trash2 className="w-4 h-4" />
+                        <Trash className="w-4 h-4" weight="bold" />
                       )}
                     </Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
+              </div>
+              <div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Class Information</h3>
@@ -837,7 +835,7 @@ function ManageClassesPageDesktop() {
                         {classRegisteredSubjects.length > 0 ? (
                           classRegisteredSubjects.map((reg) => (
                             <TableRow key={reg.id}>
-                              <TableCell className="font-medium">{reg.subject_name || reg.subjectName || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.name || 'Unknown'}</TableCell>
+                              <TableCell className="font-medium">{reg.subject_name || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.name || 'Unknown'}</TableCell>
                               <TableCell>{reg.subject_code || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.code || '-'}</TableCell>
                               <TableCell>
                                 <Badge variant={reg.is_compulsory ? 'default' : 'secondary'}>
@@ -852,9 +850,9 @@ function ManageClassesPageDesktop() {
                                   disabled={actionLoading === `remove-${reg.subject_id}`}
                                 >
                                   {actionLoading === `remove-${reg.subject_id}` ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
                                   ) : (
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash className="w-4 h-4" weight="bold" />
                                   )}
                                 </Button>
                               </TableCell>
@@ -897,12 +895,12 @@ function ManageClassesPageDesktop() {
                         >
                           {actionLoading === 'register-subjects' ? (
                             <>
-                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              <CircleNotch className="w-4 h-4 animate-spin mr-2" weight="bold" />
                               Registering...
                             </>
                           ) : (
                             <>
-                              <Plus className="w-4 h-4 mr-2" />
+                              <Plus className="w-4 h-4 mr-2" weight="bold" />
                               Register {selectedSubjects.length > 0 ? `(${selectedSubjects.length})` : ''}
                             </>
                           )}
@@ -924,8 +922,8 @@ function ManageClassesPageDesktop() {
                     <p className="text-sm text-gray-500 mt-4">All subjects are registered for this class.</p>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Edit Class Dialog */}
@@ -1040,7 +1038,7 @@ function ManageClassesPageDesktop() {
                 <Button onClick={handleEditClass} disabled={actionLoading === "edit"}>
                   {actionLoading === "edit" ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      <CircleNotch className="w-4 h-4 animate-spin mr-2" weight="bold" />
                       Saving...
                     </>
                   ) : (
@@ -1056,7 +1054,7 @@ function ManageClassesPageDesktop() {
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                  <Warning className="w-5 h-5 text-red-600" weight="bold" />
                   Delete Class
                 </AlertDialogTitle>
                 <AlertDialogDescription>

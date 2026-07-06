@@ -1,13 +1,14 @@
 <?php
 /**
  * Notification Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class NotificationController {
     private $conn;
@@ -22,6 +23,7 @@ class NotificationController {
      */
     public function getNotifications() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         // FIX: Custom pagination allowing up to 1000
         $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -30,7 +32,7 @@ class NotificationController {
         if ($limit < 1 || $limit > 1000) $limit = 20;
         $offset = ($page - 1) * $limit;
 
-        $search_params = Middleware::getSearchParams();
+        $search_params = Middleware::getSearchParams(['id', 'title', 'created_at', 'status', 'priority']);
 
         try {
             // FIX: Check MySQL version and column existence for schema-agnostic queries
@@ -51,7 +53,7 @@ class NotificationController {
 
             // Build query dynamically based on schema
             $select_cols = "n.*, CONCAT(u.first_name, ' ', u.last_name) as created_by_name";
-            $joins = "LEFT JOIN users u ON n.created_by = u.id";
+            $joins = "LEFT JOIN users u ON n.sent_by = u.id";
             $params = [];
 
             if ($has_user_notifications && $token_data['role'] !== 'admin') {
@@ -111,6 +113,10 @@ class NotificationController {
                 $params[':user_role'] = ucfirst($token_data['role']);
             }
 
+            // School tenant scoping
+            $conditions[] = "n.school_id = :school_id";
+            $params[':school_id'] = $school_id;
+
             // Add deleted_by filter only if column exists and JSON is supported
             if ($has_deleted_by && $supports_json) {
                 $conditions[] = "(
@@ -164,17 +170,19 @@ class NotificationController {
      */
     public function getNotificationById($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $notification_id = Middleware::validateInteger($id, 'notification_id');
         
         try {
             $query = "SELECT n.*, 
                              CONCAT(u.first_name, ' ', u.last_name) as created_by_name
                       FROM notifications n
-                      LEFT JOIN users u ON n.created_by = u.id
-                      WHERE n.id = :id";
+                      LEFT JOIN users u ON n.sent_by = u.id
+                      WHERE n.id = :id AND n.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $notification_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $notification = $stmt->fetch();
@@ -202,6 +210,7 @@ class NotificationController {
      */
     public function createNotification() {
         $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -224,19 +233,19 @@ class NotificationController {
             }
             
             // Insert notification
-            $query = "INSERT INTO notifications (title, message, type, priority, target_audience, target_users, expires_at, created_by)
-                      VALUES (:title, :message, :type, :priority, :target_audience, :target_users, :expires_at, :created_by)";
+            $query = "INSERT INTO notifications (title, message, type, target_audience, target_users, expires_at, sent_by, school_id)
+                      VALUES (:title, :message, :type, :target_audience, :target_users, :expires_at, :sent_by, :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':title', $title);
             $stmt->bindParam(':message', $message);
             $stmt->bindParam(':type', $type);
-            $stmt->bindParam(':priority', $priority);
             $stmt->bindParam(':target_audience', $target_audience);
             $stmt->bindParam(':target_users', $target_users);
             $stmt->bindParam(':expires_at', $expires_at);
-            $created_by = (int)($token_data['user_id'] ?? 1);
-            $stmt->bindParam(':created_by', $created_by);
+            $sent_by = (int)($token_data['user_id'] ?? 1);
+            $stmt->bindParam(':sent_by', $sent_by);
+            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
             $notification_id = $this->conn->lastInsertId();
@@ -283,13 +292,15 @@ class NotificationController {
      */
     public function markAsRead($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $notification_id = Middleware::validateInteger($id, 'notification_id');
         
         try {
             // Check if notification exists and user has access
-            $check_query = "SELECT * FROM notifications WHERE id = :id";
+            $check_query = "SELECT * FROM notifications WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $notification_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $notification = $check_stmt->fetch();
@@ -339,6 +350,7 @@ class NotificationController {
      */
     public function markAllAsRead() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             // FIX: Check if user_notifications table exists
@@ -350,6 +362,7 @@ class NotificationController {
                 // Get all unread notifications for this user
                 $query = "SELECT n.id FROM notifications n
                           WHERE (n.target_audience = 'All' OR n.target_audience = :user_role)
+                          AND n.school_id = :school_id
                           AND n.id NOT IN (
                               SELECT notification_id FROM user_notifications 
                               WHERE user_id = :user_id AND is_read = TRUE
@@ -359,6 +372,7 @@ class NotificationController {
                 $user_role = ucfirst($token_data['role']);
                 $stmt->bindParam(':user_role', $user_role);
                 $stmt->bindParam(':user_id', $token_data['user_id']);
+                $stmt->bindParam(':school_id', $school_id);
                 $stmt->execute();
                 
                 $unread_notifications = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
@@ -392,25 +406,27 @@ class NotificationController {
      * Delete Notification
      */
     public function deleteNotification($id) {
-        Middleware::requireRole('admin');
+        $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $id = Middleware::validateInteger($id, 'id');
         
         try {
             // First, get notification details for logging
-            $check_query = "SELECT title FROM notifications WHERE id = :id";
+            $check_query = "SELECT title FROM notifications WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $id);
-            $check_stmt->execute();
+            $check_stmt->bindParam(':school_id', $school_id);
             $notification = $check_stmt->fetch();
 
             if (!$notification) {
                 Response::notFound('Notification not found');
             }
 
-            $query = "DELETE FROM notifications WHERE id = :id";
+            $query = "DELETE FROM notifications WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             
             if ($stmt->execute()) {
                 RealtimeEvents::publish('notifications', [
@@ -443,9 +459,10 @@ class NotificationController {
      */
     public function deleteNotificationForUser($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $user_id = $token_data['user_id'];
         $id = Middleware::validateInteger($id, 'id');
-
+        
         try {
             // Ensure deleted_by column exists
             try {
@@ -460,9 +477,10 @@ class NotificationController {
             }
 
             // Get current deleted_by array
-            $query = "SELECT deleted_by FROM notifications WHERE id = :id";
+            $query = "SELECT deleted_by FROM notifications WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $notification = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -482,11 +500,12 @@ class NotificationController {
                 $deleted_by[] = $user_id;
             }
 
-            $update_query = "UPDATE notifications SET deleted_by = :deleted_by WHERE id = :id";
+            $update_query = "UPDATE notifications SET deleted_by = :deleted_by WHERE id = :id AND school_id = :school_id";
             $update_stmt = $this->conn->prepare($update_query);
             $encoded = json_encode(array_values($deleted_by));
             $update_stmt->bindParam(':deleted_by', $encoded);
             $update_stmt->bindParam(':id', $id);
+            $update_stmt->bindParam(':school_id', $school_id);
             $update_stmt->execute();
 
             Response::success(null, 'Notification dismissed for user.');
@@ -501,6 +520,7 @@ class NotificationController {
      */
     public function getUnreadCount() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             // FIX: Check if user_notifications table exists
@@ -517,18 +537,21 @@ class NotificationController {
                               SELECT notification_id FROM user_notifications 
                               WHERE user_id = :user_id AND is_read = TRUE
                           )
+                           AND n.school_id = :school_id
                           AND (n.expires_at IS NULL OR n.expires_at > NOW())";
-            } else {
+             } else {
                 // Fallback: assume all notifications are unread
                 $query = "SELECT COUNT(*) as unread_count
                           FROM notifications n
                           WHERE (n.target_audience = 'All' OR n.target_audience = :user_role)
+                          AND n.school_id = :school_id
                           AND (n.expires_at IS NULL OR n.expires_at > NOW())";
             }
             
             $stmt = $this->conn->prepare($query);
             $user_role = ucfirst($token_data['role']);
             $stmt->bindParam(':user_role', $user_role);
+            $stmt->bindParam(':school_id', $school_id);
             if ($has_user_notifications) {
                 $stmt->bindParam(':user_id', $token_data['user_id']);
             }
@@ -548,6 +571,7 @@ class NotificationController {
      */
     public function getUserNotifications() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         // FIX: Remove limit restriction to allow unlimited notifications
         $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -600,7 +624,7 @@ class NotificationController {
 
             // Build query dynamically based on schema
             $select_cols = "n.*, CONCAT(u.first_name, ' ', u.last_name) as created_by_name";
-            $joins = "LEFT JOIN users u ON n.created_by = u.id";
+            $joins = "LEFT JOIN users u ON n.sent_by = u.id";
             $params = [];
             
             if ($has_user_notifications) {
@@ -613,6 +637,8 @@ class NotificationController {
 
             $where = "(n.target_audience = 'All' OR n.target_audience = :user_role)";
             $params[':user_role'] = ucfirst($token_data['role']);
+            $where .= " AND n.school_id = :school_id";
+            $params[':school_id'] = $school_id;
 
             // Add target_users filtering if JSON is supported
             if ($supports_json) {
@@ -673,6 +699,7 @@ class NotificationController {
      */
     public function broadcastNotification() {
         $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -687,17 +714,17 @@ class NotificationController {
             $priority = isset($data['priority']) ? Middleware::validateEnum($data['priority'], ['Low', 'Medium', 'High', 'Urgent'], 'priority') : 'Medium';
             
             // Insert notification
-            $query = "INSERT INTO notifications (title, message, type, priority, target_audience, created_by, is_broadcast)
-                      VALUES (:title, :message, :type, :priority, :target_audience, :created_by, TRUE)";
+            $query = "INSERT INTO notifications (title, message, type, target_audience, sent_by, school_id)
+                      VALUES (:title, :message, :type, :target_audience, :sent_by, :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':title', $title);
             $stmt->bindParam(':message', $message);
             $stmt->bindParam(':type', $type);
-            $stmt->bindParam(':priority', $priority);
             $stmt->bindParam(':target_audience', $target_audience);
-            $created_by = (int)($token_data['user_id'] ?? 1);
-            $stmt->bindParam(':created_by', $created_by);
+            $sent_by = (int)($token_data['user_id'] ?? 1);
+            $stmt->bindParam(':sent_by', $sent_by);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $notification_id = $this->conn->lastInsertId();
@@ -706,18 +733,20 @@ class NotificationController {
             // For now, we'll simulate it by creating user notification records
             
             // Get target users
-            $users_query = "SELECT id FROM users WHERE role = :role OR :target_audience = 'All'";
+            $users_query = "SELECT id FROM users WHERE (role = :role OR :target_audience = 'All') AND school_id = :school_id";
             $users_stmt = $this->conn->prepare($users_query);
             
             if ($target_audience === 'All') {
                 $dummy_role = 'dummy';
                 $users_stmt->bindParam(':role', $dummy_role); // Won't be used
                 $users_stmt->bindParam(':target_audience', $target_audience);
+                $users_stmt->bindParam(':school_id', $school_id);
             } else {
                 $role_param = strtolower($target_audience);
                 $dummy_audience = 'dummy';
                 $users_stmt->bindParam(':role', $role_param);
                 $users_stmt->bindParam(':target_audience', $dummy_audience); // Won't be used
+                $users_stmt->bindParam(':school_id', $school_id);
             }
             
             $users_stmt->execute();

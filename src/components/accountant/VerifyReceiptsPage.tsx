@@ -10,7 +10,7 @@ import { Input } from '../ui/input';
 import { toast } from 'sonner';
 import { useSchool } from '../../contexts/SchoolContext';
 import { api } from '../../services/api';
-import { Eye, Download, FileText, Printer, RefreshCw, CheckCircle, XCircle, Clock, AlertCircle, User, Calendar, DollarSign } from 'lucide-react';
+import { Eye, Download, FileText, Printer, RefreshCw, CheckCircle, XCircle, AlertCircle, User, DollarSign } from 'lucide-react';
 import { PaymentReceipt } from '../ui/PaymentReceipt';
 
 const NAIRA = "\u20A6";

@@ -1,5 +1,5 @@
 /**
- * Enhanced CSV Export Utilities for Graceland Royal Academy
+ * Enhanced CSV Export Utilities for SMugFlex 2.0
  * Generate CSV files from real SQL database data
  */
 

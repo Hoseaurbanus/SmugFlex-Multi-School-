@@ -122,7 +122,7 @@ export const SelectContent = React.forwardRef<HTMLDivElement, React.HTMLAttribut
       <div
         ref={ref}
         className={cn(
-          "absolute top-full left-0 right-0 z-[9999] min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md mt-1",
+          "absolute top-full left-0 right-0 z-[9999] min-w-[8rem] max-h-[200px] overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md mt-1",
           className
         )}
         style={{ position: 'absolute', zIndex: 9999 }}

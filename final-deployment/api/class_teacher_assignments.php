@@ -18,11 +18,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 /**
  * Get teacher class teacher count
  */
-function getTeacherClassTeacherCount($conn, $teacher_id) {
+function getTeacherClassTeacherCount($conn, $teacher_id, $school_id) {
     $query = "SELECT COUNT(*) as count FROM class_teacher_assignments 
-             WHERE teacher_id = :teacher_id AND status = 'Active'";
+             WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id";
     $stmt = $conn->prepare($query);
     $stmt->bindParam(':teacher_id', $teacher_id);
+    $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
     $stmt->execute();
     $result = $stmt->fetch();
     return $result['count'] ?? 0;
@@ -31,14 +32,15 @@ function getTeacherClassTeacherCount($conn, $teacher_id) {
 /**
  * Update teacher is_class_teacher flag based on whether they have any active class teacher assignments
  */
-function updateTeacherIsClassTeacherFlag($conn, $teacher_id) {
-    $count = getTeacherClassTeacherCount($conn, $teacher_id);
+function updateTeacherIsClassTeacherFlag($conn, $teacher_id, $school_id) {
+    $count = getTeacherClassTeacherCount($conn, $teacher_id, $school_id);
     $is_class_teacher = $count > 0 ? 1 : 0;
 
-    $update_query = "UPDATE teachers SET is_class_teacher = :is_class_teacher WHERE id = :teacher_id";
+    $update_query = "UPDATE teachers SET is_class_teacher = :is_class_teacher WHERE id = :teacher_id AND school_id = :school_id";
     $stmt = $conn->prepare($update_query);
     $stmt->bindParam(':is_class_teacher', $is_class_teacher, PDO::PARAM_INT);
     $stmt->bindParam(':teacher_id', $teacher_id, PDO::PARAM_INT);
+    $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
     $stmt->execute();
 
     return $count;
@@ -47,9 +49,12 @@ function updateTeacherIsClassTeacherFlag($conn, $teacher_id) {
 require_once 'config/database.php';
 require_once 'helpers/Response.php';
 require_once 'helpers/Middleware.php';
+require_once __DIR__ . '/helpers/TenantMiddleware.php';
 
 $database = new Database();
 $conn = $database->getConnection();
+
+$school_id = TenantMiddleware::resolveSchoolId($conn);
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -71,11 +76,12 @@ try {
                       FROM class_teacher_assignments cta
                       JOIN teachers t ON cta.teacher_id = t.id
                       JOIN classes c ON cta.class_id = c.id
-                      WHERE cta.academic_year = :academic_year AND cta.term = :term AND cta.status = 'Active'";
+                      WHERE cta.academic_year = :academic_year AND cta.term = :term AND cta.status = 'Active' AND cta.school_id = :school_id";
             
             $params = [
                 ':academic_year' => $academic_year,
-                ':term' => $term
+                ':term' => $term,
+                ':school_id' => $school_id
             ];
             
             if ($teacher_id) {
@@ -125,24 +131,26 @@ try {
             // Check if assignment already exists (Active or Inactive)
             $existing_query = "SELECT id, status FROM class_teacher_assignments 
                               WHERE teacher_id = :teacher_id AND class_id = :class_id 
-                              AND academic_year = :academic_year AND term = :term 
+                              AND academic_year = :academic_year AND term = :term AND school_id = :school_id
                               LIMIT 1";
             $existing_stmt = $conn->prepare($existing_query);
             $existing_stmt->bindParam(':teacher_id', $teacher_id);
             $existing_stmt->bindParam(':class_id', $class_id);
             $existing_stmt->bindParam(':academic_year', $academic_year);
             $existing_stmt->bindParam(':term', $term);
+            $existing_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $existing_stmt->execute();
             $existing = $existing_stmt->fetch(PDO::FETCH_ASSOC);
             
             // Check if class already has a teacher for this term
             $class_check_query = "SELECT id FROM class_teacher_assignments 
                                  WHERE class_id = :class_id AND academic_year = :academic_year 
-                                 AND term = :term AND status = 'Active'";
+                                 AND term = :term AND status = 'Active' AND school_id = :school_id";
             $class_check_stmt = $conn->prepare($class_check_query);
             $class_check_stmt->bindParam(':class_id', $class_id);
             $class_check_stmt->bindParam(':academic_year', $academic_year);
             $class_check_stmt->bindParam(':term', $term);
+            $class_check_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $class_check_stmt->execute();
             
             if ($class_check_stmt->fetch()) {
@@ -158,19 +166,21 @@ try {
 
                 $reactivate_query = "UPDATE class_teacher_assignments 
                                     SET status = 'Active', updated_at = CURRENT_TIMESTAMP 
-                                    WHERE id = :id";
+                                    WHERE id = :id AND school_id = :school_id";
                 $reactivate_stmt = $conn->prepare($reactivate_query);
                 $reactivate_stmt->bindParam(':id', $existing['id']);
+                $reactivate_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $reactivate_stmt->execute();
 
                 // Update class teacher assignment count in real-time
-                $update_class_query = "UPDATE classes SET class_teacher_id = :teacher_id WHERE id = :class_id";
+                $update_class_query = "UPDATE classes SET class_teacher_id = :teacher_id WHERE id = :class_id AND school_id = :school_id";
                 $update_class_stmt = $conn->prepare($update_class_query);
                 $update_class_stmt->bindParam(':teacher_id', $teacher_id);
                 $update_class_stmt->bindParam(':class_id', $class_id);
+                $update_class_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $update_class_stmt->execute();
 
-                $teacher_class_teacher_count = updateTeacherIsClassTeacherFlag($conn, $teacher_id);
+                $teacher_class_teacher_count = updateTeacherIsClassTeacherFlag($conn, $teacher_id, $school_id);
 
                 echo json_encode([
                     'success' => true,
@@ -189,26 +199,28 @@ try {
             
             // Create assignment
             $insert_query = "INSERT INTO class_teacher_assignments 
-                            (teacher_id, class_id, academic_year, term, status) 
-                            VALUES (:teacher_id, :class_id, :academic_year, :term, 'Active')";
+                            (teacher_id, class_id, academic_year, term, status, school_id) 
+                            VALUES (:teacher_id, :class_id, :academic_year, :term, 'Active', :school_id)";
             $insert_stmt = $conn->prepare($insert_query);
             $insert_stmt->bindParam(':teacher_id', $teacher_id);
             $insert_stmt->bindParam(':class_id', $class_id);
             $insert_stmt->bindParam(':academic_year', $academic_year);
             $insert_stmt->bindParam(':term', $term);
+            $insert_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $insert_stmt->execute();
             
             $assignment_id = $conn->lastInsertId();
             
             // Update class teacher assignment count in real-time
-            $update_class_query = "UPDATE classes SET class_teacher_id = :teacher_id WHERE id = :class_id";
+            $update_class_query = "UPDATE classes SET class_teacher_id = :teacher_id WHERE id = :class_id AND school_id = :school_id";
             $update_class_stmt = $conn->prepare($update_class_query);
             $update_class_stmt->bindParam(':teacher_id', $teacher_id);
             $update_class_stmt->bindParam(':class_id', $class_id);
+            $update_class_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $update_class_stmt->execute();
             
             // Keep teacher state consistent (teachers table does not have class_teacher_count column)
-            $teacher_class_teacher_count = updateTeacherIsClassTeacherFlag($conn, $teacher_id);
+            $teacher_class_teacher_count = updateTeacherIsClassTeacherFlag($conn, $teacher_id, $school_id);
             
             echo json_encode([
                 'success' => true,
@@ -235,17 +247,19 @@ try {
             }
 
             // Fetch assignment details before updating
-            $fetch_query = "SELECT teacher_id, class_id FROM class_teacher_assignments WHERE id = :id";
+            $fetch_query = "SELECT teacher_id, class_id FROM class_teacher_assignments WHERE id = :id AND school_id = :school_id";
             $fetch_stmt = $conn->prepare($fetch_query);
             $fetch_stmt->bindParam(':id', $assignment_id);
+            $fetch_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $fetch_stmt->execute();
             $assignmentRow = $fetch_stmt->fetch(PDO::FETCH_ASSOC);
 
             $update_query = "UPDATE class_teacher_assignments 
                            SET status = 'Inactive', updated_at = CURRENT_TIMESTAMP 
-                           WHERE id = :id";
+                           WHERE id = :id AND school_id = :school_id";
             $update_stmt = $conn->prepare($update_query);
             $update_stmt->bindParam(':id', $assignment_id);
+            $update_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $update_stmt->execute();
 
             // Keep classes table consistent (only clear if it matches this teacher)
@@ -253,14 +267,15 @@ try {
                 $class_id = (int)$assignmentRow['class_id'];
                 $teacher_id = (int)$assignmentRow['teacher_id'];
 
-                $clear_class_query = "UPDATE classes SET class_teacher_id = NULL WHERE id = :class_id AND class_teacher_id = :teacher_id";
+                $clear_class_query = "UPDATE classes SET class_teacher_id = NULL WHERE id = :class_id AND class_teacher_id = :teacher_id AND school_id = :school_id";
                 $clear_class_stmt = $conn->prepare($clear_class_query);
                 $clear_class_stmt->bindParam(':class_id', $class_id, PDO::PARAM_INT);
                 $clear_class_stmt->bindParam(':teacher_id', $teacher_id, PDO::PARAM_INT);
+                $clear_class_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $clear_class_stmt->execute();
 
                 // Update removed teacher flag
-                updateTeacherIsClassTeacherFlag($conn, $teacher_id);
+                updateTeacherIsClassTeacherFlag($conn, $teacher_id, $school_id);
             }
             
             echo json_encode([

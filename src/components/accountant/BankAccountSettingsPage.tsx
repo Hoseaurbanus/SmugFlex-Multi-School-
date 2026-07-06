@@ -1,4 +1,4 @@
-import { Building, Building2 } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -133,7 +133,7 @@ export function BankAccountSettingsPage() {
                 type="text"
                 value={formData.account_name}
                 onChange={(e) => handleInputChange("account_name", e.target.value)}
-                placeholder="e.g., Graceland Royal Academy Gombe"
+                placeholder="e.g., Your School Name"
                 className="rounded-lg border-[#E5E7EB] focus:border-[#007C91]"
               />
             </div>

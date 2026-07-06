@@ -1,6 +1,5 @@
-import { Book, Link, BookOpen, Plus, Unlink, Square, Power, Link2, ImageIcon, Key, Eye, Edit, Trash2, User, Phone, Shield, Camera, Lock, Unlock, Download, Upload, RefreshCw, FileSpreadsheet, Users, Filter, Search, X, Menu, ChevronDown, MoreVertical, AlertTriangle } from 'lucide-react';
-import { useState, useRef, useMemo, useEffect, lazy, Suspense, useCallback } from "react";
-import { Card, CardContent, CardHeader } from "../ui/card";
+import { BookOpen, Plus, Link, Key, Eye, PencilSimple, Trash, User, Camera, Lock, LockOpen, ArrowsClockwise, Users, Funnel, MagnifyingGlass, List, DotsThreeVertical, Warning, Power } from '@phosphor-icons/react';
+import { useState, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -14,7 +13,6 @@ import { useSchool, Student } from "../../contexts/SchoolContext";
 import { API_CONFIG } from '../../config/api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 import { exportStudentsToCSV } from "../../utils/csvExporter";
-import { importStudentsFromCSV, generateStudentTemplate } from "../../utils/csvImporter";
 import { tokenManager } from "../../utils/tokenManager";
 
 const AddStudentForm = lazy(() => import('./AddStudentFormSimple'));
@@ -355,8 +353,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                       compiledResults.some(cr => cr.student_id === student.id);
     
     return (
-      <Card className="mb-4 border-gray-200 hover:shadow-md transition-shadow">
-        <CardContent className="p-4">
+      <div className="mb-4 border border-gray-100 rounded-lg bg-white p-4 shadow-sm">
           {/* Mobile selection and basic info */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center space-x-3">
@@ -364,8 +361,8 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 onClick={() => handleSelectStudent(student.id)}
                 className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                   isSelected 
-                    ? 'bg-blue-600 border-blue-600' 
-                    : 'border-gray-300 hover:border-blue-400'
+                    ? 'bg-[#0A2540] border-[#0A2540]' 
+                    : 'border-gray-300 hover:border-[#0A2540]'
                 }`}
               >
                 {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
@@ -384,7 +381,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             <div className="flex items-center gap-2">
               <Badge className={`text-xs ${
                 student.status === 'Active' 
-                  ? 'bg-green-100 text-green-800' 
+                  ? 'bg-emerald-100 text-emerald-800' 
                   : 'bg-gray-100 text-gray-800'
               }`}>
                 {student.status}
@@ -395,7 +392,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 if (hasRecords && student.status === 'Active') {
                   return (
                     <div className="flex items-center gap-1 text-xs text-amber-600">
-                      <AlertTriangle className="w-3 h-3" />
+                      <Warning className="w-3 h-3" weight="bold" />
                       <span>Has Records</span>
                     </div>
                   );
@@ -419,7 +416,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               <span className="text-gray-500">Gender:</span>
               <Badge className={`text-xs mt-1 ${
                 student.gender === 'Male' 
-                  ? 'bg-blue-50 text-blue-700' 
+                  ? 'bg-[#FFD700]/10 text-[#0A2540]' 
                   : 'bg-pink-50 text-pink-700'
               }`}>
                 {student.gender === 'Male' ? 'M' : 'F'}
@@ -441,7 +438,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               variant="outline"
               className="flex-1 min-w-[70px] text-xs px-2 py-1.5 h-7"
             >
-              <Eye className="w-3 h-3 mr-1" />
+              <Eye className="w-3 h-3 mr-1" weight="bold" />
               View
             </Button>
             
@@ -451,7 +448,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               variant="outline"
               className="flex-1 min-w-[70px] text-xs px-2 py-1.5 h-7"
             >
-              <Edit className="w-3 h-3 mr-1" />
+              <PencilSimple className="w-3 h-3 mr-1" weight="bold" />
               Edit
             </Button>
 
@@ -464,9 +461,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               className="flex-1 min-w-[90px] text-xs px-2 py-1.5 h-7"
             >
               {student.status === 'Active' ? (
-                <Lock className={`w-3 h-3 mr-1 ${hasRecords ? 'text-amber-500' : ''}`} />
+                <Lock className={`w-3 h-3 mr-1 ${hasRecords ? 'text-amber-500' : ''}`} weight="bold" />
               ) : (
-                <Unlock className="w-3 h-3 mr-1" />
+                <LockOpen className="w-3 h-3 mr-1" weight="bold" />
               )}
               {student.status === 'Active' ? 'Deactivate' : 'Activate'}
             </Button>
@@ -474,7 +471,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" className="px-2 py-1.5 h-7">
-                  <MoreVertical className="w-3 h-3" />
+                  <DotsThreeVertical className="w-3 h-3" weight="bold" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
@@ -482,13 +479,13 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   setSelectedStudent(student);
                   setLinkGuardianDialogOpen(true);
                 }}>
-                  <Link2 className="w-3 h-3 mr-2" />
+                  <Link className="w-3 h-3 mr-2" weight="bold" />
                   Link Guardian
                 </DropdownMenuItem>
                 
                 {Array.isArray(parentStudentLinks) && parentStudentLinks.some(link => link.student_id === student.id) && (
                   <DropdownMenuItem onClick={() => unlinkStudent(student)}>
-                    <Unlink className="w-3 h-3 mr-2" />
+                    <Link className="w-3 h-3 mr-2" weight="bold" />
                     Unlink Guardian
                   </DropdownMenuItem>
                 )}
@@ -504,14 +501,14 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 >
                   {student.status === 'Active' ? (
                     <>
-                      <Lock className={`w-3 h-3 mr-2 ${hasRecords ? 'text-amber-500' : ''}`} />
+                      <Lock className={`w-3 h-3 mr-2 ${hasRecords ? 'text-amber-500' : ''}`} weight="bold" />
                       <span className={hasRecords ? 'text-amber-600' : ''}>
                         {hasRecords ? 'Cannot Deactivate (Has Records)' : 'Deactivate'}
                       </span>
                     </>
                   ) : (
                     <>
-                      <Unlock className="w-3 h-3 mr-2" />
+                      <LockOpen className="w-3 h-3 mr-2" weight="bold" />
                       Activate
                     </>
                   )}
@@ -521,7 +518,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   setSelectedStudent(student);
                   setUploadPassportDialogOpen(true);
                 }}>
-                  <Camera className="w-3 h-3 mr-2" />
+                  <Camera className="w-3 h-3 mr-2" weight="bold" />
                   Upload Photo
                 </DropdownMenuItem>
                 
@@ -529,7 +526,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   setSelectedStudent(student);
                   setResetPasswordDialogOpen(true);
                 }}>
-                  <Key className="w-3 h-3 mr-2" />
+                  <Key className="w-3 h-3 mr-2" weight="bold" />
                   Reset Password
                 </DropdownMenuItem>
                 
@@ -539,14 +536,13 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   onClick={() => openDeleteDialog(student)}
                   className="text-red-600"
                 >
-                  <Trash2 className="w-3 h-3 mr-2" />
+                  <Trash className="w-3 h-3 mr-2" weight="bold" />
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </CardContent>
-      </Card>
+      </div>
     );
   };
 
@@ -725,7 +721,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
         <div className="px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Manage Students</h1>
+              <h1 className="text-xl font-heading font-bold text-gray-900">Manage Students</h1>
               <p className="text-sm text-gray-600">View and manage all students</p>
             </div>
             <Button
@@ -734,7 +730,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               variant="outline"
               className="lg:hidden"
             >
-              <Menu className="w-3 h-3" />
+              <List className="w-3 h-3" weight="bold" />
             </Button>
           </div>
 
@@ -746,9 +742,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   setAddStudentDialogOpen(true);
                 }}
                 size="sm"
-                className="bg-green-600 hover:bg-green-700 text-xs px-3 py-2 h-8"
+                className="bg-emerald-600 hover:bg-emerald-700 text-xs px-3 py-2 h-8"
               >
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="w-3 h-3 mr-1" weight="bold" />
                 Add
               </Button>
               
@@ -758,7 +754,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 variant="outline"
                 className="text-xs px-3 py-2 h-8"
               >
-                <Filter className="w-3 h-3 mr-1" />
+                <Funnel className="w-3 h-3 mr-1" weight="bold" />
                 Filters
               </Button>
               
@@ -770,9 +766,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 className="text-xs px-3 py-2 h-8"
               >
                 {isRefreshing ? (
-                  <div className="w-3 h-3 animate-spin rounded-full border border-gray-300 border-t-green-600" />
+                  <div className="w-3 h-3 animate-spin rounded-full border border-gray-300 border-t-emerald-600" />
                 ) : (
-                  <RefreshCw className="w-3 h-3" />
+                  <ArrowsClockwise className="w-3 h-3" weight="bold" />
                 )}
               </Button>
             </div>
@@ -785,24 +781,24 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 onClick={() => {
                   setAddStudentDialogOpen(true);
                 }}
-                className="bg-green-600 hover:bg-green-700 text-sm px-4 py-2 h-9"
+                className="bg-emerald-600 hover:bg-emerald-700 text-sm px-4 py-2 h-9"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-2" weight="bold" />
                 Add Student
               </Button>
               
               <Button onClick={() => {
                 setMobileFiltersOpen(!mobileFiltersOpen);
               }} variant="outline" className="text-sm px-4 py-2 h-9">
-                <Filter className="w-4 h-4 mr-2" />
+                <Funnel className="w-4 h-4 mr-2" weight="bold" />
                 Filters
               </Button>
               
               <Button onClick={handleManualRefresh} disabled={isRefreshing} variant="outline" className="text-sm px-4 py-2 h-9">
                 {isRefreshing ? (
-                  <div className="w-4 h-4 animate-spin rounded-full border border-gray-300 border-t-green-600 mr-2" />
+                  <div className="w-4 h-4 animate-spin rounded-full border border-gray-300 border-t-emerald-600 mr-2" />
                 ) : (
-                  <RefreshCw className="w-4 h-4 mr-2" />
+                  <ArrowsClockwise className="w-4 h-4 mr-2" weight="bold" />
                 )}
                 Refresh
               </Button>
@@ -830,7 +826,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             <div>
               <Label className="text-sm font-medium">Search</Label>
               <div className="relative mt-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" weight="bold" />
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -895,69 +891,61 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
       <div className="px-4 py-6">
         {/* Statistics Cards - Mobile Responsive */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="border-gray-200">
-            <CardContent className="p-4">
+          <div className="section-band">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-xs">Total</p>
                   <p className="text-xl font-bold text-gray-900">{stats.total}</p>
                 </div>
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Users className="w-4 h-4 text-blue-600" />
+                <div className="bg-[#FFD700]/10 p-2 rounded-lg">
+                  <Users className="w-4 h-4 text-[#0A2540]" weight="bold" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
-          <Card className="border-gray-200">
-            <CardContent className="p-4">
+          <div className="section-band">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-xs">Active</p>
-                  <p className="text-xl font-bold text-green-600">{stats.active}</p>
+                  <p className="text-xl font-bold text-emerald-600">{stats.active}</p>
                 </div>
-                <div className="bg-green-100 p-2 rounded-lg">
-                  <Power className="w-4 h-4 text-green-600" />
+                <div className="bg-emerald-100 p-2 rounded-lg">
+                  <Power className="w-4 h-4 text-emerald-600" weight="bold" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
-          <Card className="border-gray-200">
-            <CardContent className="p-4">
+          <div className="section-band">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-xs">Primary</p>
-                  <p className="text-xl font-bold text-purple-600">{stats.primary}</p>
+                  <p className="text-xl font-bold text-[#0A2540]">{stats.primary}</p>
                 </div>
-                <div className="bg-purple-100 p-2 rounded-lg">
-                  <BookOpen className="w-4 h-4 text-purple-600" />
+                <div className="bg-[#0A2540]/10 p-2 rounded-lg">
+                  <BookOpen className="w-4 h-4 text-[#0A2540]" weight="bold" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
-          <Card className="border-gray-200">
-            <CardContent className="p-4">
+          <div className="section-band">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-xs">Secondary</p>
                   <p className="text-xl font-bold text-yellow-600">{stats.secondary}</p>
                 </div>
                 <div className="bg-yellow-100 p-2 rounded-lg">
-                  <BookOpen className="w-4 h-4 text-yellow-600" />
+                  <BookOpen className="w-4 h-4 text-yellow-600" weight="bold" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
         </div>
 
         {/* Bulk Actions */}
         {selectedStudents.length > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="bg-[#F5F6F8] border border-gray-200 rounded-lg p-4 mb-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-blue-900">
+                  <p className="text-sm font-medium text-[#0A2540]">
                   {selectedStudents.length} student{selectedStudents.length !== 1 ? 's' : ''} selected
                 </p>
               </div>
@@ -985,7 +973,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   {actionLoading === 'bulk-delete' ? (
                     <div className="w-4 h-4 animate-spin rounded-full border border-white border-t-transparent mr-2" />
                   ) : (
-                    <Trash2 className="w-4 h-4 mr-2" />
+                    <Trash className="w-4 h-4 mr-2" weight="bold" />
                   )}
                   Delete Selected
                 </Button>
@@ -998,7 +986,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
         {isLoading && (
           <div className="flex justify-center items-center py-12">
             <div className="text-center">
-              <div className="w-6 h-6 animate-spin rounded-full border border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
+              <div className="w-6 h-6 animate-spin rounded-full border border-gray-300 border-t-[#0A2540] mx-auto mb-4"></div>
               <p className="text-gray-600">Loading students...</p>
             </div>
           </div>
@@ -1013,7 +1001,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 {filteredStudents.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <User className="w-10 h-10 text-gray-400" />
+                      <User className="w-10 h-10 text-gray-400" weight="bold" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">No Students Found</h3>
                     <p className="text-gray-600 mb-4">
@@ -1021,9 +1009,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                     </p>
                     <Button
                       onClick={() => setAddStudentDialogOpen(true)}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="bg-[#0A2540] hover:bg-[#082030]"
                     >
-                      <Plus className="w-4 h-4 mr-2" />
+                      <Plus className="w-4 h-4 mr-2" weight="bold" />
                       Add First Student
                     </Button>
                   </div>
@@ -1035,7 +1023,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                         onClick={handleSelectAll}
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center mr-3 ${
                           isSelectAll 
-                            ? 'bg-blue-600 border-blue-600' 
+                            ? 'bg-[#0A2540] border-[#0A2540]' 
                             : 'border-gray-300'
                         }`}
                       >
@@ -1098,7 +1086,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             ) : (
               /* Table View with horizontal scroll for all screens */
               <div className="block">
-                <Card>
+                <div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
@@ -1141,7 +1129,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                             <td className="p-3">
                               <Badge className={
                                 student.status === 'Active' 
-                                  ? 'bg-green-100 text-green-800' 
+                                  ? 'bg-emerald-100 text-emerald-800' 
                                   : 'bg-gray-100 text-gray-800'
                               }>
                                 {student.status}
@@ -1152,12 +1140,12 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   handleView(student);
                                 }} className="h-8 w-8 p-0">
-                                  <Eye className="w-3 h-3" />
+                                  <Eye className="w-3 h-3" weight="bold" />
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   handleEdit(student);
                                 }} className="h-8 w-8 p-0">
-                                  <Edit className="w-3 h-3" />
+                                  <PencilSimple className="w-3 h-3" weight="bold" />
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1174,15 +1162,15 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                                   className="h-8 w-8 p-0"
                                 >
                                   {student.status === 'Active' ? (
-                                    <Lock className="w-3 h-3" />
+                                    <Lock className="w-3 h-3" weight="bold" />
                                   ) : (
-                                    <Unlock className="w-3 h-3" />
+                                    <LockOpen className="w-3 h-3" weight="bold" />
                                   )}
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   openDeleteDialog(student);
                                 }} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash className="w-3 h-3" weight="bold" />
                                 </Button>
                               </div>
                             </td>
@@ -1233,7 +1221,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                       </div>
                     </div>
                   )}
-                </Card>
+                </div>
               </div>
             )}
           </>
@@ -1269,7 +1257,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 <Label>Status</Label>
                 <Badge className={
                   selectedStudent.status === 'Active' 
-                    ? 'bg-green-100 text-green-800' 
+                    ? 'bg-emerald-100 text-emerald-800' 
                     : 'bg-gray-100 text-gray-800'
                 }>
                   {selectedStudent.status}
@@ -1294,7 +1282,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
           </DialogHeader>
           <Suspense fallback={
             <div className="flex justify-center items-center py-8">
-              <div className="w-6 h-6 animate-spin rounded-full border border-gray-300 border-t-blue-600"></div>
+              <div className="w-6 h-6 animate-spin rounded-full border border-gray-300 border-t-[#0A2540]"></div>
               <span className="ml-2">Loading form...</span>
             </div>
           }>
@@ -1425,11 +1413,11 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                     size="sm"
                     className="w-full"
                   >
-                    <Camera className="w-4 h-4 mr-2" />
+                    <Camera className="w-4 h-4 mr-2" weight="bold" />
                     Choose New Photo
                   </Button>
                   {editPassportFile && (
-                    <p className="text-xs text-green-600 mt-1">
+                    <p className="text-xs text-emerald-600 mt-1">
                       Selected: {editPassportFile.name}
                     </p>
                   )}

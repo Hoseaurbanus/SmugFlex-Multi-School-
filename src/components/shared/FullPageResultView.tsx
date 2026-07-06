@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { StudentResultCard } from "./StudentResultCard";
 import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { useSchool } from "../../contexts/SchoolContext";
 import { generateCumulativePDF } from "../../utils/pdfGenerator";
-import { StudentData, ClassData, CompiledResultData } from "./types/resultCard";
 import { ArrowLeft, Award, Download } from 'lucide-react';
 import { toast } from "sonner";
 

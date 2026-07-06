@@ -1,12 +1,13 @@
 <?php
 /**
  * Report Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class ReportController {
     private $conn;
@@ -21,6 +22,7 @@ class ReportController {
      */
     public function generateStudentReportCard() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $data = json_decode(file_get_contents('php://input'), true);
         
         Middleware::validateRequired($data, ['student_id', 'term', 'academic_year']);
@@ -32,10 +34,11 @@ class ReportController {
             
             // Check access permissions
             if ($token_data['role'] === 'parent') {
-                $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+                $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':parent_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':student_id', $student_id);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -44,10 +47,11 @@ class ReportController {
             } elseif ($token_data['role'] === 'teacher') {
                 $check_query = "SELECT COUNT(*) as count FROM students s
                                JOIN subject_assignments sa ON s.class_id = sa.class_id
-                               WHERE s.id = :student_id AND sa.teacher_id = :teacher_id";
+                               WHERE s.id = :student_id AND sa.teacher_id = :teacher_id AND s.school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':student_id', $student_id);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -63,10 +67,11 @@ class ReportController {
                               JOIN classes c ON s.class_id = c.id
                               LEFT JOIN parent_student_links psl ON s.id = psl.student_id AND psl.is_primary = TRUE
                               LEFT JOIN parents p ON psl.parent_id = p.id
-                              WHERE s.id = :student_id";
+                              WHERE s.id = :student_id AND s.school_id = :school_id";
             
             $student_stmt = $this->conn->prepare($student_query);
             $student_stmt->bindParam(':student_id', $student_id);
+            $student_stmt->bindParam(':school_id', $school_id);
             $student_stmt->execute();
             
             $student = $student_stmt->fetch();
@@ -81,24 +86,26 @@ class ReportController {
                              JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
                              JOIN subjects sub ON sa.subject_id = sub.id
                              JOIN teachers t ON sa.teacher_id = t.id
-                             WHERE sc.student_id = :student_id AND sa.term = :term AND sa.academic_year = :academic_year
+                             WHERE sc.student_id = :student_id AND sa.term = :term AND sa.academic_year = :academic_year AND sc.school_id = :school_id
                              ORDER BY sub.name";
             
             $scores_stmt = $this->conn->prepare($scores_query);
             $scores_stmt->bindParam(':student_id', $student_id);
             $scores_stmt->bindParam(':term', $term);
             $scores_stmt->bindParam(':academic_year', $academic_year);
+            $scores_stmt->bindParam(':school_id', $school_id);
             $scores_stmt->execute();
             
             $scores = $scores_stmt->fetchAll();
             
             // Get compiled result if available
             $compiled_query = "SELECT * FROM compiled_results 
-                               WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year";
+                                WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id";
             $compiled_stmt = $this->conn->prepare($compiled_query);
             $compiled_stmt->bindParam(':student_id', $student_id);
             $compiled_stmt->bindParam(':term', $term);
             $compiled_stmt->bindParam(':academic_year', $academic_year);
+            $compiled_stmt->bindParam(':school_id', $school_id);
             $compiled_stmt->execute();
             
             $compiled_result = $compiled_stmt->fetch();
@@ -111,7 +118,7 @@ class ReportController {
                                    SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) as late_days,
                                    ROUND((SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) as attendance_percentage
                                  FROM attendance 
-                                 WHERE student_id = :student_id AND date BETWEEN :term_start AND :term_end";
+                                 WHERE student_id = :student_id AND date BETWEEN :term_start AND :term_end AND school_id = :school_id";
             
             // Calculate term date range (simplified)
             $term_dates = $this->getTermDates($term, $academic_year);
@@ -120,6 +127,7 @@ class ReportController {
             $attendance_stmt->bindParam(':student_id', $student_id);
             $attendance_stmt->bindParam(':term_start', $term_dates['start']);
             $attendance_stmt->bindParam(':term_end', $term_dates['end']);
+            $attendance_stmt->bindParam(':school_id', $school_id);
             $attendance_stmt->execute();
             
             $attendance_summary = $attendance_stmt->fetch();
@@ -127,13 +135,14 @@ class ReportController {
             // Get affective and psychomotor domains
             $domains_query = "SELECT domain_type, domain_name, score, comment
                               FROM student_domains
-                              WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year
+                              WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id
                               ORDER BY domain_type, domain_name";
             
             $domains_stmt = $this->conn->prepare($domains_query);
             $domains_stmt->bindParam(':student_id', $student_id);
             $domains_stmt->bindParam(':term', $term);
             $domains_stmt->bindParam(':academic_year', $academic_year);
+            $domains_stmt->bindParam(':school_id', $school_id);
             $domains_stmt->execute();
             
             $domains = $domains_stmt->fetchAll();
@@ -143,8 +152,9 @@ class ReportController {
             $psychomotor_domains = array_filter($domains, function($d) { return $d['domain_type'] === 'Psychomotor'; });
             
             // Get school settings
-            $settings_query = "SELECT setting_value FROM school_settings WHERE setting_key IN ('school_name', 'school_address', 'school_phone', 'school_email', 'principal_name')";
+            $settings_query = "SELECT setting_value FROM school_settings WHERE school_id = :school_id AND setting_key IN ('school_name', 'school_address', 'school_phone', 'school_email', 'principal_name')";
             $settings_stmt = $this->conn->prepare($settings_query);
+            $settings_stmt->bindParam(':school_id', $school_id);
             $settings_stmt->execute();
             $settings = $settings_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             
@@ -184,6 +194,7 @@ class ReportController {
      */
     public function generateClassPerformanceReport() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $data = json_decode(file_get_contents('php://input'), true);
         
         Middleware::validateRequired($data, ['class_id', 'term', 'academic_year']);
@@ -195,10 +206,11 @@ class ReportController {
             
             // Teacher can only generate reports for their classes
             if ($token_data['role'] === 'teacher') {
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -210,10 +222,11 @@ class ReportController {
             $class_query = "SELECT c.*, CONCAT(t.first_name, ' ', t.last_name) as class_teacher_name
                             FROM classes c
                             LEFT JOIN teachers t ON c.class_teacher_id = t.id
-                            WHERE c.id = :class_id";
+                            WHERE c.id = :class_id AND c.school_id = :school_id";
             
             $class_stmt = $this->conn->prepare($class_query);
             $class_stmt->bindParam(':class_id', $class_id);
+            $class_stmt->bindParam(':school_id', $school_id);
             $class_stmt->execute();
             
             $class = $class_stmt->fetch();
@@ -229,13 +242,14 @@ class ReportController {
                                   COALESCE(cr.total_students, 0) as total_students
                                   FROM students s
                                   LEFT JOIN compiled_results cr ON s.id = cr.student_id AND cr.term = :term AND cr.academic_year = :academic_year
-                                  WHERE s.class_id = :class_id AND s.status = 'Active'
+                                  WHERE s.class_id = :class_id AND s.status = 'Active' AND s.school_id = :school_id
                                   ORDER BY cr.position ASC, s.last_name, s.first_name";
             
             $performance_stmt = $this->conn->prepare($performance_query);
             $performance_stmt->bindParam(':class_id', $class_id);
             $performance_stmt->bindParam(':term', $term);
             $performance_stmt->bindParam(':academic_year', $academic_year);
+            $performance_stmt->bindParam(':school_id', $school_id);
             $performance_stmt->execute();
             
             $students_performance = $performance_stmt->fetchAll();
@@ -253,7 +267,7 @@ class ReportController {
                                           FROM subjects sub
                                           JOIN subject_assignments sa ON sub.id = sa.subject_id
                                           LEFT JOIN scores sc ON sa.id = sc.subject_assignment_id
-                                          WHERE sa.class_id = :class_id AND sa.term = :term AND sa.academic_year = :academic_year
+                                          WHERE sa.class_id = :class_id AND sa.term = :term AND sa.academic_year = :academic_year AND sa.school_id = :school_id
                                           GROUP BY sub.id, sub.name, sub.code
                                           ORDER BY sub.name";
             
@@ -261,6 +275,7 @@ class ReportController {
             $subject_performance_stmt->bindParam(':class_id', $class_id);
             $subject_performance_stmt->bindParam(':term', $term);
             $subject_performance_stmt->bindParam(':academic_year', $academic_year);
+            $subject_performance_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $subject_performance_stmt->execute();
             
             $subjects_performance = $subject_performance_stmt->fetchAll();
@@ -332,6 +347,7 @@ class ReportController {
      */
     public function generateFinancialReport() {
         Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $date_from = isset($_GET['date_from']) ? Middleware::validateDate($_GET['date_from']) : date('Y-m-01');
@@ -345,10 +361,10 @@ class ReportController {
                     $report_data = $this->generateFinancialSummary($date_from, $date_to);
                     break;
                 case 'detailed':
-                    $report_data = $this->generateDetailedFinancialReport($date_from, $date_to);
+                    $report_data = $this->generateDetailedFinancialReport($date_from, $date_to, $school_id);
                     break;
                 case 'by_class':
-                    $report_data = $this->generateFinancialByClass($date_from, $date_to);
+                    $report_data = $this->generateFinancialByClass($date_from, $date_to, $school_id);
                     break;
                 case 'by_payment_type':
                     $report_data = $this->generateFinancialByPaymentType($date_from, $date_to);
@@ -367,6 +383,7 @@ class ReportController {
      */
     public function generateAttendanceReport() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $date_from = isset($_GET['date_from']) ? Middleware::validateDate($_GET['date_from']) : date('Y-m-01');
@@ -379,10 +396,11 @@ class ReportController {
                     Response::badRequest('Class ID is required for teachers');
                 }
                 
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
+                $check_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -457,13 +475,14 @@ class ReportController {
                                 FROM attendance a
                                 JOIN students s ON a.student_id = s.id
                                 JOIN classes c ON s.class_id = c.id
-                                WHERE a.date BETWEEN :date_from AND :date_to
+                                WHERE a.date BETWEEN :date_from AND :date_to AND s.school_id = :school_id
                                 GROUP BY c.id, c.name, c.level
                                 ORDER BY c.level, c.name";
                 
                 $class_stmt = $this->conn->prepare($class_query);
                 $class_stmt->bindParam(':date_from', $date_from);
                 $class_stmt->bindParam(':date_to', $date_to);
+                $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                 $class_stmt->execute();
                 $class_breakdown = $class_stmt->fetchAll();
             }
@@ -544,7 +563,7 @@ class ReportController {
     /**
      * Generate Detailed Financial Report Helper
      */
-    private function generateDetailedFinancialReport($date_from, $date_to) {
+    private function generateDetailedFinancialReport($date_from, $date_to, $school_id) {
         $query = "SELECT p.*, s.first_name, s.last_name, s.admission_number,
                          c.name as class_name, c.level,
                          CONCAT(u.first_name, ' ', u.last_name) as recorded_by_name
@@ -552,12 +571,13 @@ class ReportController {
                   JOIN students s ON p.student_id = s.id
                   JOIN classes c ON s.class_id = c.id
                   LEFT JOIN users u ON p.recorded_by = u.id
-                  WHERE p.recorded_date BETWEEN :date_from AND :date_to
+                  WHERE p.recorded_date BETWEEN :date_from AND :date_to AND s.school_id = :school_id
                   ORDER BY p.recorded_date DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':date_from', $date_from);
         $stmt->bindParam(':date_to', $date_to);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return ['payments' => $stmt->fetchAll()];
@@ -566,7 +586,7 @@ class ReportController {
     /**
      * Generate Financial by Class Helper
      */
-    private function generateFinancialByClass($date_from, $date_to) {
+    private function generateFinancialByClass($date_from, $date_to, $school_id) {
         $query = "SELECT c.name as class_name, c.level,
                      COUNT(*) as transaction_count,
                      COALESCE(SUM(CASE WHEN p.status = 'Verified' THEN p.amount ELSE 0 END), 0) as total_verified,
@@ -575,13 +595,14 @@ class ReportController {
                   FROM payments p
                   JOIN students s ON p.student_id = s.id
                   JOIN classes c ON s.class_id = c.id
-                  WHERE p.recorded_date BETWEEN :date_from AND :date_to
+                  WHERE p.recorded_date BETWEEN :date_from AND :date_to AND s.school_id = :school_id
                   GROUP BY c.id, c.name, c.level
                   ORDER BY c.level, c.name";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':date_from', $date_from);
         $stmt->bindParam(':date_to', $date_to);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return ['by_class' => $stmt->fetchAll()];

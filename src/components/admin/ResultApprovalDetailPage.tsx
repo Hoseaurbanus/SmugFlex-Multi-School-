@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Textarea } from "../ui/textarea";
+import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -54,6 +55,7 @@ interface ResultDetailProps {
 }
 
 export function ResultApprovalDetailPage({ onBack, onApprove, onReject, onPublish, resultData }: ResultDetailProps) {
+  const { schoolSettings } = useSchool();
   const [principalComment, setPrincipalComment] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
 
@@ -129,9 +131,8 @@ export function ResultApprovalDetailPage({ onBack, onApprove, onReject, onPublis
               <School className="w-10 h-10 text-[#0A2540]" />
             </div>
           </div>
-          <h1 className="text-3xl mb-2 text-white">Graceland Royal Academy Gombe</h1>
-          <p className="text-[#FFD700] italic text-lg">"Wisdom & Illumination"</p>
-          <p className="text-white/80 text-sm mt-2">P.O. Box XXX, Gombe State, Nigeria</p>
+          <h1 className="text-3xl mb-2 text-white">{schoolSettings.school_name || 'School Portal'}</h1>
+          <p className="text-[#FFD700] italic text-lg">{schoolSettings.school_motto || ''}</p>
           <div className="mt-4 inline-block px-6 py-2 bg-white/10 rounded-full backdrop-blur-sm">
             <p className="text-sm text-white">
               Terminal Report - {resultData.term} {resultData.session}

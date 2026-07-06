@@ -8,7 +8,6 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -1957,6 +1956,14 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     );
   };
 
+  const sidebarSections = [
+    { label: 'Overview', ids: ['dashboard'] },
+    { label: 'Family', ids: ['children'] },
+    { label: 'Finance', ids: ['fees'] },
+    { label: 'Communication', ids: ['notifications', 'messages'] },
+    { label: 'Account', ids: ['settings'] },
+  ];
+
   const sidebarItems = [
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { id: "children", label: "My Children", icon: <BookOpen className="h-5 w-5" /> },
@@ -1980,15 +1987,18 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
         items={sidebarItems}
         activeItem={activeItem}
         onItemClick={handleItemClick}
+        sections={sidebarSections}
+        schoolName={schoolSettings.school_name || currentUser?.school_name || 'School'}
       />
 
-      <div className="lg:pl-64">
+      <div className="lg:pl-[var(--sidebar-width,256px)]">
         <DashboardTopBar
           userName={parentName}
           userRole="parent"
           notificationCount={unreadCount}
           onNotificationClick={() => {}}
           onLogout={onLogout}
+          schoolName={schoolSettings.school_name || currentUser?.school_name || 'School'}
         />
 
         <main className="p-4 md:p-6 max-w-7xl mx-auto">

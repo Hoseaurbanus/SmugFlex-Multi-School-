@@ -27,11 +27,19 @@ class RealtimeEvents {
             return;
         }
 
+        // Resolve school_id from current request context
+        $school_id = 0;
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        $tokenData = JWT::validateToken($headers, false);
+        if ($tokenData && !empty($tokenData['school_id'])) {
+            $school_id = (int)$tokenData['school_id'];
+        }
+
         try {
             $conn = self::getConnection();
             self::ensureTable($conn);
 
-            $stmt = $conn->prepare("INSERT INTO realtime_events (topic, payload) VALUES (:topic, :payload)");
+            $stmt = $conn->prepare("INSERT INTO realtime_events (topic, payload, school_id) VALUES (:topic, :payload, :school_id)");
             $json = $payload === null ? null : json_encode($payload);
 
             foreach ($list as $topic) {
@@ -41,6 +49,7 @@ class RealtimeEvents {
                 }
                 $stmt->bindValue(':topic', $t);
                 $stmt->bindValue(':payload', $json);
+                $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $stmt->execute();
             }
         } catch (Throwable $e) {
@@ -48,11 +57,18 @@ class RealtimeEvents {
         }
     }
 
-    public static function fetchSince(PDO $conn, int $lastId, int $limit = 50): array {
+    public static function fetchSince(PDO $conn, int $lastId, int $limit = 50, ?int $school_id = null): array {
         self::ensureTable($conn);
-        $stmt = $conn->prepare("SELECT id, topic, payload, created_at FROM realtime_events WHERE id > :id ORDER BY id ASC LIMIT :lim");
-        $stmt->bindValue(':id', $lastId, PDO::PARAM_INT);
-        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        if ($school_id !== null) {
+            $stmt = $conn->prepare("SELECT id, topic, payload, created_at FROM realtime_events WHERE id > :id AND school_id = :school_id ORDER BY id ASC LIMIT :lim");
+            $stmt->bindValue(':id', $lastId, PDO::PARAM_INT);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+            $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        } else {
+            $stmt = $conn->prepare("SELECT id, topic, payload, created_at FROM realtime_events WHERE id > :id ORDER BY id ASC LIMIT :lim");
+            $stmt->bindValue(':id', $lastId, PDO::PARAM_INT);
+            $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        }
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }

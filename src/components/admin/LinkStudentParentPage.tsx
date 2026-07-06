@@ -4,16 +4,15 @@ import { toast } from "sonner";
 import {
   User,
   UserCheck,
-  UserX,
-  Users2,
-  Link,
-  Unlink,
-  CheckCircle,
-  Search,
-  X,
+  UserMinus,
   Users,
-  AlertCircle
-} from "lucide-react";
+  Link,
+  LinkBreak,
+  CheckCircle,
+  MagnifyingGlass,
+  X,
+  Warning
+} from "@phosphor-icons/react";
 
 interface Student {
   id: number;
@@ -240,19 +239,19 @@ const LinkStudentParentPage: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Modern Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 md:p-8 text-white mb-8 shadow-xl relative">
+      <div className="bg-gradient-to-r from-[#0A2540] to-[#1a3a5c] rounded-2xl p-6 md:p-8 text-white mb-8 shadow-xl relative">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-2 flex items-center gap-3 text-white" style={{ color: 'white' }}>
-              <Link className="w-8 h-8" style={{ color: 'white' }} />
+            <h1 className="text-2xl md:text-3xl font-heading font-bold mb-2 flex items-center gap-3 text-white" style={{ color: 'white' }}>
+              <Link weight="bold" className="w-8 h-8" style={{ color: 'white' }} />
               <span style={{ color: 'white' }}>Student-Parent Linking</span>
             </h1>
-            <p className="text-blue-100 text-sm md:text-base max-w-2xl" style={{ color: '#E0F2FE' }}>
+            <p className="text-[#E0F2FE] text-sm md:text-base max-w-2xl" style={{ color: '#E0F2FE' }}>
               Connect students with their parents/guardians for seamless portal access and real-time progress tracking
             </p>
           </div>
           <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl">
-            <Users2 className="w-5 h-5" style={{ color: 'white' }} />
+            <Users weight="bold" className="w-5 h-5" style={{ color: 'white' }} />
             <span className="font-medium" style={{ color: 'white' }}>{totalStudents} Total Students</span>
             <button
               onClick={refreshData}
@@ -263,7 +262,7 @@ const LinkStudentParentPage: React.FC = () => {
               {isRefreshing ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <CheckCircle className="w-4 h-4" style={{ color: 'white' }} />
+                <CheckCircle weight="bold" className="w-4 h-4" style={{ color: 'white' }} />
               )}
             </button>
           </div>
@@ -278,8 +277,8 @@ const LinkStudentParentPage: React.FC = () => {
               <p className="text-gray-500 text-xs font-medium">Total Students</p>
               <p className="text-lg font-bold text-gray-900 mt-1">{totalStudents}</p>
             </div>
-            <div className="bg-blue-100 p-3 rounded-lg">
-              <User className="w-5 h-5 text-blue-600" />
+            <div className="bg-[#0A2540]/10 p-3 rounded-lg">
+              <User weight="bold" className="w-5 h-5 text-[#0A2540]" />
             </div>
           </div>
         </div>
@@ -288,10 +287,10 @@ const LinkStudentParentPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 text-xs font-medium">Linked Students</p>
-              <p className="text-lg font-bold text-green-600 mt-1">{linkedStudents}</p>
+              <p className="text-lg font-bold text-emerald-600 mt-1">{linkedStudents}</p>
             </div>
-            <div className="bg-green-100 p-3 rounded-lg">
-              <UserCheck className="w-5 h-5 text-green-600" />
+            <div className="bg-emerald-100 p-3 rounded-lg">
+              <UserCheck weight="bold" className="w-5 h-5 text-emerald-600" />
             </div>
           </div>
         </div>
@@ -303,7 +302,7 @@ const LinkStudentParentPage: React.FC = () => {
               <p className="text-lg font-bold text-orange-600 mt-1">{unlinkedStudents}</p>
             </div>
             <div className="bg-orange-100 p-3 rounded-lg">
-              <UserX className="w-5 h-5 text-orange-600" />
+              <UserMinus weight="bold" className="w-5 h-5 text-orange-600" />
             </div>
           </div>
         </div>
@@ -312,12 +311,12 @@ const LinkStudentParentPage: React.FC = () => {
       {/* Progress Bar */}
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-base font-semibold text-gray-900">Linking Progress</h3>
+          <h3 className="text-base font-heading font-bold text-gray-900">Linking Progress</h3>
           <span className="text-xs text-gray-500">{Math.round(linkingProgress)}% Complete</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div 
-            className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full transition-all duration-300"
+            className="bg-gradient-to-r from-[#0A2540] to-[#1a3a5c] h-3 rounded-full transition-all duration-300"
             style={{ width: `${linkingProgress}%` }}
           />
         </div>
@@ -327,9 +326,9 @@ const LinkStudentParentPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Student Selection */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <User className="w-4 h-4 text-blue-600" />
+          <div className="bg-gradient-to-r from-[#0A2540]/5 to-[#0A2540]/10 px-6 py-4 border-b border-gray-200">
+            <h2 className="text-base font-heading font-bold text-gray-900 flex items-center gap-2">
+              <User weight="bold" className="w-4 h-4 text-[#0A2540]" />
               Select Student
             </h2>
           </div>
@@ -337,23 +336,23 @@ const LinkStudentParentPage: React.FC = () => {
           <div className="p-6 space-y-4">
             {/* Search Input */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Search students by name or email..."
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2540] focus:border-transparent"
               />
             </div>
 
             {/* Selected Student Display */}
             {selectedStudent && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="bg-[#0A2540]/5 border border-[#0A2540]/20 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 bg-[#0A2540]/10 rounded-full flex items-center justify-center">
+                      <User weight="bold" className="w-5 h-5 text-[#0A2540]" />
                     </div>
                     <div>
                       <p className="font-medium text-gray-900 text-sm">
@@ -366,7 +365,7 @@ const LinkStudentParentPage: React.FC = () => {
                     onClick={() => setSelectedStudent(null)}
                     className="text-gray-400 hover:text-gray-600"
                   >
-                    <X className="w-4 h-4" />
+                    <X weight="bold" className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -382,14 +381,14 @@ const LinkStudentParentPage: React.FC = () => {
                     onClick={() => setSelectedStudent(student)}
                     className={`p-3 rounded-lg border cursor-pointer transition-all ${
                       selectedStudent?.id === student.id
-                        ? "border-blue-500 bg-blue-50"
+                        ? "border-[#0A2540] bg-[#0A2540]/5"
                         : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                          <User className="w-4 h-4 text-gray-600" />
+                          <User weight="bold" className="w-4 h-4 text-gray-600" />
                         </div>
                         <div>
                           <p className="font-medium text-gray-900 text-sm">
@@ -400,7 +399,7 @@ const LinkStudentParentPage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         {isLinked && (
-                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">
                             Linked
                           </span>
                         )}
@@ -411,7 +410,7 @@ const LinkStudentParentPage: React.FC = () => {
                               handleLinkStudentParent();
                             }}
                             disabled={isLinking}
-                            className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                            className="bg-[#0A2540] text-white px-3 py-1 rounded text-xs font-medium hover:bg-[#0A2540]/90 disabled:opacity-50 flex items-center gap-1"
                           >
                             {isLinking ? (
                               <>
@@ -420,7 +419,7 @@ const LinkStudentParentPage: React.FC = () => {
                               </>
                             ) : (
                               <>
-                                <Link className="w-3 h-3" />
+                                <Link weight="bold" className="w-3 h-3" />
                                 Link
                               </>
                             )}
@@ -437,9 +436,9 @@ const LinkStudentParentPage: React.FC = () => {
 
         {/* Parent Selection */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
-            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <Users className="w-4 h-4 text-green-600" />
+          <div className="bg-gradient-to-r from-[#FFD700]/5 to-[#FFD700]/10 px-6 py-4 border-b border-gray-200">
+            <h2 className="text-base font-heading font-bold text-gray-900 flex items-center gap-2">
+              <Users weight="bold" className="w-4 h-4 text-emerald-600" />
               Select Parent
             </h2>
           </div>
@@ -447,23 +446,23 @@ const LinkStudentParentPage: React.FC = () => {
           <div className="p-6 space-y-4">
             {/* Search Input */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Search parents by name or email..."
                 value={parentSearch}
                 onChange={(e) => setParentSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2540] focus:border-transparent"
               />
             </div>
 
             {/* Selected Parent Display */}
             {selectedParent && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-green-600" />
+                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                      <Users weight="bold" className="w-5 h-5 text-emerald-600" />
                     </div>
                     <div>
                       <p className="font-medium text-gray-900 text-sm">
@@ -476,7 +475,7 @@ const LinkStudentParentPage: React.FC = () => {
                     onClick={() => setSelectedParent(null)}
                     className="text-gray-400 hover:text-gray-600"
                   >
-                    <X className="w-4 h-4" />
+                    <X weight="bold" className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -492,14 +491,14 @@ const LinkStudentParentPage: React.FC = () => {
                     onClick={() => setSelectedParent(parent)}
                     className={`p-3 rounded-lg border cursor-pointer transition-all ${
                       selectedParent?.id === parent.id
-                        ? "border-green-500 bg-green-50"
+                        ? "border-emerald-500 bg-emerald-50"
                         : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                          <Users className="w-4 h-4 text-gray-600" />
+                          <Users weight="bold" className="w-4 h-4 text-gray-600" />
                         </div>
                         <div>
                           <p className="font-medium text-gray-900 text-sm">
@@ -510,7 +509,7 @@ const LinkStudentParentPage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         {linkedStudents.length > 0 && (
-                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                          <span className="text-xs bg-[#0A2540]/10 text-[#0A2540] px-2 py-1 rounded-full">
                             {linkedStudents.length} linked
                           </span>
                         )}
@@ -521,7 +520,7 @@ const LinkStudentParentPage: React.FC = () => {
                               handleLinkStudentParent();
                             }}
                             disabled={isLinking}
-                            className="bg-green-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                            className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1"
                           >
                             {isLinking ? (
                               <>
@@ -530,7 +529,7 @@ const LinkStudentParentPage: React.FC = () => {
                               </>
                             ) : (
                               <>
-                                <Link className="w-3 h-3" />
+                                <Link weight="bold" className="w-3 h-3" />
                                 Link
                               </>
                             )}
@@ -548,8 +547,8 @@ const LinkStudentParentPage: React.FC = () => {
 
       {/* Current Links Display */}
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-          <CheckCircle className="w-5 h-5 text-green-600" />
+        <h3 className="text-lg font-heading font-bold text-gray-900 mb-6 flex items-center gap-2">
+          <CheckCircle weight="bold" className="w-5 h-5 text-emerald-600" />
           Current Student-Parent Links
         </h3>
         
@@ -571,8 +570,8 @@ const LinkStudentParentPage: React.FC = () => {
             return (
               <div key={student.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-blue-600" />
+                  <div className="w-10 h-10 bg-[#0A2540]/10 rounded-full flex items-center justify-center">
+                    <User weight="bold" className="w-5 h-5 text-[#0A2540]" />
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">
@@ -583,9 +582,9 @@ const LinkStudentParentPage: React.FC = () => {
                 </div>
                 
                 <div className="flex items-center gap-2 text-gray-400">
-                  <Link className="w-4 h-4" />
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                    <Users className="w-5 h-5 text-green-600" />
+                  <Link weight="bold" className="w-4 h-4" />
+                  <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <Users weight="bold" className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">
@@ -600,7 +599,7 @@ const LinkStudentParentPage: React.FC = () => {
           
           {students.filter(student => student.parent_id !== null).length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <Users weight="bold" className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p>No student-parent links have been created yet</p>
             </div>
           )}
@@ -609,7 +608,7 @@ const LinkStudentParentPage: React.FC = () => {
 
       {/* Linking Controls */}
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Linking Options</h3>
+        <h3 className="text-lg font-heading font-bold text-gray-900 mb-6">Linking Options</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -619,7 +618,7 @@ const LinkStudentParentPage: React.FC = () => {
             <select
               value={relationshipType}
               onChange={(e) => setRelationshipType(e.target.value as "father" | "mother" | "guardian")}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2540] focus:border-transparent"
             >
               <option value="father">Father</option>
               <option value="mother">Mother</option>
@@ -633,7 +632,7 @@ const LinkStudentParentPage: React.FC = () => {
               id="notifyParent"
               checked={notifyParent}
               onChange={(e) => setNotifyParent(e.target.checked)}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-[#0A2540] border-gray-300 rounded focus:ring-[#0A2540]"
             />
             <label htmlFor="notifyParent" className="ml-2 text-sm text-gray-700">
               Send notification email to parent
@@ -645,7 +644,7 @@ const LinkStudentParentPage: React.FC = () => {
           <button
             onClick={handleLinkStudentParent}
             disabled={!selectedStudent || !selectedParent || isLinking}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            className="flex-1 bg-gradient-to-r from-[#0A2540] to-[#1a3a5c] text-white px-6 py-3 rounded-lg font-medium hover:from-[#0A2540]/90 hover:to-[#1a3a5c]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             {isLinking ? (
               <>
@@ -654,7 +653,7 @@ const LinkStudentParentPage: React.FC = () => {
               </>
             ) : (
               <>
-                <Link className="w-5 h-5" />
+                <Link weight="bold" className="w-5 h-5" />
                 Link Student to Parent
               </>
             )}
@@ -673,7 +672,7 @@ const LinkStudentParentPage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Unlink className="w-5 h-5" />
+                    <LinkBreak weight="bold" className="w-5 h-5" />
                     Unlink Student
                   </>
                 )}
@@ -688,10 +687,10 @@ const LinkStudentParentPage: React.FC = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-600" />
+                <Warning weight="bold" className="w-6 h-6 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Confirm Unlink</h3>
+                <h3 className="text-lg font-heading font-bold text-gray-900">Confirm Unlink</h3>
                   <p className="text-sm text-gray-500">
                   Are you sure you want to unlink {selectedStudent?.firstName} {selectedStudent?.lastName} from their parent?
                 </p>

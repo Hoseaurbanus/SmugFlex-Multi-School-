@@ -1,16 +1,18 @@
 <?php
 /**
  * Invoice Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class InvoiceController {
     private $conn;
+    private $school_id;
 
     public function __construct() {
         $database = new Database();
@@ -77,9 +79,10 @@ class InvoiceController {
 
     private function getVerifiedPaidTotalByInvoice($invoice_id) {
         // Include reversed originals so (original amount + reversal negative) nets to 0
-        $query = "SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE invoice_id = :invoice_id AND status IN ('Verified','Reversed')";
+        $query = "SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE invoice_id = :invoice_id AND status IN ('Verified','Reversed') AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':invoice_id', $invoice_id);
+        $stmt->bindParam(':school_id', $this->school_id);
         $stmt->execute();
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return floatval($row['total'] ?? 0);
@@ -91,13 +94,14 @@ class InvoiceController {
         try {
             // Find previous term invoice (prefer Active, but accept any)
             $inv_query = "SELECT id, invoice_total FROM student_term_invoices
-                          WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year
+                          WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id
                           ORDER BY (status = 'Active') DESC, version DESC, id DESC
                           LIMIT 1";
             $inv_stmt = $this->conn->prepare($inv_query);
             $inv_stmt->bindParam(':student_id', $student_id);
             $inv_stmt->bindParam(':term', $prev['term']);
             $inv_stmt->bindParam(':academic_year', $prev['academic_year']);
+            $inv_stmt->bindParam(':school_id', $this->school_id);
             $inv_stmt->execute();
             $inv = $inv_stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -108,12 +112,13 @@ class InvoiceController {
 
             // Fallback to student_fee_balances for previous term if present (best-effort)
             $bal_query = "SELECT total_fee_required, total_paid FROM student_fee_balances
-                          WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year
+                          WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id
                           ORDER BY id DESC LIMIT 1";
             $bal_stmt = $this->conn->prepare($bal_query);
             $bal_stmt->bindParam(':student_id', $student_id);
             $bal_stmt->bindParam(':term', $prev['term']);
             $bal_stmt->bindParam(':academic_year', $prev['academic_year']);
+            $bal_stmt->bindParam(':school_id', $this->school_id);
             $bal_stmt->execute();
             $bal = $bal_stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -129,40 +134,44 @@ class InvoiceController {
     }
 
     private function getFeeStructureForClass($class_id, $term, $academic_year) {
-        $query = "SELECT * FROM fee_structures WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year ORDER BY id DESC LIMIT 1";
+        $query = "SELECT * FROM fee_structures WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id ORDER BY id DESC LIMIT 1";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':class_id', $class_id);
         $stmt->bindParam(':term', $term);
         $stmt->bindParam(':academic_year', $academic_year);
+        $stmt->bindParam(':school_id', $this->school_id);
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     private function getActiveInvoiceForStudent($student_id, $term, $academic_year) {
-        $query = "SELECT * FROM student_term_invoices WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND status = 'Active' ORDER BY version DESC, id DESC LIMIT 1";
+        $query = "SELECT * FROM student_term_invoices WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND status = 'Active' AND school_id = :school_id ORDER BY version DESC, id DESC LIMIT 1";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':student_id', $student_id);
         $stmt->bindParam(':term', $term);
         $stmt->bindParam(':academic_year', $academic_year);
+        $stmt->bindParam(':school_id', $this->school_id);
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     private function getMaxInvoiceVersion($student_id, $term, $academic_year) {
-        $query = "SELECT COALESCE(MAX(version),0) as max_version FROM student_term_invoices WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year";
+        $query = "SELECT COALESCE(MAX(version),0) as max_version FROM student_term_invoices WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':student_id', $student_id);
         $stmt->bindParam(':term', $term);
         $stmt->bindParam(':academic_year', $academic_year);
+        $stmt->bindParam(':school_id', $this->school_id);
         $stmt->execute();
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return intval($row['max_version'] ?? 0);
     }
 
     private function hasVerifiedPaymentsForInvoice($invoice_id) {
-        $query = "SELECT COUNT(*) as cnt FROM payments WHERE invoice_id = :invoice_id AND status IN ('Verified','Reversed')";
+        $query = "SELECT COUNT(*) as cnt FROM payments WHERE invoice_id = :invoice_id AND status IN ('Verified','Reversed') AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':invoice_id', $invoice_id);
+        $stmt->bindParam(':school_id', $this->school_id);
         $stmt->execute();
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return intval($row['cnt'] ?? 0) > 0;
@@ -185,7 +194,7 @@ class InvoiceController {
                                      fee_total = :fee_total,
                                      brought_forward = :brought_forward,
                                      invoice_total = :invoice_total
-                                 WHERE id = :id";
+                                 WHERE id = :id AND school_id = :school_id";
                 $stmt = $this->conn->prepare($update_query);
                 $stmt->bindParam(':class_id', $class_id);
                 $stmt->bindParam(':fee_structure_id', $fee_structure_id);
@@ -193,24 +202,26 @@ class InvoiceController {
                 $stmt->bindParam(':brought_forward', $brought_forward);
                 $stmt->bindParam(':invoice_total', $invoice_total);
                 $stmt->bindParam(':id', $existing['id']);
+                $stmt->bindParam(':school_id', $this->school_id);
                 $stmt->execute();
 
                 return intval($existing['id']);
             }
 
             // Supersede existing invoice
-            $sup_query = "UPDATE student_term_invoices SET status = 'Superseded' WHERE id = :id";
+            $sup_query = "UPDATE student_term_invoices SET status = 'Superseded' WHERE id = :id AND school_id = :school_id";
             $sup_stmt = $this->conn->prepare($sup_query);
             $sup_stmt->bindParam(':id', $existing['id']);
+            $sup_stmt->bindParam(':school_id', $this->school_id);
             $sup_stmt->execute();
         }
 
         $new_version = $this->getMaxInvoiceVersion($student_id, $term, $academic_year) + 1;
 
         $insert_query = "INSERT INTO student_term_invoices
-                         (student_id, class_id, term, academic_year, fee_structure_id, fee_total, brought_forward, invoice_total, status, version, created_by)
+                         (student_id, class_id, term, academic_year, fee_structure_id, fee_total, brought_forward, invoice_total, status, version, created_by, school_id)
                          VALUES
-                         (:student_id, :class_id, :term, :academic_year, :fee_structure_id, :fee_total, :brought_forward, :invoice_total, 'Active', :version, :created_by)";
+                         (:student_id, :class_id, :term, :academic_year, :fee_structure_id, :fee_total, :brought_forward, :invoice_total, 'Active', :version, :created_by, :school_id)";
         $stmt = $this->conn->prepare($insert_query);
         $stmt->bindParam(':student_id', $student_id);
         $stmt->bindParam(':class_id', $class_id);
@@ -222,6 +233,7 @@ class InvoiceController {
         $stmt->bindParam(':invoice_total', $invoice_total);
         $stmt->bindParam(':version', $new_version);
         $stmt->bindParam(':created_by', $created_by);
+        $stmt->bindParam(':school_id', $this->school_id);
         $stmt->execute();
 
         return intval($this->conn->lastInsertId());
@@ -231,7 +243,8 @@ class InvoiceController {
      * POST /invoices/auto-generate
      */
     public function autoGenerateInvoices() {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = $this->school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['class_id', 'term', 'academic_year']);
@@ -257,8 +270,9 @@ class InvoiceController {
 
         try {
             // Ensure class exists
-            $cls_stmt = $this->conn->prepare("SELECT id, name FROM classes WHERE id = :id");
+            $cls_stmt = $this->conn->prepare("SELECT id, name FROM classes WHERE id = :id AND school_id = :school_id");
             $cls_stmt->bindParam(':id', $class_id);
+            $cls_stmt->bindParam(':school_id', $this->school_id);
             $cls_stmt->execute();
             $cls = $cls_stmt->fetch(PDO::FETCH_ASSOC);
             if (!$cls) {
@@ -271,9 +285,10 @@ class InvoiceController {
             }
 
             // Fetch active students in class
-            $students_query = "SELECT id FROM students WHERE class_id = :class_id AND (status IS NULL OR status = 'Active')";
+            $students_query = "SELECT id FROM students WHERE class_id = :class_id AND (status IS NULL OR status = 'Active') AND school_id = :school_id";
             $students_stmt = $this->conn->prepare($students_query);
             $students_stmt->bindParam(':class_id', $class_id);
+            $students_stmt->bindParam(':school_id', $this->school_id);
             $students_stmt->execute();
             $students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -313,6 +328,7 @@ class InvoiceController {
      */
     public function getStudentInvoice($student_id) {
         $token_data = Middleware::requireAuth();
+        $school_id = $this->school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $student_id = Middleware::validateInteger($student_id, 'student_id');
 
         $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : null;
@@ -324,10 +340,11 @@ class InvoiceController {
 
         // Parent access check
         if ($token_data['role'] === 'parent') {
-            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':parent_id', $token_data['linked_id']);
             $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->bindParam(':school_id', $this->school_id);
             $check_stmt->execute();
 
             if ($check_stmt->fetch()['count'] == 0) {
@@ -361,7 +378,8 @@ class InvoiceController {
      * GET /invoices/class/{class_id}
      */
     public function getClassInvoices($class_id) {
-        Middleware::requireAnyRole(['admin', 'accountant']);
+        $token_data = Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = $this->school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $class_id = Middleware::validateInteger($class_id, 'class_id');
 
@@ -384,13 +402,14 @@ class InvoiceController {
                         WHERE status = 'Verified'
                         GROUP BY invoice_id
                       ) p ON p.invoice_id = i.id
-                      WHERE i.class_id = :class_id AND i.term = :term AND i.academic_year = :academic_year AND i.status = 'Active'
-                      ORDER BY s.last_name, s.first_name";
+                       WHERE i.class_id = :class_id AND i.term = :term AND i.academic_year = :academic_year AND i.status = 'Active' AND i.school_id = :school_id
+                       ORDER BY s.last_name, s.first_name";
 
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':class_id', $class_id);
             $stmt->bindParam(':term', $term);
             $stmt->bindParam(':academic_year', $academic_year);
+            $stmt->bindParam(':school_id', $this->school_id);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

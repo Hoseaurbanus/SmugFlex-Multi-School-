@@ -264,7 +264,7 @@ export function FeeStructurePage({ onBack }: FeeStructurePageProps) {
           <CardContent>
             <div className="prose max-w-none text-gray-600">
               <p className="mb-4">
-                Graceland Royal Academy is committed to making quality education accessible.
+                Our school is committed to making quality education accessible.
                 We offer various scholarship and financial aid options:
               </p>
               <ul className="space-y-2 mb-4">

@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { Avatar, AvatarFallback } from "../ui/avatar";
 import { useSchool } from "../../contexts/SchoolContext";
 import { StudentResultCardProps } from './types/resultCard';
-import schoolLogo from "../../assets/images/school-logo.jpg";
 import { API_CONFIG } from "../../config/api";
 import { formatPositionWithSuffix } from "../../utils/position";
 import { generateQrDataUrl } from "../../utils/qrCode";
@@ -810,7 +807,7 @@ export function StudentResultCard({
       <div className="print-header" style={{ textAlign: 'center', marginBottom: '3mm', padding: '2mm 0' }}>
         <div style={{ marginBottom: '1mm' }}>
           <img 
-            src={schoolLogo} 
+            src={schoolSettings.school_logo_url || ''} 
             alt="School Logo" 
             style={{ 
               width: '18mm', 
@@ -827,7 +824,7 @@ export function StudentResultCard({
             onError={(e) => {
               // Try alternative logo path on error
               const target = e.target as HTMLImageElement;
-              target.src = './assets/images/school-logo.jpg';
+              target.src = schoolSettings.school_logo_url || '';
             }}
           />
         </div>
@@ -858,7 +855,7 @@ export function StudentResultCard({
               </tr>
               <tr>
                 <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Admission No:</td>
-                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{(studentData as any)?.admissionNumber || 'GRA/XXXXX'}</td>
+                <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{(studentData as any)?.admissionNumber || 'N/A'}</td>
                 <td className="border border-black" style={{ padding: '0.5mm', fontWeight: 'bold', fontSize: '7pt' }}>Term:</td>
                 <td className="border border-black" style={{ padding: '0.5mm', fontSize: '7pt' }}>{result.term || 'THIRD TERM'}</td>
               </tr>

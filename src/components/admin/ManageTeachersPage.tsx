@@ -9,7 +9,6 @@ import { Label } from "../ui/label";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "../ui/dropdown-menu";
 import { SimpleDropdown, SimpleDropdownTrigger, SimpleDropdownContent, SimpleDropdownItem, SimpleDropdownSeparator } from "../ui/simple-dropdown";
 import { useSchool } from "../../contexts/SchoolContext";
 import { Key, ImageIcon, Power } from "lucide-react";
@@ -231,9 +230,9 @@ export function ManageTeachersPage() {
     reader.readAsDataURL(signatureFile);
   };
 
-  const handleQuickImportGRAStaff = () => {
-    // This imports the 17 staff members from Graceland Royal Academy
-    const graStaff = [
+  const handleQuickImportLegacyStaff = () => {
+    // This imports the 17 legacy staff members
+    const legacyStaff = [
       { lastName: "AHMED", firstName: "HASSANA", otherName: "SOYA", gender: "FEMALE", phone: "", username: "hassana2@gra", email: "", role: "CLASS TEACHER" },
       { lastName: "CHRIS", firstName: "RHEMA", otherName: "", gender: "FEMALE", phone: "", username: "rhema1@gra", email: "cr@gmail.com", role: "CLASS TEACHER" },
       { lastName: "Dike", firstName: "Stella", otherName: "Onyeka", gender: "FEMALE", phone: "8068651255", username: "stella1@gra", email: "kachidike4@gmail.com", role: "MEDICAL OFFICER" },
@@ -253,11 +252,11 @@ export function ManageTeachersPage() {
       { lastName: "YUNUSA", firstName: "NORA", otherName: "", gender: "FEMALE", phone: "7032808483", username: "nora1@gra", email: "yunusanora32@gmail.com", role: "CLASS TEACHER" },
     ];
 
-    toast.info(`Ready to import ${graStaff.length} staff members from Graceland Royal Academy Gombe. Please use the Register User page to add these teachers individually.`);
+    toast.info(`Ready to import ${legacyStaff.length} staff members. Please use the Register User page to add these teachers individually.`);
     setIsQuickImportDialogOpen(false);
     
     // Copy to clipboard for easy pasting
-    const staffText = graStaff.map(s => 
+    const staffText = legacyStaff.map(s => 
       `${s.firstName} ${s.lastName}${s.otherName ? ' ' + s.otherName : ''} - ${s.username} - ${s.email || 'No email'} - ${s.phone || 'No phone'}`
     ).join('\n');
     
@@ -913,13 +912,13 @@ export function ManageTeachersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Quick Import GRA Staff Dialog */}
+      {/* Quick Import Staff Dialog */}
       <Dialog open={isQuickImportDialogOpen} onOpenChange={setIsQuickImportDialogOpen}>
         <DialogContent className="max-w-3xl rounded-xl bg-white border border-[#E5E7EB] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-[#1F2937]">Import Graceland Royal Academy Staff</DialogTitle>
+            <DialogTitle className="text-[#1F2937]">Import Legacy Staff</DialogTitle>
             <DialogDescription className="text-[#6B7280]">
-              Quick import of 17 staff members from GRA Gombe
+              Quick import of 17 staff members
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -962,7 +961,7 @@ export function ManageTeachersPage() {
               Cancel
             </Button>
             <Button
-              onClick={handleQuickImportGRAStaff}
+              onClick={handleQuickImportLegacyStaff}
               className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
             >
               <span className="w-4 h-4 mr-2" />

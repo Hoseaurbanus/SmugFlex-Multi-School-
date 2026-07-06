@@ -1,2 +1,10 @@
 node_modules
 *.zip
+.env
+.env.production
+.env.local
+api/.env
+api/.env.production
+final-deployment/
+uploads/
+*.log

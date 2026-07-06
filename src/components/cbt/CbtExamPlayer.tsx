@@ -128,6 +128,14 @@ export function CbtExamPlayer({ exam, onExit }: Props) {
     if (submittedRef.current) return;
     setIsSubmitting(true);
     try {
+      // Flush any pending debounced saves so the last answer isn't lost
+      Object.values(answerTimeouts.current).forEach(clearTimeout);
+      answerTimeouts.current = {};
+      await Promise.all(
+        Object.entries(answers).map(([qId, val]) =>
+          saveCbtAnswer(attempt.id, Number(qId), val)
+        )
+      );
       const result = await submitCbtAttempt(attempt.id, tabSwitchCount);
       submittedRef.current = true;
       setSubmitted(true);
@@ -206,6 +214,7 @@ export function CbtExamPlayer({ exam, onExit }: Props) {
             <Timer
               startedAt={attempt.started_at}
               durationMinutes={exam.duration_minutes}
+              remainingSeconds={attempt.remaining_seconds}
               onTimeUp={handleTimeUp}
             />
           )}

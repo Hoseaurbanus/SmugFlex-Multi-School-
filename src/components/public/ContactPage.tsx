@@ -83,8 +83,8 @@ export function ContactPage({ onBack }: ContactPageProps) {
                   <div>
                     <h3 className="mb-1">Email Us</h3>
                     <p className="text-sm text-gray-600">
-                      info@gracelandgombe.edu.ng<br />
-                      admissions@gracelandgombe.edu.ng
+                      info@school.edu.ng<br />
+                      admissions@school.edu.ng
                     </p>
                   </div>
                 </div>

@@ -1,7 +1,7 @@
 <?php
 /**
  * User Creation API Endpoint
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  * Handles complete user creation with linked records
  */
 
@@ -11,6 +11,7 @@ header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -100,6 +101,9 @@ try {
         throw new Exception('Database connection failed');
     }
     
+    // Resolve school_id from auth token
+    $school_id = TenantMiddleware::resolveSchoolId($conn);
+
     // Begin transaction for data consistency
     $conn->beginTransaction();
     
@@ -181,18 +185,18 @@ try {
         $specializationJson = is_array($specialization) ? json_encode($specialization) : '[]';
         
         $stmt = $conn->prepare("
-            INSERT INTO teachers (first_name, last_name, email, phone, gender, qualification, specialization, is_class_teacher, department_id, employee_id, status, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            INSERT INTO teachers (first_name, last_name, email, phone, gender, qualification, specialization, is_class_teacher, department_id, employee_id, status, school_id, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
-        $stmt->execute([$firstName, $lastName, $email, $phone, $gender, $qualification, $specializationJson, $isClassTeacher ? 1 : 0, $departmentId, $employee_id, $status]);
+        $stmt->execute([$firstName, $lastName, $email, $phone, $gender, $qualification, $specializationJson, $isClassTeacher ? 1 : 0, $departmentId, $employee_id, $status, $school_id]);
         $linked_id = $conn->lastInsertId();
         
     } elseif ($role === 'parent') {
         $stmt = $conn->prepare("
-            INSERT INTO parents (first_name, last_name, email, phone, alternate_phone, address, occupation, status, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            INSERT INTO parents (first_name, last_name, email, phone, alternate_phone, address, occupation, status, school_id, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
-        $stmt->execute([$firstName, $lastName, $email, $phone, $alternatePhone, $address, $occupation, $status]);
+        $stmt->execute([$firstName, $lastName, $email, $phone, $alternatePhone, $address, $occupation, $status, $school_id]);
         $linked_id = $conn->lastInsertId();
         
     } elseif ($role === 'accountant') {
@@ -209,10 +213,10 @@ try {
         }
         
         $stmt = $conn->prepare("
-            INSERT INTO accountants (first_name, last_name, email, phone, department, employee_id, status, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            INSERT INTO accountants (first_name, last_name, email, phone, department, employee_id, status, school_id, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
-        $stmt->execute([$firstName, $lastName, $email, $phone, $department, $employee_id, $status]);
+        $stmt->execute([$firstName, $lastName, $email, $phone, $department, $employee_id, $status, $school_id]);
         $linked_id = $conn->lastInsertId();
         
     } elseif ($role === 'admin') {
@@ -222,10 +226,10 @@ try {
     
     // Create user record
     $stmt = $conn->prepare("
-        INSERT INTO users (username, password_hash, role, linked_id, email, status, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, NOW())
+        INSERT INTO users (username, password_hash, role, linked_id, email, status, school_id, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
     ");
-    $stmt->execute([$username, $password_hash, $role, $linked_id, $email, $status]);
+    $stmt->execute([$username, $password_hash, $role, $linked_id, $email, $status, $school_id]);
     $user_id = $conn->lastInsertId();
     
     // Commit transaction

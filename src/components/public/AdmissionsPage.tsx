@@ -22,7 +22,7 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
             Back to Home
           </Button>
           <h1 className="text-3xl mb-2">Admissions Information</h1>
-          <p className="text-blue-100">Join the Graceland Royal Academy Family</p>
+          <p className="text-blue-100">Join Our School Family</p>
         </div>
       </header>
 
@@ -262,10 +262,9 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
               <div>
                 <h3 className="mb-3">Visit Us</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Graceland Royal Academy<br />
+                  Our School<br />
                   123 Education Avenue<br />
-                  Gombe, Gombe State<br />
-                  Nigeria
+                  Lagos, Nigeria
                 </p>
               </div>
 
@@ -275,7 +274,7 @@ export function AdmissionsPage({ onBack }: AdmissionsPageProps) {
                   <strong>Phone:</strong> +234 803 456 7890
                 </p>
                 <p className="text-sm text-gray-600 mb-2">
-                  <strong>Email:</strong> admissions@gracelandgombe.edu.ng
+                  <strong>Email:</strong> admissions@school.edu.ng
                 </p>
                 <p className="text-sm text-gray-600">
                   <strong>Office Hours:</strong> Mon-Fri, 8:00 AM - 4:00 PM

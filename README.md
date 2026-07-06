@@ -1,8 +1,8 @@
-# Graceland Royal Academy — School Management System
+# SMugFlex 2.0 — Multi-School Management Platform
 
-A full-stack school management system for **Graceland Royal Academy, Gombe, Nigeria**. The platform streamlines academic, financial, and administrative operations across five user roles: **Admin**, **Teacher**, **Accountant**, **Parent**, and **Student**.
+A full-stack multi-tenant school management platform. The platform streamlines academic, financial, and administrative operations across five user roles: **Admin**, **Teacher**, **Accountant**, **Parent**, and **Student**.
 
-**Live:** [https://gracelandroyalacademy.com.ng](https://gracelandroyalacademy.com.ng)
+**Live:** Configure per deployment
 
 ---
 
@@ -2122,5 +2122,5 @@ npm run build
 
 For issues, bug reports, or feature requests, please contact the development team.
 
-**School:** Graceland Royal Academy, Gombe, Nigeria
-**Website:** [https://gracelandroyalacademy.com.ng](https://gracelandroyalacademy.com.ng)
+**School:** Configure per deployment
+**Website:** Configure per deployment

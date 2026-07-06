@@ -93,16 +93,16 @@ export function ViewNotificationsPage() {
   const getNotificationBadge = (type: string, targetAudience: string) => {
     // Check if it's a parent message
     if ((type as any) === 'message' && (targetAudience as any) === 'admin') {
-      return <Badge className="bg-purple-100 text-purple-800 border-purple-300"><span className="w-3 h-3 mr-1" />Parent Message</Badge>;
+        return <Badge className="bg-[#0A2540]/10 text-[#0A2540] border-[#0A2540]/30"><span className="w-3 h-3 mr-1" />Parent Message</Badge>;
     }
     
     switch (type) {
       case 'info':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300"><span className="w-3 h-3 mr-1" />Information</Badge>;
+        return <Badge className="bg-[#0A2540]/10 text-[#0A2540] border-[#0A2540]/30"><span className="w-3 h-3 mr-1" />Information</Badge>;
       case 'warning':
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300"><span className="w-3 h-3 mr-1" />Warning</Badge>;
       case 'success':
-        return <Badge className="bg-green-100 text-green-800 border-green-300"><span className="w-3 h-3 mr-1" />Success</Badge>;
+        return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300"><span className="w-3 h-3 mr-1" />Success</Badge>;
       case 'error':
         return <Badge className="bg-red-100 text-red-800 border-red-300"><span className="w-3 h-3 mr-1" />Error</Badge>;
       default:
@@ -128,15 +128,15 @@ export function ViewNotificationsPage() {
   return (
     <div className="space-y-6" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Notifications</h1>
+        <h1 className="text-2xl font-heading font-bold text-gray-800 mb-2">Notifications</h1>
         <p className="text-gray-500">
           {unreadCount > 0 ? `You have ${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'All notifications read'}
         </p>
       </div>
 
       {currentUser?.role === 'admin' && (
-        <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
-          <CardHeader className="border-b border-[#E5E7EB] bg-[#F9FAFB] p-4">
+        <Card className="rounded-xl bg-white border border-gray-100 shadow-clinical">
+          <CardHeader className="border-b border-gray-100 bg-[#F9FAFB] p-4">
             <CardTitle className="text-[#1F2937] flex items-center gap-2">
               <span className="w-5 h-5" />
               Class WhatsApp Groups
@@ -150,7 +150,7 @@ export function ViewNotificationsPage() {
             ) : (
               <div className="space-y-3">
                 {whatsappGroups.map((g: any) => (
-                  <div key={`${g.class_id}-${g.whatsapp_group_link}`} className="p-4 rounded-lg border border-gray-200 bg-white">
+                    <div key={`${g.class_id}-${g.whatsapp_group_link}`} className="p-4 rounded-lg border border-gray-100 bg-white">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <p className="font-semibold text-gray-900 truncate">{g.class_name || `Class ${g.class_id}`}</p>
@@ -166,7 +166,7 @@ export function ViewNotificationsPage() {
                           }
                           window.open(link, '_blank');
                         }}
-                        className="bg-green-600 hover:bg-green-700 text-white"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         Join Group
                       </Button>
@@ -181,8 +181,8 @@ export function ViewNotificationsPage() {
 
       {/* Unread Notifications */}
       {unreadCount > 0 && (
-        <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
-          <CardHeader className="border-b border-[#E5E7EB] bg-[#F9FAFB] p-4">
+        <Card className="rounded-xl bg-white border border-gray-100 shadow-clinical">
+          <CardHeader className="border-b border-gray-100 bg-[#F9FAFB] p-4">
             <CardTitle className="text-[#1F2937] flex items-center gap-2">
               <span className="w-5 h-5" />
               Unread Notifications ({unreadCount})
@@ -192,7 +192,7 @@ export function ViewNotificationsPage() {
             {sortedNotifications.filter(n => !isNotificationRead(n)).map((notification) => (
               <div
                 key={notification.id}
-                className="p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
+                className="p-4 bg-[#0A2540]/5 border border-[#0A2540]/20 rounded-lg hover:bg-[#0A2540]/10 transition-colors cursor-pointer"
                 onClick={() => setSelectedNotification(notification)}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -238,8 +238,8 @@ export function ViewNotificationsPage() {
       )}
 
       {/* All Notifications */}
-      <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
-        <CardHeader className="border-b border-[#E5E7EB] bg-[#F9FAFB] p-4">
+      <Card className="rounded-xl bg-white border border-gray-100 shadow-clinical">
+        <CardHeader className="border-b border-gray-100 bg-[#F9FAFB] p-4">
           <CardTitle className="text-[#1F2937] flex items-center gap-2">
             <span className="w-5 h-5" />
             All Notifications ({userNotifications.length})
@@ -257,9 +257,9 @@ export function ViewNotificationsPage() {
                 <div
                   key={notification.id}
                   className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    isNotificationRead(notification) 
-                      ? 'bg-white border-gray-200 hover:bg-gray-50' 
-                      : 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+                    isNotificationRead(notification)
+                      ? 'bg-white border-gray-100 hover:bg-gray-50'
+                      : 'bg-[#0A2540]/5 border-[#0A2540]/20 hover:bg-[#0A2540]/10'
                   }`}
                   onClick={() => setSelectedNotification(notification)}
                 >
@@ -271,7 +271,7 @@ export function ViewNotificationsPage() {
                           {new Date(notification.sentDate).toLocaleDateString()}
                         </span>
                         {!isNotificationRead(notification) && (
-                          <Badge className="bg-blue-500 text-white border-0">New</Badge>
+                          <Badge className="bg-[#0A2540] text-white border-0">New</Badge>
                         )}
                       </div>
                       <h4 className="font-semibold text-[#1F2937] mb-1 text-base">{notification.title}</h4>
@@ -309,7 +309,7 @@ export function ViewNotificationsPage() {
       {selectedNotification && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card className="max-w-2xl w-full max-h-[80vh] overflow-y-auto rounded-xl">
-            <CardHeader className="border-b border-gray-200">
+            <CardHeader className="border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-[#1F2937]">{selectedNotification.title}</CardTitle>
                 <Button
@@ -351,7 +351,7 @@ export function ViewNotificationsPage() {
                   <div className="flex gap-3 pt-4">
                     <Button
                       onClick={() => handleMarkAsRead(selectedNotification.id)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white"
                     >
                       <span className="w-4 h-4 mr-2" />
                       Mark as Read

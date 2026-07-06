@@ -1,6 +1,6 @@
 /**
  * Error Handler Utility
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Management Platform
  */
 
 export interface ErrorMapping {

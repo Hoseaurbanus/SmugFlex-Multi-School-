@@ -1,40 +1,52 @@
 <?php
-/**
- * API Router
- * Graceland Royal Academy School Management System
- */
 
-// CORS Configuration: Only allow requests from whitelisted domains
-$allowed_origins = [
-    'https://gracelandroyalacademy.com.ng',
-    'https://www.gracelandroyalacademy.com.ng',
-    'http://localhost:3000',  // Development only
-];
+// Load database config (which loads .env)
+require_once 'config/database.php';
+
+// ─── SECURITY: Enforce request size limits ───
+$maxBodySize = 10 * 1024 * 1024; // 10MB max POST body
+$contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+if ($contentLength > $maxBodySize) {
+    http_response_code(413);
+    echo json_encode(['success' => false, 'message' => 'Request entity too large']);
+    exit;
+}
+
+// Dynamic CORS from .env
+$allowed_origins_str = Config::get('CORS_ORIGINS', 'https://smugflex.com,http://localhost:5173,http://localhost:3000');
+$allowed_origins = array_map('trim', explode(',', $allowed_origins_str));
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (in_array($origin, $allowed_origins)) {
     header('Access-Control-Allow-Origin: ' . $origin);
+} elseif (Config::get('APP_ENV') === 'development' && preg_match('#^https?://(localhost|127\.0\.0\.1)(:\d+)?$#', $origin)) {
+    header('Access-Control-Allow-Origin: ' . $origin);
 }
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 1; mode=block');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
+header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, X-School-ID');
 header('Access-Control-Max-Age: 3600');
 
-// Handle preflight requests immediately
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-// Include required files
-require_once 'config/database.php';
+// Include helpers
 require_once 'helpers/Response.php';
 require_once 'helpers/Middleware.php';
 require_once 'helpers/JWT.php';
+require_once 'helpers/RateLimiter.php';
+require_once 'helpers/TenantMiddleware.php';
 
 // Include controllers
 require_once 'controllers/AuthController.php';
+require_once 'controllers/SuperAdminController.php';
+require_once 'controllers/TenantController.php';
 require_once 'controllers/StudentController.php';
 require_once 'controllers/TeacherController.php';
 require_once 'controllers/ClassController.php';
@@ -53,390 +65,375 @@ require_once 'controllers/ProgressionController.php';
 require_once 'controllers/RealtimeController.php';
 require_once 'controllers/CbtController.php';
 
-// Get request method and path
 $method = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-// Dynamically strip the base directory (works for /api or /GG/api)
 $base = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
 if (!empty($base) && $base !== '/') {
     $path = preg_replace('#^' . preg_quote($base, '#') . '#', '', $path);
 }
+
+// ─── SECURITY: Sanitize path to prevent traversal ───
+$path = '/' . preg_replace('#[^a-zA-Z0-9_/.\-]#', '', $path);
+$path = str_replace(['../', '..\\'], '', $path);
+
 $path_parts = explode('/', trim($path, '/'));
+$prefix = $path_parts[0] ?? '';
+$action = $path_parts[1] ?? '';
+$param = $path_parts[2] ?? null;
+$subparam = $path_parts[3] ?? null;
 
-// Simple routing
+// ─── SECURITY: Validate params ───
+// Note: $param is NOT sanitized here because routes like
+// /super-admin/schools/pending use string values in $param.
+// Numeric validation is done per-route where needed.
+
 try {
-    switch ($path_parts[0]) {
+    switch ($prefix) {
 
-        // Realtime (SSE) routes
+        // ─── SMUGFLEX PLATFORM ROUTES ───
+
+        case 'super-admin':
+            $superAdmin = new SuperAdminController();
+            if ($action === 'login' && $method === 'POST') {
+                $superAdmin->login();
+            } elseif ($action === 'schools' && $param === 'pending' && $method === 'GET') {
+                $superAdmin->getPendingRegistrations();
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'approve' && $method === 'POST') {
+                $superAdmin->approveSchool((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'reject' && $method === 'POST') {
+                $superAdmin->rejectSchool((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'deactivate' && $method === 'POST') {
+                $superAdmin->deactivateSchool((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'activate' && $method === 'POST') {
+                $superAdmin->activateSchool((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'suspend' && $method === 'POST') {
+                $superAdmin->suspendSchool((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'extend-access' && $method === 'POST') {
+                $superAdmin->extendAccess((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'set-plan' && $method === 'POST') {
+                $superAdmin->setSchoolPlan((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'reset-admin-password' && $method === 'POST') {
+                $superAdmin->resetAdminPassword((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'credentials' && $method === 'GET') {
+                $superAdmin->getInitialAdminCredentials((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $method === 'GET') {
+                $superAdmin->getSchoolDetails((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $method === 'PUT') {
+                $superAdmin->editSchoolDetails((int)$param);
+            } elseif ($action === 'schools' && $method === 'GET') {
+                $superAdmin->listSchools();
+            } elseif ($action === 'check-suffix' && $method === 'GET') {
+                $superAdmin->checkSuffix();
+            } elseif ($action === 'stats' && $method === 'GET') {
+                $superAdmin->getPlatformStats();
+            } elseif ($action === 'activity-logs' && $method === 'GET') {
+                $superAdmin->getActivityLogs();
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'modules' && $method === 'GET') {
+                $superAdmin->getSchoolModules((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'modules' && $method === 'PUT') {
+                $superAdmin->updateSchoolModules((int)$param);
+            } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'delete' && $method === 'POST') {
+                $superAdmin->deleteSchool((int)$param);
+            } elseif ($action === 'schools' && $method === 'POST') {
+                $superAdmin->createSchool();
+            } else {
+                Response::notFound('Super Admin endpoint not found');
+            }
+            break;
+
+        case 'schools':
+            $tenant = new TenantController();
+            if ($action === 'register' && $method === 'POST') {
+                $tenant->register();
+            } elseif ($action === 'public-info' && $method === 'GET') {
+                $tenant->getPublicInfo();
+            } elseif ($action === 'profile' && $method === 'GET') {
+                $tenant->getOwnProfile();
+            } elseif ($action === 'profile' && $method === 'PUT') {
+                $tenant->updateOwnProfile();
+            } elseif ($action === 'upload-logo' && $method === 'POST') {
+                $tenant->uploadLogo();
+            } else {
+                Response::notFound('Tenant endpoint not found');
+            }
+            break;
+
+        // ─── EXISTING SCHOOL ROUTES (unchanged routing, but controllers now use TenantMiddleware) ───
+
         case 'realtime':
             $realtimeController = new RealtimeController();
-
-            if ($method === 'GET' && isset($path_parts[1]) && $path_parts[1] === 'stream') {
+            if ($method === 'GET' && $action === 'stream') {
                 $realtimeController->stream();
             } else {
                 Response::notFound('Realtime endpoint not found');
             }
             break;
 
-
-        // Database query routes
         case 'database':
-            if ($method === 'POST' && $path_parts[1] === 'query') {
+            if ($method === 'POST' && $action === 'query') {
                 require_once __DIR__ . '/database/query.php';
             } else {
                 Response::notFound('Database endpoint not found');
             }
             break;
 
-        // Invoice routes
         case 'invoices':
             $invoiceController = new InvoiceController();
-
-            if ($method === 'POST') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'auto-generate') {
-                    $invoiceController->autoGenerateInvoices();
-                } else {
-                    Response::notFound('Invoice endpoint not found');
-                }
-            } elseif ($method === 'GET') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'student' && isset($path_parts[2])) {
-                    $invoiceController->getStudentInvoice($path_parts[2]);
-                } elseif (isset($path_parts[1]) && $path_parts[1] === 'class' && isset($path_parts[2])) {
-                    $invoiceController->getClassInvoices($path_parts[2]);
-                } else {
-                    Response::notFound('Invoice endpoint not found');
-                }
+            if ($method === 'POST' && $action === 'auto-generate') {
+                $invoiceController->autoGenerateInvoices();
+            } elseif ($method === 'GET' && $action === 'student' && $param) {
+                $invoiceController->getStudentInvoice((int)$param);
+            } elseif ($method === 'GET' && $action === 'class' && $param) {
+                $invoiceController->getClassInvoices((int)$param);
             } else {
                 Response::notFound('Invoice endpoint not found');
             }
             break;
 
-        // Authentication routes
         case 'auth':
             $authController = new AuthController();
-
-            if ($method === 'POST' && $path_parts[1] === 'login') {
+            if ($method === 'POST' && $action === 'login') {
                 $authController->login();
-            } elseif ($method === 'POST' && $path_parts[1] === 'student-login') {
+            } elseif ($method === 'POST' && $action === 'student-login') {
                 $authController->studentLogin();
-            } elseif ($method === 'POST' && $path_parts[1] === 'logout') {
+            } elseif ($method === 'POST' && $action === 'logout') {
                 $authController->logout();
-            } elseif ($method === 'GET' && $path_parts[1] === 'profile') {
+            } elseif ($method === 'GET' && $action === 'profile') {
                 $authController->getProfile();
-            } elseif ($method === 'POST' && $path_parts[1] === 'change-password') {
+            } elseif ($method === 'POST' && $action === 'change-password') {
                 $authController->changePassword();
-            } elseif ($method === 'POST' && $path_parts[1] === 'refresh-token') {
+            } elseif ($method === 'POST' && $action === 'refresh-token') {
                 $authController->refreshToken();
             } else {
-                Response::notFound('Authentication endpoint not found');
+                Response::notFound('Auth endpoint not found');
             }
             break;
 
-        // Users routes
         case 'users':
             $userController = new UserController();
-
-            if ($method === 'GET') {
+            if ($method === 'GET' && !$action) {
                 $userController->getAllUsers();
-            } elseif ($method === 'POST') {
+            } elseif ($method === 'POST' && $action === 'reset-password' && $param) {
+                $userController->resetPassword((int)$param);
+            } elseif ($method === 'POST' && !$action) {
                 $userController->createUser();
-            } elseif ($method === 'PUT' && isset($path_parts[1])) {
-                $userController->updateUser($path_parts[1]);
-            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                $userController->deleteUser($path_parts[1]);
-            } elseif ($method === 'POST' && $path_parts[1] === 'reset-password' && isset($path_parts[2])) {
-                $userController->resetPassword($path_parts[2]);
+            } elseif ($method === 'PUT' && $action) {
+                $userController->updateUser((int)$action);
+            } elseif ($method === 'DELETE' && $action) {
+                $userController->deleteUser((int)$action);
             } else {
-                Response::notFound('Users endpoint not found');
+                Response::notFound('User endpoint not found');
             }
             break;
 
-        // Class Teacher Assignments routes
         case 'class_teacher_assignments':
             require_once __DIR__ . '/class_teacher_assignments.php';
             break;
 
-        // Progression routes
         case 'progression':
-            $progressionController = new ProgressionController($database);
-            
-            if ($method === 'GET') {
-                if ($path_parts[1] === 'rules') {
-                    $progressionController->getProgressionRules();
-                } else {
-                    Response::notFound('Progression endpoint not found');
-                }
-            } elseif ($method === 'POST') {
-                if ($path_parts[1] === 'rules') {
-                    $progressionController->createProgressionRule();
-                } else {
-                    Response::notFound('Progression endpoint not found');
-                }
-            } elseif ($method === 'PUT' && isset($path_parts[1]) && $path_parts[1] === 'rules' && isset($path_parts[2])) {
-                $progressionController->updateProgressionRule($path_parts[2]);
-            } elseif ($method === 'DELETE' && isset($path_parts[1]) && $path_parts[1] === 'rules' && isset($path_parts[2])) {
-                $progressionController->deleteProgressionRule($path_parts[2]);
+            $progressionController = new ProgressionController();
+            if ($method === 'GET' && $action === 'rules') {
+                $progressionController->getProgressionRules();
+            } elseif ($method === 'POST' && $action === 'rules') {
+                $progressionController->createProgressionRule();
+            } elseif ($method === 'PUT' && $action === 'rules' && $param) {
+                $progressionController->updateProgressionRule((int)$param);
+            } elseif ($method === 'DELETE' && $action === 'rules' && $param) {
+                $progressionController->deleteProgressionRule((int)$param);
             } else {
                 Response::notFound('Progression endpoint not found');
             }
             break;
 
-        // Student routes
         case 'students':
-            $studentController = new StudentController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'by-class' && isset($path_parts[2])) {
-                        $studentController->getStudentsByClass($path_parts[2]);
-                    } elseif ($path_parts[1] === 'statistics') {
-                        $studentController->getStudentStatistics();
-                    } elseif ($path_parts[1] === 'promotion-history') {
-                        $studentController->getPromotionHistory();
-                    } else {
-                        $studentController->getStudentById($path_parts[1]);
-                    }
-                } else {
-                    $studentController->getAllStudents();
-                }
-            } elseif ($method === 'POST') {
-                if ($path_parts[1] === 'promote-students') {
-                    $studentController->promoteStudents();
-                } elseif ($path_parts[1] === 'manual-class-change') {
-                    $studentController->manualClassChange();
-                } elseif ($path_parts[1] === 'affective-domains') {
-                    $studentController->saveAffectiveDomains();
-                } elseif ($path_parts[1] === 'psychomotor-domains') {
-                    $studentController->savePsychomotorDomains();
-                } else {
-                    $studentController->createStudent();
-                }
-            } elseif ($method === 'PUT' && isset($path_parts[1])) {
-                $studentController->updateStudent($path_parts[1]);
-            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                $studentController->deleteStudent($path_parts[1]);
-            } else {
-                Response::notFound('Student endpoint not found');
-            }
-            break;
-
-        // Backwards-compatible alias (some clients call /api/student/* instead of /api/students/*)
         case 'student':
             $studentController = new StudentController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'by-class' && isset($path_parts[2])) {
-                        $studentController->getStudentsByClass($path_parts[2]);
-                    } elseif ($path_parts[1] === 'statistics') {
-                        $studentController->getStudentStatistics();
-                    } elseif ($path_parts[1] === 'promotion-history') {
-                        $studentController->getPromotionHistory();
-                    } else {
-                        $studentController->getStudentById($path_parts[1]);
-                    }
-                } else {
-                    $studentController->getAllStudents();
-                }
-            } elseif ($method === 'POST') {
-                if ($path_parts[1] === 'promote-students') {
-                    $studentController->promoteStudents();
-                } elseif ($path_parts[1] === 'manual-class-change') {
-                    $studentController->manualClassChange();
-                } elseif ($path_parts[1] === 'affective-domains') {
-                    $studentController->saveAffectiveDomains();
-                } elseif ($path_parts[1] === 'psychomotor-domains') {
-                    $studentController->savePsychomotorDomains();
-                } else {
-                    $studentController->createStudent();
-                }
-            } elseif ($method === 'PUT' && isset($path_parts[1])) {
-                $studentController->updateStudent($path_parts[1]);
-            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                $studentController->deleteStudent($path_parts[1]);
+            if ($method === 'GET' && $action === 'statistics') {
+                $studentController->getStudentStatistics();
+            } elseif ($method === 'GET' && $action === 'promotion-history') {
+                $studentController->getPromotionHistory();
+            } elseif ($method === 'GET' && $action === 'by-class' && $param) {
+                $studentController->getStudentsByClass((int)$param);
+            } elseif ($method === 'GET' && $action) {
+                $studentController->getStudentById((int)$action);
+            } elseif ($method === 'GET' && !$action) {
+                $studentController->getAllStudents();
+            } elseif ($method === 'POST' && $action === 'promote-students') {
+                $studentController->promoteStudents();
+            } elseif ($method === 'POST' && $action === 'manual-class-change') {
+                $studentController->manualClassChange();
+            } elseif ($method === 'POST' && $action === 'affective-domains') {
+                $studentController->saveAffectiveDomains();
+            } elseif ($method === 'POST' && $action === 'psychomotor-domains') {
+                $studentController->savePsychomotorDomains();
+            } elseif ($method === 'POST' && !$action) {
+                $studentController->createStudent();
+            } elseif ($method === 'PUT' && $action) {
+                $studentController->updateStudent((int)$action);
+            } elseif ($method === 'DELETE' && $action) {
+                $studentController->deleteStudent((int)$action);
             } else {
                 Response::notFound('Student endpoint not found');
             }
             break;
 
-        // Teacher routes
         case 'teachers':
             $teacherController = new TeacherController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'assignments' && isset($path_parts[2])) {
-                        $teacherController->getTeacherAssignments($path_parts[2]);
-                    } elseif ($path_parts[1] === 'students' && isset($path_parts[2])) {
-                        $teacherController->getTeacherClassStudents($path_parts[2]);
-                    } else {
-                        $teacherController->getTeacherById($path_parts[1]);
-                    }
-                } else {
-                    $teacherController->getAllTeachers();
-                }
-            } elseif ($method === 'POST') {
+            if ($method === 'GET' && $action === 'assignments' && $param) {
+                $teacherController->getTeacherAssignments((int)$param);
+            } elseif ($method === 'GET' && $action === 'students' && $param) {
+                $teacherController->getTeacherClassStudents((int)$param);
+            } elseif ($method === 'GET' && $action) {
+                $teacherController->getTeacherById((int)$action);
+            } elseif ($method === 'GET' && !$action) {
+                $teacherController->getAllTeachers();
+            } elseif ($method === 'POST' && !$action) {
                 $teacherController->createTeacher();
-            } elseif ($method === 'PUT' && isset($path_parts[1])) {
-                $teacherController->updateTeacher($path_parts[1]);
-            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                $teacherController->deleteTeacher($path_parts[1]);
+            } elseif ($method === 'PUT' && $action) {
+                $teacherController->updateTeacher((int)$action);
+            } elseif ($method === 'DELETE' && $action) {
+                $teacherController->deleteTeacher((int)$action);
             } else {
                 Response::notFound('Teacher endpoint not found');
             }
             break;
 
-        // Class routes
         case 'classes':
             $classController = new ClassController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'students' && isset($path_parts[2])) {
-                        $classController->getClassStudents($path_parts[2]);
-                    } elseif ($path_parts[1] === 'subjects' && isset($path_parts[2])) {
-                        $classController->getClassSubjects($path_parts[2]);
-                    } elseif ($path_parts[1] === 'statistics' && isset($path_parts[2])) {
-                        $classController->getClassStatistics($path_parts[2]);
-                    } elseif ($path_parts[1] === 'by-level' && isset($path_parts[2])) {
-                        $classController->getClassesByLevel($path_parts[2]);
-                    } elseif ($path_parts[1] === 'whatsapp-groups') {
-                        $classController->getClassWhatsappGroups();
-                    } elseif ($path_parts[1] === 'public-list') {
-                        $classController->getPublicClassList();
-                    } else {
-                        $classController->getClassById($path_parts[1]);
-                    }
-                } else {
-                    $classController->getAllClasses();
-                }
-            } elseif ($method === 'POST') {
+            if ($method === 'GET' && $action === 'students' && $param) {
+                $classController->getClassStudents((int)$param);
+            } elseif ($method === 'GET' && $action === 'subjects' && $param) {
+                $classController->getClassSubjects((int)$param);
+            } elseif ($method === 'GET' && $action === 'statistics' && $param) {
+                $classController->getClassStatistics((int)$param);
+            } elseif ($method === 'GET' && $action === 'by-level' && $param) {
+                $classController->getClassesByLevel($param);
+            } elseif ($method === 'GET' && $action === 'whatsapp-groups') {
+                $classController->getClassWhatsappGroups();
+            } elseif ($method === 'GET' && $action) {
+                $classController->getClassById((int)$action);
+            } elseif ($method === 'GET' && !$action) {
+                $classController->getAllClasses();
+            } elseif ($method === 'POST' && !$action) {
                 $classController->createClass();
-            } elseif ($method === 'PUT' && isset($path_parts[1])) {
-                $classController->updateClass($path_parts[1]);
-            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                $classController->deleteClass($path_parts[1]);
+            } elseif ($method === 'PUT' && $action) {
+                $classController->updateClass((int)$action);
+            } elseif ($method === 'DELETE' && $action) {
+                $classController->deleteClass((int)$action);
             } else {
                 Response::notFound('Class endpoint not found');
             }
             break;
 
-        // Results routes
+        case 'subjects':
+            $subjectController = new SubjectController();
+            if ($method === 'GET' && $action === 'category' && $param) {
+                $subjectController->getSubjectsByCategory($param);
+            } elseif ($method === 'GET' && $action === 'assignments') {
+                $subjectController->getAssignments();
+            } elseif ($method === 'GET' && $action) {
+                $subjectController->getSubjectById((int)$action);
+            } elseif ($method === 'GET' && !$action) {
+                $subjectController->getAllSubjects();
+            } elseif ($method === 'POST' && ($action === 'assign' || $action === 'assignments')) {
+                $subjectController->assignSubject();
+            } elseif ($method === 'POST' && !$action) {
+                $subjectController->createSubject();
+            } elseif ($method === 'PUT' && $action === 'assignment' && $param) {
+                $subjectController->updateAssignment((int)$param);
+            } elseif ($method === 'PUT' && $action) {
+                $subjectController->updateSubject((int)$action);
+            } elseif ($method === 'DELETE' && $action === 'assignment' && $param) {
+                $subjectController->deleteAssignment((int)$param);
+            } elseif ($method === 'DELETE' && $action) {
+                $subjectController->deleteSubject((int)$action);
+            } else {
+                Response::notFound('Subject endpoint not found');
+            }
+            break;
+
+        case 'subject_registrations':
+            require_once __DIR__ . '/subject_registrations.php';
+            break;
+
         case 'results':
             $resultsController = new ResultsController();
-            error_log("Results route: " . json_encode($path_parts));
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'scores' && isset($path_parts[2]) && $path_parts[2] === 'by-term') {
-                        $resultsController->getScoresByTerm();
-                    } elseif ($path_parts[1] === 'scores' && isset($path_parts[2]) && is_numeric($path_parts[2])) {
-                        $resultsController->getScoresByAssignment($path_parts[2]);
-                    } elseif ($path_parts[1] === 'student' && isset($path_parts[2])) {
-                        $resultsController->getStudentResults($path_parts[2]);
-                    } elseif ($path_parts[1] === 'compiled') {
-                        $resultsController->getAllCompiledResults();
-                    } elseif ($path_parts[1] === 'pending-approvals') {
-                        $resultsController->getPendingApprovals();
-                    } elseif ($path_parts[1] === 'cumulative' && isset($path_parts[2]) && $path_parts[2] === 'class' && isset($path_parts[3])) {
-                        $resultsController->getClassCumulativeResults($path_parts[3]);
-                    } elseif ($path_parts[1] === 'cumulative' && isset($path_parts[2]) && is_numeric($path_parts[2])) {
-                        $resultsController->getCumulativeResult($path_parts[2]);
-                    } else {
-                        Response::notFound('Results endpoint not found');
-                    }
-                } else {
-                    Response::notFound('Results endpoint not found');
-                }
-            } elseif ($method === 'POST') {
-                if ($path_parts[1] === 'scores' && isset($path_parts[2]) && $path_parts[2] === 'approve' && isset($path_parts[3])) {
-                    $resultsController->approveScore($path_parts[3]);
-                } elseif ($path_parts[1] === 'scores' && isset($path_parts[2]) && $path_parts[2] === 'reject' && isset($path_parts[3])) {
-                    $resultsController->rejectScore($path_parts[3]);
-                } elseif ($path_parts[1] === 'approve' && isset($path_parts[2])) {
-                    $resultsController->approveResult($path_parts[2]);
-                } elseif ($path_parts[1] === 'reject' && isset($path_parts[2])) {
-                    $resultsController->rejectResult($path_parts[2]);
-                } elseif ($path_parts[1] === 'scores') {
-                    $resultsController->upsertScores();
-                } elseif ($path_parts[1] === 'compile') {
-                    $resultsController->compileResults();
-                } elseif ($path_parts[1] === 'compile-cumulative') {
-                    $resultsController->compileCumulative();
-                } elseif ($path_parts[1] === 'check-status') {
-                    $resultsController->checkCompilationStatus();
-                } elseif ($path_parts[1] === 'student-status') {
-                    $resultsController->checkStudentCompilationStatus();
-                } elseif ($path_parts[1] === 'submit' && isset($path_parts[2])) {
-                    $resultsController->submitScores($path_parts[2]);
-                } else {
-                    Response::notFound('Results endpoint not found');
-                }
-            } elseif ($method === 'DELETE') {
-                if ($path_parts[1] === 'compiled' && isset($path_parts[2])) {
-                    $resultsController->deleteCompiledResult($path_parts[2]);
-                } else {
-                    Response::notFound('Results endpoint not found');
-                }
+            if ($method === 'GET' && $action === 'scores' && $param === 'by-term') {
+                $resultsController->getScoresByTerm();
+            } elseif ($method === 'GET' && $action === 'scores' && $param) {
+                $resultsController->getScoresByAssignment((int)$param);
+            } elseif ($method === 'GET' && $action === 'student' && $param) {
+                $resultsController->getStudentResults((int)$param);
+            } elseif ($method === 'GET' && $action === 'compiled') {
+                $resultsController->getAllCompiledResults();
+            } elseif ($method === 'GET' && $action === 'pending-approvals') {
+                $resultsController->getPendingApprovals();
+            } elseif ($method === 'GET' && $action === 'cumulative' && $param === 'class' && $subparam) {
+                $resultsController->getClassCumulativeResults((int)$subparam);
+            } elseif ($method === 'GET' && $action === 'cumulative' && $param) {
+                $resultsController->getCumulativeResult((int)$param);
+            } elseif ($method === 'POST' && $action === 'scores' && $param === 'approve' && $subparam) {
+                $resultsController->approveScore((int)$subparam);
+            } elseif ($method === 'POST' && $action === 'scores' && $param === 'reject' && $subparam) {
+                $resultsController->rejectScore((int)$subparam);
+            } elseif ($method === 'POST' && $action === 'scores') {
+                $resultsController->upsertScores();
+            } elseif ($method === 'POST' && $action === 'compile-cumulative') {
+                $resultsController->compileCumulative();
+            } elseif ($method === 'POST' && $action === 'compile') {
+                $resultsController->compileResults();
+            } elseif ($method === 'POST' && $action === 'check-status') {
+                $resultsController->checkCompilationStatus();
+            } elseif ($method === 'POST' && $action === 'student-status') {
+                $resultsController->checkStudentCompilationStatus();
+            } elseif ($method === 'POST' && $action === 'approve' && $param) {
+                $resultsController->approveResult((int)$param);
+            } elseif ($method === 'POST' && $action === 'reject' && $param) {
+                $resultsController->rejectResult((int)$param);
+            } elseif ($method === 'POST' && $action === 'submit' && $param) {
+                $resultsController->submitScores((int)$param);
+            } elseif ($method === 'DELETE' && $action === 'compiled' && $param) {
+                $resultsController->deleteCompiledResult((int)$param);
             } else {
                 Response::notFound('Results endpoint not found');
             }
             break;
 
-        // Payment routes
         case 'payments':
             $paymentController = new PaymentController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'reports') {
-                        $paymentController->getPaymentReports();
-                    } elseif ($path_parts[1] === 'reconciliation-summary') {
-                        $paymentController->getReconciliationSummary();
-                    } elseif ($path_parts[1] === 'exceptions') {
-                        $paymentController->getPaymentExceptions();
-                    } elseif ($path_parts[1] === 'online-verify') {
-                        $paymentController->verifyOnlinePayment();
-                    } elseif ($path_parts[1] === 'student' && isset($path_parts[2])) {
-                        if (isset($path_parts[3]) && $path_parts[3] === 'history') {
-                            $paymentController->getStudentPaymentHistory($path_parts[2]);
-                        } elseif (isset($path_parts[3]) && $path_parts[3] === 'balance') {
-                            $paymentController->getStudentFeeBalance($path_parts[2]);
-                        } else {
-                            Response::notFound('Payment endpoint not found');
-                        }
-                    } else {
-                        $paymentController->getPaymentById($path_parts[1]);
-                    }
-                } else {
-                    $paymentController->getAllPayments();
-                }
-            } elseif ($method === 'POST') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'verify' && isset($path_parts[2])) {
-                        $paymentController->verifyPayment($path_parts[2]);
-                    } elseif ($path_parts[1] === 'reverse' && isset($path_parts[2])) {
-                        $paymentController->reversePayment($path_parts[2]);
-                    } elseif ($path_parts[1] === 'online-init') {
-                        $paymentController->initializeOnlinePayment();
-                    } elseif ($path_parts[1] === 'bank-transfer-proof') {
-                        $paymentController->submitBankTransferProof();
-                    } else {
-                        Response::notFound('Payment endpoint not found');
-                    }
-                } else {
-                    $paymentController->createPayment();
-                }
+            if ($method === 'GET' && $action === 'reports') {
+                $paymentController->getPaymentReports();
+            } elseif ($method === 'GET' && $action === 'reconciliation-summary') {
+                $paymentController->getReconciliationSummary();
+            } elseif ($method === 'GET' && $action === 'exceptions') {
+                $paymentController->getPaymentExceptions();
+            } elseif ($method === 'GET' && $action === 'online-verify') {
+                $paymentController->verifyOnlinePayment();
+            } elseif ($method === 'GET' && $action === 'student' && $param && $subparam === 'history') {
+                $paymentController->getStudentPaymentHistory((int)$param);
+            } elseif ($method === 'GET' && $action === 'student' && $param && $subparam === 'balance') {
+                $paymentController->getStudentFeeBalance((int)$param);
+            } elseif ($method === 'GET' && $action) {
+                $paymentController->getPaymentById((int)$action);
+            } elseif ($method === 'GET' && !$action) {
+                $paymentController->getAllPayments();
+            } elseif ($method === 'POST' && $action === 'verify' && $param) {
+                $paymentController->verifyPayment((int)$param);
+            } elseif ($method === 'POST' && $action === 'reverse' && $param) {
+                $paymentController->reversePayment((int)$param);
+            } elseif ($method === 'POST' && $action === 'online-init') {
+                $paymentController->initializeOnlinePayment();
+            } elseif ($method === 'POST' && $action === 'bank-transfer-proof') {
+                $paymentController->submitBankTransferProof();
+            } elseif ($method === 'POST' && !$action) {
+                $paymentController->createPayment();
             } else {
                 Response::notFound('Payment endpoint not found');
             }
             break;
 
-        // Parent-Student Links routes
         case 'parent-student-links':
-            require_once 'controllers/ParentController.php';
             $parentController = new ParentController();
-
             if ($method === 'GET') {
                 $parentController->getAllParentStudentLinks();
             } else {
@@ -444,489 +441,221 @@ try {
             }
             break;
 
-        // Parents routes
         case 'parents':
-            require_once 'controllers/ParentController.php';
             $parentController = new ParentController();
-
-            // Check for special paths first (link/unlink/children)
-            if (isset($path_parts[1])) {
-                if ($path_parts[1] === 'children' && isset($path_parts[2])) {
-                    $parentController->getParentChildren($path_parts[2]);
-                } elseif ($path_parts[1] === 'link' && isset($path_parts[2])) {
-                    $parentController->linkToStudent($path_parts[2]);
-                } elseif ($path_parts[1] === 'unlink' && isset($path_parts[2]) && isset($path_parts[3])) {
-                    $parentController->unlinkFromStudent($path_parts[2], $path_parts[3]);
-                } elseif ($method === 'GET') {
-                    $parentController->getParentById($path_parts[1]);
-                } elseif ($method === 'PUT') {
-                    $parentController->updateParent($path_parts[1]);
-                } elseif ($method === 'DELETE') {
-                    $parentController->deleteParent($path_parts[1]);
-                } else {
-                    Response::notFound('Parent endpoint not found');
-                }
-            } elseif ($method === 'GET') {
+            if ($method === 'GET' && $action === 'children' && $param) {
+                $parentController->getParentChildren((int)$param);
+            } elseif ($method === 'GET' && $action) {
+                $parentController->getParentById((int)$action);
+            } elseif ($method === 'GET' && !$action) {
                 $parentController->getAllParents();
-            } elseif ($method === 'POST') {
+            } elseif ($method === 'POST' && $action === 'link' && $param) {
+                $parentController->linkToStudent((int)$param);
+            } elseif ($method === 'POST' && !$action) {
                 $parentController->createParent();
+            } elseif ($method === 'PUT' && $action) {
+                $parentController->updateParent((int)$action);
+            } elseif ($method === 'DELETE' && $action === 'unlink' && $param && $subparam) {
+                $parentController->unlinkFromStudent((int)$param, (int)$subparam);
+            } elseif ($method === 'DELETE' && $action) {
+                $parentController->deleteParent((int)$action);
             } else {
                 Response::notFound('Parent endpoint not found');
             }
             break;
 
-        // Subjects routes
-        case 'subjects':
-            require_once 'controllers/SubjectController.php';
-            $subjectController = new SubjectController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'category' && isset($path_parts[2])) {
-                        $subjectController->getSubjectsByCategory($path_parts[2]);
-                    } elseif ($path_parts[1] === 'assignments') {
-                        $subjectController->getAssignments();
-                    } elseif ($path_parts[1] === 'assign') {
-                        $subjectController->assignSubject();
-                    } else {
-                        $subjectController->getSubjectById($path_parts[1]);
-                    }
-                } else {
-                    $subjectController->getAllSubjects();
-                }
-            } elseif ($method === 'POST') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'assign') {
-                    $subjectController->assignSubject();
-                } elseif (isset($path_parts[1]) && $path_parts[1] === 'assignments') {
-                    $subjectController->assignSubject();
-                } else {
-                    $subjectController->createSubject();
-                }
-            } elseif ($method === 'PUT' && isset($path_parts[1])) {
-                if ($path_parts[1] === 'assignment' && isset($path_parts[2])) {
-                    $subjectController->updateAssignment($path_parts[2]);
-                } else {
-                    $subjectController->updateSubject($path_parts[1]);
-                }
-            } elseif ($method === 'DELETE') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'assignment' && isset($path_parts[2])) {
-                    $subjectController->deleteAssignment($path_parts[2]);
-                } elseif (isset($path_parts[1])) {
-                    $subjectController->deleteSubject($path_parts[1]);
-                } else {
-                    Response::notFound('Subject endpoint not found');
-                }
-            } else {
-                Response::notFound('Subject endpoint not found');
-            }
-            break;
-
-        // Subject registrations routes
-        case 'subject_registrations':
-            if ($method === 'GET') {
-                require_once 'subject_registrations.php';
-            } else {
-                Response::notFound('Subject registrations endpoint not found');
-            }
-            break;
-
-        // Attendance routes
         case 'attendance':
-            require_once 'controllers/AttendanceController.php';
             $attendanceController = new AttendanceController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'student' && isset($path_parts[2])) {
-                        $attendanceController->getStudentAttendanceSummary($path_parts[2]);
-                    } elseif ($path_parts[1] === 'class' && isset($path_parts[2])) {
-                        $attendanceController->getClassAttendanceSummary($path_parts[2]);
-                    } elseif ($path_parts[1] === 'reports') {
-                        $attendanceController->getAttendanceReports();
-                    } else {
-                        $attendanceController->getAttendanceByDate($path_parts[1]);
-                    }
-                } else {
-                    $attendanceController->getAttendance();
-                }
-            } elseif ($method === 'POST') {
+            if ($method === 'GET' && $action === 'student' && $param) {
+                $attendanceController->getStudentAttendanceSummary((int)$param);
+            } elseif ($method === 'GET' && $action === 'class' && $param) {
+                $attendanceController->getClassAttendanceSummary((int)$param);
+            } elseif ($method === 'GET' && $action === 'reports') {
+                $attendanceController->getAttendanceReports();
+            } elseif ($method === 'GET' && $action) {
+                $attendanceController->getAttendanceByDate($action);
+            } elseif ($method === 'GET' && !$action) {
+                $attendanceController->getAttendance();
+            } elseif ($method === 'POST' && !$action) {
                 $attendanceController->markAttendance();
             } else {
                 Response::notFound('Attendance endpoint not found');
             }
             break;
 
-        // Notifications routes
         case 'notifications':
-            require_once 'controllers/NotificationController.php';
             $notificationController = new NotificationController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'unread-count') {
-                        $notificationController->getUnreadCount();
-                    } elseif ($path_parts[1] === 'user') {
-                        $notificationController->getUserNotifications();
-                    } elseif ($path_parts[1] === 'broadcast') {
-                        $notificationController->broadcastNotification();
-                    } elseif ($path_parts[1] === 'mark-all-read') {
-                        $notificationController->markAllAsRead();
-                    } else {
-                        $notificationController->getNotificationById($path_parts[1]);
-                    }
-                } else {
-                    $notificationController->getNotifications();
-                }
-            } elseif ($method === 'POST') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'broadcast') {
-                    $notificationController->broadcastNotification();
-                } else {
-                    $notificationController->createNotification();
-                }
-            } elseif ($method === 'PUT' && isset($path_parts[1])) {
-                if ($path_parts[1] === 'mark-all-read') {
-                    $notificationController->markAllAsRead();
-                } else {
-                    $notificationController->markAsRead($path_parts[1]);
-                }
-            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                // Admin can delete globally. Other roles can only dismiss for themselves.
-                $token_data = Middleware::requireAuth();
-                if (($token_data['role'] ?? '') === 'admin') {
-                    $notificationController->deleteNotification($path_parts[1]);
-                } else {
-                    $notificationController->deleteNotificationForUser($path_parts[1]);
-                }
+            if ($method === 'GET' && $action === 'unread-count') {
+                $notificationController->getUnreadCount();
+            } elseif ($method === 'GET' && $action === 'user') {
+                $notificationController->getUserNotifications();
+            } elseif ($method === 'GET' && $action) {
+                $notificationController->getNotificationById((int)$action);
+            } elseif ($method === 'GET' && !$action) {
+                $notificationController->getNotifications();
+            } elseif ($method === 'POST' && $action === 'broadcast') {
+                $notificationController->broadcastNotification();
+            } elseif ($method === 'POST' && !$action) {
+                $notificationController->createNotification();
+            } elseif ($method === 'PUT' && $param === 'mark-all-read') {
+                $notificationController->markAllAsRead();
+            } elseif ($method === 'PUT' && $action) {
+                $notificationController->markAsRead((int)$action);
+            } elseif ($method === 'DELETE' && $action) {
+                $notificationController->deleteNotification((int)$action);
             } else {
                 Response::notFound('Notification endpoint not found');
             }
             break;
 
-        // Assignments routes
         case 'assignments':
-            require_once 'controllers/AssignmentController.php';
             $assignmentController = new AssignmentController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'submissions' && isset($path_parts[2])) {
-                        $assignmentController->getSubmissions($path_parts[2]);
-                    } else {
-                        $assignmentController->getAssignmentById($path_parts[1]);
-                    }
-                } else {
-                    $assignmentController->getAllAssignments();
-                }
-            } elseif ($method === 'POST') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'submit') {
-                    $assignmentController->submitAssignment($path_parts[2]);
-                } else {
-                    $assignmentController->createAssignment();
-                }
-            } elseif ($method === 'PUT' && isset($path_parts[1])) {
-                if ($path_parts[1] === 'grade' && isset($path_parts[2])) {
-                    $assignmentController->gradeAssignment($path_parts[2]);
-                } else {
-                    $assignmentController->updateAssignment($path_parts[1]);
-                }
-            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                $assignmentController->deleteAssignment($path_parts[1]);
+            if ($method === 'GET' && $action === 'submissions' && $param) {
+                $assignmentController->getSubmissions((int)$param);
+            } elseif ($method === 'GET' && $action) {
+                $assignmentController->getAssignmentById((int)$action);
+            } elseif ($method === 'GET' && !$action) {
+                $assignmentController->getAllAssignments();
+            } elseif ($method === 'POST' && $action === 'submit' && $param) {
+                $assignmentController->submitAssignment((int)$param);
+            } elseif ($method === 'POST' && !$action) {
+                $assignmentController->createAssignment();
+            } elseif ($method === 'PUT' && $action === 'grade' && $param) {
+                $assignmentController->gradeAssignment((int)$param);
+            } elseif ($method === 'PUT' && $action) {
+                $assignmentController->updateAssignment((int)$action);
+            } elseif ($method === 'DELETE' && $action) {
+                $assignmentController->deleteAssignment((int)$action);
             } else {
                 Response::notFound('Assignment endpoint not found');
             }
             break;
 
-        // Reports routes
         case 'reports':
-            require_once 'controllers/ReportController.php';
             $reportController = new ReportController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'student' && $method === 'POST') {
-                        $reportController->generateStudentReportCard();
-                    } elseif ($path_parts[1] === 'class' && $method === 'POST') {
-                        $reportController->generateClassPerformanceReport();
-                    } elseif ($path_parts[1] === 'financial') {
-                        $reportController->generateFinancialReport();
-                    } elseif ($path_parts[1] === 'attendance') {
-                        $reportController->generateAttendanceReport();
-                    } else {
-                        Response::notFound('Report endpoint not found');
-                    }
-                } else {
-                    Response::notFound('Report endpoint not found');
-                }
-            } elseif ($method === 'POST') {
-                if (isset($path_parts[1]) && $path_parts[1] === 'student') {
-                    $reportController->generateStudentReportCard();
-                } elseif (isset($path_parts[1]) && $path_parts[1] === 'class') {
-                    $reportController->generateClassPerformanceReport();
-                } else {
-                    Response::notFound('Report endpoint not found');
-                }
+            if ($method === 'POST' && $action === 'student') {
+                $reportController->generateStudentReportCard();
+            } elseif ($method === 'POST' && $action === 'class') {
+                $reportController->generateClassPerformanceReport();
+            } elseif ($method === 'GET' && $action === 'financial') {
+                $reportController->generateFinancialReport();
+            } elseif ($method === 'GET' && $action === 'attendance') {
+                $reportController->generateAttendanceReport();
             } else {
                 Response::notFound('Report endpoint not found');
             }
             break;
 
-        // File upload routes
         case 'files':
             $fileController = new FileController();
-
-            if ($method === 'POST' && $path_parts[1] === 'upload') {
+            if ($method === 'POST' && $action === 'upload') {
                 $fileController->uploadLogo();
-            } elseif ($method === 'DELETE' && isset($path_parts[1])) {
-                $fileController->deleteFile($path_parts[1]);
+            } elseif ($method === 'DELETE' && $action) {
+                $fileController->deleteFile($action);
             } else {
                 Response::notFound('File endpoint not found');
             }
             break;
 
-        // Database query routes for CSV operations
-
-
-        // School Settings routes
         case 'school_settings':
-            require_once 'school_settings.php';
+            require_once __DIR__ . '/school_settings.php';
             break;
 
-        // Academic Years routes
         case 'academic_years':
-            require_once 'academic_years.php';
+            require_once __DIR__ . '/academic_years.php';
             break;
 
-        // CBT routes
+        case 'signature_settings':
+            require_once __DIR__ . '/signature_settings.php';
+            break;
+
         case 'cbt':
             $cbtController = new CbtController();
-
-            if ($method === 'GET') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'exams' && !isset($path_parts[2])) {
-                        $cbtController->getAllExams();
-                    } elseif ($path_parts[1] === 'exams' && isset($path_parts[2])) {
-                        $cbtController->getExamById($path_parts[2]);
-                    } elseif ($path_parts[1] === 'questions' && isset($path_parts[2])) {
-                        $cbtController->getExamQuestions($path_parts[2]);
-                    } elseif ($path_parts[1] === 'question-bank') {
-                        $cbtController->getQuestionBank();
-                    } elseif ($path_parts[1] === 'attempts' && isset($path_parts[2]) && $path_parts[2] === 'mine') {
-                        $cbtController->getMyAttempts();
-                    } elseif ($path_parts[1] === 'attempts' && isset($path_parts[2])) {
-                        $cbtController->getAttemptById($path_parts[2]);
-                    } elseif ($path_parts[1] === 'attempts') {
-                        $cbtController->getStudentAttempts();
-                    } elseif ($path_parts[1] === 'results' && isset($path_parts[2])) {
-                        $cbtController->getExamResults($path_parts[2]);
-                    } elseif ($path_parts[1] === 'student-exams') {
-                        $cbtController->getStudentAvailableExams();
-                    } else {
-                        Response::notFound('CBT endpoint not found');
-                    }
-                } else {
-                    Response::notFound('CBT endpoint not found');
-                }
-            } elseif ($method === 'POST') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'exams' && !isset($path_parts[2])) {
-                        $cbtController->createExam();
-                    } elseif ($path_parts[1] === 'exams' && isset($path_parts[2]) && $path_parts[2] === 'publish' && isset($path_parts[3])) {
-                        $cbtController->publishExam($path_parts[3]);
-                    } elseif ($path_parts[1] === 'questions' && isset($path_parts[2])) {
-                        $cbtController->addQuestion($path_parts[2]);
-                    } elseif ($path_parts[1] === 'questions-reorder' && isset($path_parts[2])) {
-                        $cbtController->reorderQuestions($path_parts[2]);
-                    } elseif ($path_parts[1] === 'import-bank' && isset($path_parts[2])) {
-                        $cbtController->importFromBank($path_parts[2]);
-                    } elseif ($path_parts[1] === 'question-bank') {
-                        $cbtController->addToQuestionBank();
-                    } elseif ($path_parts[1] === 'start' && isset($path_parts[2])) {
-                        $cbtController->startAttempt($path_parts[2]);
-                    } elseif ($path_parts[1] === 'save-answer' && isset($path_parts[2])) {
-                        $cbtController->saveAnswer($path_parts[2]);
-                    } elseif ($path_parts[1] === 'submit' && isset($path_parts[2])) {
-                        $cbtController->submitAttempt($path_parts[2]);
-                    } elseif ($path_parts[1] === 'feed-scores' && isset($path_parts[2])) {
-                        $cbtController->feedExamScores($path_parts[2]);
-                    } elseif ($path_parts[1] === 'bulk-import' && isset($path_parts[2])) {
-                        $cbtController->bulkImportQuestions($path_parts[2]);
-                    } elseif ($path_parts[1] === 'upload-image') {
-                        $cbtController->uploadQuestionImage();
-                    } elseif ($path_parts[1] === 'generate-questions') {
-                        $cbtController->generateQuestionsFromMaterial();
-                    } else {
-                        Response::notFound('CBT endpoint not found');
-                    }
-                } else {
-                    Response::notFound('CBT endpoint not found');
-                }
-            } elseif ($method === 'PUT') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'exams' && isset($path_parts[2])) {
-                        $cbtController->updateExam($path_parts[2]);
-                    } elseif ($path_parts[1] === 'questions' && isset($path_parts[2]) && isset($path_parts[3])) {
-                        $cbtController->updateQuestion($path_parts[2], $path_parts[3]);
-                    } else {
-                        Response::notFound('CBT endpoint not found');
-                    }
-                } else {
-                    Response::notFound('CBT endpoint not found');
-                }
-            } elseif ($method === 'DELETE') {
-                if (isset($path_parts[1])) {
-                    if ($path_parts[1] === 'exams' && isset($path_parts[2])) {
-                        $cbtController->deleteExam($path_parts[2]);
-                    } elseif ($path_parts[1] === 'questions' && isset($path_parts[2]) && isset($path_parts[3])) {
-                        $cbtController->deleteQuestion($path_parts[2], $path_parts[3]);
-                    } elseif ($path_parts[1] === 'question-bank' && isset($path_parts[2])) {
-                        $cbtController->deleteFromQuestionBank($path_parts[2]);
-                    } elseif ($path_parts[1] === 'scores' && isset($path_parts[2])) {
-                        $cbtController->deleteExamScores($path_parts[2]);
-                    } elseif ($path_parts[1] === 'attempts' && isset($path_parts[2])) {
-                        $cbtController->deleteAttempt($path_parts[2]);
-                    } else {
-                        Response::notFound('CBT endpoint not found');
-                    }
-                } else {
-                    Response::notFound('CBT endpoint not found');
-                }
+            if ($method === 'GET' && $action === 'exams' && $param && $subparam === 'questions') {
+                $cbtController->getExamQuestions((int)$param);
+            } elseif ($method === 'GET' && $action === 'exams' && $param) {
+                $cbtController->getExamById((int)$param);
+            } elseif ($method === 'GET' && $action === 'exams') {
+                $cbtController->getAllExams();
+            } elseif ($method === 'GET' && $action === 'questions' && $param) {
+                $cbtController->getExamQuestions((int)$param);
+            } elseif ($method === 'GET' && $action === 'question-bank') {
+                $cbtController->getQuestionBank();
+            } elseif ($method === 'GET' && $action === 'attempts' && $param === 'mine') {
+                $cbtController->getMyAttempts();
+            } elseif ($method === 'GET' && $action === 'attempts' && $param) {
+                $cbtController->getAttemptById((int)$param);
+            } elseif ($method === 'GET' && $action === 'attempts') {
+                $cbtController->getStudentAttempts();
+            } elseif ($method === 'GET' && $action === 'results' && $param) {
+                $cbtController->getExamResults((int)$param);
+            } elseif ($method === 'GET' && $action === 'student-exams') {
+                $cbtController->getStudentAvailableExams();
+            } elseif ($method === 'POST' && $action === 'exams' && $param && $subparam === 'publish') {
+                $cbtController->publishExam((int)$param);
+            } elseif ($method === 'POST' && $action === 'exams') {
+                $cbtController->createExam();
+            } elseif ($method === 'POST' && $action === 'questions' && $param) {
+                $cbtController->addQuestion((int)$param);
+            } elseif ($method === 'POST' && $action === 'questions-reorder' && $param) {
+                $cbtController->reorderQuestions((int)$param);
+            } elseif ($method === 'POST' && $action === 'import-bank' && $param) {
+                $cbtController->importFromBank((int)$param);
+            } elseif ($method === 'POST' && $action === 'question-bank') {
+                $cbtController->addToQuestionBank();
+            } elseif ($method === 'POST' && $action === 'start' && $param) {
+                $cbtController->startAttempt((int)$param);
+            } elseif ($method === 'POST' && $action === 'save-answer' && $param) {
+                $cbtController->saveAnswer((int)$param);
+            } elseif ($method === 'POST' && $action === 'submit' && $param) {
+                $cbtController->submitAttempt((int)$param);
+            } elseif ($method === 'POST' && $action === 'feed-scores' && $param) {
+                $cbtController->feedExamScores((int)$param);
+            } elseif ($method === 'POST' && $action === 'bulk-import' && $param) {
+                $cbtController->bulkImportQuestions((int)$param);
+            } elseif ($method === 'POST' && $action === 'upload-image') {
+                $cbtController->uploadQuestionImage();
+            } elseif ($method === 'POST' && $action === 'generate-questions') {
+                $cbtController->generateQuestionsFromMaterial();
+            } elseif ($method === 'PUT' && $action === 'exams' && $param) {
+                $cbtController->updateExam((int)$param);
+            } elseif ($method === 'PUT' && $action === 'questions' && $param && $subparam) {
+                $cbtController->updateQuestion((int)$param, (int)$subparam);
+            } elseif ($method === 'DELETE' && $action === 'exams' && $param) {
+                $cbtController->deleteExam((int)$param);
+            } elseif ($method === 'DELETE' && $action === 'questions' && $param && $subparam) {
+                $cbtController->deleteQuestion((int)$param, (int)$subparam);
+            } elseif ($method === 'DELETE' && $action === 'question-bank' && $param) {
+                $cbtController->deleteFromQuestionBank((int)$param);
+            } elseif ($method === 'DELETE' && $action === 'scores' && $param) {
+                $cbtController->deleteExamScores((int)$param);
+            } elseif ($method === 'DELETE' && $action === 'attempts' && $param) {
+                $cbtController->deleteAttempt((int)$param);
             } else {
                 Response::notFound('CBT endpoint not found');
             }
             break;
 
-        // Default route
-        default:
-            // API info endpoint
-            if ($path_parts[0] === '' || $path_parts[0] === 'info') {
-                Response::success([
-                    'name' => 'Graceland Royal Academy API',
-                    'version' => '1.0.0',
-                    'description' => 'School Management System REST API',
-                    'endpoints' => [
-                        'Authentication' => [
-                            'POST /auth/login' => 'User login',
-                            'POST /auth/logout' => 'User logout',
-                            'GET /auth/profile' => 'Get user profile',
-                            'POST /auth/change-password' => 'Change password',
-                            'POST /auth/refresh-token' => 'Refresh JWT token'
-                        ],
-                        'Students' => [
-                            'GET /students' => 'Get all students',
-                            'GET /students/{id}' => 'Get student by ID',
-                            'POST /students' => 'Create new student',
-                            'PUT /students/{id}' => 'Update student',
-                            'DELETE /students/{id}' => 'Delete student',
-                            'GET /students/by-class/{class_id}' => 'Get students by class',
-                            'POST /students/promote' => 'Promote students'
-                        ],
-                        'Teachers' => [
-                            'GET /teachers' => 'Get all teachers',
-                            'GET /teachers/{id}' => 'Get teacher by ID',
-                            'POST /teachers' => 'Create new teacher',
-                            'PUT /teachers/{id}' => 'Update teacher',
-                            'DELETE /teachers/{id}' => 'Delete teacher',
-                            'GET /teachers/assignments/{teacher_id}' => 'Get teacher assignments',
-                            'GET /teachers/students/{teacher_id}' => 'Get teacher class students'
-                        ],
-                        'Classes' => [
-                            'GET /classes' => 'Get all classes',
-                            'GET /classes/{id}' => 'Get class by ID',
-                            'POST /classes' => 'Create new class',
-                            'PUT /classes/{id}' => 'Update class',
-                            'DELETE /classes/{id}' => 'Delete class',
-                            'GET /classes/students/{class_id}' => 'Get class students',
-                            'GET /classes/subjects/{class_id}' => 'Get class subjects',
-                            'GET /classes/statistics/{class_id}' => 'Get class statistics',
-                            'GET /classes/by-level/{level}' => 'Get classes by level'
-                        ],
-                        'Results' => [
-                            'GET /results/scores/{assignment_id}' => 'Get scores by assignment',
-                            'POST /results/scores' => 'Create/update scores',
-                            'POST /results/submit/{assignment_id}' => 'Submit scores for approval',
-                            'GET /results/student/{student_id}' => 'Get student results',
-                            'GET /results/compiled' => 'Get all compiled results',
-                            'POST /results/compile' => 'Compile student results',
-                            'GET /results/pending-approvals' => 'Get pending approvals',
-                            'POST /results/approve/{result_id}' => 'Approve/reject result'
-                        ],
-                        'Payments' => [
-                            'GET /payments' => 'Get all payments',
-                            'GET /payments/{id}' => 'Get payment by ID',
-                            'POST /payments' => 'Create new payment',
-                            'POST /payments/verify/{id}' => 'Verify/reject payment',
-                            'GET /payments/student/{student_id}/history' => 'Get student payment history',
-                            'GET /payments/student/{student_id}/balance' => 'Get student fee balance',
-                            'GET /payments/reports' => 'Get payment reports'
-                        ],
-                        'Parents' => [
-                            'GET /parents' => 'Get all parents',
-                            'GET /parents/{id}' => 'Get parent by ID',
-                            'POST /parents' => 'Create new parent',
-                            'PUT /parents/{id}' => 'Update parent',
-                            'DELETE /parents/{id}' => 'Delete parent',
-                            'GET /parents/children/{parent_id}' => 'Get parent children',
-                            'POST /parents/link/{parent_id}' => 'Link parent to student',
-                            'DELETE /parents/unlink/{parent_id}/{student_id}' => 'Unlink parent from student'
-                        ],
-                        'Subjects' => [
-                            'GET /subjects' => 'Get all subjects',
-                            'GET /subjects/{id}' => 'Get subject by ID',
-                            'POST /subjects' => 'Create new subject',
-                            'PUT /subjects/{id}' => 'Update subject',
-                            'DELETE /subjects/{id}' => 'Delete subject',
-                            'GET /subjects/category/{category}' => 'Get subjects by category',
-                            'GET /subjects/assignments' => 'Get subject assignments',
-                            'POST /subjects/assign' => 'Assign subject to class and teacher',
-                            'PUT /subjects/assignment/{id}' => 'Update subject assignment',
-                            'DELETE /subjects/assignment/{id}' => 'Delete subject assignment'
-                        ],
-                        'Attendance' => [
-                            'GET /attendance' => 'Get all attendance records',
-                            'GET /attendance/{date}' => 'Get attendance by date',
-                            'POST /attendance' => 'Mark attendance',
-                            'GET /attendance/student/{student_id}' => 'Get student attendance summary',
-                            'GET /attendance/class/{class_id}' => 'Get class attendance summary',
-                            'GET /attendance/reports' => 'Get attendance reports'
-                        ],
-                        'Notifications' => [
-                            'GET /notifications' => 'Get all notifications',
-                            'GET /notifications/{id}' => 'Get notification by ID',
-                            'POST /notifications' => 'Create new notification',
-                            'PUT /notifications/{id}' => 'Mark notification as read',
-                            'DELETE /notifications/{id}' => 'Delete notification',
-                            'GET /notifications/unread-count' => 'Get unread count',
-                            'GET /notifications/user' => 'Get user notifications',
-                            'POST /notifications/broadcast' => 'Broadcast notification',
-                            'PUT /notifications/mark-all-read' => 'Mark all as read'
-                        ],
-                        'Assignments' => [
-                            'GET /assignments' => 'Get all assignments',
-                            'GET /assignments/{id}' => 'Get assignment by ID',
-                            'POST /assignments' => 'Create new assignment',
-                            'PUT /assignments/{id}' => 'Update assignment',
-                            'DELETE /assignments/{id}' => 'Delete assignment',
-                            'GET /assignments/submissions/{assignment_id}' => 'Get assignment submissions',
-                            'POST /assignments/submit/{assignment_id}' => 'Submit assignment',
-                            'PUT /assignments/grade/{submission_id}' => 'Grade assignment'
-                        ],
-                        'Reports' => [
-                            'POST /reports/student' => 'Generate student report card',
-                            'POST /reports/class' => 'Generate class performance report',
-                            'GET /reports/financial' => 'Generate financial report',
-                            'GET /reports/attendance' => 'Generate attendance report'
-                        ]
-                    ],
-                    'authentication' => 'JWT Bearer Token required for protected endpoints',
-                    'documentation' => 'Contact system administrator for detailed API documentation'
-                ], 'API Information');
-            } else {
-                Response::notFound('Endpoint not found');
-            }
+        case '':
+        case 'info':
+            Response::success([
+                'platform' => 'SMugFlex',
+                'version'  => '2.0.0',
+                'endpoints' => [
+                    'auth'   => '/auth/*',
+                    'schools' => '/schools/*',
+                    'super-admin' => '/super-admin/*',
+                    'students' => '/students/*',
+                    'teachers' => '/teachers/*',
+                    'classes'  => '/classes/*',
+                ],
+            ], 'SMugFlex API');
             break;
+
+        default:
+            Response::notFound('Endpoint not found');
     }
 } catch (Exception $e) {
     error_log("API Error: " . $e->getMessage());
-    Response::serverError('Internal server error');
+    Response::serverError('An internal error occurred');
 }
-?>

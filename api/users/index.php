@@ -1,7 +1,7 @@
 <?php
 /**
  * Users List API Endpoint
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../helpers/Response.php';

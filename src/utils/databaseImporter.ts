@@ -1,10 +1,11 @@
 /**
  * Real SQL Database Integration for CSV Imports
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Management Platform
  * Direct MySQL database operations
  */
 
 import { toast } from 'sonner';
+import { API_CONFIG } from '../config/api';
 import { Student, Teacher, Class, Subject, Parent } from '../contexts/SchoolContext';
 import sqlDatabase from '../services/sqlDatabase';
 
@@ -224,10 +225,11 @@ export class StudentDatabaseImporter {
     const year = new Date().getFullYear();
     let attempts = 0;
     const maxAttempts = 100;
+    const prefix = databaseImporter.getSchoolPrefix();
     
     while (attempts < maxAttempts) {
       const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-      const admissionNumber = `GRA/${year}/${random}`;
+      const admissionNumber = `${prefix}/${year}/${random}`;
       
       // Check if this admission number already exists
       const existingStudent = await sqlDatabase.checkAdmissionNumberExists(admissionNumber);
@@ -240,7 +242,18 @@ export class StudentDatabaseImporter {
     
     // Fallback: use timestamp if we can't generate a unique number
     const timestamp = Date.now().toString().slice(-4);
-    return `GRA/${year}/${timestamp}`;
+    return `${prefix}/${year}/${timestamp}`;
+  }
+
+  private static getSchoolPrefix(): string {
+    try {
+      const userStr = localStorage.getItem(API_CONFIG.AUTH.USER_KEY);
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return (user.school_suffix || 'STU').toUpperCase();
+      }
+    } catch {}
+    return 'STU';
   }
 }
 

@@ -750,7 +750,7 @@ export function SystemFlowChart() {
             </Button>
             <div className="flex items-center gap-2 text-[#C0C8D3]">
               <School className="w-4 h-4" />
-              Graceland Royal Academy
+              SMugFlex 2.0
             </div>
           </div>
           <div className="flex items-center gap-3 mb-2">

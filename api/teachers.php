@@ -12,11 +12,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 try {
     require_once 'config/database.php';
+    require_once 'helpers/Middleware.php';
+    require_once 'helpers/TenantMiddleware.php';
     $database = new Database();
     $conn = $database->getConnection();
     
-    $sql = "SELECT id, first_name, last_name, email, phone, employee_id, status FROM teachers ORDER BY first_name, last_name";
-    $result = $conn->query($sql);
+    $token_data = Middleware::requireAuth();
+    $school_id = TenantMiddleware::resolveSchoolId($conn);
+    
+    $sql = "SELECT id, first_name, last_name, email, phone, employee_id, status FROM teachers WHERE school_id = :school_id ORDER BY first_name, last_name";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+    $stmt->execute();
+    $result = $stmt;
     
     $teachers = [];
     $rawCount = 0;

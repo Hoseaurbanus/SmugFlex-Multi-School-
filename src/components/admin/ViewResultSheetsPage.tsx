@@ -224,7 +224,7 @@ export function ViewResultSheetsPage() {
         `;
         
         // Write the complete HTML with enhanced styling
-        printWindow.document.write('<html><head><title>Result Sheet - Graceland Royal Academy</title>');
+        printWindow.document.write(`<html><head><title>Result Sheet - ${currentUser?.school_name || 'School'}</title>`);
         printWindow.document.write(printStyles);
         printWindow.document.write('</head><body>');
         printWindow.document.write(resultSheetContent);

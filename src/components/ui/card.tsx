@@ -1,15 +1,24 @@
 import * as React from "react";
-
 import { cn } from '../../lib/utils';
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+interface CardProps extends React.ComponentProps<"div"> {
+  variant?: 'default' | 'elevated' | 'outlined' | 'interactive' | 'glass' | 'gradient';
+}
+
+function Card({ className, variant = 'default', ...props }: CardProps) {
+  const variants = {
+    default: "bg-card text-card-foreground rounded-xl border border-border shadow-sm",
+    elevated: "bg-card text-card-foreground rounded-xl border border-border shadow-lg",
+    outlined: "bg-card text-card-foreground rounded-xl border-2 border-border",
+    interactive: "bg-card text-card-foreground rounded-xl border border-border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer",
+    glass: "glass text-card-foreground rounded-xl",
+    gradient: "bg-gradient-primary text-white rounded-xl border-0 shadow-lg",
+  };
+
   return (
     <div
       data-slot="card"
-      className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border",
-        className,
-      )}
+      className={cn(variants[variant], className)}
       {...props}
     />
   );
@@ -32,7 +41,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <h4
       data-slot="card-title"
-      className={cn("leading-none", className)}
+      className={cn("leading-none font-semibold", className)}
       {...props}
     />
   );
@@ -42,7 +51,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <p
       data-slot="card-description"
-      className={cn("text-muted-foreground", className)}
+      className={cn("text-muted-foreground text-sm", className)}
       {...props}
     />
   );

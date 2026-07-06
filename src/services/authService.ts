@@ -1,6 +1,6 @@
 /**
  * Authentication Service
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Management Platform
  * Centralized token management and authentication utilities
  */
 
@@ -20,7 +20,7 @@ export interface AuthUser {
 }
 
 export interface LoginRequest {
-  username: string;
+  identity: string;
   password: string;
   role: 'admin' | 'teacher' | 'accountant' | 'parent';
 }

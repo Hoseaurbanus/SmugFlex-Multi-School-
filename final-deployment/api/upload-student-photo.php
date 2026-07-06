@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/helpers/Response.php';
+require_once __DIR__ . '/helpers/TenantMiddleware.php';
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/helpers/Middleware.php';
 
@@ -13,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Require admin privileges via JWT
-Middleware::requireRole('admin');
+$token_data = Middleware::requireRole('admin');
 
 try {
     if (!isset($_FILES['passport']) || $_FILES['passport']['error'] !== UPLOAD_ERR_OK) {
@@ -26,6 +27,8 @@ try {
 
     $database = new Database();
     $pdo = $database->getConnection();
+
+    $school_id = TenantMiddleware::resolveSchoolId($pdo);
 
     $student_id = intval($_POST['student_id']);
     $file = $_FILES['passport'];
@@ -126,9 +129,9 @@ try {
 
     // Update database with new photo URL
     $photo_url = rtrim($basePrefix, '/') . '/assets/images/students/' . $filename;
-    $update_query = "UPDATE students SET photo_url = ? WHERE id = ?";
+    $update_query = "UPDATE students SET photo_url = ? WHERE id = ? AND school_id = ?";
     $stmt = $pdo->prepare($update_query);
-    $result = $stmt->execute([$photo_url, $student_id]);
+    $result = $stmt->execute([$photo_url, $student_id, $school_id]);
 
     if (!$result) {
         // Remove uploaded file if database update fails

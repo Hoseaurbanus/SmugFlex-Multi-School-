@@ -102,7 +102,7 @@ export function AddStudentPage() {
       gender: formData.gender, // Now TypeScript knows this is 'Male' | 'Female'
       photo_url: formData.photoUrl || undefined,
       status: 'Active',
-      academic_year: currentAcademicYear,
+      academic_year: currentAcademicYear ?? '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -349,7 +349,7 @@ export function AddStudentPage() {
                 <div className="space-y-2">
                   <Label className="text-gray-700">Academic Year</Label>
                   <Input
-                    value={currentAcademicYear}
+                    value={currentAcademicYear ?? ''}
                     disabled
                     className="h-12 rounded-xl border border-gray-300 bg-gray-100 text-gray-900"
                   />

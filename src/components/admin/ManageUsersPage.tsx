@@ -1,4 +1,4 @@
-import { Settings, Calculator, GraduationCap, KeyRound, User, CheckCircle, Edit, Trash2, Eye, Plus, Download, FileText, Search, Key, UserX, UserCheck } from 'lucide-react';
+import { GearSix, Calculator, GraduationCap, User, CheckCircle, PencilSimple, Trash, Eye, Plus, Download, FileText, MagnifyingGlass, Key, UserMinus, UserCheck } from '@phosphor-icons/react';
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
@@ -30,7 +30,7 @@ import {
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { useSchool, Teacher, Parent, Accountant, User as UserType } from "../../contexts/SchoolContext";
-import { User as UserIcon } from "lucide-react";
+import { User as UserIcon } from "@phosphor-icons/react";
 import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -511,10 +511,10 @@ export function ManageUsersPage() {
 
   const getRoleBadgeColor = (role: string) => {
     switch(role) {
-      case "admin": return "bg-[#DC3545]";
-      case "teacher": return "bg-[#1E90FF]";
-      case "accountant": return "bg-[#FFC107]";
-      case "parent": return "bg-[#28A745]";
+      case "admin": return "bg-[#EF4444]";
+      case "teacher": return "bg-[#0A2540]";
+      case "accountant": return "bg-[#F59E0B]";
+      case "parent": return "bg-[#10B981]";
       default: return "bg-[#C0C8D3]";
     }
   };
@@ -726,7 +726,7 @@ export function ManageUsersPage() {
       {isLoading && (
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0A2540] mx-auto mb-4"></div>
             <p className="text-gray-600">Loading user data...</p>
           </div>
         </div>
@@ -735,18 +735,18 @@ export function ManageUsersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+          <h1 className="text-2xl font-heading font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600">Create and manage system users with role-based access</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Button
             onClick={handleCreateUser}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
+            className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
             size="sm"
             disabled={isLoading}
             type="button"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" weight="bold" />
             <span className="hidden sm:inline">Create User</span>
             <span className="sm:hidden">New User</span>
           </Button>
@@ -758,7 +758,7 @@ export function ManageUsersPage() {
             disabled={isLoading}
             type="button"
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-4 h-4" weight="bold" />
             <span className="hidden sm:inline">Export</span>
             <span className="sm:hidden">Export</span>
           </Button>
@@ -767,53 +767,53 @@ export function ManageUsersPage() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-blue-200 bg-blue-50">
+        <div className="section-band border-[#0A2540]/20 bg-[#0A2540]/5">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-600 text-xs font-medium">Total Users</p>
-                <p className="text-lg font-bold text-blue-900">{stats.users.total}</p>
+                <p className="text-[#0A2540] text-xs font-medium">Total Users</p>
+                <p className="text-lg font-bold text-[#0A2540]">{stats.users.total}</p>
               </div>
-              <UserIcon className="w-6 h-6 text-blue-500" />
+              <UserIcon className="w-6 h-6 text-[#0A2540]" weight="bold" />
             </div>
           </CardContent>
-        </Card>
+        </div>
         
-        <Card className="border-green-200 bg-green-50">
+        <div className="section-band border-emerald-200 bg-emerald-50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-600 text-xs font-medium">Active Users</p>
-                <p className="text-lg font-bold text-green-900">{stats.users.active}</p>
+                <p className="text-emerald-600 text-xs font-medium">Active Users</p>
+                <p className="text-lg font-bold text-emerald-900">{stats.users.active}</p>
               </div>
-              <span className="w-6 h-6 text-green-500" />
+              <span className="w-6 h-6 text-emerald-500" />
             </div>
           </CardContent>
-        </Card>
+        </div>
         
-        <Card className="border-orange-200 bg-orange-50">
+        <div className="section-band border-orange-200 bg-orange-50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-orange-600 text-xs font-medium">Inactive Users</p>
                 <p className="text-lg font-bold text-orange-900">{stats.users.inactive}</p>
               </div>
-              <Settings className="w-6 h-6 text-orange-500" />
+              <GearSix className="w-6 h-6 text-orange-500" weight="bold" />
             </div>
           </CardContent>
-        </Card>
+        </div>
         
-        <Card className="border-purple-200 bg-purple-50">
+        <div className="section-band border-[#0A2540]/20 bg-[#0A2540]/5">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-600 text-xs font-medium">Admin Users</p>
-                <p className="text-lg font-bold text-purple-900">{stats.users.admin}</p>
+                <p className="text-[#0A2540] text-xs font-medium">Admin Users</p>
+                <p className="text-lg font-bold text-[#0A2540]">{stats.users.admin}</p>
               </div>
-              <Settings className="w-6 h-6 text-purple-500" />
+              <GearSix className="w-6 h-6 text-[#0A2540]" weight="bold" />
             </div>
           </CardContent>
-        </Card>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -855,18 +855,18 @@ export function ManageUsersPage() {
       <div className="space-y-4">
 
         {/* Filters */}
-        <Card className="border-gray-200">
+        <div className="section-band border-gray-100">
             <CardContent className="p-6">
             {/* Search only - role filter handled by navigation buttons */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" weight="bold" />
                   <Input
                     placeholder="Search by name, email, or phone..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                    className="pl-10 h-11 rounded-xl border-gray-200 focus:border-[#0A2540] focus:ring-[#0A2540]/20"
                   />
                 </div>
               </div>
@@ -877,12 +877,12 @@ export function ManageUsersPage() {
               </span>
             </div>
           </CardContent>
-        </Card>
+        </div>
 
           {/* Users Table - Desktop */}
-        <Card className="border-gray-200 hidden lg:block">
-          <CardHeader className="border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
+        <div className="section-band border-gray-100 hidden lg:block">
+          <CardHeader className="border-b border-gray-100">
+            <h3 className="text-lg font-heading font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
           </CardHeader>
           <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -920,7 +920,7 @@ export function ManageUsersPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge className={user.status === "Active" ? "bg-green-100 text-green-800 border-0 text-xs" : "bg-red-100 text-red-800 border-0 text-xs"}>
+                            <Badge className={user.status === "Active" ? "bg-emerald-100 text-emerald-800 border-0 text-xs" : "bg-red-100 text-red-800 border-0 text-xs"}>
                               {user.status}
                             </Badge>
                           </TableCell>
@@ -937,7 +937,7 @@ export function ManageUsersPage() {
                                 title="View Details"
                                 type="button"
                               >
-                                <Eye className="w-3 h-3" />
+                                <Eye className="w-3 h-3" weight="bold" />
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(user); }}
@@ -947,7 +947,7 @@ export function ManageUsersPage() {
                                 title="Edit User"
                                 type="button"
                               >
-                                <Edit className="w-3 h-3" />
+                                <PencilSimple className="w-3 h-3" weight="bold" />
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleResetPassword(user); }}
@@ -957,17 +957,17 @@ export function ManageUsersPage() {
                                 title="Reset Password"
                                 type="button"
                               >
-                                <Key className="w-3 h-3" />
+                                <Key className="w-3 h-3" weight="bold" />
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeactivate(user); }}
                                 size="sm"
                                 variant={user.status === 'Active' ? 'outline' : 'default'}
-                                className={`h-8 w-8 p-0 ${user.status === 'Active' ? 'border-gray-300 hover:bg-gray-100' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                                className={`h-8 w-8 p-0 ${user.status === 'Active' ? 'border-gray-300 hover:bg-gray-100' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
                                 title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
                                 type="button"
                               >
-                                {user.status === 'Active' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
+                                {user.status === 'Active' ? <UserMinus className="w-3 h-3" weight="bold" /> : <UserCheck className="w-3 h-3" weight="bold" />}
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(user); }}
@@ -977,7 +977,7 @@ export function ManageUsersPage() {
                                 title="Delete User"
                                 type="button"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash className="w-3 h-3" weight="bold" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1029,12 +1029,12 @@ export function ManageUsersPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </div>
 
           {/* Users Card View - Mobile */}
-          <Card className="border-gray-200 block lg:hidden">
-            <CardHeader className="border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
+          <div className="section-band border-gray-100 block lg:hidden">
+            <CardHeader className="border-b border-gray-100">
+              <h3 className="text-lg font-heading font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
               {filteredUsers.length === 0 ? (
@@ -1043,7 +1043,7 @@ export function ManageUsersPage() {
                 </div>
               ) : (
                 paginatedUsers.map((user: UserType) => (
-                  <Card key={user.id} className="border-gray-200">
+                  <div key={user.id} className="section-band border-gray-100">
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -1058,7 +1058,7 @@ export function ManageUsersPage() {
                           <Badge className={`${getRoleBadgeColor(user.role)} text-white border-0 capitalize text-xs`}>
                             {user.role}
                           </Badge>
-                          <Badge className={user.status === "Active" ? "bg-green-100 text-green-800 border-0 text-xs" : "bg-red-100 text-red-800 border-0 text-xs"}>
+                          <Badge className={user.status === "Active" ? "bg-emerald-100 text-emerald-800 border-0 text-xs" : "bg-red-100 text-red-800 border-0 text-xs"}>
                             {user.status}
                           </Badge>
                         </div>
@@ -1075,7 +1075,7 @@ export function ManageUsersPage() {
                           title="View Details"
                           type="button"
                         >
-                          <Eye className="w-3 h-3" />
+                          <Eye className="w-3 h-3" weight="bold" />
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(user); }}
@@ -1085,7 +1085,7 @@ export function ManageUsersPage() {
                           title="Edit User"
                           type="button"
                         >
-                          <Edit className="w-3 h-3" />
+                          <PencilSimple className="w-3 h-3" weight="bold" />
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleResetPassword(user); }}
@@ -1095,17 +1095,17 @@ export function ManageUsersPage() {
                           title="Reset Password"
                           type="button"
                         >
-                          <Key className="w-3 h-3" />
+                          <Key className="w-3 h-3" weight="bold" />
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeactivate(user); }}
                           size="sm"
                           variant={user.status === 'Active' ? 'outline' : 'default'}
-                          className={`h-8 w-8 p-0 ${user.status === 'Active' ? 'border-gray-300 hover:bg-gray-100' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                          className={`h-8 w-8 p-0 ${user.status === 'Active' ? 'border-gray-300 hover:bg-gray-100' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
                           title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
                           type="button"
                         >
-                          {user.status === 'Active' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
+                          {user.status === 'Active' ? <UserMinus className="w-3 h-3" weight="bold" /> : <UserCheck className="w-3 h-3" weight="bold" />}
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(user); }}
@@ -1115,11 +1115,11 @@ export function ManageUsersPage() {
                           title="Delete User"
                           type="button"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash className="w-3 h-3" weight="bold" />
                         </Button>
                       </div>
                     </CardContent>
-                  </Card>
+                  </div>
                 ))
               )}
               {filteredUsers.length > 0 && (
@@ -1164,7 +1164,7 @@ export function ManageUsersPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </div>
       </div>
 
       {/* Create User Dialog */}
@@ -1436,11 +1436,11 @@ export function ManageUsersPage() {
             {/* User Photo Display */}
             {selectedUser && (
               <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="w-8 h-8 text-blue-600" />
+                <div className="w-16 h-16 bg-[#0A2540]/10 rounded-full flex items-center justify-center">
+                  <User className="w-8 h-8 text-[#0A2540]" weight="bold" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg">{getUserFullName(selectedUser)}</h3>
+                  <h3 className="font-heading font-semibold text-lg">{getUserFullName(selectedUser)}</h3>
                   <p className="text-sm text-gray-500">@{selectedUser.username}</p>
                   <Badge className={getRoleBadgeColor(selectedUser.role)}>
                     {selectedUser.role}
@@ -1475,7 +1475,7 @@ export function ManageUsersPage() {
             
             {/* Complete Name Fields */}
             <div className="space-y-3">
-              <h4 className="font-medium text-gray-900">Complete Name</h4>
+              <h4 className="font-heading font-semibold text-gray-900">Complete Name</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="edit-firstName">First Name *</Label>
@@ -1511,7 +1511,7 @@ export function ManageUsersPage() {
             
             {/* Contact Information */}
             <div className="space-y-3">
-              <h4 className="font-medium text-gray-900">Contact Information</h4>
+              <h4 className="font-heading font-semibold text-gray-900">Contact Information</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-phone">Primary Phone</Label>
@@ -1579,7 +1579,7 @@ export function ManageUsersPage() {
             {/* Role-specific fields */}
             {editFormData.role === 'teacher' && (
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Teacher Information</h4>
+                <h4 className="font-heading font-semibold text-gray-900">Teacher Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="edit-employeeId">Employee ID</Label>
@@ -1629,7 +1629,7 @@ export function ManageUsersPage() {
             
             {editFormData.role === 'accountant' && (
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Accountant Information</h4>
+                <h4 className="font-heading font-semibold text-gray-900">Accountant Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="edit-employeeId">Employee ID</Label>
@@ -1656,7 +1656,7 @@ export function ManageUsersPage() {
             
             {editFormData.role === 'parent' && (
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Parent Information</h4>
+                <h4 className="font-heading font-semibold text-gray-900">Parent Information</h4>
                 <div>
                   <Label htmlFor="edit-occupation">Occupation</Label>
                   <Input
@@ -1739,7 +1739,7 @@ export function ManageUsersPage() {
             <Button 
               onClick={confirmDeactivate}
               disabled={isLoading}
-              className={selectedUser?.status === 'Active' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
+              className={selectedUser?.status === 'Active' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}
             >
               {isLoading ? 'Processing...' : (selectedUser?.status === 'Active' ? 'Deactivate User' : 'Activate User')}
             </Button>

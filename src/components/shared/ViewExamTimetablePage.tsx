@@ -70,7 +70,7 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
 
   const handleDownload = () => {
     // Create CSV content
-    let csvContent = `Graceland Royal Academy Gombe - Exam Timetable\n`;
+    let csvContent = `${currentUser?.school_name || currentUser?.school_suffix || 'School'} - Exam Timetable\n`;
     csvContent += `Term: ${currentTerm}, Academic Year: ${currentAcademicYear}\n`;
     csvContent += `Class: ${selectedClassId ? classes.find(c => c.id === selectedClassId)?.name : 'All Classes'}\n\n`;
     csvContent += `Date,Day,Subject,Start Time,End Time,Duration (mins),Venue,Instructions\n`;

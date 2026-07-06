@@ -1,6 +1,6 @@
 /**
  * Term Change Detection and Auto-Refresh System
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Management Platform
  */
 
 import { useEffect, useRef } from 'react';

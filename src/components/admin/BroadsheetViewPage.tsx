@@ -161,7 +161,7 @@ export function BroadsheetViewPage() {
                         <tr key={student.id} className="border-b border-[#E5E7EB] hover:bg-[#F9FAFB]">
                           <td className="p-3 sticky left-0 bg-white">{pos}</td>
                           <td className="p-3 font-medium text-[#1F2937] sticky left-12 bg-white">
-                            {student.firstName || student.first_name} {student.lastName || student.last_name}
+                            {student.firstName} {student.lastName}
                           </td>
                           <td className="p-3 text-[#6B7280]">{student.admissionNumber}</td>
                           {classAssignments.map((assignment) => {

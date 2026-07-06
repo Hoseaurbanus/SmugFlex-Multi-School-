@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { KeyRound, Settings, Link } from "lucide-react";
-import { Card, CardContent, CardHeader } from "../ui/card";
+import { Key, Gear, Link as LinkIcon } from '@phosphor-icons/react';
+import { CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 // @ts-ignore - TypeScript language service caching issue
@@ -26,20 +26,20 @@ export function ActivityLogsPage() {
   });
 
   const getActionIcon = (action: string) => {
-    if (action.includes('User') || action.includes('Create')) return <Settings className="w-4 h-4" />;
-    if (action.includes('Password')) return <KeyRound className="w-4 h-4" />;
-    if (action.includes('Link') || action.includes('Unlink')) return <Link className="w-4 h-4" />;
+    if (action.includes('User') || action.includes('Create')) return <Gear weight="bold" className="w-4 h-4" />;
+    if (action.includes('Password')) return <Key weight="bold" className="w-4 h-4" />;
+    if (action.includes('Link') || action.includes('Unlink')) return <LinkIcon weight="bold" className="w-4 h-4" />;
     if (action.includes('Deactivate') || action.includes('Activate')) return <span className="w-4 h-4" />;
-    return <Settings className="w-4 h-4" />;
+    return <Gear weight="bold" className="w-4 h-4" />;
   };
 
   const getActionBadgeColor = (action: string) => {
-    if (action.includes('Create') || action.includes('Add')) return "bg-[#28A745]";
-    if (action.includes('Password') || action.includes('Reset')) return "bg-[#FFC107]";
-    if (action.includes('Link') && !action.includes('Unlink')) return "bg-[#1E90FF]";
-    if (action.includes('Delete') || action.includes('Unlink') || action.includes('Deactivate')) return "bg-[#DC3545]";
-    if (action.includes('Activate') || action.includes('Approve')) return "bg-[#28A745]";
-    return "bg-[#C0C8D3]";
+    if (action.includes('Create') || action.includes('Add')) return "bg-emerald-500";
+    if (action.includes('Password') || action.includes('Reset')) return "bg-amber-500";
+    if (action.includes('Link') && !action.includes('Unlink')) return "bg-[#0A2540]";
+    if (action.includes('Delete') || action.includes('Unlink') || action.includes('Deactivate')) return "bg-red-500";
+    if (action.includes('Activate') || action.includes('Approve')) return "bg-emerald-500";
+    return "bg-gray-300";
   };
 
   const handleExport = () => {
@@ -73,53 +73,53 @@ export function ActivityLogsPage() {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-white mb-2">Activity Logs</h1>
-        <p className="text-[#C0C8D3]">Audit trail of all administrative actions</p>
+        <h1 className="text-[#0A2540] font-heading font-bold mb-2">Activity Logs</h1>
+        <p className="text-gray-400">Audit trail of all administrative actions</p>
       </div>
 
-      <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
-        <CardHeader className="p-5 border-b border-white/10">
+      <div className="bg-white rounded-xl border border-gray-100/80">
+        <CardHeader className="p-5 border-b border-gray-100">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <div className="relative flex-1 max-w-md w-full">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#C0C8D3]" />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by actor, action, or target..."
-                className="h-12 pl-10 rounded-xl border border-white/10 bg-[#0F243E] text-white"
+                className="h-12 pl-10 rounded-xl border border-gray-100 bg-white text-[#0A2540]"
               />
             </div>
 
             <div className="flex flex-wrap gap-3 w-full lg:w-auto">
               <Select value={filterAction} onValueChange={setFilterAction}>
-                <SelectTrigger className="h-12 w-full sm:w-48 rounded-xl border border-white/10 bg-[#0F243E] text-white">
+                <SelectTrigger className="h-12 w-full sm:w-48 rounded-xl border border-gray-100 bg-white text-[#0A2540]">
                   <SelectValue placeholder="Filter by action" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0F243E] border-white/10">
-                  <SelectItem value="all" className="text-white hover:bg-[#1E90FF]">All Actions</SelectItem>
-                  <SelectItem value="Create User" className="text-white hover:bg-[#1E90FF]">Create User</SelectItem>
-                  <SelectItem value="Reset Password" className="text-white hover:bg-[#1E90FF]">Reset Password</SelectItem>
-                  <SelectItem value="Link Student-Parent" className="text-white hover:bg-[#1E90FF]">Link Student-Parent</SelectItem>
-                  <SelectItem value="Unlink Student-Parent" className="text-white hover:bg-[#1E90FF]">Unlink Student-Parent</SelectItem>
-                  <SelectItem value="Deactivate User" className="text-white hover:bg-[#1E90FF]">Deactivate User</SelectItem>
+                <SelectContent className="bg-white border-gray-100">
+                  <SelectItem value="all" className="text-[#0A2540] hover:bg-[#0A2540]/5">All Actions</SelectItem>
+                  <SelectItem value="Create User" className="text-[#0A2540] hover:bg-[#0A2540]/5">Create User</SelectItem>
+                  <SelectItem value="Reset Password" className="text-[#0A2540] hover:bg-[#0A2540]/5">Reset Password</SelectItem>
+                  <SelectItem value="Link Student-Parent" className="text-[#0A2540] hover:bg-[#0A2540]/5">Link Student-Parent</SelectItem>
+                  <SelectItem value="Unlink Student-Parent" className="text-[#0A2540] hover:bg-[#0A2540]/5">Unlink Student-Parent</SelectItem>
+                  <SelectItem value="Deactivate User" className="text-[#0A2540] hover:bg-[#0A2540]/5">Deactivate User</SelectItem>
                 </SelectContent>
               </Select>
 
               <Select value={filterDate} onValueChange={setFilterDate}>
-                <SelectTrigger className="h-12 w-full sm:w-36 rounded-xl border border-white/10 bg-[#0F243E] text-white">
+                <SelectTrigger className="h-12 w-full sm:w-36 rounded-xl border border-gray-100 bg-white text-[#0A2540]">
                   <SelectValue placeholder="Date range" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0F243E] border-white/10">
-                  <SelectItem value="all" className="text-white hover:bg-[#1E90FF]">All Time</SelectItem>
-                  <SelectItem value="today" className="text-white hover:bg-[#1E90FF]">Today</SelectItem>
-                  <SelectItem value="week" className="text-white hover:bg-[#1E90FF]">This Week</SelectItem>
-                  <SelectItem value="month" className="text-white hover:bg-[#1E90FF]">This Month</SelectItem>
+                <SelectContent className="bg-white border-gray-100">
+                  <SelectItem value="all" className="text-[#0A2540] hover:bg-[#0A2540]/5">All Time</SelectItem>
+                  <SelectItem value="today" className="text-[#0A2540] hover:bg-[#0A2540]/5">Today</SelectItem>
+                  <SelectItem value="week" className="text-[#0A2540] hover:bg-[#0A2540]/5">This Week</SelectItem>
+                  <SelectItem value="month" className="text-[#0A2540] hover:bg-[#0A2540]/5">This Month</SelectItem>
                 </SelectContent>
               </Select>
 
               <Button 
                 onClick={handleExport}
-                className="h-12 bg-[#1E90FF] hover:bg-[#00BFFF] text-white rounded-xl shadow-md hover:scale-105 transition-all whitespace-nowrap"
+                className="h-12 bg-[#0A2540] hover:bg-[#082030] text-white rounded-xl shadow-md hover:scale-105 transition-all whitespace-nowrap"
               >
                 <span className="w-5 h-5 mr-2" />
                 Export Log
@@ -128,11 +128,11 @@ export function ActivityLogsPage() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-0">
+        <div className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gradient-to-r from-[#1E90FF] to-[#00BFFF] border-none hover:bg-gradient-to-r">
+                <TableRow className="bg-[#0A2540] border-none">
                   <TableHead className="text-white">Timestamp</TableHead>
                   <TableHead className="text-white">Actor</TableHead>
                   <TableHead className="text-white">Action</TableHead>
@@ -143,22 +143,22 @@ export function ActivityLogsPage() {
               </TableHeader>
               <TableBody>
                 {filteredLogs.length === 0 ? (
-                  <TableRow className="bg-[#0F243E] border-b border-white/5">
+                  <TableRow className="bg-white border-b border-gray-50">
                     <TableCell colSpan={6} className="text-center py-12">
-                      <p className="text-white mb-2">No activity logs found</p>
-                      <p className="text-[#C0C8D3] text-sm">Activity will be logged here automatically</p>
+                      <p className="text-[#0A2540] mb-2">No activity logs found</p>
+                      <p className="text-gray-400 text-sm">Activity will be logged here automatically</p>
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredLogs.map((log) => (
-                    <TableRow key={log.id} className="bg-[#0F243E] border-b border-white/5 hover:bg-[#132C4A]">
-                      <TableCell className="text-[#C0C8D3] text-sm font-mono">
+                    <TableRow key={log.id} className="bg-white border-b border-gray-50 hover:bg-gray-50">
+                      <TableCell className="text-gray-400 text-sm font-mono">
                         {new Date(log.timestamp).toLocaleString()}
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="text-white">{log.actor}</p>
-                          <p className="text-xs text-[#C0C8D3]">{log.actor_role}</p>
+                          <p className="text-[#0A2540]">{log.actor}</p>
+                          <p className="text-xs text-gray-400">{log.actor_role}</p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -167,10 +167,10 @@ export function ActivityLogsPage() {
                           {log.action}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-white">{log.target}</TableCell>
-                      <TableCell className="text-[#C0C8D3] text-sm font-mono">{log.ip_address}</TableCell>
+                      <TableCell className="text-[#0A2540]">{log.target}</TableCell>
+                      <TableCell className="text-gray-400 text-sm font-mono">{log.ip_address}</TableCell>
                       <TableCell>
-                        <Badge className={log.status === "Success" ? "bg-[#28A745] text-white border-0" : "bg-[#DC3545] text-white border-0"}>
+                        <Badge className={log.status === "Success" ? "bg-emerald-500 text-white border-0" : "bg-red-500 text-white border-0"}>
                           {log.status}
                         </Badge>
                       </TableCell>
@@ -180,38 +180,30 @@ export function ActivityLogsPage() {
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-4 h-4 text-[#1E90FF]" />
-              <p className="text-[#C0C8D3] text-sm">Total Actions</p>
-            </div>
-            <p className="text-white text-xl">{totalActions}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
-          <CardContent className="p-4">
-            <p className="text-[#C0C8D3] mb-1 text-sm">Users Created</p>
-            <p className="text-[#28A745] text-xl">{usersCreated}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
-          <CardContent className="p-4">
-            <p className="text-[#C0C8D3] mb-1 text-sm">Links Created</p>
-            <p className="text-[#1E90FF] text-xl">{linksCreated}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-xl bg-[#132C4A] border border-white/10 shadow-lg">
-          <CardContent className="p-4">
-            <p className="text-[#C0C8D3] mb-1 text-sm">Failed Actions</p>
-            <p className="text-[#DC3545] text-xl">{failedActions}</p>
-          </CardContent>
-        </Card>
+        <div className="bg-white rounded-xl border border-gray-100/80 p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-4 h-4 text-[#0A2540]" />
+            <p className="text-gray-400 text-sm">Total Actions</p>
+          </div>
+          <p className="text-[#0A2540] text-xl">{totalActions}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100/80 p-4">
+          <p className="text-gray-400 mb-1 text-sm">Users Created</p>
+          <p className="text-emerald-500 text-xl">{usersCreated}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100/80 p-4">
+          <p className="text-gray-400 mb-1 text-sm">Links Created</p>
+          <p className="text-[#0A2540] text-xl">{linksCreated}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100/80 p-4">
+          <p className="text-gray-400 mb-1 text-sm">Failed Actions</p>
+          <p className="text-red-500 text-xl">{failedActions}</p>
+        </div>
       </div>
     </div>
   );

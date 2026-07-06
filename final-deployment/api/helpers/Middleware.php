@@ -1,7 +1,7 @@
 <?php
 /**
  * API Middleware
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/JWT.php';
@@ -178,7 +178,7 @@ class Middleware {
      * Validate Integer Input
      */
     public static function validateInteger($value, $field_name = 'value') {
-        if (!filter_var($value, FILTER_VALIDATE_INT)) {
+        if (filter_var($value, FILTER_VALIDATE_INT) === false) {
             Response::validationError([$field_name => 'Must be a valid integer']);
         }
         
@@ -251,10 +251,16 @@ class Middleware {
     /**
      * Get Search Parameters
      */
-    public static function getSearchParams() {
+    public static function getSearchParams($allowed_columns = null) {
         $search = isset($_GET['search']) ? trim($_GET['search']) : '';
         $sort_by = isset($_GET['sort_by']) ? trim($_GET['sort_by']) : 'id';
         $sort_order = isset($_GET['sort_order']) ? strtoupper(trim($_GET['sort_order'])) : 'ASC';
+        
+        $sort_by = preg_replace('/[^a-zA-Z0-9_]/', '', $sort_by);
+        
+        if ($allowed_columns !== null && !in_array($sort_by, $allowed_columns, true)) {
+            $sort_by = 'id';
+        }
         
         if (!in_array($sort_order, ['ASC', 'DESC'])) {
             $sort_order = 'ASC';
@@ -270,13 +276,13 @@ class Middleware {
     /**
      * Log Activity
      */
-    public static function logActivity($actor, $actor_role, $action, $target = '', $status = 'Success', $details = '', $user_id = null) {
+    public static function logActivity($actor, $actor_role, $action, $target = '', $status = 'Success', $details = '', $user_id = null, $school_id = null) {
         try {
             $database = new Database();
             $conn = $database->getConnection();
             
-            $query = "INSERT INTO activity_logs (actor, actor_role, action, target, ip_address, status, details, user_id) 
-                      VALUES (:actor, :actor_role, :action, :target, :ip_address, :status, :details, :user_id)";
+            $query = "INSERT INTO activity_logs (actor, actor_role, action, target, ip_address, status, details, user_id, school_id) 
+                      VALUES (:actor, :actor_role, :action, :target, :ip_address, :status, :details, :user_id, :school_id)";
             
             $stmt = $conn->prepare($query);
             
@@ -288,6 +294,7 @@ class Middleware {
             $stmt->bindParam(':status', $status);
             $stmt->bindParam(':details', $details);
             $stmt->bindParam(':user_id', $user_id);
+            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
         } catch (Exception $e) {
@@ -323,7 +330,7 @@ class Middleware {
         
         // Create directory if it doesn't exist
         if (!is_dir($upload_path)) {
-            mkdir($upload_path, 0777, true);
+            mkdir($upload_path, 0755, true);
         }
         
         // Move file

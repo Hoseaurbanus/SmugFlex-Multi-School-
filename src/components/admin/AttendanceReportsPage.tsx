@@ -149,15 +149,15 @@ export function AttendanceReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-slate-900 mb-2">Attendance Reports</h1>
+        <h1 className="text-slate-900 mb-2 font-heading font-bold">Attendance Reports</h1>
         <p className="text-slate-600">View and analyze student attendance data</p>
       </div>
 
       {/* Filters */}
-      <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
+      <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-4">
           <span className="w-5 h-5 text-slate-600" />
-          <h3 className="text-slate-800">Filter Reports</h3>
+          <h3 className="text-slate-800 font-heading font-bold">Filter Reports</h3>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -166,7 +166,7 @@ export function AttendanceReportsPage() {
             <select
               value={reportType}
               onChange={(e) => setReportType(e.target.value as 'class' | 'student' | 'daily')}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
             >
               <option value="class">By Class</option>
               <option value="student">By Student</option>
@@ -179,7 +179,7 @@ export function AttendanceReportsPage() {
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(Number(e.target.value))}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
             >
               <option value={0}>All Classes</option>
               {classes.map(cls => (
@@ -195,7 +195,7 @@ export function AttendanceReportsPage() {
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               max={endDate}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
             />
           </div>
 
@@ -206,13 +206,13 @@ export function AttendanceReportsPage() {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               max={new Date().toISOString().split('T')[0]}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
             />
           </div>
         </div>
 
         <div className="mt-4 flex justify-end">
-          <Button onClick={handleExportCSV} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button onClick={handleExportCSV} className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white">
             <span className="w-4 h-4 mr-2" />
             Export to CSV
           </Button>
@@ -221,23 +221,23 @@ export function AttendanceReportsPage() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+        <Card className="p-6 bg-gradient-to-br from-[#0A2540]/5 to-[#0A2540]/10 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="w-8 h-8 text-blue-600" />
+            <span className="w-8 h-8 text-[#0A2540]" />
           </div>
-          <p className="text-blue-600 text-sm mb-1">Total Records</p>
-          <p className="text-3xl text-blue-900">{totalRecords}</p>
+          <p className="text-[#0A2540] text-sm mb-1">Total Records</p>
+          <p className="text-3xl text-[#0A2540]">{totalRecords}</p>
         </Card>
 
-        <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+        <Card className="p-6 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="w-8 h-8 text-green-600" />
+            <span className="w-8 h-8 text-emerald-600" />
           </div>
-          <p className="text-green-600 text-sm mb-1">Present</p>
-          <p className="text-3xl text-green-900">{presentCount}</p>
+          <p className="text-emerald-600 text-sm mb-1">Present</p>
+          <p className="text-3xl text-emerald-900">{presentCount}</p>
         </Card>
 
-        <Card className="p-6 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-red-200">
+        <Card className="p-6 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <span className="w-8 h-8 text-red-600" />
           </div>
@@ -245,7 +245,7 @@ export function AttendanceReportsPage() {
           <p className="text-3xl text-red-900">{absentCount}</p>
         </Card>
 
-        <Card className="p-6 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200">
+        <Card className="p-6 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <span className="w-8 h-8 text-yellow-600" />
           </div>
@@ -253,19 +253,19 @@ export function AttendanceReportsPage() {
           <p className="text-3xl text-yellow-900">{lateCount}</p>
         </Card>
 
-        <Card className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+        <Card className="p-6 bg-gradient-to-br from-[#0A2540]/5 to-[#0A2540]/10 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="w-8 h-8 text-purple-600" />
+            <span className="w-8 h-8 text-[#0A2540]" />
           </div>
-          <p className="text-purple-600 text-sm mb-1">Attendance Rate</p>
-          <p className="text-3xl text-purple-900">{attendanceRate}%</p>
+          <p className="text-[#0A2540] text-sm mb-1">Attendance Rate</p>
+          <p className="text-3xl text-[#0A2540]">{attendanceRate}%</p>
         </Card>
       </div>
 
       {/* Report Content */}
       {reportType === 'student' && (
-        <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-slate-800 mb-4">Student Attendance Summary</h3>
+        <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-slate-800 mb-4 font-heading font-bold">Student Attendance Summary</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -287,14 +287,14 @@ export function AttendanceReportsPage() {
                     <td className="p-3">{item.student.firstName} {item.student.lastName}</td>
                     <td className="p-3 text-slate-600">{item.student.admissionNumber}</td>
                     <td className="p-3 text-slate-600">{item.student.className}</td>
-                    <td className="p-3 text-center text-green-600">{item.present}</td>
+                    <td className="p-3 text-center text-emerald-600">{item.present}</td>
                     <td className="p-3 text-center text-red-600">{item.absent}</td>
                     <td className="p-3 text-center text-yellow-600">{item.late}</td>
-                    <td className="p-3 text-center text-blue-600">{item.excused}</td>
+                    <td className="p-3 text-center text-[#0A2540]">{item.excused}</td>
                     <td className="p-3 text-center">{item.total}</td>
                     <td className="p-3 text-center">
                       <span className={`px-3 py-1 rounded-full text-sm ${
-                        item.rate >= 90 ? 'bg-green-100 text-green-700' :
+                        item.rate >= 90 ? 'bg-emerald-100 text-emerald-700' :
                         item.rate >= 75 ? 'bg-yellow-100 text-yellow-700' :
                         'bg-red-100 text-red-700'
                       }`}>
@@ -310,8 +310,8 @@ export function AttendanceReportsPage() {
       )}
 
       {reportType === 'daily' && (
-        <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-slate-800 mb-4">Daily Attendance Summary</h3>
+        <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-slate-800 mb-4 font-heading font-bold">Daily Attendance Summary</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -329,14 +329,14 @@ export function AttendanceReportsPage() {
                 {getDailyAttendanceSummary().map(item => (
                   <tr key={item.date} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="p-3">{new Date(item.date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                    <td className="p-3 text-center text-green-600">{item.present}</td>
+                    <td className="p-3 text-center text-emerald-600">{item.present}</td>
                     <td className="p-3 text-center text-red-600">{item.absent}</td>
                     <td className="p-3 text-center text-yellow-600">{item.late}</td>
-                    <td className="p-3 text-center text-blue-600">{item.excused}</td>
+                    <td className="p-3 text-center text-[#0A2540]">{item.excused}</td>
                     <td className="p-3 text-center">{item.total}</td>
                     <td className="p-3 text-center">
                       <span className={`px-3 py-1 rounded-full text-sm ${
-                        item.rate >= 90 ? 'bg-green-100 text-green-700' :
+                        item.rate >= 90 ? 'bg-emerald-100 text-emerald-700' :
                         item.rate >= 75 ? 'bg-yellow-100 text-yellow-700' :
                         'bg-red-100 text-red-700'
                       }`}>
@@ -352,8 +352,8 @@ export function AttendanceReportsPage() {
       )}
 
       {reportType === 'class' && (
-        <Card className="p-6 bg-white rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-slate-800 mb-4">Class Attendance Summary</h3>
+        <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-slate-800 mb-4 font-heading font-bold">Class Attendance Summary</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -371,14 +371,14 @@ export function AttendanceReportsPage() {
                 {getClassAttendanceSummary().map(item => (
                   <tr key={item.class.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="p-3">{item.class.name}</td>
-                    <td className="p-3 text-center text-green-600">{item.present}</td>
+                    <td className="p-3 text-center text-emerald-600">{item.present}</td>
                     <td className="p-3 text-center text-red-600">{item.absent}</td>
                     <td className="p-3 text-center text-yellow-600">{item.late}</td>
-                    <td className="p-3 text-center text-blue-600">{item.excused}</td>
+                    <td className="p-3 text-center text-[#0A2540]">{item.excused}</td>
                     <td className="p-3 text-center">{item.total}</td>
                     <td className="p-3 text-center">
                       <span className={`px-3 py-1 rounded-full text-sm ${
-                        item.rate >= 90 ? 'bg-green-100 text-green-700' :
+                        item.rate >= 90 ? 'bg-emerald-100 text-emerald-700' :
                         item.rate >= 75 ? 'bg-yellow-100 text-yellow-700' :
                         'bg-red-100 text-red-700'
                       }`}>

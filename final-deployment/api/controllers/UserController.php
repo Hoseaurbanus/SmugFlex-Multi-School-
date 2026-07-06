@@ -1,13 +1,14 @@
 <?php
 /**
  * User Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class UserController {
     private $conn;
@@ -23,7 +24,8 @@ class UserController {
     public function getAllUsers() {
         try {
             // CRITICAL SECURITY FIX: Require admin authentication
-            Middleware::requireRole('admin');
+            $token_data = Middleware::requireRole('admin');
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             
             // Prevent caching to ensure real-time data
             header('Cache-Control: no-cache, must-revalidate, no-store, max-age=0');
@@ -39,8 +41,8 @@ class UserController {
             $offset = ($page - 1) * $limit;
             
             // Build WHERE clause
-            $whereConditions = [];
-            $params = [];
+            $whereConditions = ["u.school_id = ?"];
+            $params = [$school_id];
             
             if ($role && in_array($role, ['admin', 'teacher', 'parent', 'accountant'])) {
                 $whereConditions[] = "u.role = ?";
@@ -134,7 +136,7 @@ class UserController {
             ]);
             
         } catch (Exception $e) {
-            Response::error('Failed to fetch users: ' . $e->getMessage());
+            Response::error('Failed to fetch users: An error occurred');
         }
     }
     
@@ -144,7 +146,8 @@ class UserController {
     public function createUser() {
         try {
             // CRITICAL SECURITY FIX: Require admin authentication
-            Middleware::requireRole('admin');
+            $token_data = Middleware::requireRole('admin');
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             
             $data = json_decode(file_get_contents('php://input'), true);
             
@@ -154,8 +157,8 @@ class UserController {
             }
             
             // Check if username already exists
-            $checkStmt = $this->conn->prepare("SELECT id FROM users WHERE username = ?");
-            $checkStmt->execute([$data['username']]);
+            $checkStmt = $this->conn->prepare("SELECT id FROM users WHERE username = ? AND school_id = ?");
+            $checkStmt->execute([$data['username'], $school_id]);
             if ($checkStmt->fetch()) {
                 Response::error('Username already exists');
                 return;
@@ -165,13 +168,14 @@ class UserController {
             $passwordHash = password_hash($data['password'], PASSWORD_DEFAULT);
             
             // Insert user with additional fields
-            $query = "INSERT INTO users (username, password_hash, role, email, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'Active', NOW(), NOW())";
+            $query = "INSERT INTO users (username, password_hash, role, email, status, created_at, updated_at, school_id) VALUES (?, ?, ?, ?, 'Active', NOW(), NOW(), ?)";
             $stmt = $this->conn->prepare($query);
             $stmt->execute([
                 $data['username'], 
                 $passwordHash, 
                 $data['role'], 
-                $data['email'] ?? null
+                $data['email'] ?? null,
+                $school_id
             ]);
             
             $userId = $this->conn->lastInsertId();
@@ -189,19 +193,19 @@ class UserController {
                 $assignedClassId = $data['assignedClassId'] ?? null;
                 $departmentId = $data['departmentId'] ?? '';
                 
-                $teacherQuery = "INSERT INTO teachers (first_name, last_name, email, phone, address, gender, qualification, specialization, is_class_teacher, assigned_class_id, department_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', NOW(), NOW())";
+                $teacherQuery = "INSERT INTO teachers (first_name, last_name, email, phone, address, gender, qualification, specialization, is_class_teacher, assigned_class_id, department_id, status, created_at, updated_at, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', NOW(), NOW(), ?)";
                 $teacherStmt = $this->conn->prepare($teacherQuery);
                 $teacherStmt->execute([
                     $firstName, $lastName, $data['email'] ?? null, $phone, $address, 
                     $gender, $qualification, $specialization, $isClassTeacher ? 1 : 0, 
-                    $assignedClassId, $departmentId
+                    $assignedClassId, $departmentId, $school_id
                 ]);
                 $teacherId = $this->conn->lastInsertId();
                 
                 // Update user with linked_id
-                $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ?";
+                $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ? AND school_id = ?";
                 $updateStmt = $this->conn->prepare($updateQuery);
-                $updateStmt->execute([$teacherId, $userId]);
+                $updateStmt->execute([$teacherId, $userId, $school_id]);
                 RealtimeEvents::publish(['users', 'teachers', 'classes', 'subject_assignments'], [
                     'action' => 'created',
                     'user_id' => (int)$userId,
@@ -216,18 +220,18 @@ class UserController {
                 $alternatePhone = $data['alternatePhone'] ?? '';
                 $occupation = $data['occupation'] ?? '';
                 
-                $parentQuery = "INSERT INTO parents (first_name, last_name, email, phone, address, alternate_phone, occupation, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', NOW(), NOW())";
+                $parentQuery = "INSERT INTO parents (first_name, last_name, email, phone, address, alternate_phone, occupation, status, created_at, updated_at, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', NOW(), NOW(), ?)";
                 $parentStmt = $this->conn->prepare($parentQuery);
                 $parentStmt->execute([
                     $firstName, $lastName, $data['email'] ?? null, $phone, $address, 
-                    $alternatePhone, $occupation
+                    $alternatePhone, $occupation, $school_id
                 ]);
                 $parentId = $this->conn->lastInsertId();
                 
                 // Update user with linked_id
-                $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ?";
+                $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ? AND school_id = ?";
                 $updateStmt = $this->conn->prepare($updateQuery);
-                $updateStmt->execute([$parentId, $userId]);
+                $updateStmt->execute([$parentId, $userId, $school_id]);
                 RealtimeEvents::publish(['users', 'parents', 'students', 'notifications', 'payments', 'compiled_results'], [
                     'action' => 'created',
                     'user_id' => (int)$userId,
@@ -241,17 +245,17 @@ class UserController {
                 $address = $data['address'] ?? '';
                 $department = $data['department'] ?? '';
                 
-                $accountantQuery = "INSERT INTO accountants (first_name, last_name, email, phone, address, department, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'Active', NOW(), NOW())";
+                $accountantQuery = "INSERT INTO accountants (first_name, last_name, email, phone, address, department, status, created_at, updated_at, school_id) VALUES (?, ?, ?, ?, ?, ?, 'Active', NOW(), NOW(), ?)";
                 $accountantStmt = $this->conn->prepare($accountantQuery);
                 $accountantStmt->execute([
-                    $firstName, $lastName, $data['email'] ?? null, $phone, $address, $department
+                    $firstName, $lastName, $data['email'] ?? null, $phone, $address, $department, $school_id
                 ]);
                 $accountantId = $this->conn->lastInsertId();
                 
                 // Update user with linked_id
-                $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ?";
+                $updateQuery = "UPDATE users SET linked_id = ? WHERE id = ? AND school_id = ?";
                 $updateStmt = $this->conn->prepare($updateQuery);
-                $updateStmt->execute([$accountantId, $userId]);
+                $updateStmt->execute([$accountantId, $userId, $school_id]);
                 RealtimeEvents::publish(['users', 'payments', 'students'], [
                     'action' => 'created',
                     'user_id' => (int)$userId,
@@ -271,7 +275,7 @@ class UserController {
             Response::success(['id' => $userId], 'User created successfully');
             
         } catch (Exception $e) {
-            Response::error('Failed to create user: ' . $e->getMessage());
+            Response::error('Failed to create user: An error occurred');
         }
     }
     
@@ -281,7 +285,8 @@ class UserController {
     public function updateUser($id) {
         try {
             // CRITICAL SECURITY FIX: Require admin authentication
-            Middleware::requireRole('admin');
+            $token_data = Middleware::requireRole('admin');
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             
             $data = json_decode(file_get_contents('php://input'), true);
             
@@ -291,8 +296,8 @@ class UserController {
             }
             
             // Check if user exists
-            $checkStmt = $this->conn->prepare("SELECT u.*, t.id as teacher_id, p.id as parent_id, a.id as accountant_id FROM users u LEFT JOIN teachers t ON u.linked_id = t.id LEFT JOIN parents p ON u.linked_id = p.id LEFT JOIN accountants a ON u.linked_id = a.id WHERE u.id = ?");
-            $checkStmt->execute([$id]);
+            $checkStmt = $this->conn->prepare("SELECT u.*, t.id as teacher_id, p.id as parent_id, a.id as accountant_id FROM users u LEFT JOIN teachers t ON u.linked_id = t.id LEFT JOIN parents p ON u.linked_id = p.id LEFT JOIN accountants a ON u.linked_id = a.id WHERE u.id = ? AND u.school_id = ?");
+            $checkStmt->execute([$id, $school_id]);
             $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$user) {
@@ -321,8 +326,9 @@ class UserController {
             
             if (!empty($updateFields)) {
                 $updateFields[] = "updated_at = NOW()";
-                $query = "UPDATE users SET " . implode(", ", $updateFields) . " WHERE id = ?";
+                $query = "UPDATE users SET " . implode(", ", $updateFields) . " WHERE id = ? AND school_id = ?";
                 $params[] = $id;
+                $params[] = $school_id;
                 
                 $stmt = $this->conn->prepare($query);
                 $stmt->execute($params);
@@ -385,8 +391,9 @@ class UserController {
                 
                 if (!empty($teacherFields)) {
                     $teacherFields[] = "updated_at = NOW()";
-                    $teacherQuery = "UPDATE teachers SET " . implode(", ", $teacherFields) . " WHERE id = ?";
+                    $teacherQuery = "UPDATE teachers SET " . implode(", ", $teacherFields) . " WHERE id = ? AND school_id = ?";
                     $teacherParams[] = $user['teacher_id'];
+                    $teacherParams[] = $school_id;
                     
                     $teacherStmt = $this->conn->prepare($teacherQuery);
                     $teacherStmt->execute($teacherParams);
@@ -429,8 +436,9 @@ class UserController {
                 
                 if (!empty($parentFields)) {
                     $parentFields[] = "updated_at = NOW()";
-                    $parentQuery = "UPDATE parents SET " . implode(", ", $parentFields) . " WHERE id = ?";
+                    $parentQuery = "UPDATE parents SET " . implode(", ", $parentFields) . " WHERE id = ? AND school_id = ?";
                     $parentParams[] = $user['parent_id'];
+                    $parentParams[] = $school_id;
                     
                     $parentStmt = $this->conn->prepare($parentQuery);
                     $parentStmt->execute($parentParams);
@@ -468,8 +476,9 @@ class UserController {
                 
                 if (!empty($accountantFields)) {
                     $accountantFields[] = "updated_at = NOW()";
-                    $accountantQuery = "UPDATE accountants SET " . implode(", ", $accountantFields) . " WHERE id = ?";
+                    $accountantQuery = "UPDATE accountants SET " . implode(", ", $accountantFields) . " WHERE id = ? AND school_id = ?";
                     $accountantParams[] = $user['accountant_id'];
+                    $accountantParams[] = $school_id;
                     
                     $accountantStmt = $this->conn->prepare($accountantQuery);
                     $accountantStmt->execute($accountantParams);
@@ -502,7 +511,7 @@ class UserController {
             Response::success(null, 'User updated successfully');
             
         } catch (Exception $e) {
-            Response::error('Failed to update user: ' . $e->getMessage());
+            Response::error('Failed to update user: An error occurred');
         }
     }
     
@@ -512,11 +521,12 @@ class UserController {
     public function deleteUser($id) {
         try {
             // CRITICAL SECURITY FIX: Require admin authentication
-            Middleware::requireRole('admin');
+            $token_data = Middleware::requireRole('admin');
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             
             // Check if user exists
-            $checkStmt = $this->conn->prepare("SELECT id, role, linked_id FROM users WHERE id = ?");
-            $checkStmt->execute([$id]);
+            $checkStmt = $this->conn->prepare("SELECT id, role, linked_id, status FROM users WHERE id = ? AND school_id = ?");
+            $checkStmt->execute([$id, $school_id]);
             $user = $checkStmt->fetch();
             
             if (!$user) {
@@ -533,15 +543,15 @@ class UserController {
             // Delete linked record if exists
             if ($user['linked_id'] && $user['role'] !== 'admin') {
                 $table = $user['role'] === 'teacher' ? 'teachers' : ($user['role'] === 'parent' ? 'parents' : 'accountants');
-                $deleteLinkedQuery = "DELETE FROM $table WHERE id = ?";
+                $deleteLinkedQuery = "DELETE FROM $table WHERE id = ? AND school_id = ?";
                 $deleteLinkedStmt = $this->conn->prepare($deleteLinkedQuery);
-                $deleteLinkedStmt->execute([$user['linked_id']]);
+                $deleteLinkedStmt->execute([$user['linked_id'], $school_id]);
             }
             
             // Delete user
-            $deleteQuery = "DELETE FROM users WHERE id = ?";
+            $deleteQuery = "DELETE FROM users WHERE id = ? AND school_id = ?";
             $deleteStmt = $this->conn->prepare($deleteQuery);
-            $deleteStmt->execute([$id]);
+            $deleteStmt->execute([$id, $school_id]);
 
             $topics = ['users'];
             if ($user['role'] === 'teacher') {
@@ -569,7 +579,7 @@ class UserController {
             Response::success(null, 'User deleted successfully');
             
         } catch (Exception $e) {
-            Response::error('Failed to delete user: ' . $e->getMessage());
+            Response::error('Failed to delete user: An error occurred');
         }
     }
     
@@ -579,16 +589,17 @@ class UserController {
     public function resetPassword($id) {
         try {
             // CRITICAL SECURITY FIX: Require admin authentication
-            Middleware::requireRole('admin');
+            $token_data = Middleware::requireRole('admin');
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             
             // Generate new password
             $newPassword = bin2hex(random_bytes(4));
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
             
             // Update password
-            $query = "UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?";
+            $query = "UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ? AND school_id = ?";
             $stmt = $this->conn->prepare($query);
-            $stmt->execute([$passwordHash, $id]);
+            $stmt->execute([$passwordHash, $id, $school_id]);
 
             RealtimeEvents::publish(['users'], [
                 'action' => 'password_reset',
@@ -598,7 +609,7 @@ class UserController {
             Response::success(['password' => $newPassword], 'Password reset successfully');
             
         } catch (Exception $e) {
-            Response::error('Failed to reset password: ' . $e->getMessage());
+            Response::error('Failed to reset password: An error occurred');
         }
     }
 }

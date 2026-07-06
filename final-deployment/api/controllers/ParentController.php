@@ -1,16 +1,18 @@
 <?php
 /**
  * Parent Controller
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/RealtimeEvents.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 class ParentController {
     private $conn;
+    private $school_id;
     
     public function __construct() {
         $database = new Database();
@@ -22,6 +24,7 @@ class ParentController {
      */
     public function getAllParents() {
         $token_data = Middleware::requireAuth();
+        $school_id = $this->school_id = TenantMiddleware::resolveSchoolId($this->conn);
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         
@@ -58,9 +61,11 @@ class ParentController {
                               JOIN students s ON psl.student_id = s.id 
                               WHERE psl.parent_id = p.id AND s.status = 'Active') as children_names
                       FROM parents p
+                      WHERE p.school_id = :school_id
                       ORDER BY p.first_name, p.last_name";
             
             $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             $parents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -124,6 +129,7 @@ class ParentController {
         }
         
         try {
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             $query = "SELECT p.*, 
                              (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id) as children_count,
                              (SELECT GROUP_CONCAT(
@@ -143,10 +149,11 @@ class ParentController {
                               JOIN classes c ON s.class_id = c.id
                               WHERE psl.parent_id = p.id AND s.status = 'Active') as children
                       FROM parents p
-                      WHERE p.id = :id";
+                      WHERE p.id = :id AND p.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $parent_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             $parent = $stmt->fetch();
@@ -174,6 +181,7 @@ class ParentController {
      */
     public function createParent() {
         Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -203,8 +211,8 @@ class ParentController {
             $occupation = isset($data['occupation']) ? Middleware::sanitizeString($data['occupation']) : null;
             
             // Insert parent
-            $query = "INSERT INTO parents (first_name, last_name, email, phone, alternate_phone, address, occupation, status)
-                      VALUES (:first_name, :last_name, :email, :phone, :alternate_phone, :address, :occupation, 'Active')";
+            $query = "INSERT INTO parents (first_name, last_name, email, phone, alternate_phone, address, occupation, status, school_id)
+                      VALUES (:first_name, :last_name, :email, :phone, :alternate_phone, :address, :occupation, 'Active', :school_id)";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':first_name', $first_name);
@@ -214,12 +222,13 @@ class ParentController {
             $stmt->bindParam(':alternate_phone', $alternate_phone);
             $stmt->bindParam(':address', $address);
             $stmt->bindParam(':occupation', $occupation);
+            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
             $parent_id = $this->conn->lastInsertId();
             
             // Create user account for parent
-            $this->createParentUserAccount($parent_id, $first_name, $last_name, $email);
+            $this->createParentUserAccount($parent_id, $first_name, $last_name, $email, $school_id);
             
             // Link with students if provided
             if (isset($data['students']) && is_array($data['students'])) {
@@ -283,10 +292,12 @@ class ParentController {
         $data = json_decode(file_get_contents('php://input'), true);
         
         try {
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             // Check if parent exists
-            $check_query = "SELECT * FROM parents WHERE id = :id";
+            $check_query = "SELECT * FROM parents WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $parent_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $existing_parent = $check_stmt->fetch();
@@ -316,7 +327,8 @@ class ParentController {
                 Response::badRequest('No valid fields to update');
             }
             
-            $query = "UPDATE parents SET " . implode(', ', $update_fields) . " WHERE id = :id";
+            $query = "UPDATE parents SET " . implode(', ', $update_fields) . " WHERE id = :id AND school_id = :school_id";
+            $params[':school_id'] = $school_id;
             $stmt = $this->conn->prepare($query);
             
             foreach ($params as $key => $value) {
@@ -357,10 +369,12 @@ class ParentController {
         $parent_id = Middleware::validateInteger($id, 'parent_id');
         
         try {
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             // Check if parent exists
-            $check_query = "SELECT first_name, last_name FROM parents WHERE id = :id";
+            $check_query = "SELECT first_name, last_name FROM parents WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $parent_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $parent = $check_stmt->fetch();
@@ -379,9 +393,10 @@ class ParentController {
             }
             
             // Delete parent (cascade will handle user account)
-            $query = "DELETE FROM parents WHERE id = :id";
+            $query = "DELETE FROM parents WHERE id = :id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $parent_id);
+            $stmt->bindParam(':school_id', $school_id);
             $stmt->execute();
             
             // Log activity
@@ -449,8 +464,8 @@ class ParentController {
                       JOIN parent_student_links psl ON s.id = psl.student_id
                       LEFT JOIN classes c ON s.class_id = c.id
                       LEFT JOIN student_fee_balances sfb ON s.id = sfb.student_id 
-                        AND sfb.term = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_term')
-                        AND sfb.academic_year = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_academic_year')
+                        AND sfb.term = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' AND school_id = s.school_id)
+                        AND sfb.academic_year = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_academic_year' AND school_id = s.school_id)
                       WHERE psl.parent_id = :id AND s.status = 'Active'
                       ORDER BY c.level, c.name, s.last_name, s.first_name";
             
@@ -725,7 +740,7 @@ class ParentController {
                 $this->conn->rollBack();
             }
             error_log("Error linking parent to student: " . $e->getMessage());
-            Response::serverError($e->getMessage());
+            Response::serverError('Failed to link parent to student');
         }
     }
     
@@ -813,7 +828,7 @@ class ParentController {
     /**
      * Create Parent User Account
      */
-    private function createParentUserAccount($parent_id, $first_name, $last_name, $email) {
+    private function createParentUserAccount($parent_id, $first_name, $last_name, $email, $school_id) {
         try {
             // Generate username
             $username = strtolower(substr($first_name, 0, 1) . $last_name);
@@ -822,9 +837,10 @@ class ParentController {
             $counter = 1;
             $original_username = $username;
             while (true) {
-                $check_query = "SELECT id FROM users WHERE username = :username";
+                $check_query = "SELECT id FROM users WHERE username = :username AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':username', $username);
+                $check_stmt->bindParam(':school_id', $school_id);
                 $check_stmt->execute();
                 
                 if (!$check_stmt->fetch()) {
@@ -835,18 +851,19 @@ class ParentController {
                 $counter++;
             }
             
-            // Create user account with default password
-            $default_password = 'parent123';
-            $password_hash = password_hash($default_password, PASSWORD_DEFAULT);
+            // Generate random password and force change
+            $temp_password = bin2hex(random_bytes(6));
+            $password_hash = password_hash($temp_password, PASSWORD_DEFAULT);
             
-            $user_query = "INSERT INTO users (username, password_hash, role, linked_id, email, status)
-                           VALUES (:username, :password_hash, 'parent', :linked_id, :email, 'Active')";
+            $user_query = "INSERT INTO users (username, password_hash, role, linked_id, email, status, school_id, must_change_password)
+                           VALUES (:username, :password_hash, 'parent', :linked_id, :email, 'Active', :school_id, TRUE)";
             
             $user_stmt = $this->conn->prepare($user_query);
             $user_stmt->bindParam(':username', $username);
             $user_stmt->bindParam(':password_hash', $password_hash);
             $user_stmt->bindParam(':linked_id', $parent_id);
             $user_stmt->bindParam(':email', $email);
+            $user_stmt->bindParam(':school_id', $school_id);
             $user_stmt->execute();
             
         } catch (PDOException $e) {

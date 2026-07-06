@@ -141,7 +141,7 @@ export function AddAccountantPage() {
                   value={formData.employeeId}
                   onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
                   className="h-12 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] text-[#1F2937]"
-                  placeholder="GRA/ACC/001"
+                  placeholder="SCH/ACC/001"
                   required
                 />
               </div>
@@ -232,7 +232,7 @@ export function AddAccountantPage() {
             <li>Accountant will have access to fee management and payment verification</li>
             <li>Username must be unique across the system</li>
             <li>Ensure email and phone number are valid for communication</li>
-            <li>Employee ID should follow the format: GRA/ACC/XXX</li>
+            <li>Employee ID should follow the format: SCH/ACC/XXX</li>
           </ul>
         </CardContent>
       </Card>

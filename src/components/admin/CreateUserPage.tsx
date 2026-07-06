@@ -7,7 +7,7 @@ import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
-import { Plus, Copy, X, Eye, EyeOff } from "lucide-react";
+import { Plus, Copy, Eye, EyeOff } from "lucide-react";
 
 // CreateUserPage.tsx - User creation form with firstName validation fix - v2.0
 export function CreateUserPage() {

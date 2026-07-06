@@ -1,7 +1,7 @@
 <?php
 /**
  * Rate Limiter Helper
- * Graceland Royal Academy School Management System
+ * SMugFlex 2.0 Multi-School Platform
  * 
  * Protects against brute force attacks using in-process caching
  * Falls back to file-based storage if APCu not available
@@ -27,7 +27,7 @@ class RateLimiter {
         } else {
             // Fallback to file-based storage
             self::$type = 'file';
-            self::$storage_dir = sys_get_temp_dir() . '/graceland_rate_limit';
+            self::$storage_dir = sys_get_temp_dir() . '/smugflex_rate_limit';
             
             // Create storage directory if needed
             if (!is_dir(self::$storage_dir)) {
@@ -55,7 +55,8 @@ class RateLimiter {
         }
         
         // Sanitize identifier to prevent path traversal in file mode
-        $safe_identifier = preg_replace('/[^a-zA-Z0-9_\-.]/', '', $identifier);
+        // Allow @ for suffix-based identity (e.g., username@suffix)
+        $safe_identifier = preg_replace('/[^a-zA-Z0-9_\-.\@]/', '', $identifier);
         if (empty($safe_identifier)) {
             $safe_identifier = 'unknown_' . substr(md5($identifier), 0, 8);
         }
@@ -179,6 +180,43 @@ class RateLimiter {
         }
         
         return (int)$remaining_window;
+    }
+    
+    /**
+     * Increment attempt counter for an identifier
+     * 
+     * @param string $identifier Unique identifier (e.g., username, IP address)
+     * @param string $action Action type (e.g., 'login_attempt', 'password_reset')
+     */
+    public static function increment($identifier, $action = 'login_attempt') {
+        self::init();
+        
+        if (self::$type === null) {
+            return;
+        }
+        
+        $safe_identifier = preg_replace('/[^a-zA-Z0-9_\-.\@]/', '', $identifier);
+        if (empty($safe_identifier)) {
+            $safe_identifier = 'unknown_' . substr(md5($identifier), 0, 8);
+        }
+        
+        $key = "{$action}_{$safe_identifier}";
+        $current_time = time();
+        
+        $data = self::get($key);
+        
+        if ($data === null) {
+            $data = [
+                'attempts' => 1,
+                'window_start' => $current_time,
+                'last_attempt' => $current_time
+            ];
+        } else {
+            $data['attempts']++;
+            $data['last_attempt'] = $current_time;
+        }
+        
+        self::set($key, $data);
     }
     
     /**

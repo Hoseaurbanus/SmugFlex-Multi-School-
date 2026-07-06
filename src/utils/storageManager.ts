@@ -1,10 +1,24 @@
 /**
- * LocalStorage Manager for Graceland Royal Academy
+ * LocalStorage Manager for SMugFlex 2.0
  * Handles data persistence across browser sessions
  */
 
-const STORAGE_KEY = 'graceland_school_data';
+import { API_CONFIG } from '../config/api';
+
 const STORAGE_VERSION = '1.0.0';
+
+function getStorageKey(): string {
+  try {
+    const userStr = localStorage.getItem(API_CONFIG.AUTH.USER_KEY);
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user && user.school_suffix) {
+        return `smugflex_${user.school_suffix}_school_data`;
+      }
+    }
+  } catch {}
+  return 'smugflex_default_school_data';
+}
 
 export interface StorageData {
   version: string;
@@ -49,7 +63,7 @@ export function saveToLocalStorage(data: Partial<StorageData>): boolean {
       ...data,
     } as StorageData;
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(storageData));
+    localStorage.setItem(getStorageKey(), JSON.stringify(storageData));
     return true;
   } catch (error) {
     return false;
@@ -61,7 +75,7 @@ export function saveToLocalStorage(data: Partial<StorageData>): boolean {
  */
 export function loadFromLocalStorage(): StorageData | null {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
+    const data = localStorage.getItem(getStorageKey());
     if (!data) return null;
 
     const parsed = JSON.parse(data);
@@ -81,7 +95,7 @@ export function loadFromLocalStorage(): StorageData | null {
  */
 export function clearLocalStorage(): boolean {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(getStorageKey());
     return true;
   } catch (error) {
     return false;
@@ -107,7 +121,7 @@ export function isLocalStorageAvailable(): boolean {
  */
 export function getStorageSize(): number {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
+    const data = localStorage.getItem(getStorageKey());
     if (!data) return 0;
     return new Blob([data]).size / 1024; // Size in KB
   } catch (error) {
@@ -124,7 +138,7 @@ export function exportDataAsJSON(data: StorageData, filename?: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = filename || `graceland_backup_${new Date().toISOString().split('T')[0]}.json`;
+  link.download = filename || `smugflex_backup_${new Date().toISOString().split('T')[0]}.json`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

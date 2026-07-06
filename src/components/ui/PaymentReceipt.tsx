@@ -1,6 +1,5 @@
 import { Payment } from '../../contexts/SchoolContext';
 import { Button } from "./button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./dialog";
 import { Printer, Download } from "lucide-react";
 
 // Naira symbol constant for reliable display
@@ -74,10 +73,10 @@ export function PaymentReceipt({ payment, studentName, studentClassName, classNa
             />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            GRACELAND ROYAL ACADEMY
+            SCHOOL FEE RECEIPT
           </h1>
           <p className="text-gray-600 mb-1">
-            School Fee Payment Receipt
+            Payment Receipt
           </p>
           <div className="w-32 h-1 bg-blue-600 mx-auto"></div>
         </div>

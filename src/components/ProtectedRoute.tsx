@@ -29,5 +29,24 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     return <Navigate to="/login" replace />;
   }
 
+  // Check school status (multi-tenant)
+  if (currentUser.school_status && currentUser.school_status !== 'Active') {
+    if (currentUser.school_status === 'Suspended') {
+      return <Navigate to="/login?reason=suspended" replace />;
+    }
+    if (currentUser.school_status === 'Pending') {
+      return <Navigate to="/login?reason=pending" replace />;
+    }
+    return <Navigate to="/login?reason=inactive" replace />;
+  }
+
+  // Check access expiry
+  if (currentUser.access_until) {
+    const accessUntil = new Date(currentUser.access_until);
+    if (accessUntil < new Date()) {
+      return <Navigate to="/login?reason=expired" replace />;
+    }
+  }
+
   return <>{children}</>;
 }

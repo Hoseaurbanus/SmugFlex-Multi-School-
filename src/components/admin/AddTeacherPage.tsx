@@ -4,7 +4,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Checkbox } from "../ui/checkbox";
+
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
 
@@ -150,7 +150,7 @@ export function AddTeacherPage() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="teacher@gra.edu.ng"
+                  placeholder="teacher@school"
                   className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
                 />
               </div>
@@ -191,7 +191,7 @@ export function AddTeacherPage() {
                   required
                   value={formData.employeeId}
                   onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                  placeholder="e.g., GRA/T/001"
+                  placeholder="e.g., SCH/T/001"
                   className="h-12 rounded-xl border border-gray-300 bg-white text-gray-900"
                 />
               </div>

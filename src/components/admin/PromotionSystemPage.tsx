@@ -12,7 +12,7 @@ import { Progress } from "../ui/progress";
 import { Separator } from "../ui/separator";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
-import { GraduationCap, Users, TrendingUp, AlertTriangle, Download, CheckCircle, XCircle, Clock, Settings } from "lucide-react";
+import { GraduationCap, Users, TrendUp, Warning, Download, CheckCircle, XCircle, Clock, GearSix } from "@phosphor-icons/react";
 import { API_CONFIG } from "../../config/api";
 
 // Enhanced promotion status types matching database
@@ -735,23 +735,23 @@ export function PromotionSystemPage() {
     
     switch (status) {
       case "Promoted":
-        return <Badge className={`bg-green-500 text-white border-0 ${badgeClass}`}><CheckCircle className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Promoted</Badge>;
+        return <Badge className={`bg-emerald-500 text-white border-0 ${badgeClass}`}><CheckCircle className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Promoted</Badge>;
       case "Conditional":
-        return <Badge className={`bg-yellow-500 text-white border-0 ${badgeClass}`}><Clock className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Conditional</Badge>;
+        return <Badge className={`bg-yellow-500 text-white border-0 ${badgeClass}`}><Clock className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Conditional</Badge>;
       case "Repeated":
-        return <Badge className={`bg-red-500 text-white border-0 ${badgeClass}`}><XCircle className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Repeated</Badge>;
+        return <Badge className={`bg-red-500 text-white border-0 ${badgeClass}`}><XCircle className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Repeated</Badge>;
       case "On Hold":
-        return <Badge className={`bg-orange-500 text-white border-0 ${badgeClass}`}><AlertTriangle className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}On Hold</Badge>;
+        return <Badge className={`bg-orange-500 text-white border-0 ${badgeClass}`}><Warning className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}On Hold</Badge>;
       case "Withdrawn":
-        return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><XCircle className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Withdrawn</Badge>;
+        return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><XCircle className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Withdrawn</Badge>;
       case "Pending Approval":
-        return <Badge className={`bg-blue-500 text-white border-0 ${badgeClass}`}><Clock className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Pending Approval</Badge>;
+        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><Clock className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Pending Approval</Badge>;
       case "Manual":
-        return <Badge className={`bg-purple-500 text-white border-0 ${badgeClass}`}><Settings className="w-3 h-3 mr-1" />Manual</Badge>;
+        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><GearSix className="w-3 h-3 mr-1" weight="bold" />Manual</Badge>;
       case "Transferred":
-        return <Badge className={`bg-indigo-500 text-white border-0 ${badgeClass}`}><TrendingUp className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Transferred</Badge>;
+        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><TrendUp className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Transferred</Badge>;
       default:
-        return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><AlertTriangle className="w-3 h-3 mr-1" />Pending</Badge>;
+        return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><Warning className="w-3 h-3 mr-1" weight="bold" />Pending</Badge>;
     }
   };
 
@@ -784,24 +784,24 @@ export function PromotionSystemPage() {
   };
 
   return (
-    <div className="space-y-6 bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-6">
+    <div className="space-y-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen p-6">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-3 bg-blue-600 rounded-xl">
-            <GraduationCap className="w-8 h-8 text-white" />
+          <div className="p-3 bg-[#0A2540] rounded-xl">
+            <GraduationCap className="w-8 h-8 text-white" weight="bold" />
           </div>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900">Student Promotion System</h1>
+            <h1 className="text-3xl font-heading font-bold text-gray-900">Student Promotion System</h1>
             <p className="text-gray-600">Manage student promotions to next academic session</p>
           </div>
           <div className="flex items-center gap-4">
-            <Badge variant="outline" className="text-blue-600 border-blue-200">
+            <Badge variant="outline" className="text-[#0A2540] border-gray-200">
               {currentAcademicYear} - {currentTerm}
             </Badge>
             {isLoading && (
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-4 h-4 border-2 border-[#0A2540] border-t-transparent rounded-full animate-spin"></div>
                 <span className="text-sm text-gray-600">Loading...</span>
               </div>
             )}
@@ -811,14 +811,14 @@ export function PromotionSystemPage() {
 
       {/* Promotion History Summary */}
       {promotionHistory.length > 0 && (
-        <Card className="border-0 shadow-xl bg-white">
+        <Card className="border border-gray-100 shadow-xl bg-white">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-heading font-bold text-gray-900 flex items-center gap-2">
+                <TrendUp className="w-5 h-5 text-[#0A2540]" weight="bold" />
                 Recent Promotion Activity
               </h3>
-              <Badge variant="outline" className="text-blue-600">
+              <Badge variant="outline" className="text-[#0A2540]">
                 {promotionHistory.length} promotions this session
               </Badge>
             </div>
@@ -827,8 +827,8 @@ export function PromotionSystemPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {promotionHistory.slice(0, 3).map((promo: any, index: number) => (
                 <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="p-2 bg-green-100 rounded-full">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  <div className="p-2 bg-emerald-100 rounded-full">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" weight="bold" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">
@@ -851,11 +851,11 @@ export function PromotionSystemPage() {
       {/* Summary Cards */}
       {selectedSourceClass && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <Card className="border-0 shadow-lg bg-white hover:shadow-xl transition-shadow">
+          <Card className="border border-gray-100 shadow-lg bg-white hover:shadow-xl transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Users className="w-5 h-5 text-blue-600" />
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <Users className="w-5 h-5 text-[#0A2540]" weight="bold" />
                 </div>
                 <p className="text-gray-600 text-sm font-medium">Total Students</p>
               </div>
@@ -864,24 +864,24 @@ export function PromotionSystemPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-white hover:shadow-xl transition-shadow">
+          <Card className="border border-gray-100 shadow-lg bg-white hover:shadow-xl transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-emerald-600" weight="bold" />
                 </div>
                 <p className="text-gray-600 text-sm font-medium">Promote</p>
               </div>
-              <p className="text-2xl font-bold text-green-600">{summary.toPromote}</p>
+              <p className="text-2xl font-bold text-emerald-600">{summary.toPromote}</p>
               <p className="text-xs text-gray-500 mt-1">Ready for promotion</p>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-white hover:shadow-xl transition-shadow">
+          <Card className="border border-gray-100 shadow-lg bg-white hover:shadow-xl transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-yellow-100 rounded-lg">
-                  <Clock className="w-5 h-5 text-yellow-600" />
+                  <Clock className="w-5 h-5 text-yellow-600" weight="bold" />
                 </div>
                 <p className="text-gray-600 text-sm font-medium">Conditional</p>
               </div>
@@ -890,11 +890,11 @@ export function PromotionSystemPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-white hover:shadow-xl transition-shadow">
+          <Card className="border border-gray-100 shadow-lg bg-white hover:shadow-xl transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-red-100 rounded-lg">
-                  <XCircle className="w-5 h-5 text-red-600" />
+                  <XCircle className="w-5 h-5 text-red-600" weight="bold" />
                 </div>
                 <p className="text-gray-600 text-sm font-medium">Repeat</p>
               </div>
@@ -903,11 +903,11 @@ export function PromotionSystemPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-white hover:shadow-xl transition-shadow">
+          <Card className="border border-gray-100 shadow-lg bg-white hover:shadow-xl transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-orange-100 rounded-lg">
-                  <AlertTriangle className="w-5 h-5 text-orange-600" />
+                  <Warning className="w-5 h-5 text-orange-600" weight="bold" />
                 </div>
                 <p className="text-gray-600 text-sm font-medium">Other</p>
               </div>
@@ -919,9 +919,9 @@ export function PromotionSystemPage() {
       )}
 
       {/* Filters */}
-      <Card className="border-0 shadow-xl bg-white">
+      <Card className="border border-gray-100 shadow-xl bg-white">
         <CardHeader className="pb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Promotion Settings</h3>
+          <h3 className="text-lg font-heading font-bold text-gray-900">Promotion Settings</h3>
           <p className="text-sm text-gray-600">Configure promotion parameters and filter students</p>
         </CardHeader>
         <CardContent className="pt-0">
@@ -929,7 +929,7 @@ export function PromotionSystemPage() {
             <div className="space-y-2">
               <Label className="text-gray-700 font-medium">New Academic Year</Label>
               <Select value={newAcademicYear} onValueChange={setNewAcademicYear}>
-                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-[#0A2540] focus:ring-[#0A2540]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
@@ -943,7 +943,7 @@ export function PromotionSystemPage() {
             <div className="space-y-2">
               <Label className="text-gray-700 font-medium">Source Class *</Label>
               <Select value={selectedSourceClass} onValueChange={setSelectedSourceClass}>
-                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-[#0A2540] focus:ring-[#0A2540]">
                   <SelectValue placeholder="Select source class" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
@@ -959,7 +959,7 @@ export function PromotionSystemPage() {
             <div className="space-y-2">
               <Label className="text-gray-700 font-medium">Filter by Status</Label>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-[#0A2540] focus:ring-[#0A2540]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
@@ -978,12 +978,12 @@ export function PromotionSystemPage() {
             <div className="space-y-2">
               <Label className="text-gray-700 font-medium">Search Student</Label>
               <div className="relative">
-                <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" weight="bold" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Name or Admission No..."
-                  className="h-12 pl-10 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+                  className="h-12 pl-10 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-[#0A2540] focus:ring-[#0A2540]"
                 />
               </div>
             </div>
@@ -992,20 +992,20 @@ export function PromotionSystemPage() {
       </Card>
 
       {/* Progression Rule Management */}
-      <Card className="border-0 shadow-xl bg-white">
+      <Card className="border border-gray-100 shadow-xl bg-white">
         <CardHeader className="pb-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <GraduationCap className="w-5 h-5 text-indigo-600" />
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <GraduationCap className="w-5 h-5 text-[#0A2540]" weight="bold" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Progression Rules</h3>
+                <h3 className="text-lg font-heading font-bold text-gray-900">Progression Rules</h3>
                 <p className="text-sm text-gray-600">Manage valid class progression paths for {currentAcademicYear}.</p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <Badge variant="outline" className="text-indigo-600 border-indigo-200">
+              <Badge variant="outline" className="text-[#0A2540] border-gray-200">
                 {currentAcademicYear}
               </Badge>
               <Button
@@ -1024,7 +1024,7 @@ export function PromotionSystemPage() {
             <div className="space-y-2">
               <Label className="text-gray-700 font-medium">From Class</Label>
               <Select value={newRuleFromClassId ? newRuleFromClassId.toString() : ''} onValueChange={(value) => setNewRuleFromClassId(value ? Number(value) : null)}>
-                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-[#0A2540] focus:ring-[#0A2540]">
                   <SelectValue placeholder="Select source class" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
@@ -1039,7 +1039,7 @@ export function PromotionSystemPage() {
             <div className="space-y-2">
               <Label className="text-gray-700 font-medium">To Class</Label>
               <Select value={newRuleToClassId ? newRuleToClassId.toString() : ''} onValueChange={(value) => setNewRuleToClassId(value ? Number(value) : null)}>
-                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                <SelectTrigger className="h-12 rounded-xl border-gray-200 bg-white text-gray-900 focus:border-[#0A2540] focus:ring-[#0A2540]">
                   <SelectValue placeholder="Select destination class" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
@@ -1064,7 +1064,7 @@ export function PromotionSystemPage() {
               <Button
                 onClick={createProgressionRule}
                 disabled={ruleActionLoading}
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl"
+                className="w-full h-12 bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl"
               >
                 Add Rule
               </Button>
@@ -1096,7 +1096,7 @@ export function PromotionSystemPage() {
                       <TableCell>{rule.to_class_name || `#${rule.to_class_id}`}</TableCell>
                       <TableCell>{rule.academic_year}</TableCell>
                       <TableCell className="text-center">
-                        <Badge className={rule.is_active ? 'bg-green-500 text-white border-0' : 'bg-gray-300 text-gray-700 border-0'}>
+                        <Badge className={rule.is_active ? 'bg-emerald-500 text-white border-0' : 'bg-gray-300 text-gray-700 border-0'}>
                           {rule.is_active ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
@@ -1129,15 +1129,15 @@ export function PromotionSystemPage() {
 
       {/* Students Table */}
       {selectedSourceClass ? (
-        <Card className="border-0 shadow-xl bg-white">
+        <Card className="border border-gray-100 shadow-xl bg-white">
           <CardHeader className="pb-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <GraduationCap className="w-5 h-5 text-blue-600" />
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <GraduationCap className="w-5 h-5 text-[#0A2540]" weight="bold" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Students for Promotion</h3>
+                  <h3 className="text-lg font-heading font-bold text-gray-900">Students for Promotion</h3>
                   <p className="text-sm text-gray-600">{filteredStudents.length} students found</p>
                 </div>
               </div>
@@ -1147,15 +1147,15 @@ export function PromotionSystemPage() {
                   variant="outline"
                   className="h-10 border-gray-200 text-gray-700 hover:bg-gray-50"
                 >
-                  <Download className="w-4 h-4 mr-2" />
+                  <Download className="w-4 h-4 mr-2" weight="bold" />
                   Export List
                 </Button>
                 <Button
                   onClick={handlePromoteStudents}
                   disabled={selectedStudents.length === 0 || isPromoting}
-                  className="h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg disabled:opacity-50"
+                  className="h-10 bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-xl shadow-lg disabled:opacity-50"
                 >
-                  <CheckCircle className="w-4 h-4 mr-2" />
+                  <CheckCircle className="w-4 h-4 mr-2" weight="bold" />
                   {isPromoting ? 'Processing...' : `Promote Selected (${selectedStudents.length})`}
                 </Button>
               </div>
@@ -1188,7 +1188,7 @@ export function PromotionSystemPage() {
                     <TableRow>
                       <TableCell colSpan={9} className="text-center py-12">
                         <div className="flex flex-col items-center">
-                          <Users className="w-12 h-12 text-gray-400 mb-3" />
+                          <Users className="w-12 h-12 text-gray-400 mb-3" weight="bold" />
                           <p className="text-gray-900 font-medium mb-1">No students found</p>
                           <p className="text-gray-500 text-sm">
                             {selectedSourceClass ? 'No active students in this class' : 'Please select a source class'}
@@ -1220,7 +1220,7 @@ export function PromotionSystemPage() {
                           </TableCell>
                           <TableCell className="text-gray-600">{student.admissionNumber}</TableCell>
                           <TableCell className="text-center">
-                            <span className={`font-semibold ${student.averageScore >= 50 ? 'text-green-600' : student.averageScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
+                            <span className={`font-semibold ${student.averageScore >= 50 ? 'text-emerald-600' : student.averageScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
                               {student.averageScore.toFixed(1)}%
                             </span>
                           </TableCell>
@@ -1228,7 +1228,7 @@ export function PromotionSystemPage() {
                             {student.position > 0 ? `${student.position}/${student.totalStudents}` : '-'}
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className={`font-medium ${student.attendance >= 75 ? 'text-green-600' : 'text-red-600'}`}>
+                            <span className={`font-medium ${student.attendance >= 75 ? 'text-emerald-600' : 'text-red-600'}`}>
                               {student.attendance.toFixed(0)}%
                             </span>
                           </TableCell>
@@ -1263,7 +1263,7 @@ export function PromotionSystemPage() {
                                         <SelectItem 
                                           key={cls.id} 
                                           value={cls.id.toString()} 
-                                          className={`text-gray-900 ${isFull && !cls.isGraduation ? 'text-red-600 bg-red-50' : cls.isGraduation ? 'text-green-600 bg-green-50 font-medium' : ''}`}
+                                          className={`text-gray-900 ${isFull && !cls.isGraduation ? 'text-red-600 bg-red-50' : cls.isGraduation ? 'text-emerald-600 bg-emerald-50 font-medium' : ''}`}
                                           onClick={() => {
                                             if (isFull && !cls.isGraduation) {
                                               toast.error('Class is at full capacity');
@@ -1298,7 +1298,7 @@ export function PromotionSystemPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleManualClassChange(student)}
-                                className="h-7 px-2 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                                className="h-7 px-2 text-xs border-gray-200 text-[#0A2540] hover:bg-gray-50"
                               >
                                 Change Class
                               </Button>
@@ -1356,13 +1356,13 @@ export function PromotionSystemPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-0 shadow-xl bg-white">
+        <Card className="border border-gray-100 shadow-xl bg-white">
           <CardContent className="p-12 text-center">
             <div className="flex flex-col items-center">
-              <div className="p-4 bg-blue-100 rounded-full mb-4">
-                <GraduationCap className="w-8 h-8 text-blue-600" />
+              <div className="p-4 bg-gray-100 rounded-full mb-4">
+                <GraduationCap className="w-8 h-8 text-[#0A2540]" weight="bold" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Select a Source Class</h3>
+              <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Select a Source Class</h3>
               <p className="text-gray-600 max-w-md">
                 Choose a class from the dropdown above to view students eligible for promotion. 
                 The system will automatically analyze student performance and recommend promotion actions.
@@ -1377,8 +1377,8 @@ export function PromotionSystemPage() {
         <AlertDialogContent className="bg-white border-0 shadow-2xl max-w-md">
           <AlertDialogHeader>
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-100 rounded-full">
-                <GraduationCap className="w-5 h-5 text-blue-600" />
+              <div className="p-2 bg-gray-100 rounded-full">
+                <GraduationCap className="w-5 h-5 text-[#0A2540]" weight="bold" />
               </div>
               <AlertDialogTitle className="text-gray-900 text-lg">Confirm Student Promotion</AlertDialogTitle>
             </div>
@@ -1415,7 +1415,7 @@ export function PromotionSystemPage() {
             <AlertDialogAction
               onClick={confirmPromotion}
               disabled={isPromoting}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white"
             >
               {isPromoting ? 'Processing...' : 'Confirm Promotion'}
             </AlertDialogAction>
@@ -1429,7 +1429,7 @@ export function PromotionSystemPage() {
           <AlertDialogHeader className="pb-4">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-orange-100 rounded-full">
-                <AlertTriangle className="w-6 h-6 text-orange-600" />
+                <Warning className="w-6 h-6 text-orange-600" weight="bold" />
               </div>
               <div>
                 <AlertDialogTitle className="text-gray-900 text-xl font-semibold">Manual Promotion Override</AlertDialogTitle>
@@ -1454,7 +1454,7 @@ export function PromotionSystemPage() {
                     <div>
                       <span className="text-gray-500">Average:</span>
                       <span className={`ml-1 font-semibold ${
-                        selectedStudentForManual?.averageScore >= 50 ? 'text-green-600' : 
+                        selectedStudentForManual?.averageScore >= 50 ? 'text-emerald-600' : 
                         selectedStudentForManual?.averageScore >= 40 ? 'text-yellow-600' : 'text-red-600'
                       }`}>
                         {selectedStudentForManual?.averageScore?.toFixed(1)}%
@@ -1463,7 +1463,7 @@ export function PromotionSystemPage() {
                     <div>
                       <span className="text-gray-500">Attendance:</span>
                       <span className={`ml-1 font-semibold ${
-                        selectedStudentForManual?.attendance >= 75 ? 'text-green-600' : 'text-red-600'
+                        selectedStudentForManual?.attendance >= 75 ? 'text-emerald-600' : 'text-red-600'
                       }`}>
                         {selectedStudentForManual?.attendance?.toFixed(0)}%
                       </span>
@@ -1476,51 +1476,51 @@ export function PromotionSystemPage() {
             <div className="space-y-6">
               {/* Promotion Options */}
               <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
+                <h4 className="text-sm font-heading font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" weight="bold" />
                   Promotion Options
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     onClick={() => confirmManualPromotion("Promoted")}
-                    className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
                   >
-                    <CheckCircle className="w-4 h-4 mr-2" />
+                    <CheckCircle className="w-4 h-4 mr-2" weight="bold" />
                     Promote
                   </Button>
                   <Button
                     onClick={() => confirmManualPromotion("Conditional")}
                     className="bg-yellow-600 hover:bg-yellow-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
                   >
-                    <Clock className="w-4 h-4 mr-2" />
+                    <Clock className="w-4 h-4 mr-2" weight="bold" />
                     Conditional
                   </Button>
                   <Button
                     onClick={() => confirmManualPromotion("Repeated")}
                     className="bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
                   >
-                    <XCircle className="w-4 h-4 mr-2" />
+                    <XCircle className="w-4 h-4 mr-2" weight="bold" />
                     Repeat
                   </Button>
                   <Button
                     onClick={() => confirmManualPromotion("On Hold")}
                     className="bg-orange-600 hover:bg-orange-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
                   >
-                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    <Warning className="w-4 h-4 mr-2" weight="bold" />
                     On Hold
                   </Button>
                   <Button
                     onClick={() => confirmManualPromotion("Withdrawn")}
                     className="bg-gray-600 hover:bg-gray-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
                   >
-                    <XCircle className="w-4 h-4 mr-2" />
+                    <XCircle className="w-4 h-4 mr-2" weight="bold" />
                     Withdrawn
                   </Button>
                   <Button
                     onClick={() => confirmManualPromotion("Pending Approval")}
-                    className="bg-blue-600 hover:bg-blue-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
+                    className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
                   >
-                    <Clock className="w-4 h-4 mr-2" />
+                    <Clock className="w-4 h-4 mr-2" weight="bold" />
                     Pending Approval
                   </Button>
                 </div>
@@ -1528,8 +1528,8 @@ export function PromotionSystemPage() {
               
               {/* Demotion Options */}
               <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <XCircle className="w-4 h-4 text-red-600" />
+                <h4 className="text-sm font-heading font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-red-600" weight="bold" />
                   Demotion Options
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
@@ -1537,7 +1537,7 @@ export function PromotionSystemPage() {
                     onClick={() => confirmManualPromotion("Repeated")}
                     className="bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
                   >
-                    <XCircle className="w-4 h-4 mr-2" />
+                    <XCircle className="w-4 h-4 mr-2" weight="bold" />
                     Repeat
                   </Button>
                   <div className="flex gap-2">
@@ -1561,7 +1561,7 @@ export function PromotionSystemPage() {
                       disabled={!demotionClassId}
                       className="bg-orange-600 hover:bg-orange-700 text-white h-12 px-4 rounded-xl shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                     >
-                      <AlertTriangle className="w-4 h-4 mr-2" />
+                      <Warning className="w-4 h-4 mr-2" weight="bold" />
                       Repeat
                     </Button>
                   </div>
@@ -1591,8 +1591,8 @@ export function PromotionSystemPage() {
         <AlertDialogContent className="bg-white border-0 shadow-2xl max-w-lg rounded-2xl">
           <AlertDialogHeader className="pb-4">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Settings className="w-6 h-6 text-blue-600" />
+              <div className="p-3 bg-gray-100 rounded-full">
+                <GearSix className="w-6 h-6 text-[#0A2540]" weight="bold" />
               </div>
               <div>
                 <AlertDialogTitle className="text-gray-900 text-xl font-semibold">Manual Class Change</AlertDialogTitle>
@@ -1622,7 +1622,7 @@ export function PromotionSystemPage() {
                   value={demotionClassId?.toString() || ''}
                   onValueChange={(value: string) => setDemotionClassId(Number(value))}
                 >
-                  <SelectTrigger className="h-12 border-gray-200 bg-white text-gray-900 rounded-xl focus:border-blue-500 focus:ring-blue-500">
+                  <SelectTrigger className="h-12 border-gray-200 bg-white text-gray-900 rounded-xl focus:border-[#0A2540] focus:ring-[#0A2540]">
                     <SelectValue placeholder="Select target class" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200 rounded-xl">
@@ -1654,7 +1654,7 @@ export function PromotionSystemPage() {
                   value={manualClassChangeReason}
                   onChange={(e) => setManualClassChangeReason(e.target.value)}
                   placeholder="Enter reason for manual class change..."
-                  className="w-full h-24 px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500 resize-none"
+                  className="w-full h-24 px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-900 focus:border-[#0A2540] focus:ring-[#0A2540] resize-none"
                 />
               </div>
             </div>
@@ -1676,7 +1676,7 @@ export function PromotionSystemPage() {
             <Button
               onClick={confirmManualClassChange}
               disabled={!demotionClassId || !manualClassChangeReason}
-              className="bg-blue-600 hover:bg-blue-700 text-white h-11 rounded-xl disabled:opacity-50"
+              className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white h-11 rounded-xl disabled:opacity-50"
             >
               Change Class
             </Button>
