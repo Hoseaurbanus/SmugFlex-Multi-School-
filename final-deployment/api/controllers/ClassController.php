@@ -17,21 +17,7 @@ class ClassController {
         $database = new Database();
         $this->conn = $database->getConnection();
     }
-    
-    /**
-     * Public class list for student login (no auth required)
-     */
-    public function getPublicClassList() {
-        try {
-            $query = "SELECT id, name, level, section FROM classes WHERE status = 'Active' ORDER BY name ASC";
-            $stmt = $this->conn->prepare($query);
-            $stmt->execute();
-            $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            Response::success($classes, 'Class list retrieved');
-        } catch (PDOException $e) {
-            Response::serverError('Database error retrieving class list');
-        }
-    }
+
 
     /**
      * Get All Classes
@@ -46,8 +32,8 @@ class ClassController {
         try {
             $query = "SELECT c.*, 
                              CONCAT(t.first_name, ' ', t.last_name) as class_teacher_name,
-                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active') as current_students,
-                             (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active') as subject_count
+                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = c.school_id) as current_students,
+                             (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active' AND school_id = c.school_id) as subject_count
                       FROM classes c
                       LEFT JOIN teachers t ON c.class_teacher_id = t.id";
             
@@ -130,19 +116,22 @@ class ClassController {
         try {
             $query = "SELECT c.*, 
                              CONCAT(t.first_name, ' ', t.last_name) as class_teacher_name, t.email as class_teacher_email,
-                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active') as current_students,
-                             (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active') as subject_count,
+                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as current_students,
+                             (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id2) as subject_count,
                              (SELECT GROUP_CONCAT(sub.name) 
                               FROM subject_assignments sa 
                               JOIN subjects sub ON sa.subject_id = sub.id 
-                              WHERE sa.class_id = c.id AND sa.status = 'Active') as subjects
+                              WHERE sa.class_id = c.id AND sa.status = 'Active' AND sa.school_id = :school_id3) as subjects
                       FROM classes c
                       LEFT JOIN teachers t ON c.class_teacher_id = t.id
-                      WHERE c.id = :id AND c.school_id = :school_id";
+                      WHERE c.id = :id AND c.school_id = :school_id4";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $class_id);
             $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':school_id2', $school_id);
+            $stmt->bindParam(':school_id3', $school_id);
+            $stmt->bindParam(':school_id4', $school_id);
             $stmt->execute();
             
             $class = $stmt->fetch();
@@ -590,6 +579,7 @@ class ClassController {
         Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
         
         $class_id = Middleware::validateInteger($id, 'class_id');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $query = "SELECT sa.id as assignment_id, sub.id as subject_id, sub.name, sub.code, sub.is_core,
@@ -598,11 +588,12 @@ class ClassController {
                       FROM subject_assignments sa
                       JOIN subjects sub ON sa.subject_id = sub.id
                       JOIN teachers t ON sa.teacher_id = t.id
-                      WHERE sa.class_id = :class_id AND sa.status = 'Active'
+                      WHERE sa.class_id = :class_id AND sa.status = 'Active' AND sa.school_id = :school_id
                       ORDER BY sub.is_core DESC, sub.name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':class_id', $class_id);
+            $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             
             $subjects = $stmt->fetchAll();
@@ -621,24 +612,26 @@ class ClassController {
         Middleware::requireAnyRole(['admin', 'teacher', 'accountant']);
         
         $class_id = Middleware::validateInteger($id, 'class_id');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $query = "SELECT 
                         c.name, c.level, c.capacity, c.current_students,
-                        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active') as active_students,
-                        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Inactive') as inactive_students,
-                        (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active') as subject_assignments,
+                        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as active_students,
+                        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Inactive' AND school_id = :school_id) as inactive_students,
+                        (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as subject_assignments,
                         (SELECT COUNT(*) FROM attendance a 
                          JOIN students s ON a.student_id = s.id 
-                         WHERE s.class_id = c.id AND a.date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as attendance_records_30_days,
+                         WHERE s.class_id = c.id AND s.school_id = :school_id AND a.date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as attendance_records_30_days,
                         (SELECT COUNT(*) FROM payments p 
                          JOIN students s ON p.student_id = s.id 
-                         WHERE s.class_id = c.id AND p.recorded_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as payments_30_days
+                         WHERE s.class_id = c.id AND s.school_id = :school_id AND p.recorded_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as payments_30_days
                       FROM classes c
-                      WHERE c.id = :id";
+                      WHERE c.id = :id AND c.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $class_id);
+            $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             
             $statistics = $stmt->fetch();
@@ -661,18 +654,20 @@ class ClassController {
         Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
         
         $level = Middleware::sanitizeString($level);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $query = "SELECT c.*, 
                              CONCAT(t.first_name, ' ', t.last_name) as class_teacher_name,
-                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active') as current_students
+                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as current_students
                       FROM classes c
                       LEFT JOIN teachers t ON c.class_teacher_id = t.id
-                      WHERE c.level = :level AND c.status = 'Active'
+                      WHERE c.level = :level AND c.status = 'Active' AND c.school_id = :school_id
                       ORDER BY c.name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':level', $level);
+            $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             
             $classes = $stmt->fetchAll();
@@ -697,16 +692,18 @@ class ClassController {
         }
 
         $parent_id = $token_data['linked_id'];
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             if ($token_data['role'] === 'admin') {
                 $whatsapp_query = "SELECT wg.*, c.name as class_name, c.level, c.section
                                   FROM class_whatsapp_groups wg
                                   JOIN classes c ON wg.class_id = c.id
-                                  WHERE wg.is_active = 1
+                                  WHERE wg.is_active = 1 AND c.school_id = :school_id
                                   ORDER BY c.level, c.name";
 
                 $whatsapp_stmt = $this->conn->prepare($whatsapp_query);
+                $whatsapp_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                 $whatsapp_stmt->execute();
 
                 $whatsapp_groups = $whatsapp_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -730,14 +727,18 @@ class ClassController {
             // Get all class IDs that the parent's children belong to
             $class_query = "SELECT DISTINCT s.class_id, c.name as class_name
                            FROM students s
-                           JOIN classes c ON s.class_id = c.id
-                           JOIN parent_student_links psl ON s.id = psl.student_id
+                           JOIN classes c ON s.class_id = c.id AND c.school_id = :school_id2
+                           JOIN parent_student_links psl ON s.id = psl.student_id AND psl.school_id = :school_id3
                            WHERE psl.parent_id = :parent_id
                            AND s.status = 'Active'
+                           AND s.school_id = :school_id
                            AND c.status = 'Active'";
 
             $class_stmt = $this->conn->prepare($class_query);
             $class_stmt->bindParam(':parent_id', $parent_id);
+            $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $class_stmt->bindParam(':school_id2', $school_id, PDO::PARAM_INT);
+            $class_stmt->bindParam(':school_id3', $school_id, PDO::PARAM_INT);
             $class_stmt->execute();
 
             $parent_classes = $class_stmt->fetchAll(PDO::FETCH_ASSOC);

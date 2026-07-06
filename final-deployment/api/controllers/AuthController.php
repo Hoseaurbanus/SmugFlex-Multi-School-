@@ -165,7 +165,7 @@ class AuthController {
 
     public function studentLogin() {
         $data = json_decode(file_get_contents('php://input'), true);
-        Middleware::validateRequired($data, ['admission_number', 'class_id']);
+        Middleware::validateRequired($data, ['admission_number', 'class_name']);
 
         $admission_number = Middleware::sanitizeString($data['admission_number']);
         $rateLimitKey = "{$admission_number}:student_login";
@@ -176,7 +176,7 @@ class AuthController {
 
         try {
             $admission_number = Middleware::sanitizeString($data['admission_number']);
-            $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
+            $class_name = Middleware::sanitizeString($data['class_name']);
 
             // Resolve school_id from admission number suffix (e.g. "SMF/001/000" → suffix "SMF")
             $suffixParts = explode('/', $admission_number);
@@ -199,6 +199,19 @@ class AuthController {
             }
 
             $school_id = (int)$schoolRecord['id'];
+
+            // Look up class_id from class_name within this school
+            $classStmt = $this->conn->prepare("SELECT id FROM classes WHERE name = :class_name AND school_id = :school_id AND status = 'Active' LIMIT 1");
+            $classStmt->bindParam(':class_name', $class_name);
+            $classStmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $classStmt->execute();
+            $classRecord = $classStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$classRecord) {
+                Response::badRequest('Class not found in this school.');
+            }
+
+            $class_id = (int)$classRecord['id'];
 
             $query = "SELECT s.id, s.first_name, s.last_name, s.admission_number, s.class_id,
                              c.name as class_name

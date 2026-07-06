@@ -32,8 +32,8 @@ class ClassController {
         try {
             $query = "SELECT c.*, 
                              CONCAT(t.first_name, ' ', t.last_name) as class_teacher_name,
-                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active') as current_students,
-                             (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active') as subject_count
+                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = c.school_id) as current_students,
+                             (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active' AND school_id = c.school_id) as subject_count
                       FROM classes c
                       LEFT JOIN teachers t ON c.class_teacher_id = t.id";
             
@@ -116,19 +116,22 @@ class ClassController {
         try {
             $query = "SELECT c.*, 
                              CONCAT(t.first_name, ' ', t.last_name) as class_teacher_name, t.email as class_teacher_email,
-                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active') as current_students,
-                             (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as subject_count,
+                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as current_students,
+                             (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id2) as subject_count,
                              (SELECT GROUP_CONCAT(sub.name) 
                               FROM subject_assignments sa 
                               JOIN subjects sub ON sa.subject_id = sub.id 
-                              WHERE sa.class_id = c.id AND sa.status = 'Active' AND sa.school_id = :school_id) as subjects
+                              WHERE sa.class_id = c.id AND sa.status = 'Active' AND sa.school_id = :school_id3) as subjects
                       FROM classes c
                       LEFT JOIN teachers t ON c.class_teacher_id = t.id
-                      WHERE c.id = :id AND c.school_id = :school_id";
+                      WHERE c.id = :id AND c.school_id = :school_id4";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $class_id);
             $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':school_id2', $school_id);
+            $stmt->bindParam(':school_id3', $school_id);
+            $stmt->bindParam(':school_id4', $school_id);
             $stmt->execute();
             
             $class = $stmt->fetch();
@@ -724,8 +727,8 @@ class ClassController {
             // Get all class IDs that the parent's children belong to
             $class_query = "SELECT DISTINCT s.class_id, c.name as class_name
                            FROM students s
-                           JOIN classes c ON s.class_id = c.id
-                           JOIN parent_student_links psl ON s.id = psl.student_id
+                           JOIN classes c ON s.class_id = c.id AND c.school_id = :school_id2
+                           JOIN parent_student_links psl ON s.id = psl.student_id AND psl.school_id = :school_id3
                            WHERE psl.parent_id = :parent_id
                            AND s.status = 'Active'
                            AND s.school_id = :school_id
@@ -734,6 +737,8 @@ class ClassController {
             $class_stmt = $this->conn->prepare($class_query);
             $class_stmt->bindParam(':parent_id', $parent_id);
             $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $class_stmt->bindParam(':school_id2', $school_id, PDO::PARAM_INT);
+            $class_stmt->bindParam(':school_id3', $school_id, PDO::PARAM_INT);
             $class_stmt->execute();
 
             $parent_classes = $class_stmt->fetchAll(PDO::FETCH_ASSOC);

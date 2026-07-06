@@ -307,7 +307,7 @@ class ReportController {
                                    ROUND((SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) as attendance_percentage
                                  FROM attendance a
                                  JOIN students s ON a.student_id = s.id
-                                 WHERE s.class_id = :class_id AND a.date BETWEEN :term_start AND :term_end";
+                                 WHERE s.class_id = :class_id AND a.date BETWEEN :term_start AND :term_end AND a.school_id = :school_id";
             
             $term_dates = $this->getTermDates($term, $academic_year);
             
@@ -315,6 +315,7 @@ class ReportController {
             $attendance_stmt->bindParam(':class_id', $class_id);
             $attendance_stmt->bindParam(':term_start', $term_dates['start']);
             $attendance_stmt->bindParam(':term_end', $term_dates['end']);
+            $attendance_stmt->bindParam(':school_id', $school_id);
             $attendance_stmt->execute();
             
             $attendance_summary = $attendance_stmt->fetch();
@@ -358,7 +359,7 @@ class ReportController {
             
             switch ($report_type) {
                 case 'summary':
-                    $report_data = $this->generateFinancialSummary($date_from, $date_to);
+                    $report_data = $this->generateFinancialSummary($date_from, $date_to, $school_id);
                     break;
                 case 'detailed':
                     $report_data = $this->generateDetailedFinancialReport($date_from, $date_to, $school_id);
@@ -367,7 +368,7 @@ class ReportController {
                     $report_data = $this->generateFinancialByClass($date_from, $date_to, $school_id);
                     break;
                 case 'by_payment_type':
-                    $report_data = $this->generateFinancialByPaymentType($date_from, $date_to);
+                    $report_data = $this->generateFinancialByPaymentType($date_from, $date_to, $school_id);
                     break;
             }
             
@@ -423,8 +424,12 @@ class ReportController {
             $params = [];
             $conditions = [];
             
+            // Always scope by school_id
+            $conditions[] = "a.school_id = :school_id";
+            $params[':school_id'] = $school_id;
+            
             if ($class_id) {
-                $conditions[] = "a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";
+                $conditions[] = "a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id)";
                 $params[':class_id'] = $class_id;
             }
             
@@ -540,7 +545,7 @@ class ReportController {
     /**
      * Generate Financial Summary Helper
      */
-    private function generateFinancialSummary($date_from, $date_to) {
+    private function generateFinancialSummary($date_from, $date_to, $school_id) {
         $query = "SELECT 
                    COUNT(*) as total_transactions,
                    COALESCE(SUM(CASE WHEN status = 'Verified' THEN amount ELSE 0 END), 0) as total_verified,
@@ -550,11 +555,12 @@ class ReportController {
                    COUNT(CASE WHEN payment_method = 'Cash' THEN 1 END) as cash_payments,
                    COUNT(CASE WHEN payment_method = 'POS' THEN 1 END) as pos_payments
                  FROM payments 
-                 WHERE recorded_date BETWEEN :date_from AND :date_to";
+                 WHERE recorded_date BETWEEN :date_from AND :date_to AND school_id = :school_id";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':date_from', $date_from);
         $stmt->bindParam(':date_to', $date_to);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return $stmt->fetch();
@@ -611,19 +617,20 @@ class ReportController {
     /**
      * Generate Financial by Payment Type Helper
      */
-    private function generateFinancialByPaymentType($date_from, $date_to) {
+    private function generateFinancialByPaymentType($date_from, $date_to, $school_id) {
         $query = "SELECT payment_type, payment_method,
                      COUNT(*) as transaction_count,
                      COALESCE(SUM(CASE WHEN status = 'Verified' THEN amount ELSE 0 END), 0) as total_verified,
                      COALESCE(SUM(amount), 0) as total_amount
                   FROM payments 
-                  WHERE recorded_date BETWEEN :date_from AND :date_to
+                  WHERE recorded_date BETWEEN :date_from AND :date_to AND school_id = :school_id
                   GROUP BY payment_type, payment_method
                   ORDER BY total_amount DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':date_from', $date_from);
         $stmt->bindParam(':date_to', $date_to);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return ['by_payment_type' => $stmt->fetchAll()];

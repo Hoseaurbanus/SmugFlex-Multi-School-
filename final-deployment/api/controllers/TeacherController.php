@@ -116,13 +116,14 @@ class TeacherController {
                               WHERE sa.teacher_id = t.id AND sa.status = 'Active' AND sa.school_id = :school_id) as assignments
                       FROM teachers t
                     LEFT JOIN departments d ON t.department_id = d.id
-                    LEFT JOIN classes c ON t.is_class_teacher = TRUE AND t.id = c.class_teacher_id
+                    LEFT JOIN classes c ON t.is_class_teacher = TRUE AND t.id = c.class_teacher_id AND c.school_id = :school_id3
                     WHERE t.id = :id AND t.school_id = :school_id2";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $teacher_id);
             $stmt->bindParam(':school_id', $school_id);
             $stmt->bindParam(':school_id2', $school_id);
+            $stmt->bindParam(':school_id3', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             
             $teacher = $stmt->fetch();

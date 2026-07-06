@@ -1584,9 +1584,10 @@ class CbtController {
             // Nullify the CA field(s) that were fed by this exam
             $field = $exam['score_slot'] === 'second_test' ? 'ca2' : 'ca1';
 
-            $query = "UPDATE scores SET $field = NULL, cbt_exam_id = NULL WHERE cbt_exam_id = :exam_id";
+            $query = "UPDATE scores SET $field = NULL, cbt_exam_id = NULL WHERE cbt_exam_id = :exam_id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':exam_id', $exam_id, PDO::PARAM_INT);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
 
             $affected = $stmt->rowCount();

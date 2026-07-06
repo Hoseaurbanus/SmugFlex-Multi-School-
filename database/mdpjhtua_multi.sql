@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jul 06, 2026 at 06:50 AM
+-- Generation Time: Jul 06, 2026 at 12:22 PM
 -- Server version: 11.4.12-MariaDB
 -- PHP Version: 8.4.22
 
@@ -99,7 +99,8 @@ CREATE TABLE `affective_domains` (
   `sense_of_responsibility` int(11) DEFAULT NULL CHECK (`sense_of_responsibility` between 1 and 5),
   `sense_of_responsibility_remark` text DEFAULT NULL,
   `entered_by` int(11) NOT NULL,
-  `entered_date` timestamp NOT NULL DEFAULT current_timestamp()
+  `entered_date` timestamp NOT NULL DEFAULT current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -123,7 +124,8 @@ CREATE TABLE `assignments` (
   `status` enum('Active','Completed','Overdue') DEFAULT 'Active',
   `attachment_url` varchar(255) DEFAULT NULL,
   `created_by` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -142,7 +144,8 @@ CREATE TABLE `assignment_submissions` (
   `submitted_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `graded_at` datetime DEFAULT NULL,
   `graded_by` int(11) DEFAULT NULL,
-  `remarks` text DEFAULT NULL
+  `remarks` text DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -224,7 +227,8 @@ CREATE TABLE `bank_account_settings` (
   `online_payment_enabled` tinyint(1) DEFAULT 0,
   `cash_payment_enabled` tinyint(1) DEFAULT 1,
   `updated_by` int(11) NOT NULL,
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -241,7 +245,8 @@ CREATE TABLE `cbt_answers` (
   `is_correct` tinyint(1) DEFAULT NULL,
   `marks_awarded` int(11) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -268,7 +273,8 @@ CREATE TABLE `cbt_attempts` (
   `ip_address` varchar(45) DEFAULT NULL,
   `user_agent` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -299,7 +305,8 @@ CREATE TABLE `cbt_exams` (
   `status` enum('Active','Archived') NOT NULL DEFAULT 'Active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT NULL,
-  `questions_per_student` int(11) DEFAULT NULL COMMENT 'Number of questions each student must answer. NULL = all questions.'
+  `questions_per_student` int(11) DEFAULT NULL COMMENT 'Number of questions each student must answer. NULL = all questions.',
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -322,7 +329,8 @@ CREATE TABLE `cbt_questions` (
   `section` varchar(200) DEFAULT NULL,
   `section_instructions` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -348,7 +356,8 @@ CREATE TABLE `cbt_question_bank` (
   `tags_json` longtext DEFAULT NULL,
   `status` enum('Active','Archived') NOT NULL DEFAULT 'Active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -416,7 +425,8 @@ CREATE TABLE `class_progression_rules` (
   `from_class_id` int(11) NOT NULL,
   `to_class_id` int(11) NOT NULL,
   `academic_year` varchar(20) NOT NULL,
-  `is_active` tinyint(1) DEFAULT 1
+  `is_active` tinyint(1) DEFAULT 1,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -427,6 +437,7 @@ CREATE TABLE `class_progression_rules` (
 
 CREATE TABLE `class_teacher_assignments` (
   `id` int(11) NOT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
   `teacher_id` int(11) NOT NULL,
   `class_id` int(11) NOT NULL,
   `academic_year` varchar(20) NOT NULL,
@@ -452,6 +463,7 @@ CREATE TABLE `class_timetable` (
   `subject_id` int(11) NOT NULL,
   `teacher_id` int(11) NOT NULL,
   `venue` varchar(50) DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
   `academic_year` varchar(20) NOT NULL,
   `term` enum('First Term','Second Term','Third Term') NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -469,7 +481,8 @@ CREATE TABLE `class_whatsapp_groups` (
   `group_name` varchar(255) DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -594,7 +607,8 @@ CREATE TABLE `departments` (
   `teacher_count` int(11) DEFAULT 0,
   `status` enum('Active','Inactive') DEFAULT 'Active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -615,6 +629,7 @@ CREATE TABLE `exam_timetable` (
   `academic_year` varchar(20) NOT NULL,
   `term` enum('First Term','Second Term','Third Term') NOT NULL,
   `instructions` text DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
   `created_by` int(11) NOT NULL,
   `created_date` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -662,7 +677,8 @@ CREATE TABLE `file_uploads` (
   `entity_id` int(11) NOT NULL,
   `uploaded_by` int(11) NOT NULL,
   `uploaded_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `is_active` tinyint(1) DEFAULT 1
+  `is_active` tinyint(1) DEFAULT 1,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -677,6 +693,7 @@ CREATE TABLE `manual_class_changes` (
   `from_class_id` int(11) NOT NULL,
   `to_class_id` int(11) NOT NULL,
   `reason` text NOT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
   `changed_by` int(11) NOT NULL,
   `change_date` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -755,6 +772,7 @@ CREATE TABLE `parent_student_links` (
   `student_id` int(11) NOT NULL,
   `relationship` enum('Father','Mother','Guardian') NOT NULL,
   `is_primary` tinyint(1) DEFAULT 0,
+  `school_id` int(11) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -890,7 +908,8 @@ CREATE TABLE `psychomotor_domains` (
   `works_well_independently` int(11) DEFAULT NULL CHECK (`works_well_independently` between 1 and 5),
   `works_well_independently_remark` text DEFAULT NULL,
   `entered_by` int(11) NOT NULL,
-  `entered_date` timestamp NOT NULL DEFAULT current_timestamp()
+  `entered_date` timestamp NOT NULL DEFAULT current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -941,7 +960,8 @@ CREATE TABLE `scholarships` (
   `status` enum('Active','Inactive','Expired') DEFAULT 'Active',
   `created_by` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -1005,7 +1025,8 @@ CREATE TABLE `school_calendar` (
   `end_date` date DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
   `created_by` int(11) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -1189,7 +1210,8 @@ CREATE TABLE `signature_settings` (
   `head_teacher_comment` text NOT NULL,
   `resumption_date` date DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -1277,6 +1299,7 @@ CREATE TABLE `student_promotions` (
   `promotion_date` date NOT NULL,
   `approved_date` datetime DEFAULT NULL,
   `remarks` text DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
   `parent_notified` tinyint(1) DEFAULT 0,
   `parent_notification_date` datetime DEFAULT NULL,
   `manual_override` tinyint(1) DEFAULT 0,
@@ -1299,7 +1322,8 @@ CREATE TABLE `student_scholarships` (
   `status` enum('Active','Inactive','Revoked') DEFAULT 'Active',
   `awarded_by` int(11) NOT NULL,
   `awarded_date` timestamp NOT NULL DEFAULT current_timestamp(),
-  `notes` text DEFAULT NULL
+  `notes` text DEFAULT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -1397,6 +1421,7 @@ CREATE TABLE `subject_assignments` (
 
 CREATE TABLE `subject_registrations` (
   `id` int(11) NOT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
   `subject_id` int(11) NOT NULL,
   `class_id` int(11) NOT NULL,
   `academic_year` varchar(20) NOT NULL,
@@ -1637,7 +1662,8 @@ ALTER TABLE `affective_domains`
   ADD UNIQUE KEY `unique_affective` (`student_id`,`class_id`,`term`,`academic_year`),
   ADD KEY `entered_by` (`entered_by`),
   ADD KEY `idx_student` (`student_id`),
-  ADD KEY `idx_class_term` (`class_id`,`term`,`academic_year`);
+  ADD KEY `idx_class_term` (`class_id`,`term`,`academic_year`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `assignments`
@@ -1649,7 +1675,8 @@ ALTER TABLE `assignments`
   ADD KEY `idx_class` (`class_id`),
   ADD KEY `idx_teacher` (`teacher_id`),
   ADD KEY `idx_due_date` (`due_date`),
-  ADD KEY `idx_status` (`status`);
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `assignment_submissions`
@@ -1659,7 +1686,8 @@ ALTER TABLE `assignment_submissions`
   ADD UNIQUE KEY `unique_submission` (`assignment_id`,`student_id`),
   ADD KEY `graded_by` (`graded_by`),
   ADD KEY `idx_assignment` (`assignment_id`),
-  ADD KEY `idx_student` (`student_id`);
+  ADD KEY `idx_student` (`student_id`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `attendance`
@@ -1695,7 +1723,8 @@ ALTER TABLE `attendance_summary`
 --
 ALTER TABLE `bank_account_settings`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `updated_by` (`updated_by`);
+  ADD KEY `updated_by` (`updated_by`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `cbt_answers`
@@ -1704,7 +1733,8 @@ ALTER TABLE `cbt_answers`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uniq_cbt_answer_attempt_question` (`attempt_id`,`question_id`),
   ADD KEY `idx_cbt_answers_attempt` (`attempt_id`),
-  ADD KEY `idx_cbt_answers_question` (`question_id`);
+  ADD KEY `idx_cbt_answers_question` (`question_id`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `cbt_attempts`
@@ -1714,7 +1744,8 @@ ALTER TABLE `cbt_attempts`
   ADD UNIQUE KEY `uniq_cbt_attempt_exam_student_term` (`exam_id`,`student_id`,`academic_year`,`term`),
   ADD KEY `idx_cbt_attempts_student` (`student_id`),
   ADD KEY `idx_cbt_attempts_exam` (`exam_id`),
-  ADD KEY `idx_cbt_attempts_term_year` (`academic_year`,`term`);
+  ADD KEY `idx_cbt_attempts_term_year` (`academic_year`,`term`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `cbt_exams`
@@ -1725,7 +1756,8 @@ ALTER TABLE `cbt_exams`
   ADD KEY `idx_cbt_exams_subject` (`subject_id`),
   ADD KEY `idx_cbt_exams_teacher` (`teacher_id`),
   ADD KEY `idx_cbt_exams_term_year` (`academic_year`,`term`),
-  ADD KEY `idx_cbt_exams_published` (`published`);
+  ADD KEY `idx_cbt_exams_published` (`published`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `cbt_questions`
@@ -1733,7 +1765,8 @@ ALTER TABLE `cbt_exams`
 ALTER TABLE `cbt_questions`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_cbt_questions_exam` (`exam_id`),
-  ADD KEY `idx_cbt_questions_sort` (`exam_id`,`sort_order`);
+  ADD KEY `idx_cbt_questions_sort` (`exam_id`,`sort_order`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `cbt_question_bank`
@@ -1744,13 +1777,15 @@ ALTER TABLE `cbt_question_bank`
   ADD KEY `idx_cbt_qb_subject` (`subject_id`),
   ADD KEY `idx_cbt_qb_class` (`class_id`),
   ADD KEY `idx_cbt_qb_difficulty` (`difficulty`),
-  ADD KEY `idx_cbt_qb_topic` (`topic`);
+  ADD KEY `idx_cbt_qb_topic` (`topic`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `classes`
 --
 ALTER TABLE `classes`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_class_per_school` (`name`,`school_id`),
   ADD KEY `idx_level` (`level`),
   ADD KEY `idx_category` (`category`),
   ADD KEY `idx_academic_year` (`academic_year`),
@@ -1763,18 +1798,20 @@ ALTER TABLE `classes`
 --
 ALTER TABLE `class_progression_rules`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_progression` (`from_class_id`,`to_class_id`,`academic_year`);
+  ADD UNIQUE KEY `unique_progression` (`from_class_id`,`to_class_id`,`academic_year`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `class_teacher_assignments`
 --
 ALTER TABLE `class_teacher_assignments`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_assignment` (`teacher_id`,`class_id`,`academic_year`,`term`),
+  ADD UNIQUE KEY `unique_assignment` (`teacher_id`,`class_id`,`academic_year`,`term`,`school_id`),
   ADD KEY `class_id` (`class_id`),
   ADD KEY `idx_teacher_class` (`teacher_id`,`class_id`),
   ADD KEY `idx_term_year` (`academic_year`,`term`),
-  ADD KEY `idx_status` (`status`);
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `class_timetable`
@@ -1785,7 +1822,8 @@ ALTER TABLE `class_timetable`
   ADD KEY `idx_class` (`class_id`),
   ADD KEY `idx_teacher` (`teacher_id`),
   ADD KEY `idx_subject` (`subject_id`),
-  ADD KEY `idx_day_period` (`day_of_week`,`period`);
+  ADD KEY `idx_day_period` (`day_of_week`,`period`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `class_whatsapp_groups`
@@ -1793,7 +1831,8 @@ ALTER TABLE `class_timetable`
 ALTER TABLE `class_whatsapp_groups`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_class_active` (`class_id`,`is_active`),
-  ADD KEY `idx_class_active` (`class_id`,`is_active`);
+  ADD KEY `idx_class_active` (`class_id`,`is_active`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `compiled_results`
@@ -1835,7 +1874,8 @@ ALTER TABLE `departments`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `code` (`code`),
   ADD KEY `idx_code` (`code`),
-  ADD KEY `idx_status` (`status`);
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `exam_timetable`
@@ -1845,7 +1885,8 @@ ALTER TABLE `exam_timetable`
   ADD KEY `created_by` (`created_by`),
   ADD KEY `idx_class_date` (`class_id`,`exam_date`),
   ADD KEY `idx_subject` (`subject_id`),
-  ADD KEY `idx_date` (`exam_date`);
+  ADD KEY `idx_date` (`exam_date`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `fee_structures`
@@ -1864,13 +1905,15 @@ ALTER TABLE `file_uploads`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_entity` (`entity_id`,`upload_type`),
   ADD KEY `idx_upload_type` (`upload_type`),
-  ADD KEY `idx_uploaded_by` (`uploaded_by`);
+  ADD KEY `idx_uploaded_by` (`uploaded_by`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `manual_class_changes`
 --
 ALTER TABLE `manual_class_changes`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `migrations`
@@ -1906,9 +1949,10 @@ ALTER TABLE `parents`
 --
 ALTER TABLE `parent_student_links`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_parent_student` (`parent_id`,`student_id`),
+  ADD UNIQUE KEY `unique_parent_student_school` (`parent_id`,`student_id`,`school_id`),
   ADD KEY `idx_parent` (`parent_id`),
-  ADD KEY `idx_student` (`student_id`);
+  ADD KEY `idx_student` (`student_id`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `password_reset_log`
@@ -1972,7 +2016,8 @@ ALTER TABLE `psychomotor_domains`
   ADD UNIQUE KEY `unique_psychomotor` (`student_id`,`class_id`,`term`,`academic_year`),
   ADD KEY `entered_by` (`entered_by`),
   ADD KEY `idx_student` (`student_id`),
-  ADD KEY `idx_class_term` (`class_id`,`term`,`academic_year`);
+  ADD KEY `idx_class_term` (`class_id`,`term`,`academic_year`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `realtime_events`
@@ -2000,7 +2045,8 @@ ALTER TABLE `scholarships`
   ADD PRIMARY KEY (`id`),
   ADD KEY `created_by` (`created_by`),
   ADD KEY `idx_academic_year` (`academic_year`),
-  ADD KEY `idx_status` (`status`);
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `schools`
@@ -2020,7 +2066,8 @@ ALTER TABLE `school_calendar`
   ADD PRIMARY KEY (`id`),
   ADD KEY `academic_year_id` (`academic_year_id`),
   ADD KEY `term_id` (`term_id`),
-  ADD KEY `created_by` (`created_by`);
+  ADD KEY `created_by` (`created_by`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `school_modules`
@@ -2073,7 +2120,8 @@ ALTER TABLE `security_logs`
 ALTER TABLE `signature_settings`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_signature_settings_scope` (`academic_year`,`term`),
-  ADD KEY `idx_signature_settings_updated_at` (`updated_at`);
+  ADD KEY `idx_signature_settings_updated_at` (`updated_at`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `students`
@@ -2110,7 +2158,8 @@ ALTER TABLE `student_promotions`
   ADD KEY `idx_student` (`student_id`),
   ADD KEY `idx_from_class` (`from_class_id`),
   ADD KEY `idx_to_class` (`to_class_id`),
-  ADD KEY `idx_promotion_date` (`promotion_date`);
+  ADD KEY `idx_promotion_date` (`promotion_date`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `student_scholarships`
@@ -2120,7 +2169,8 @@ ALTER TABLE `student_scholarships`
   ADD UNIQUE KEY `unique_student_scholarship` (`scholarship_id`,`student_id`,`term`,`academic_year`),
   ADD KEY `awarded_by` (`awarded_by`),
   ADD KEY `idx_student` (`student_id`),
-  ADD KEY `idx_scholarship` (`scholarship_id`);
+  ADD KEY `idx_scholarship` (`scholarship_id`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `student_term_invoices`
@@ -2137,7 +2187,7 @@ ALTER TABLE `student_term_invoices`
 --
 ALTER TABLE `subjects`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `code` (`code`),
+  ADD UNIQUE KEY `unique_code_per_school` (`code`,`school_id`),
   ADD KEY `idx_code` (`code`),
   ADD KEY `idx_category` (`category`),
   ADD KEY `idx_status` (`status`),
@@ -2148,7 +2198,7 @@ ALTER TABLE `subjects`
 --
 ALTER TABLE `subject_assignments`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_assignment` (`subject_id`,`class_id`,`academic_year`,`term`),
+  ADD UNIQUE KEY `unique_assignment` (`subject_id`,`class_id`,`academic_year`,`term`,`school_id`),
   ADD KEY `idx_teacher` (`teacher_id`),
   ADD KEY `idx_class` (`class_id`),
   ADD KEY `idx_subject` (`subject_id`),
@@ -2160,11 +2210,13 @@ ALTER TABLE `subject_assignments`
 ALTER TABLE `subject_registrations`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_registration` (`subject_id`,`class_id`,`academic_year`,`term`),
+  ADD UNIQUE KEY `unique_registration_per_school` (`subject_id`,`class_id`,`academic_year`,`term`,`school_id`),
   ADD KEY `idx_class` (`class_id`),
   ADD KEY `idx_subject` (`subject_id`),
   ADD KEY `idx_academic_year` (`academic_year`),
   ADD KEY `idx_term` (`term`),
-  ADD KEY `idx_status` (`status`);
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_school_id` (`school_id`);
 
 --
 -- Indexes for table `super_admins`
@@ -2641,6 +2693,24 @@ ALTER TABLE `accountants`
   ADD CONSTRAINT `fk_accountants_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `affective_domains`
+--
+ALTER TABLE `affective_domains`
+  ADD CONSTRAINT `fk_affective_domains_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `assignments`
+--
+ALTER TABLE `assignments`
+  ADD CONSTRAINT `fk_assignments_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `assignment_submissions`
+--
+ALTER TABLE `assignment_submissions`
+  ADD CONSTRAINT `fk_assignment_submissions_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `attendance`
 --
 ALTER TABLE `attendance`
@@ -2659,10 +2729,64 @@ ALTER TABLE `attendance_summary`
   ADD CONSTRAINT `fk_attendance_summary_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `bank_account_settings`
+--
+ALTER TABLE `bank_account_settings`
+  ADD CONSTRAINT `fk_bank_account_settings_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `cbt_answers`
+--
+ALTER TABLE `cbt_answers`
+  ADD CONSTRAINT `fk_cbt_answers_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `cbt_attempts`
+--
+ALTER TABLE `cbt_attempts`
+  ADD CONSTRAINT `fk_cbt_attempts_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `cbt_exams`
+--
+ALTER TABLE `cbt_exams`
+  ADD CONSTRAINT `fk_cbt_exams_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `cbt_questions`
+--
+ALTER TABLE `cbt_questions`
+  ADD CONSTRAINT `fk_cbt_questions_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `cbt_question_bank`
+--
+ALTER TABLE `cbt_question_bank`
+  ADD CONSTRAINT `fk_cbt_question_bank_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `classes`
 --
 ALTER TABLE `classes`
   ADD CONSTRAINT `fk_classes_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `class_progression_rules`
+--
+ALTER TABLE `class_progression_rules`
+  ADD CONSTRAINT `fk_class_progression_rules_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `class_timetable`
+--
+ALTER TABLE `class_timetable`
+  ADD CONSTRAINT `fk_class_timetable_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `class_whatsapp_groups`
+--
+ALTER TABLE `class_whatsapp_groups`
+  ADD CONSTRAINT `fk_class_whatsapp_groups_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `compiled_results`
@@ -2677,10 +2801,34 @@ ALTER TABLE `cumulative_results`
   ADD CONSTRAINT `fk_cumulative_results_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `departments`
+--
+ALTER TABLE `departments`
+  ADD CONSTRAINT `fk_departments_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `exam_timetable`
+--
+ALTER TABLE `exam_timetable`
+  ADD CONSTRAINT `fk_exam_timetable_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `fee_structures`
 --
 ALTER TABLE `fee_structures`
   ADD CONSTRAINT `fk_fee_structures_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `file_uploads`
+--
+ALTER TABLE `file_uploads`
+  ADD CONSTRAINT `fk_file_uploads_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `manual_class_changes`
+--
+ALTER TABLE `manual_class_changes`
+  ADD CONSTRAINT `fk_manual_class_changes_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `notifications`
@@ -2707,6 +2855,24 @@ ALTER TABLE `platform_activity_logs`
   ADD CONSTRAINT `fk_pal_school_id` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`);
 
 --
+-- Constraints for table `psychomotor_domains`
+--
+ALTER TABLE `psychomotor_domains`
+  ADD CONSTRAINT `fk_psychomotor_domains_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `scholarships`
+--
+ALTER TABLE `scholarships`
+  ADD CONSTRAINT `fk_scholarships_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `school_calendar`
+--
+ALTER TABLE `school_calendar`
+  ADD CONSTRAINT `fk_school_calendar_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `school_settings`
 --
 ALTER TABLE `school_settings`
@@ -2719,6 +2885,12 @@ ALTER TABLE `scores`
   ADD CONSTRAINT `fk_scores_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `signature_settings`
+--
+ALTER TABLE `signature_settings`
+  ADD CONSTRAINT `fk_signature_settings_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `students`
 --
 ALTER TABLE `students`
@@ -2729,6 +2901,18 @@ ALTER TABLE `students`
 --
 ALTER TABLE `student_fee_balances`
   ADD CONSTRAINT `fk_student_fee_balances_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `student_promotions`
+--
+ALTER TABLE `student_promotions`
+  ADD CONSTRAINT `fk_student_promotions_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `student_scholarships`
+--
+ALTER TABLE `student_scholarships`
+  ADD CONSTRAINT `fk_student_scholarships_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `student_term_invoices`

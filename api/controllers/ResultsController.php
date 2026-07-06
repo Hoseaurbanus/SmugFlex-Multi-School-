@@ -603,8 +603,8 @@ class ResultsController
                 strpos($class_name_lc, 'crèche') !== false;
 
             $class_id = (int)$assignment_info['class_id'];
-            $assignment_term = $this->getAssignmentTerm($assignment_id);
-            $assignment_year = $this->getAssignmentAcademicYear($assignment_id);
+            $assignment_term = $this->getAssignmentTerm($assignment_id, $school_id);
+            $assignment_year = $this->getAssignmentAcademicYear($assignment_id, $school_id);
 
             $this->conn->beginTransaction();
 
@@ -956,10 +956,12 @@ class ResultsController
                           AND cta.term = :cta_term
                           AND cta.academic_year = :cta_academic_year
                           AND cta.status = 'Active'
+                          AND cta.school_id = :cta_school_id
                     ) AND sc.status IN ('Submitted','Rejected','Approved')))";
                     $params[':class_teacher_id'] = $teacher_id;
                     $params[':cta_term'] = $term;
                     $params[':cta_academic_year'] = $academic_year;
+                    $params[':cta_school_id'] = $school_id;
                 } else {
                     // Fallback for older schema (no term/year on classes; best-effort)
                     if ($this->columnExists('classes', 'class_teacher_id')) {
@@ -1176,11 +1178,12 @@ class ResultsController
 
                 try {
                     $teacher_check = "SELECT COUNT(*) as count FROM class_teacher_assignments
-                                     WHERE teacher_id = :teacher_id AND term = :term AND academic_year = :academic_year AND status = 'Active'";
+                                     WHERE teacher_id = :teacher_id AND term = :term AND academic_year = :academic_year AND status = 'Active' AND school_id = :school_id";
                     $check_stmt = $this->conn->prepare($teacher_check);
                     $check_stmt->bindValue(':teacher_id', $token_data['linked_id']);
                     $check_stmt->bindValue(':term', $check_term);
                     $check_stmt->bindValue(':academic_year', $check_academic_year);
+                    $check_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                     $check_stmt->execute();
 
                     $result = $check_stmt->fetch();
@@ -1205,10 +1208,12 @@ class ResultsController
                         AND cta.term = :cta_term
                         AND cta.academic_year = :cta_academic_year
                         AND cta.status = 'Active'
+                        AND cta.school_id = :cta_school_id
                     )";
                     $params[':teacher_id'] = $token_data['linked_id'];
                     $params[':cta_term'] = $check_term;
                     $params[':cta_academic_year'] = $check_academic_year;
+                    $params[':cta_school_id'] = $school_id;
                 } else {
                     // Teacher has no assignments, return empty result
                     Response::success(['data' => []], 'No class assignments found for teacher');
@@ -1248,14 +1253,14 @@ class ResultsController
             $affectiveStmt = null;
             if ($hasAffectiveTable) {
                 $affectiveStmt = $this->conn->prepare(
-                    "SELECT * FROM affective_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year LIMIT 1"
+                    "SELECT * FROM affective_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id LIMIT 1"
                 );
             }
 
             $psychomotorStmt = null;
             if ($hasPsychomotorTable) {
                 $psychomotorStmt = $this->conn->prepare(
-                    "SELECT * FROM psychomotor_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year LIMIT 1"
+                    "SELECT * FROM psychomotor_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id LIMIT 1"
                 );
             }
 
@@ -1269,6 +1274,7 @@ class ResultsController
                         $affectiveStmt->bindValue(':student_id', $sid, PDO::PARAM_INT);
                         $affectiveStmt->bindValue(':term', $rTerm);
                         $affectiveStmt->bindValue(':academic_year', $rYear);
+                        $affectiveStmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                         $affectiveStmt->execute();
                         $aff = $affectiveStmt->fetch(PDO::FETCH_ASSOC);
                         $row['affective'] = $aff ? $aff : null;
@@ -1280,6 +1286,7 @@ class ResultsController
                         $psychomotorStmt->bindValue(':student_id', $sid, PDO::PARAM_INT);
                         $psychomotorStmt->bindValue(':term', $rTerm);
                         $psychomotorStmt->bindValue(':academic_year', $rYear);
+                        $psychomotorStmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                         $psychomotorStmt->execute();
                         $psy = $psychomotorStmt->fetch(PDO::FETCH_ASSOC);
                         $row['psychomotor'] = $psy ? $psy : null;
@@ -1367,16 +1374,17 @@ class ResultsController
     private function calculateClassStatistics($assignment_id, $new_score = null)
     {
         try {
-            $query = "SELECT total FROM scores WHERE subject_assignment_id = :assignment_id";
+            $query = "SELECT total FROM scores WHERE subject_assignment_id = :assignment_id AND school_id = :school_id";
+            $params = [':assignment_id' => $assignment_id, ':school_id' => $this->school_id ?? 0];
             if ($new_score !== null) {
                 // Include the new score in calculation
                 $query .= " UNION ALL SELECT :new_score as total";
+                $params[':new_score'] = $new_score;
             }
 
             $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':assignment_id', $assignment_id);
-            if ($new_score !== null) {
-                $stmt->bindParam(':new_score', $new_score);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value);
             }
             $stmt->execute();
 
@@ -1462,9 +1470,10 @@ class ResultsController
                                  COUNT(DISTINCT sc.student_id) as students_with_scores,
                                  GROUP_CONCAT(DISTINCT CONCAT(s.first_name, ' ', s.last_name) ORDER BY s.last_name, s.first_name) as students_without_scores
                                  FROM students s
-                                 LEFT JOIN scores sc ON s.id = sc.student_id
-                                 LEFT JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
+                                 LEFT JOIN scores sc ON s.id = sc.student_id AND sc.school_id = :school_id
+                                 LEFT JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id AND sa.school_id = :school_id2
                                  WHERE s.class_id = :class_id AND s.status = 'Active'
+                                 AND s.school_id = :school_id3
                                  AND s.id IN ($student_placeholders)
                                  AND sa.term = :term AND sa.academic_year = :academic_year
                                  GROUP BY s.id
@@ -1475,6 +1484,9 @@ class ResultsController
             $score_stmt->bindParam(':class_id', $class_id);
             $score_stmt->bindParam(':term', $term);
             $score_stmt->bindParam(':academic_year', $academic_year);
+            $score_stmt->bindParam(':school_id', $__school_id, PDO::PARAM_INT);
+            $score_stmt->bindParam(':school_id2', $__school_id, PDO::PARAM_INT);
+            $score_stmt->bindParam(':school_id3', $__school_id, PDO::PARAM_INT);
             foreach ($student_ids as $i => $sid) {
                 $score_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
             }
@@ -1546,7 +1558,9 @@ class ResultsController
                                             AND a.class_id = :class_id_join
                                             AND a.term = :term
                                             AND a.academic_year = :academic_year
+                                            AND a.school_id = :school_id
                                           WHERE s.class_id = :class_id_where AND s.status = 'Active'
+                                          AND s.school_id = :school_id2
                                           AND s.id IN ($student_placeholders)
                                           GROUP BY s.id, s.first_name, s.last_name";
 
@@ -1556,6 +1570,8 @@ class ResultsController
                 $attendance_stmt->bindValue(':class_id_where', $class_id, PDO::PARAM_INT);
                 $attendance_stmt->bindParam(':term', $term);
                 $attendance_stmt->bindParam(':academic_year', $academic_year);
+                $attendance_stmt->bindParam(':school_id', $__school_id, PDO::PARAM_INT);
+                $attendance_stmt->bindParam(':school_id2', $__school_id, PDO::PARAM_INT);
                 foreach ($student_ids as $i => $sid) {
                     $attendance_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
                 }
@@ -1624,8 +1640,9 @@ class ResultsController
                                      COUNT(DISTINCT ad.student_id) as students_with_affective,
                                      GROUP_CONCAT(DISTINCT CONCAT(s.first_name, ' ', s.last_name) ORDER BY s.last_name, s.first_name) as students_without_affective
                                      FROM students s
-                                     LEFT JOIN affective_domains ad ON s.id = ad.student_id
+                                     LEFT JOIN affective_domains ad ON s.id = ad.student_id AND ad.school_id = :school_id
                                      WHERE s.class_id = :class_id AND s.status = 'Active'
+                                     AND s.school_id = :school_id2
                                      AND s.id IN ($student_placeholders)
                                      AND ad.term = :term AND ad.academic_year = :academic_year
                                      GROUP BY s.id
@@ -1636,6 +1653,8 @@ class ResultsController
             $affective_stmt->bindParam(':class_id', $class_id);
             $affective_stmt->bindParam(':term', $term);
             $affective_stmt->bindParam(':academic_year', $academic_year);
+            $affective_stmt->bindParam(':school_id', $__school_id, PDO::PARAM_INT);
+            $affective_stmt->bindParam(':school_id2', $__school_id, PDO::PARAM_INT);
             foreach ($student_ids as $i => $sid) {
                 $affective_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
             }
@@ -1653,8 +1672,9 @@ class ResultsController
                                        COUNT(DISTINCT pd.student_id) as students_with_psychomotor,
                                        GROUP_CONCAT(DISTINCT CONCAT(s.first_name, ' ', s.last_name) ORDER BY s.last_name, s.first_name) as students_without_psychomotor
                                        FROM students s
-                                       LEFT JOIN psychomotor_domains pd ON s.id = pd.student_id
+                                       LEFT JOIN psychomotor_domains pd ON s.id = pd.student_id AND pd.school_id = :school_id
                                        WHERE s.class_id = :class_id AND s.status = 'Active'
+                                       AND s.school_id = :school_id2
                                        AND s.id IN ($student_placeholders)
                                        AND pd.term = :term AND pd.academic_year = :academic_year
                                        GROUP BY s.id
@@ -1665,6 +1685,8 @@ class ResultsController
             $psychomotor_stmt->bindParam(':class_id', $class_id);
             $psychomotor_stmt->bindParam(':term', $term);
             $psychomotor_stmt->bindParam(':academic_year', $academic_year);
+            $psychomotor_stmt->bindParam(':school_id', $__school_id, PDO::PARAM_INT);
+            $psychomotor_stmt->bindParam(':school_id2', $__school_id, PDO::PARAM_INT);
             foreach ($student_ids as $i => $sid) {
                 $psychomotor_stmt->bindValue(':sid' . $i, (int)$sid, PDO::PARAM_INT);
             }
@@ -1709,9 +1731,10 @@ class ResultsController
                     foreach ($students_missing_comments as $i => $sid) {
                         $comment_placeholders[] = ':cid' . $i;
                     }
-                    $comment_check_query = 'SELECT first_name, last_name FROM students WHERE id IN (' . implode(', ', $comment_placeholders) . ')';
+                    $comment_check_query = 'SELECT first_name, last_name FROM students WHERE id IN (' . implode(', ', $comment_placeholders) . ') AND school_id = :school_id';
                     $__validation_query = $comment_check_query;
                     $comment_stmt = $this->conn->prepare($comment_check_query);
+                    $comment_stmt->bindParam(':school_id', $__school_id, PDO::PARAM_INT);
                     foreach ($students_missing_comments as $i => $sid) {
                         $comment_stmt->bindValue(':cid' . $i, (int)$sid, PDO::PARAM_INT);
                     }
@@ -1759,6 +1782,8 @@ class ResultsController
             return;
         }
 
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
+
         $data = json_decode(file_get_contents('php://input'), true);
         if (!is_array($data)) {
             Response::badRequest('Invalid JSON payload');
@@ -1799,12 +1824,13 @@ class ResultsController
 
                 if ($this->tableExists('class_teacher_assignments')) {
                     $stmt = $this->conn->prepare(
-                        "SELECT COUNT(*) FROM class_teacher_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year AND status = 'Active'"
+                        "SELECT COUNT(*) FROM class_teacher_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year AND status = 'Active' AND school_id = :school_id"
                     );
                     $stmt->bindValue(':teacher_id', $token_data['linked_id']);
                     $stmt->bindValue(':class_id', $class_id);
                     $stmt->bindValue(':term', $term);
                     $stmt->bindValue(':academic_year', $academic_year);
+                    $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                     $stmt->execute();
                     if ((int)$stmt->fetchColumn() === 0) {
                         Response::forbidden('You are not assigned as class teacher for this class/term/year');
@@ -1842,12 +1868,13 @@ class ResultsController
 
                 // Find existing compiled_results row
                 $findStmt = $this->conn->prepare(
-                    'SELECT id FROM compiled_results WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year LIMIT 1'
+                    'SELECT id FROM compiled_results WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id LIMIT 1'
                 );
                 $findStmt->bindValue(':student_id', $student_id);
                 $findStmt->bindValue(':class_id', $class_id);
                 $findStmt->bindValue(':term', $term);
                 $findStmt->bindValue(':academic_year', $academic_year);
+                $findStmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $findStmt->execute();
                 $existing_id = $findStmt->fetchColumn();
 
@@ -1918,7 +1945,7 @@ class ResultsController
                     $saved++;
                 } else {
                     $insertSql = 'INSERT INTO compiled_results (
-                        student_id, class_id, term, academic_year,
+                        student_id, class_id, school_id, term, academic_year,
                         total_score, average_score, class_average, position,
                         total_students, times_present, times_absent, total_attendance_days,
                         term_begin, term_end, next_term_begin,
@@ -1926,7 +1953,7 @@ class ResultsController
                         principal_name, principal_comment, principal_signature,
                         compiled_by, status, print_approved, approved_by, approved_date, rejection_reason
                     ) VALUES (
-                        :student_id, :class_id, :term, :academic_year,
+                        :student_id, :class_id, :school_id, :term, :academic_year,
                         :total_score, :average_score, :class_average, :position,
                         :total_students, :times_present, :times_absent, :total_attendance_days,
                         :term_begin, :term_end, :next_term_begin,
@@ -1937,6 +1964,7 @@ class ResultsController
                     $stmt = $this->conn->prepare($insertSql);
                     $stmt->bindValue(':student_id', $student_id);
                     $stmt->bindValue(':class_id', $class_id);
+                    $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                     $stmt->bindValue(':term', $term);
                     $stmt->bindValue(':academic_year', $academic_year);
                     foreach ($payload as $k => $v) {
@@ -1986,6 +2014,7 @@ class ResultsController
         }
 
         $token_data = Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $result_id = Middleware::validateInteger($id, 'id');
@@ -1993,8 +2022,10 @@ class ResultsController
             $this->ensureCompiledResultsTableExists();
             $this->ensureCompiledResultsColumnsExist();
 
-            // Get result details with student and class info
-            $stmt = $this->conn->prepare('SELECT cr.*, s.admission_number FROM compiled_results cr JOIN students s ON cr.student_id = s.id WHERE cr.id = :id LIMIT 1');
+            // Get result details with student and class info — scoped to school
+            $stmt = $this->conn->prepare('SELECT cr.*, s.admission_number FROM compiled_results cr JOIN students s ON cr.student_id = s.id AND s.school_id = :school_id WHERE cr.id = :id AND cr.school_id = :school_id2 LIMIT 1');
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+            $stmt->bindValue(':school_id2', $school_id, PDO::PARAM_INT);
             $stmt->bindValue(':id', $result_id);
             $stmt->execute();
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -2007,11 +2038,12 @@ class ResultsController
             $approved_date = date('Y-m-d H:i:s');
 
             $update = $this->conn->prepare(
-                "UPDATE compiled_results SET status = 'Approved', approved_by = :approved_by, approved_date = :approved_date WHERE id = :id"
+                "UPDATE compiled_results SET status = 'Approved', approved_by = :approved_by, approved_date = :approved_date WHERE id = :id AND school_id = :school_id"
             );
             $update->bindValue(':approved_by', $approved_by > 0 ? $approved_by : null);
             $update->bindValue(':approved_date', $approved_date);
             $update->bindValue(':id', $result_id);
+            $update->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $update->execute();
 
             // Create targeted notification for parent and class teacher only
@@ -2020,10 +2052,12 @@ class ResultsController
             // Get parent user_id from parent_student_links
             $parent_stmt = $this->conn->prepare(
                 "SELECT u.id as user_id FROM parent_student_links psl
-                 JOIN users u ON u.linked_id = psl.parent_id AND u.role = 'parent'
-                 WHERE psl.student_id = :student_id AND psl.is_primary = 1 LIMIT 1"
+                 JOIN users u ON u.linked_id = psl.parent_id AND u.role = 'parent' AND u.school_id = :school_id
+                 WHERE psl.student_id = :student_id AND psl.is_primary = 1 AND psl.school_id = :school_id2 LIMIT 1"
             );
             $parent_stmt->bindValue(':student_id', $result['student_id']);
+            $parent_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+            $parent_stmt->bindValue(':school_id2', $school_id, PDO::PARAM_INT);
             $parent_stmt->execute();
             $parent_user = $parent_stmt->fetch(PDO::FETCH_ASSOC);
             if ($parent_user) {
@@ -2033,12 +2067,14 @@ class ResultsController
             // Get class teacher user_id
             $teacher_stmt = $this->conn->prepare(
                 "SELECT u.id as user_id FROM classes c
-                 JOIN teachers t ON t.id = c.class_teacher_id
-                 JOIN users u ON u.linked_id = t.id AND u.role = 'teacher'
-                 WHERE c.id = :class_id AND c.school_id = :school_id LIMIT 1"
+                 JOIN teachers t ON t.id = c.class_teacher_id AND t.school_id = :school_id
+                 JOIN users u ON u.linked_id = t.id AND u.role = 'teacher' AND u.school_id = :school_id2
+                 WHERE c.id = :class_id AND c.school_id = :school_id3 LIMIT 1"
             );
             $teacher_stmt->bindValue(':class_id', $result['class_id']);
-            $teacher_stmt->bindValue(':school_id', (int)($token_data['school_id'] ?? 0), PDO::PARAM_INT);
+            $teacher_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+            $teacher_stmt->bindValue(':school_id2', $school_id, PDO::PARAM_INT);
+            $teacher_stmt->bindValue(':school_id3', $school_id, PDO::PARAM_INT);
             $teacher_stmt->execute();
             $teacher_user = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
             if ($teacher_user) {
@@ -2051,13 +2087,14 @@ class ResultsController
                 $notification_message = "Result for student {$result['admission_number']} has been approved for {$result['term']} {$result['academic_year']}";
                 
                 $notif_stmt = $this->conn->prepare(
-                    "INSERT INTO notifications (title, message, type, priority, target_audience, target_users, created_by)
-                     VALUES (:title, :message, 'Success', 'High', 'Specific', :target_users, :created_by)"
+                    "INSERT INTO notifications (title, message, type, priority, target_audience, target_users, created_by, school_id)
+                     VALUES (:title, :message, 'Success', 'High', 'Specific', :target_users, :created_by, :school_id)"
                 );
                 $notif_stmt->bindValue(':title', $notification_title);
                 $notif_stmt->bindValue(':message', $notification_message);
                 $notif_stmt->bindValue(':target_users', json_encode($target_users));
                 $notif_stmt->bindValue(':created_by', $approved_by > 0 ? $approved_by : null);
+                $notif_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $notif_stmt->execute();
 
                 // Create user notification records for each target user
@@ -2106,6 +2143,7 @@ class ResultsController
         }
 
         Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
         $reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : '';
@@ -2119,8 +2157,9 @@ class ResultsController
             $this->ensureCompiledResultsTableExists();
             $this->ensureCompiledResultsColumnsExist();
 
-            $stmt = $this->conn->prepare('SELECT id FROM compiled_results WHERE id = :id LIMIT 1');
+            $stmt = $this->conn->prepare('SELECT id FROM compiled_results WHERE id = :id AND school_id = :school_id LIMIT 1');
             $stmt->bindValue(':id', $result_id);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             $exists = $stmt->fetchColumn();
             if (!$exists) {
@@ -2131,10 +2170,11 @@ class ResultsController
             $update = $this->conn->prepare(
                 "UPDATE compiled_results
                  SET status = 'Rejected', rejection_reason = :reason, approved_by = NULL, approved_date = NULL
-                 WHERE id = :id"
+                 WHERE id = :id AND school_id = :school_id"
             );
             $update->bindValue(':reason', $reason);
             $update->bindValue(':id', $result_id);
+            $update->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $update->execute();
 
             RealtimeEvents::publish(['compiled_results', 'notifications'], [
@@ -2164,6 +2204,7 @@ class ResultsController
         }
 
         Middleware::requireRole('admin');
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         try {
             $result_id = Middleware::validateInteger($id, 'id');
@@ -2171,8 +2212,9 @@ class ResultsController
             $this->ensureCompiledResultsTableExists();
             $this->ensureCompiledResultsColumnsExist();
 
-            $stmt = $this->conn->prepare('DELETE FROM compiled_results WHERE id = :id');
+            $stmt = $this->conn->prepare('DELETE FROM compiled_results WHERE id = :id AND school_id = :school_id');
             $stmt->bindValue(':id', $result_id);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
 
             RealtimeEvents::publish(['compiled_results'], [
@@ -2224,10 +2266,11 @@ class ResultsController
             }
 
             // Verify teacher has access to this class
-            $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+            $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
             $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
             $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
             $teacher_check_stmt->bindParam(':class_id', $student['class_id']);
+            $teacher_check_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $teacher_check_stmt->execute();
 
             if ($teacher_check_stmt->fetch()['count'] == 0) {
@@ -2251,23 +2294,26 @@ class ResultsController
             // Check scores for this student
             $score_query = "SELECT COUNT(DISTINCT sa.subject_id) as subject_count
                            FROM scores sc
-                           JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
-                           WHERE sc.student_id = :student_id AND sa.term = :term AND sa.academic_year = :academic_year";
+                           JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id AND sa.school_id = :school_id
+                           WHERE sc.student_id = :student_id AND sa.term = :term AND sa.academic_year = :academic_year AND sc.school_id = :school_id2";
             $score_stmt = $this->conn->prepare($score_query);
             $score_stmt->bindParam(':student_id', $student_id);
             $score_stmt->bindParam(':term', $term);
             $score_stmt->bindParam(':academic_year', $academic_year);
+            $score_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $score_stmt->bindParam(':school_id2', $school_id, PDO::PARAM_INT);
             $score_stmt->execute();
             $score_result = $score_stmt->fetch();
 
             // Get total subjects for this class
             $total_subjects_query = "SELECT COUNT(DISTINCT subject_id) as total_subjects
                                    FROM subject_assignments 
-                                   WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year";
+                                   WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id";
             $total_subjects_stmt = $this->conn->prepare($total_subjects_query);
             $total_subjects_stmt->bindParam(':class_id', $student['class_id']);
             $total_subjects_stmt->bindParam(':term', $term);
             $total_subjects_stmt->bindParam(':academic_year', $academic_year);
+            $total_subjects_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $total_subjects_stmt->execute();
             $total_subjects = $total_subjects_stmt->fetch()['total_subjects'];
 
@@ -2297,13 +2343,15 @@ class ResultsController
                                 WHERE student_id = :student_id
                                   AND class_id = :class_id
                                   AND term = :term
-                                  AND academic_year = :academic_year";
+                                  AND academic_year = :academic_year
+                                  AND school_id = :school_id";
 
             $attendance_stmt = $this->conn->prepare($attendance_query);
             $attendance_stmt->bindParam(':student_id', $student_id);
             $attendance_stmt->bindParam(':class_id', $student['class_id']);
             $attendance_stmt->bindParam(':term', $term);
             $attendance_stmt->bindParam(':academic_year', $academic_year);
+            $attendance_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $attendance_stmt->execute();
             $attendance_result = $attendance_stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -2330,11 +2378,12 @@ class ResultsController
             // Check affective domains for this student
             $affective_query = "SELECT attentiveness, honesty, neatness, obedience, sense_of_responsibility
                                FROM affective_domains 
-                               WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year";
+                               WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id";
             $affective_stmt = $this->conn->prepare($affective_query);
             $affective_stmt->bindParam(':student_id', $student_id);
             $affective_stmt->bindParam(':term', $term);
             $affective_stmt->bindParam(':academic_year', $academic_year);
+            $affective_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $affective_stmt->execute();
             $affective_result = $affective_stmt->fetch();
 
@@ -2352,11 +2401,12 @@ class ResultsController
             // Check psychomotor domains for this student
             $psychomotor_query = "SELECT attention_to_direction, considerate_of_others, handwriting, sports, verbal_fluency, works_well_independently
                                  FROM psychomotor_domains 
-                                 WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year";
+                                 WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id";
             $psychomotor_stmt = $this->conn->prepare($psychomotor_query);
             $psychomotor_stmt->bindParam(':student_id', $student_id);
             $psychomotor_stmt->bindParam(':term', $term);
             $psychomotor_stmt->bindParam(':academic_year', $academic_year);
+            $psychomotor_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $psychomotor_stmt->execute();
             $psychomotor_result = $psychomotor_stmt->fetch();
 
@@ -2374,11 +2424,12 @@ class ResultsController
             // Check comments (teacher's comment, head teacher's comment, principal's comment)
             $comments_query = "SELECT teacher_comment, head_teacher_comment, principal_comment
                                FROM compiled_results 
-                               WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year";
+                               WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id";
             $comments_stmt = $this->conn->prepare($comments_query);
             $comments_stmt->bindParam(':student_id', $student_id);
             $comments_stmt->bindParam(':term', $term);
             $comments_stmt->bindParam(':academic_year', $academic_year);
+            $comments_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $comments_stmt->execute();
             $comments_result = $comments_stmt->fetch();
 
@@ -2470,9 +2521,10 @@ class ResultsController
             // Get all students for this class
             $students_query = "SELECT id, first_name, last_name, admission_number 
                              FROM students 
-                             WHERE class_id = :class_id AND status = 'Active'";
+                             WHERE class_id = :class_id AND status = 'Active' AND school_id = :school_id";
             $students_stmt = $this->conn->prepare($students_query);
             $students_stmt->bindParam(':class_id', $class_id);
+            $students_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $students_stmt->execute();
             $students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2519,9 +2571,10 @@ class ResultsController
             $score_check_query = "SELECT s.id, s.first_name, s.last_name,
                                  COUNT(sc.id) as score_count
                                  FROM students s
-                                 LEFT JOIN scores sc ON s.id = sc.student_id
-                                 LEFT JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
+                                 LEFT JOIN scores sc ON s.id = sc.student_id AND sc.school_id = :school_id
+                                 LEFT JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id AND sa.school_id = :school_id2
                                  WHERE s.class_id = :class_id AND s.status = 'Active' 
+                                 AND s.school_id = :school_id3
                                  AND sa.term = :term AND sa.academic_year = :academic_year
                                  GROUP BY s.id";
 
@@ -2529,6 +2582,9 @@ class ResultsController
             $score_stmt->bindParam(':class_id', $class_id);
             $score_stmt->bindParam(':term', $term);
             $score_stmt->bindParam(':academic_year', $academic_year);
+            $score_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $score_stmt->bindParam(':school_id2', $school_id, PDO::PARAM_INT);
+            $score_stmt->bindParam(':school_id3', $school_id, PDO::PARAM_INT);
             $score_stmt->execute();
             $score_results = $score_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2556,12 +2612,16 @@ class ResultsController
                                       LEFT JOIN attendance a ON s.id = a.student_id
                                         AND a.class_id = :class_id
                                         AND a.term = :term AND a.academic_year = :academic_year
-                                      WHERE s.class_id = :class_id AND s.status = 'Active'";
+                                        AND a.school_id = :school_id
+                                      WHERE s.class_id = :class_id AND s.status = 'Active'
+                                      AND s.school_id = :school_id2";
 
             $attendance_stmt = $this->conn->prepare($attendance_check_query);
             $attendance_stmt->bindParam(':class_id', $class_id);
             $attendance_stmt->bindParam(':term', $term);
             $attendance_stmt->bindParam(':academic_year', $academic_year);
+            $attendance_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $attendance_stmt->bindParam(':school_id2', $school_id, PDO::PARAM_INT);
             $attendance_stmt->execute();
             $attendance_results = $attendance_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2585,8 +2645,9 @@ class ResultsController
             $affective_check_query = "SELECT s.id, s.first_name, s.last_name,
                                        COUNT(ad.id) as affective_count
                                        FROM students s
-                                       LEFT JOIN affective_domains ad ON s.id = ad.student_id
+                                       LEFT JOIN affective_domains ad ON s.id = ad.student_id AND ad.school_id = :school_id
                                        WHERE s.class_id = :class_id AND s.status = 'Active'
+                                       AND s.school_id = :school_id2
                                        AND ad.term = :term AND ad.academic_year = :academic_year
                                        GROUP BY s.id";
 
@@ -2594,6 +2655,8 @@ class ResultsController
             $affective_stmt->bindParam(':class_id', $class_id);
             $affective_stmt->bindParam(':term', $term);
             $affective_stmt->bindParam(':academic_year', $academic_year);
+            $affective_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $affective_stmt->bindParam(':school_id2', $school_id, PDO::PARAM_INT);
             $affective_stmt->execute();
             $affective_results = $affective_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2608,8 +2671,9 @@ class ResultsController
             $psychomotor_check_query = "SELECT s.id, s.first_name, s.last_name,
                                          COUNT(pd.id) as psychomotor_count
                                          FROM students s
-                                         LEFT JOIN psychomotor_domains pd ON s.id = pd.student_id
+                                         LEFT JOIN psychomotor_domains pd ON s.id = pd.student_id AND pd.school_id = :school_id
                                          WHERE s.class_id = :class_id AND s.status = 'Active'
+                                         AND s.school_id = :school_id2
                                          AND pd.term = :term AND pd.academic_year = :academic_year
                                          GROUP BY s.id";
 
@@ -2617,6 +2681,8 @@ class ResultsController
             $psychomotor_stmt->bindParam(':class_id', $class_id);
             $psychomotor_stmt->bindParam(':term', $term);
             $psychomotor_stmt->bindParam(':academic_year', $academic_year);
+            $psychomotor_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $psychomotor_stmt->bindParam(':school_id2', $school_id, PDO::PARAM_INT);
             $psychomotor_stmt->execute();
             $psychomotor_results = $psychomotor_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2631,14 +2697,17 @@ class ResultsController
             $compiled_check_query = "SELECT s.id, s.first_name, s.last_name,
                                           cr.class_teacher_comment
                                           FROM students s
-                                          LEFT JOIN compiled_results cr ON s.id = cr.student_id
+                                          LEFT JOIN compiled_results cr ON s.id = cr.student_id AND cr.school_id = :school_id
                                           WHERE s.class_id = :class_id AND s.status = 'Active'
+                                          AND s.school_id = :school_id2
                                           AND cr.term = :term AND cr.academic_year = :academic_year";
 
             $compiled_stmt = $this->conn->prepare($compiled_check_query);
             $compiled_stmt->bindParam(':class_id', $class_id);
             $compiled_stmt->bindParam(':term', $term);
             $compiled_stmt->bindParam(':academic_year', $academic_year);
+            $compiled_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $compiled_stmt->bindParam(':school_id2', $school_id, PDO::PARAM_INT);
             $compiled_stmt->execute();
             $compiled_results = $compiled_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2659,11 +2728,12 @@ class ResultsController
     /**
      * Get Assignment Term
      */
-    private function getAssignmentTerm($assignment_id)
+    private function getAssignmentTerm($assignment_id, $school_id)
     {
-        $query = "SELECT term FROM subject_assignments WHERE id = :assignment_id";
+        $query = "SELECT term FROM subject_assignments WHERE id = :assignment_id AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':assignment_id', $assignment_id);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         $result = $stmt->fetch();
         return $result ? $result['term'] : 'First Term';
@@ -2672,11 +2742,12 @@ class ResultsController
     /**
      * Get Assignment Academic Year
      */
-    private function getAssignmentAcademicYear($assignment_id)
+    private function getAssignmentAcademicYear($assignment_id, $school_id)
     {
-        $query = "SELECT academic_year FROM subject_assignments WHERE id = :assignment_id";
+        $query = "SELECT academic_year FROM subject_assignments WHERE id = :assignment_id AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':assignment_id', $assignment_id);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         $result = $stmt->fetch();
         return $result ? $result['academic_year'] : '2025/2026';
@@ -2709,6 +2780,7 @@ class ResultsController
                 return;
             }
 
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             $role = strtolower(trim((string)$token_data['role']));
 
             // Validate student_id parameter
@@ -2746,7 +2818,7 @@ class ResultsController
             }
 
             // Build WHERE clause
-            $where_clause = "WHERE cr.student_id = :student_id";
+            $where_clause = "WHERE cr.student_id = :student_id AND cr.school_id = :school_id";
             if ($term) {
                 $where_clause .= " AND cr.term = :term";
             }
@@ -2767,7 +2839,7 @@ class ResultsController
                                    WHEN 'Third Term' THEN 3 
                                END DESC";
 
-            $params = [':student_id' => $student_id];
+            $params = [':student_id' => $student_id, ':school_id' => $school_id];
             if ($term) {
                 $params[':term'] = $term;
             }
@@ -2784,10 +2856,11 @@ class ResultsController
 
                 // Verify the requested student is linked to this parent
                 $link_check = "SELECT COUNT(*) as count FROM parent_student_links psl
-                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id";
+                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id AND psl.school_id = :school_id";
                 $link_stmt = $this->conn->prepare($link_check);
                 $link_stmt->bindValue(':parent_id', $token_data['linked_id']);
                 $link_stmt->bindValue(':student_id', $student_id);
+                $link_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $link_stmt->execute();
 
                 if ($link_stmt->fetch()['count'] == 0) {
@@ -2804,12 +2877,15 @@ class ResultsController
                 $access_check = "SELECT COUNT(*) as count 
                                 FROM students st
                                 JOIN classes cl ON st.class_id = cl.id
-                                LEFT JOIN class_teacher_assignments cta ON cl.id = cta.class_id
+                                LEFT JOIN class_teacher_assignments cta ON cl.id = cta.class_id AND cta.school_id = :cta_school_id
                                 WHERE st.id = :student_id 
-                                AND (cl.class_teacher_id = :teacher_id OR cta.teacher_id = :teacher_id)";
+                                AND (cl.class_teacher_id = :teacher_id OR cta.teacher_id = :teacher_id)
+                                AND cl.school_id = :class_school_id";
                 $access_stmt = $this->conn->prepare($access_check);
                 $access_stmt->bindValue(':student_id', $student_id);
                 $access_stmt->bindValue(':teacher_id', $token_data['linked_id']);
+                $access_stmt->bindValue(':cta_school_id', $school_id, PDO::PARAM_INT);
+                $access_stmt->bindValue(':class_school_id', $school_id, PDO::PARAM_INT);
                 $access_stmt->execute();
 
                 if ($access_stmt->fetch()['count'] == 0) {
@@ -2903,9 +2979,10 @@ class ResultsController
             }
 
             // Get all students in the class with active status
-            $students_query = "SELECT id, first_name, last_name FROM students WHERE class_id = :class_id AND status = 'Active' ORDER BY first_name";
+            $students_query = "SELECT id, first_name, last_name FROM students WHERE class_id = :class_id AND school_id = :school_id AND status = 'Active' ORDER BY first_name";
             $stmt = $this->conn->prepare($students_query);
             $stmt->bindValue(':class_id', $class_id, PDO::PARAM_INT);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2926,11 +3003,13 @@ class ResultsController
                                 FROM compiled_results
                                 WHERE student_id = :student_id AND class_id = :class_id
                                   AND academic_year = :academic_year AND status = 'Approved'
+                                  AND school_id = :school_id
                                   AND term IN ('First Term','Second Term','Third Term')";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindValue(':student_id', $student_id, PDO::PARAM_INT);
                 $check_stmt->bindValue(':class_id', $class_id, PDO::PARAM_INT);
                 $check_stmt->bindValue(':academic_year', $academic_year);
+                $check_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $check_stmt->execute();
                 $term_results = $check_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -3106,10 +3185,10 @@ class ResultsController
             $compiled_count = 0;
             $this->conn->beginTransaction();
             $insert_query = "INSERT INTO cumulative_results 
-                (student_id, class_id, academic_year, total_score, average_score, position, 
+                (student_id, class_id, school_id, academic_year, total_score, average_score, position, 
                  class_average, total_students, promotion_status, session_attendance_pct, 
                  subject_data, principal_comment, compiled_by, compiled_date)
-                VALUES (:student_id, :class_id, :academic_year, :total_score, :average_score, :position,
+                VALUES (:student_id, :class_id, :school_id, :academic_year, :total_score, :average_score, :position,
                  :class_average, :total_students, :promotion_status, :session_attendance_pct,
                  :subject_data, :principal_comment, :compiled_by, NOW())
                 ON DUPLICATE KEY UPDATE
@@ -3130,6 +3209,7 @@ class ResultsController
             foreach ($all_cumulative as $row) {
                 $insert_stmt->bindValue(':student_id', $row['student_id'], PDO::PARAM_INT);
                 $insert_stmt->bindValue(':class_id', $row['class_id'], PDO::PARAM_INT);
+                $insert_stmt->bindValue(':school_id', $__school_id_for_term, PDO::PARAM_INT);
                 $insert_stmt->bindValue(':academic_year', $row['academic_year']);
                 $insert_stmt->bindValue(':total_score', $row['total_score']);
                 $insert_stmt->bindValue(':average_score', $row['average_score']);
@@ -3199,10 +3279,11 @@ class ResultsController
                     return;
                 }
                 $link_check = "SELECT COUNT(*) as count FROM parent_student_links psl
-                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id";
+                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id AND psl.school_id = :school_id";
                 $link_stmt = $this->conn->prepare($link_check);
                 $link_stmt->bindValue(':parent_id', $token_data['linked_id']);
                 $link_stmt->bindValue(':student_id', $student_id);
+                $link_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $link_stmt->execute();
                 if ($link_stmt->fetch()['count'] == 0) {
                     Response::forbidden('Not authorized to view this student\'s cumulative result');
@@ -3279,10 +3360,11 @@ class ResultsController
                 }
                 $link_check = "SELECT COUNT(*) as count FROM parent_student_links psl
                                JOIN students s ON psl.student_id = s.id
-                               WHERE psl.parent_id = :parent_id AND s.class_id = :class_id";
+                               WHERE psl.parent_id = :parent_id AND s.class_id = :class_id AND s.school_id = :school_id";
                 $link_stmt = $this->conn->prepare($link_check);
                 $link_stmt->bindValue(':parent_id', $token_data['linked_id']);
                 $link_stmt->bindValue(':class_id', $class_id);
+                $link_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $link_stmt->execute();
                 if ($link_stmt->fetch()['count'] == 0) {
                     Response::forbidden('Not authorized to view cumulative results for this class');

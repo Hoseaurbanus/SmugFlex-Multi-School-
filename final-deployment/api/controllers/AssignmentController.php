@@ -32,8 +32,8 @@ class AssignmentController {
             $query = "SELECT a.*, sub.name as subject_name, sub.code as subject_code,
                              c.name as class_name, c.level,
                              CONCAT(t.first_name, ' ', t.last_name) as teacher_name,
-                             (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id) as submission_count,
-                             (SELECT COUNT(*) FROM students WHERE class_id = a.class_id AND status = 'Active') as total_students
+                             (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id AND school_id = a.school_id) as submission_count,
+                             (SELECT COUNT(*) FROM students WHERE class_id = a.class_id AND status = 'Active' AND school_id = a.school_id) as total_students
                       FROM assignments a
                       JOIN subjects sub ON a.subject_id = sub.id
                       JOIN classes c ON a.class_id = c.id
@@ -137,8 +137,8 @@ class AssignmentController {
             $query = "SELECT a.*, sub.name as subject_name, sub.code as subject_code,
                              c.name as class_name, c.level,
                              CONCAT(t.first_name, ' ', t.last_name) as teacher_name,
-                             (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id) as submission_count,
-                             (SELECT COUNT(*) FROM students WHERE class_id = a.class_id AND status = 'Active') as total_students
+                             (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id AND school_id = a.school_id) as submission_count,
+                             (SELECT COUNT(*) FROM students WHERE class_id = a.class_id AND status = 'Active' AND school_id = a.school_id) as total_students
                       FROM assignments a
                       JOIN subjects sub ON a.subject_id = sub.id
                       JOIN classes c ON a.class_id = c.id
@@ -164,11 +164,13 @@ class AssignmentController {
             if ($token_data['role'] === 'parent') {
                 // Check if parent has children in this class
                 $check_query = "SELECT COUNT(*) as count FROM students s
-                               JOIN parent_student_links psl ON s.id = psl.student_id
-                               WHERE s.class_id = :class_id AND psl.parent_id = :parent_id AND s.status = 'Active'";
+                               JOIN parent_student_links psl ON s.id = psl.student_id AND psl.school_id = :school_id2
+                               WHERE s.class_id = :class_id AND psl.parent_id = :parent_id AND s.status = 'Active' AND s.school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':class_id', $assignment['class_id']);
                 $check_stmt->bindParam(':parent_id', $token_data['linked_id']);
+                $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':school_id2', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -291,6 +293,7 @@ class AssignmentController {
             $check_query = "SELECT * FROM assignments WHERE id = :id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':id', $assignment_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $assignment = $check_stmt->fetch();
@@ -476,10 +479,12 @@ class AssignmentController {
             if ($token_data['role'] === 'parent') {
                 $parent_filter = " AND asub.student_id IN (
                     SELECT s.id FROM students s
-                    JOIN parent_student_links psl ON s.id = psl.student_id
-                    WHERE psl.parent_id = :parent_id AND s.status = 'Active'
+                    JOIN parent_student_links psl ON s.id = psl.student_id AND psl.school_id = :school_id2
+                    WHERE psl.parent_id = :parent_id AND s.status = 'Active' AND s.school_id = :school_id3
                 )";
                 $params[':parent_id'] = $token_data['linked_id'];
+                $params[':school_id2'] = $school_id;
+                $params[':school_id3'] = $school_id;
             }
             
             $query = "SELECT asub.*, s.first_name, s.last_name, s.admission_number

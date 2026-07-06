@@ -9,11 +9,17 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
+require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
+
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
+
+// Require authentication
+$token_data = Middleware::requireAuth();
 
 // Only allow DELETE requests
 if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') {
@@ -41,12 +47,14 @@ try {
         throw new Exception('Database connection failed');
     }
     
+    $school_id = TenantMiddleware::resolveSchoolId($conn);
+    
     // Start transaction
     $conn->beginTransaction();
     
-    // Get user details before deletion
-    $stmt = $conn->prepare("SELECT role, linked_id FROM users WHERE id = ?");
-    $stmt->execute([$userId]);
+    // Get user details before deletion — scoped to school
+    $stmt = $conn->prepare("SELECT role, linked_id FROM users WHERE id = ? AND school_id = ?");
+    $stmt->execute([$userId, $school_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$user) {
@@ -55,27 +63,27 @@ try {
         exit();
     }
     
-    // Delete linked record if it exists
+    // Delete linked record if it exists — scoped to school
     if ($user['linked_id'] && $user['linked_id'] > 0) {
         switch ($user['role']) {
             case 'teacher':
-                $stmt = $conn->prepare("DELETE FROM teachers WHERE id = ?");
-                $stmt->execute([$user['linked_id']]);
+                $stmt = $conn->prepare("DELETE FROM teachers WHERE id = ? AND school_id = ?");
+                $stmt->execute([$user['linked_id'], $school_id]);
                 break;
             case 'parent':
-                $stmt = $conn->prepare("DELETE FROM parents WHERE id = ?");
-                $stmt->execute([$user['linked_id']]);
+                $stmt = $conn->prepare("DELETE FROM parents WHERE id = ? AND school_id = ?");
+                $stmt->execute([$user['linked_id'], $school_id]);
                 break;
             case 'accountant':
-                $stmt = $conn->prepare("DELETE FROM accountants WHERE id = ?");
-                $stmt->execute([$user['linked_id']]);
+                $stmt = $conn->prepare("DELETE FROM accountants WHERE id = ? AND school_id = ?");
+                $stmt->execute([$user['linked_id'], $school_id]);
                 break;
         }
     }
     
-    // Delete user record
-    $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-    $stmt->execute([$userId]);
+    // Delete user record — scoped to school
+    $stmt = $conn->prepare("DELETE FROM users WHERE id = ? AND school_id = ?");
+    $stmt->execute([$userId, $school_id]);
     $userDeleted = $stmt->rowCount();
 
     if ($userDeleted < 1) {

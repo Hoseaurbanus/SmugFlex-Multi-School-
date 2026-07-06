@@ -1321,7 +1321,7 @@ class CbtController {
             if ($attempt['feed_into_scores'] && $attempt['score_slot']) {
                 $this->feedIntoScores($student_id, $attempt['subject_id'], $attempt['class_id'],
                     $attempt['academic_year'], $attempt['term'], $attempt['score_slot'], $percentage, $attempt['teacher_id'],
-                    $attempt['exam_id']);
+                    $attempt['exam_id'], $school_id);
             }
 
             Response::success([
@@ -1542,7 +1542,8 @@ class CbtController {
                         $score_slot,
                         $attempt['percentage'],
                         $token_data['linked_id'],
-                        $exam_id
+                        $exam_id,
+                        $school_id
                     );
                     $fed++;
                 }
@@ -1583,9 +1584,10 @@ class CbtController {
             // Nullify the CA field(s) that were fed by this exam
             $field = $exam['score_slot'] === 'second_test' ? 'ca2' : 'ca1';
 
-            $query = "UPDATE scores SET $field = NULL, cbt_exam_id = NULL WHERE cbt_exam_id = :exam_id";
+            $query = "UPDATE scores SET $field = NULL, cbt_exam_id = NULL WHERE cbt_exam_id = :exam_id AND school_id = :school_id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':exam_id', $exam_id, PDO::PARAM_INT);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
 
             $affected = $stmt->rowCount();
@@ -1946,18 +1948,20 @@ class CbtController {
         return 'Needs Improvement';
     }
 
-    private function feedIntoScores($student_id, $subject_id, $class_id, $academic_year, $term, $score_slot, $percentage, $teacher_id, $exam_id = null) {
+    private function feedIntoScores($student_id, $subject_id, $class_id, $academic_year, $term, $score_slot, $percentage, $teacher_id, $exam_id = null, $school_id = 0) {
         try {
             // Find subject_assignment_id
             $query = "SELECT id FROM subject_assignments
                       WHERE subject_id = :subject_id AND class_id = :class_id
                       AND academic_year = :academic_year AND term = :term AND status = 'Active'
+                      AND school_id = :school_id
                       LIMIT 1";
             $stmt = $this->conn->prepare($query);
             $stmt->bindValue(':subject_id', $subject_id);
             $stmt->bindValue(':class_id', $class_id);
             $stmt->bindValue(':academic_year', $academic_year);
             $stmt->bindValue(':term', $term);
+            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             $assignment = $stmt->fetch(PDO::FETCH_ASSOC);
 

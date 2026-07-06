@@ -611,7 +611,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
         const uploadResponse = await fetch(`${API_CONFIG.BASE_URL}/files/upload`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
           },
           body: formData
         });
@@ -632,7 +632,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
           },
           body: JSON.stringify({
             student_id: selectedChild.id,
@@ -691,7 +691,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
           },
           body: JSON.stringify({
             student_id: selectedChild.id,
@@ -731,7 +731,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
               const verifyResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/online-verify?reference=${response.reference}`, {
                 method: 'GET',
                 headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                  'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
                 }
               });
 
@@ -786,7 +786,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
       const verifyResponse = await fetch(`${API_CONFIG.BASE_URL}/payments/online-verify?reference=${encodeURIComponent(reference)}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
         }
       });
 

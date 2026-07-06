@@ -85,7 +85,7 @@ class AttendanceController {
             
             // Filter by class
             if (isset($_GET['class_id'])) {
-                $conditions[] = "a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";
+                $conditions[] = "a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id)";
                 $params[':class_id'] = Middleware::validateInteger($_GET['class_id'], 'class_id');
             }
             
@@ -94,7 +94,7 @@ class AttendanceController {
                 $conditions[] = "a.student_id IN (
                     SELECT s.id FROM students s 
                     JOIN subject_assignments sa ON s.class_id = sa.class_id 
-                    WHERE sa.teacher_id = :teacher_id
+                    WHERE sa.teacher_id = :teacher_id AND sa.school_id = :school_id
                 )";
                 $params[':teacher_id'] = $token_data['linked_id'];
             }
@@ -102,7 +102,7 @@ class AttendanceController {
             // Parent can only see attendance for their children
             if ($token_data['role'] === 'parent') {
                 $conditions[] = "a.student_id IN (
-                    SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id
+                    SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id AND school_id = :school_id
                 )";
                 $params[':parent_id'] = $token_data['linked_id'];
             }
@@ -218,13 +218,13 @@ class AttendanceController {
             $params = [':date' => $date, ':academic_year' => $academic_year, ':term' => $term, ':school_id' => $school_id];
             
             if ($class_id) {
-                $query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";
+                $query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id)";
                 $params[':class_id'] = $class_id;
             }
             
             // Parent can only see attendance for their children
             if ($token_data['role'] === 'parent') {
-                $query .= " AND a.student_id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id)";
+                $query .= " AND a.student_id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id AND school_id = :school_id)";
                 $params[':parent_id'] = $token_data['linked_id'];
             }
             
@@ -644,7 +644,7 @@ class AttendanceController {
                             WHERE a.date BETWEEN :date_from AND :date_to AND a.school_id = :school_id";
             
             if ($class_id) {
-                $daily_query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";
+                $daily_query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id)";
             }
             
             $daily_query .= " GROUP BY DATE(a.date) ORDER BY date";

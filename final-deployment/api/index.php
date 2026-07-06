@@ -310,8 +310,6 @@ try {
                 $classController->getClassesByLevel($param);
             } elseif ($method === 'GET' && $action === 'whatsapp-groups') {
                 $classController->getClassWhatsappGroups();
-            } elseif ($method === 'GET' && $action === 'public-list') {
-                $classController->getPublicClassList();
             } elseif ($method === 'GET' && $action) {
                 $classController->getClassById((int)$action);
             } elseif ($method === 'GET' && !$action) {

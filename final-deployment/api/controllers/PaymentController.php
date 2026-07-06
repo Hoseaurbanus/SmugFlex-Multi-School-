@@ -136,16 +136,16 @@ class PaymentController {
                              c.name as class_name, c.level,
                              u.username as recorded_by_name
                       FROM payments p
-                      JOIN students s ON p.student_id = s.id
-                      JOIN classes c ON s.class_id = c.id
-                      LEFT JOIN users u ON p.recorded_by = u.id";
+                      JOIN students s ON p.student_id = s.id AND s.school_id = :school_id2
+                      JOIN classes c ON s.class_id = c.id AND c.school_id = :school_id3
+                      LEFT JOIN users u ON p.recorded_by = u.id AND u.school_id = :school_id4";
             
             $count_query = "SELECT COUNT(*) as total FROM payments p
-                           JOIN students s ON p.student_id = s.id";
+                           JOIN students s ON p.student_id = s.id AND s.school_id = :school_id5";
             
             // Add search conditions
             $conditions = ["p.school_id = :school_id"];
-            $params = [':school_id' => $school_id];
+            $params = [':school_id' => $school_id, ':school_id2' => $school_id, ':school_id3' => $school_id, ':school_id4' => $school_id, ':school_id5' => $school_id];
             
             if (!empty($search_params['search'])) {
                 $conditions[] = "(s.first_name LIKE :search OR s.last_name LIKE :search OR s.admission_number LIKE :search OR p.receipt_number LIKE :search)";
@@ -234,15 +234,19 @@ class PaymentController {
                              u.username as recorded_by_name,
                              v.username as verified_by_name
                       FROM payments p
-                      JOIN students s ON p.student_id = s.id
-                      JOIN classes c ON s.class_id = c.id
-                      LEFT JOIN users u ON p.recorded_by = u.id
-                      LEFT JOIN users v ON p.verified_by = v.id
+                      JOIN students s ON p.student_id = s.id AND s.school_id = :school_id2
+                      JOIN classes c ON s.class_id = c.id AND c.school_id = :school_id3
+                      LEFT JOIN users u ON p.recorded_by = u.id AND u.school_id = :school_id4
+                      LEFT JOIN users v ON p.verified_by = v.id AND v.school_id = :school_id5
                       WHERE p.id = :id AND p.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $payment_id);
             $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':school_id2', $school_id);
+            $stmt->bindParam(':school_id3', $school_id);
+            $stmt->bindParam(':school_id4', $school_id);
+            $stmt->bindParam(':school_id5', $school_id);
             $stmt->execute();
             
             $payment = $stmt->fetch();
@@ -672,10 +676,11 @@ class PaymentController {
         // Check access permissions
         if ($token_data['role'] === 'parent') {
             // Verify parent owns this student
-            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':parent_id', $token_data['linked_id']);
             $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -709,10 +714,10 @@ class PaymentController {
             
             $query = "SELECT p.*, u.username as recorded_by_name
                       FROM payments p
-                      LEFT JOIN users u ON p.recorded_by = u.id
+                      LEFT JOIN users u ON p.recorded_by = u.id AND u.school_id = :school_id2
                       WHERE p.student_id = :student_id AND p.school_id = :school_id";
             
-            $params = [':student_id' => $student_id, ':school_id' => $school_id];
+            $params = [':student_id' => $student_id, ':school_id' => $school_id, ':school_id2' => $school_id];
             
             // ============ NEW: MANDATORY FILTERING BY ACADEMIC YEAR AND TERM ============
             if (!$return_all) {
@@ -734,10 +739,11 @@ class PaymentController {
             
             // Get current fee balance
             $balance_query = "SELECT * FROM student_fee_balances 
-                              WHERE student_id = :student_id 
+                              WHERE student_id = :student_id AND school_id = :school_id
                               ORDER BY academic_year DESC, term DESC LIMIT 1";
             $balance_stmt = $this->conn->prepare($balance_query);
             $balance_stmt->bindParam(':student_id', $student_id);
+            $balance_stmt->bindParam(':school_id', $school_id);
             $balance_stmt->execute();
             $current_balance = $balance_stmt->fetch();
             
@@ -787,9 +793,10 @@ class PaymentController {
             // Get parent ID from token or database
             $parent_id = $token_data['linked_id'] ?? null;
             if (empty($parent_id)) {
-                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent' AND school_id = :school_id";
                 $user_stmt = $this->conn->prepare($user_query);
                 $user_stmt->bindParam(':username', $token_data['username']);
+                $user_stmt->bindParam(':school_id', $school_id);
                 $user_stmt->execute();
                 $user_data = $user_stmt->fetch();
                 $parent_id = $user_data['linked_id'] ?? null;
@@ -798,10 +805,11 @@ class PaymentController {
                 Response::forbidden('Parent ID not found');
             }
             // Verify parent owns this student
-            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':parent_id', $parent_id);
             $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             if ($check_stmt->fetch()['count'] == 0) {
                 Response::forbidden('Access denied to this student');
@@ -901,9 +909,10 @@ class PaymentController {
             
             // If linked_id is missing, get it from database based on username
             if (empty($parent_id)) {
-                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent' AND school_id = :school_id";
                 $user_stmt = $this->conn->prepare($user_query);
                 $user_stmt->bindParam(':username', $token_data['username']);
+                $user_stmt->bindParam(':school_id', $school_id);
                 $user_stmt->execute();
                 $user_data = $user_stmt->fetch();
                 $parent_id = $user_data['linked_id'] ?? null;
@@ -914,10 +923,11 @@ class PaymentController {
             }
             
             // Verify parent owns this student
-            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':parent_id', $parent_id);
             $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -931,7 +941,7 @@ class PaymentController {
             
             $query = "SELECT sfb.*, fs.*
                       FROM student_fee_balances sfb
-                      JOIN fee_structures fs ON sfb.class_id = fs.class_id AND sfb.term = fs.term AND sfb.academic_year = fs.academic_year
+                      JOIN fee_structures fs ON sfb.class_id = fs.class_id AND sfb.term = fs.term AND sfb.academic_year = fs.academic_year AND fs.school_id = :school_id2
                       WHERE sfb.student_id = :student_id AND sfb.term = :term AND sfb.academic_year = :academic_year AND sfb.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
@@ -939,6 +949,7 @@ class PaymentController {
             $stmt->bindParam(':term', $term);
             $stmt->bindParam(':academic_year', $academic_year);
             $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':school_id2', $school_id);
             $stmt->execute();
             
             $fee_balance = $stmt->fetch();
@@ -1088,7 +1099,7 @@ class PaymentController {
 
             $online_query = "SELECT p.*, s.first_name, s.last_name, s.admission_number
                              FROM payments p
-                             JOIN students s ON p.student_id = s.id
+                             JOIN students s ON p.student_id = s.id AND s.school_id = :school_id2
                              WHERE p.status = 'Pending'
                                AND p.payment_method = 'Online Payment'
                                AND p.recorded_date <= :cutoff
@@ -1097,11 +1108,12 @@ class PaymentController {
             $online_stmt = $this->conn->prepare($online_query);
             $online_stmt->bindParam(':cutoff', $online_cutoff);
             $online_stmt->bindParam(':school_id', $school_id);
+            $online_stmt->bindParam(':school_id2', $school_id);
             $online_stmt->execute();
 
             $bank_query = "SELECT p.*, s.first_name, s.last_name, s.admission_number
                            FROM payments p
-                           JOIN students s ON p.student_id = s.id
+                           JOIN students s ON p.student_id = s.id AND s.school_id = :school_id2
                            WHERE p.status = 'Pending'
                              AND p.payment_method = 'Bank Transfer'
                              AND p.recorded_date <= :cutoff
@@ -1110,6 +1122,7 @@ class PaymentController {
             $bank_stmt = $this->conn->prepare($bank_query);
             $bank_stmt->bindParam(':cutoff', $bank_cutoff);
             $bank_stmt->bindParam(':school_id', $school_id);
+            $bank_stmt->bindParam(':school_id2', $school_id);
             $bank_stmt->execute();
 
             Response::success([
@@ -1152,9 +1165,10 @@ class PaymentController {
             $parent_id = $token_data['linked_id'] ?? null;
             if (empty($parent_id)) {
                 // Fallback: get parent ID from users table
-                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent' AND school_id = :school_id";
                 $user_stmt = $this->conn->prepare($user_query);
                 $user_stmt->bindParam(':username', $token_data['username']);
+                $user_stmt->bindParam(':school_id', $school_id);
                 $user_stmt->execute();
                 $user_data = $user_stmt->fetch();
                 $parent_id = $user_data['linked_id'] ?? null;
@@ -1165,10 +1179,11 @@ class PaymentController {
             }
             
             // Verify parent owns this student
-            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':parent_id', $parent_id);
             $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -1560,13 +1575,15 @@ class PaymentController {
      */
     private function updateStudentFeeBalance($student_id, $amount, $term, $academic_year) {
         try {
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             // Check if fee balance record exists
             $check_query = "SELECT id, total_paid FROM student_fee_balances 
-                           WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year";
+                           WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':student_id', $student_id);
             $check_stmt->bindParam(':term', $term);
             $check_stmt->bindParam(':academic_year', $academic_year);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $balance_record = $check_stmt->fetch();
@@ -1592,9 +1609,10 @@ class PaymentController {
             }
 
             // Create fee balance record if missing
-            $student_query = "SELECT class_id FROM students WHERE id = :student_id LIMIT 1";
+            $student_query = "SELECT class_id FROM students WHERE id = :student_id AND school_id = :school_id LIMIT 1";
             $student_stmt = $this->conn->prepare($student_query);
             $student_stmt->bindParam(':student_id', $student_id);
+            $student_stmt->bindParam(':school_id', $school_id);
             $student_stmt->execute();
             $student = $student_stmt->fetch(PDO::FETCH_ASSOC);
             if (!$student) {
@@ -1602,12 +1620,13 @@ class PaymentController {
             }
 
             $fee_query = "SELECT total_fee FROM fee_structures 
-                          WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year 
+                          WHERE class_id = :class_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id
                           ORDER BY id DESC LIMIT 1";
             $fee_stmt = $this->conn->prepare($fee_query);
             $fee_stmt->bindParam(':class_id', $student['class_id']);
             $fee_stmt->bindParam(':term', $term);
             $fee_stmt->bindParam(':academic_year', $academic_year);
+            $fee_stmt->bindParam(':school_id', $school_id);
             $fee_stmt->execute();
             $fee_structure = $fee_stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1620,8 +1639,8 @@ class PaymentController {
             }
 
             $insert_query = "INSERT INTO student_fee_balances 
-                             (student_id, class_id, term, academic_year, total_fee_required, total_paid, status, last_payment_date) 
-                             VALUES (:student_id, :class_id, :term, :academic_year, :total_fee_required, :total_paid, :status, NOW())";
+                             (student_id, class_id, term, academic_year, total_fee_required, total_paid, status, last_payment_date, school_id) 
+                             VALUES (:student_id, :class_id, :term, :academic_year, :total_fee_required, :total_paid, :status, NOW(), :school_id)";
             $insert_stmt = $this->conn->prepare($insert_query);
             $insert_stmt->bindParam(':student_id', $student_id);
             $insert_stmt->bindParam(':class_id', $student['class_id']);
@@ -1630,6 +1649,7 @@ class PaymentController {
             $insert_stmt->bindParam(':total_fee_required', $total_fee_required);
             $insert_stmt->bindParam(':total_paid', $amount);
             $insert_stmt->bindParam(':status', $status);
+            $insert_stmt->bindParam(':school_id', $school_id);
             $insert_stmt->execute();
         } catch (PDOException $e) {
             error_log("Error updating fee balance: " . $e->getMessage());
@@ -1641,13 +1661,15 @@ class PaymentController {
      */
     private function reverseStudentFeeBalance($student_id, $amount, $term, $academic_year) {
         try {
+            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             // Check if fee balance record exists
             $check_query = "SELECT id, total_paid FROM student_fee_balances 
-                           WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year";
+                           WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':student_id', $student_id);
             $check_stmt->bindParam(':term', $term);
             $check_stmt->bindParam(':academic_year', $academic_year);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $balance_record = $check_stmt->fetch();

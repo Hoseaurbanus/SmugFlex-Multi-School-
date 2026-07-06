@@ -122,9 +122,10 @@ class ProgressionController {
         try {
             $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             // Get student's current class
-            $student_query = "SELECT class_id, school_id FROM students WHERE id = :student_id";
+            $student_query = "SELECT class_id, school_id FROM students WHERE id = :student_id AND school_id = :school_id";
             $student_stmt = $this->conn->prepare($student_query);
             $student_stmt->bindParam(':student_id', $studentId);
+            $student_stmt->bindParam(':school_id', $school_id);
             $student_stmt->execute();
             $student = $student_stmt->fetch(PDO::FETCH_ASSOC);
             

@@ -5,11 +5,16 @@
  */
 
 require_once __DIR__ . '/../helpers/Response.php';
+require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     Response::options();
 }
+
+// Require authentication
+$token_data = Middleware::requireAuth();
 
 // Only allow GET requests
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -26,6 +31,9 @@ try {
         throw new Exception('Database connection failed');
     }
     
+    // Re-resolve school_id now that connection exists
+    $school_id = TenantMiddleware::resolveSchoolId($conn);
+    
     // Get query parameters
     $role = $_GET['role'] ?? null;
     $status = $_GET['status'] ?? null;
@@ -34,9 +42,9 @@ try {
     $limit = max(1, intval($_GET['limit'] ?? 50));
     $offset = ($page - 1) * $limit;
     
-    // Build WHERE clause
-    $whereConditions = [];
-    $params = [];
+    // Build WHERE clause — always scope by school_id
+    $whereConditions = ["u.school_id = ?"];
+    $params = [$school_id];
     
     if ($role && in_array($role, ['admin', 'teacher', 'parent', 'accountant'])) {
         $whereConditions[] = "u.role = ?";
@@ -54,9 +62,9 @@ try {
         $params = array_merge($params, [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam]);
     }
     
-    $whereClause = !empty($whereConditions) ? "WHERE " . implode(" AND ", $whereConditions) : "";
+    $whereClause = "WHERE " . implode(" AND ", $whereConditions);
     
-    // Get total count - SIMPLIFIED QUERY
+    // Get total count
     $countSql = "
         SELECT COUNT(DISTINCT u.id) as total
         FROM users u
@@ -66,7 +74,7 @@ try {
     $stmt->execute($params);
     $total = $stmt->fetch()['total'];
     
-    // Get users with linked data - OPTIMIZED QUERY
+    // Get users with linked data
     $sql = "
         SELECT 
             u.id,
@@ -99,14 +107,17 @@ try {
                 ELSE NULL
             END as employee_id
         FROM users u
-        LEFT JOIN teachers t ON u.linked_id = t.id AND u.role = 'teacher'
-        LEFT JOIN parents p ON u.linked_id = p.id AND u.role = 'parent'
-        LEFT JOIN accountants a ON u.linked_id = a.id AND u.role = 'accountant'
+        LEFT JOIN teachers t ON u.linked_id = t.id AND u.role = 'teacher' AND t.school_id = ?
+        LEFT JOIN parents p ON u.linked_id = p.id AND u.role = 'parent' AND p.school_id = ?
+        LEFT JOIN accountants a ON u.linked_id = a.id AND u.role = 'accountant' AND a.school_id = ?
         $whereClause
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?
     ";
     
+    $params[] = $school_id;
+    $params[] = $school_id;
+    $params[] = $school_id;
     $params[] = $limit;
     $params[] = $offset;
     
@@ -114,7 +125,7 @@ try {
     $stmt->execute($params);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Format dates - REMOVED INEFFICIENT LOOP
+    // Format dates
     foreach ($users as &$user) {
         $user['created_at'] = date('Y-m-d H:i:s', strtotime($user['created_at']));
         $user['updated_at'] = date('Y-m-d H:i:s', strtotime($user['updated_at']));

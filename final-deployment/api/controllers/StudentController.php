@@ -162,7 +162,7 @@ class StudentController {
             // Get additional data for admin
             if ($token_data['role'] === 'admin') {
                 $student['attendance_summary'] = $this->getStudentAttendanceSummary($student_id);
-                $student['recent_scores'] = $this->getStudentRecentScores($student_id);
+                $student['recent_scores'] = $this->getStudentRecentScores($student_id, $school_id);
                 $student['payment_history'] = $this->getStudentPaymentHistory($student_id);
             }
             
@@ -391,9 +391,10 @@ class StudentController {
             
             // Update level if class is changed
             if (isset($data['class_id'])) {
-                $class_query = "SELECT level FROM classes WHERE id = :class_id";
+                $class_query = "SELECT level FROM classes WHERE id = :class_id AND school_id = :school_id";
                 $class_stmt = $this->conn->prepare($class_query);
                 $class_stmt->bindParam(':class_id', $params[':class_id']);
+                $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                 $class_stmt->execute();
                 $class_info = $class_stmt->fetch();
                 
@@ -703,9 +704,10 @@ class StudentController {
                         $update_stmt->execute();
                         
                         // Update level based on new class
-                        $class_query = "SELECT level FROM classes WHERE id = :class_id";
+                        $class_query = "SELECT level FROM classes WHERE id = :class_id AND school_id = :school_id";
                         $class_stmt = $this->conn->prepare($class_query);
                         $class_stmt->bindParam(':class_id', $to_class_id);
+                        $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                         $class_stmt->execute();
                         $class_info = $class_stmt->fetch(PDO::FETCH_ASSOC);
                         
@@ -720,7 +722,7 @@ class StudentController {
                         
                         // Update class counts only if class actually changed
                         if ($actual_from_class_id !== (int)$to_class_id) {
-                            $this->updateClassCounts($actual_from_class_id, $to_class_id);
+                            $this->updateClassCounts($actual_from_class_id, $to_class_id, $school_id);
                         }
                     }
 
@@ -821,18 +823,20 @@ class StudentController {
     /**
      * Update class counts after promotion
      */
-    private function updateClassCounts($fromClassId, $toClassId) {
+    private function updateClassCounts($fromClassId, $toClassId, $schoolId) {
         try {
             // Decrement from class
-            $decrement_query = "UPDATE classes SET current_students = current_students - 1 WHERE id = :from_class_id AND current_students > 0";
+            $decrement_query = "UPDATE classes SET current_students = current_students - 1 WHERE id = :from_class_id AND school_id = :school_id AND current_students > 0";
             $decrement_stmt = $this->conn->prepare($decrement_query);
             $decrement_stmt->bindParam(':from_class_id', $fromClassId);
+            $decrement_stmt->bindParam(':school_id', $schoolId, PDO::PARAM_INT);
             $decrement_stmt->execute();
             
             // Increment to class
-            $increment_query = "UPDATE classes SET current_students = current_students + 1 WHERE id = :to_class_id";
+            $increment_query = "UPDATE classes SET current_students = current_students + 1 WHERE id = :to_class_id AND school_id = :school_id";
             $increment_stmt = $this->conn->prepare($increment_query);
             $increment_stmt->bindParam(':to_class_id', $toClassId);
+            $increment_stmt->bindParam(':school_id', $schoolId, PDO::PARAM_INT);
             $increment_stmt->execute();
             
         } catch (PDOException $e) {
@@ -870,9 +874,10 @@ class StudentController {
             $update_stmt->execute();
             
             // Update student level
-            $class_query = "SELECT level FROM classes WHERE id = :class_id";
+            $class_query = "SELECT level FROM classes WHERE id = :class_id AND school_id = :school_id";
             $class_stmt = $this->conn->prepare($class_query);
             $class_stmt->bindParam(':class_id', $to_class_id);
+            $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $class_stmt->execute();
             $class_info = $class_stmt->fetch();
             
@@ -903,7 +908,7 @@ class StudentController {
             $change_stmt->execute();
             
             // Update class counts
-            $this->updateClassCounts($from_class_id, $to_class_id);
+            $this->updateClassCounts($from_class_id, $to_class_id, $school_id);
             
             $this->conn->commit();
             
@@ -1009,6 +1014,7 @@ class StudentController {
      * Get Student Attendance Summary
      */
     private function getStudentAttendanceSummary($student_id) {
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $query = "SELECT 
                     COUNT(*) as total_days,
                     SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as present_days,
@@ -1016,10 +1022,12 @@ class StudentController {
                     SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) as late_days
                   FROM attendance 
                   WHERE student_id = :student_id 
+                  AND school_id = :school_id
                   AND date >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':student_id', $student_id);
+        $stmt->bindParam(':school_id', $school_id);
         $stmt->execute();
         
         return $stmt->fetch();
@@ -1028,17 +1036,18 @@ class StudentController {
     /**
      * Get Student Recent Scores
      */
-    private function getStudentRecentScores($student_id) {
+    private function getStudentRecentScores($student_id, $school_id) {
         $query = "SELECT sc.total, sc.grade, sc.remark, sub.name as subject_name, sc.entered_date
                   FROM scores sc
                   JOIN subject_assignments sa ON sc.subject_assignment_id = sa.id
                   JOIN subjects sub ON sa.subject_id = sub.id
-                  WHERE sc.student_id = :student_id
+                  WHERE sc.student_id = :student_id AND sa.school_id = :school_id
                   ORDER BY sc.entered_date DESC
                   LIMIT 5";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':student_id', $student_id);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return $stmt->fetchAll();
@@ -1048,14 +1057,16 @@ class StudentController {
      * Get Student Payment History
      */
     private function getStudentPaymentHistory($student_id) {
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $query = "SELECT amount, payment_type, payment_method, receipt_number, recorded_date, status
                   FROM payments 
-                  WHERE student_id = :student_id
+                  WHERE student_id = :student_id AND school_id = :school_id
                   ORDER BY recorded_date DESC
                   LIMIT 10";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':student_id', $student_id);
+        $stmt->bindParam(':school_id', $school_id);
         $stmt->execute();
         
         return $stmt->fetchAll();

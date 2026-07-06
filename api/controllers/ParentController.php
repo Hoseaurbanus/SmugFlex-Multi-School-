@@ -37,9 +37,10 @@ class ParentController {
 
                 // Fallback: if linked_id is missing in the token, resolve it from the users table
                 if (empty($token_parent_id)) {
-                    $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                    $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent' AND school_id = :school_id";
                     $user_stmt = $this->conn->prepare($user_query);
                     $user_stmt->bindParam(':username', $token_data['username']);
+                    $user_stmt->bindParam(':school_id', $school_id);
                     $user_stmt->execute();
                     $user_data = $user_stmt->fetch();
                     $token_parent_id = $user_data['linked_id'] ?? null;
@@ -55,11 +56,11 @@ class ParentController {
             }
 
             $query = "SELECT p.*, 
-                             (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id) as children_count,
+                             (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id AND school_id = :school_id) as children_count,
                              (SELECT GROUP_CONCAT(s.first_name, ' ', s.last_name) 
                               FROM parent_student_links psl 
                               JOIN students s ON psl.student_id = s.id 
-                              WHERE psl.parent_id = p.id AND s.status = 'Active') as children_names
+                              WHERE psl.parent_id = p.id AND s.status = 'Active' AND psl.school_id = :school_id) as children_names
                       FROM parents p
                       WHERE p.school_id = :school_id
                       ORDER BY p.first_name, p.last_name";
@@ -105,6 +106,7 @@ class ParentController {
      */
     public function getParentById($id) {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $parent_id = Middleware::validateInteger($id, 'parent_id');
         
         // Check access permissions
@@ -115,9 +117,10 @@ class ParentController {
             
             // If linked_id is missing, get it from database based on username
             if (empty($token_parent_id)) {
-                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent' AND school_id = :school_id";
                 $user_stmt = $this->conn->prepare($user_query);
                 $user_stmt->bindParam(':username', $token_data['username']);
+                $user_stmt->bindParam(':school_id', $school_id);
                 $user_stmt->execute();
                 $user_data = $user_stmt->fetch();
                 $token_parent_id = $user_data['linked_id'] ?? null;
@@ -129,9 +132,8 @@ class ParentController {
         }
         
         try {
-            $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             $query = "SELECT p.*, 
-                             (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id) as children_count,
+                             (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id AND school_id = :school_id) as children_count,
                              (SELECT GROUP_CONCAT(
                                  JSON_OBJECT(
                                      'student_id', s.id,
@@ -147,7 +149,7 @@ class ParentController {
                               FROM parent_student_links psl 
                               JOIN students s ON psl.student_id = s.id 
                               JOIN classes c ON s.class_id = c.id
-                              WHERE psl.parent_id = p.id AND s.status = 'Active') as children
+                              WHERE psl.parent_id = p.id AND s.status = 'Active' AND s.school_id = :school_id) as children
                       FROM parents p
                       WHERE p.id = :id AND p.school_id = :school_id";
             
@@ -193,9 +195,10 @@ class ParentController {
             $email = Middleware::sanitizeString($data['email']);
             Middleware::validateEmail($email);
             
-            $check_query = "SELECT id FROM parents WHERE email = :email";
+            $check_query = "SELECT id FROM parents WHERE email = :email AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':email', $email);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()) {
@@ -237,14 +240,15 @@ class ParentController {
                     $relationship = Middleware::validateEnum($student_link['relationship'], ['Father', 'Mother', 'Guardian'], 'relationship');
                     $is_primary = isset($student_link['is_primary']) ? (bool)$student_link['is_primary'] : false;
                     
-                    $link_query = "INSERT INTO parent_student_links (parent_id, student_id, relationship, is_primary) 
-                                   VALUES (:parent_id, :student_id, :relationship, :is_primary)";
+                    $link_query = "INSERT INTO parent_student_links (parent_id, student_id, relationship, is_primary, school_id) 
+                                   VALUES (:parent_id, :student_id, :relationship, :is_primary, :school_id)";
                     
                     $link_stmt = $this->conn->prepare($link_query);
                     $link_stmt->bindParam(':parent_id', $parent_id);
                     $link_stmt->bindParam(':student_id', $student_id);
                     $link_stmt->bindParam(':relationship', $relationship);
                     $link_stmt->bindParam(':is_primary', $is_primary);
+                    $link_stmt->bindParam(':school_id', $school_id);
                     $link_stmt->execute();
                 }
             }
@@ -383,9 +387,10 @@ class ParentController {
             }
             
             // Check for linked students
-            $student_check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id";
+            $student_check_query = "SELECT COUNT(*) as count FROM parent_student_links WHERE parent_id = :parent_id AND school_id = :school_id";
             $student_check_stmt = $this->conn->prepare($student_check_query);
             $student_check_stmt->bindParam(':parent_id', $parent_id);
+            $student_check_stmt->bindParam(':school_id', $school_id);
             $student_check_stmt->execute();
             
             if ($student_check_stmt->fetch()['count'] > 0) {
@@ -439,9 +444,10 @@ class ParentController {
 
             // Fallback: if linked_id is missing in the token, resolve it from the users table
             if (empty($token_parent_id)) {
-                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent' AND school_id = :school_id";
                 $user_stmt = $this->conn->prepare($user_query);
                 $user_stmt->bindParam(':username', $token_data['username']);
+                $user_stmt->bindParam(':school_id', $school_id);
                 $user_stmt->execute();
                 $user_data = $user_stmt->fetch();
                 $token_parent_id = $user_data['linked_id'] ?? null;
@@ -516,12 +522,13 @@ class ParentController {
      */
     public function getAllParentStudentLinks() {
         $token_data = Middleware::requireAuth();
+        $school_id = $this->school_id = TenantMiddleware::resolveSchoolId($this->conn);
         // Clean output buffer to prevent HTML contamination
         if (ob_get_length()) ob_clean();
         
         try {
-            $where = '';
-            $params = [];
+            $where = ['psl.school_id = :school_id'];
+            $params[':school_id'] = $school_id;
 
             $role = strtolower(trim((string)($token_data['role'] ?? '')));
 
@@ -531,9 +538,10 @@ class ParentController {
 
                 // Fallback: if linked_id is missing in the token, resolve it from the users table
                 if (empty($token_parent_id)) {
-                    $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent'";
+                    $user_query = "SELECT linked_id FROM users WHERE username = :username AND role = 'parent' AND school_id = :school_id";
                     $user_stmt = $this->conn->prepare($user_query);
                     $user_stmt->bindParam(':username', $token_data['username']);
+                    $user_stmt->bindParam(':school_id', $school_id);
                     $user_stmt->execute();
                     $user_data = $user_stmt->fetch();
                     $token_parent_id = $user_data['linked_id'] ?? null;
@@ -543,9 +551,11 @@ class ParentController {
                     Response::forbidden('Parent account not properly linked');
                 }
 
-                $where = 'WHERE psl.parent_id = :parent_id';
+                $where[] = 'psl.parent_id = :parent_id';
                 $params[':parent_id'] = (int)$token_parent_id;
             }
+
+            $whereClause = 'WHERE ' . implode(' AND ', $where);
 
             $query = "SELECT psl.*, 
                              s.first_name as student_first_name, 
@@ -553,10 +563,11 @@ class ParentController {
                              p.first_name as parent_first_name, 
                              p.last_name as parent_last_name
                       FROM parent_student_links psl
-                      LEFT JOIN students s ON psl.student_id = s.id
-                      LEFT JOIN parents p ON psl.parent_id = p.id
-                      $where
+                      LEFT JOIN students s ON psl.student_id = s.id AND s.school_id = :school_id
+                      LEFT JOIN parents p ON psl.parent_id = p.id AND p.school_id = :school_id2
+                      $whereClause
                       ORDER BY psl.created_at DESC";
+            $params[':school_id2'] = $school_id;
             
             $stmt = $this->conn->prepare($query);
             foreach ($params as $key => $value) {
@@ -600,6 +611,7 @@ class ParentController {
     public function linkToStudent($id) {
         Middleware::requireRole('admin');
         $token_data = Middleware::requireAuth();
+        $school_id = $this->school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $parent_id = Middleware::validateInteger($id, 'parent_id');
         $data = json_decode(file_get_contents('php://input'), true);
@@ -613,11 +625,31 @@ class ParentController {
 
             $this->conn->beginTransaction();
             
+            // Verify parent and student belong to this school
+            $verify_parent = $this->conn->prepare("SELECT id FROM parents WHERE id = :parent_id AND school_id = :school_id");
+            $verify_parent->bindParam(':parent_id', $parent_id);
+            $verify_parent->bindParam(':school_id', $school_id);
+            $verify_parent->execute();
+            if (!$verify_parent->fetch()) {
+                $this->conn->rollBack();
+                Response::notFound('Parent not found in this school');
+            }
+
+            $verify_student = $this->conn->prepare("SELECT id FROM students WHERE id = :student_id AND school_id = :school_id");
+            $verify_student->bindParam(':student_id', $student_id);
+            $verify_student->bindParam(':school_id', $school_id);
+            $verify_student->execute();
+            if (!$verify_student->fetch()) {
+                $this->conn->rollBack();
+                Response::notFound('Student not found in this school');
+            }
+            
             // Check if link already exists
-            $check_query = "SELECT id FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_query = "SELECT id FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':parent_id', $parent_id);
             $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()) {
@@ -629,23 +661,25 @@ class ParentController {
             
             // If setting as primary, remove primary status from other parents
             if ($is_primary) {
-                $update_query = "UPDATE parent_student_links SET is_primary = FALSE WHERE student_id = :student_id";
+                $update_query = "UPDATE parent_student_links SET is_primary = FALSE WHERE student_id = :student_id AND school_id = :school_id";
                 $update_stmt = $this->conn->prepare($update_query);
                 $update_stmt->bindParam(':student_id', $student_id);
+                $update_stmt->bindParam(':school_id', $school_id);
                 if (!$update_stmt->execute()) {
                     throw new Exception('Failed to update existing primary link');
                 }
             }
             
             // Create link
-            $link_query = "INSERT INTO parent_student_links (parent_id, student_id, relationship, is_primary) 
-                           VALUES (:parent_id, :student_id, :relationship, :is_primary)";
+            $link_query = "INSERT INTO parent_student_links (parent_id, student_id, relationship, is_primary, school_id) 
+                           VALUES (:parent_id, :student_id, :relationship, :is_primary, :school_id)";
             
             $link_stmt = $this->conn->prepare($link_query);
             $link_stmt->bindParam(':parent_id', $parent_id);
             $link_stmt->bindParam(':student_id', $student_id);
             $link_stmt->bindParam(':relationship', $relationship);
             $link_stmt->bindParam(':is_primary', $is_primary);
+            $link_stmt->bindParam(':school_id', $school_id);
             
             if (!$link_stmt->execute()) {
                 error_log("Failed to insert parent-student link: " . print_r($link_stmt->errorInfo(), true));
@@ -661,9 +695,10 @@ class ParentController {
             $parent_email = null;
             $parent_name = null;
             try {
-                $parent_info_query = "SELECT first_name, last_name, email FROM parents WHERE id = :parent_id";
+                $parent_info_query = "SELECT first_name, last_name, email FROM parents WHERE id = :parent_id AND school_id = :school_id";
                 $parent_info_stmt = $this->conn->prepare($parent_info_query);
                 $parent_info_stmt->bindParam(':parent_id', $parent_id);
+                $parent_info_stmt->bindParam(':school_id', $school_id);
                 if ($parent_info_stmt->execute()) {
                     $parent_info = $parent_info_stmt->fetch();
                     if ($parent_info) {
@@ -679,17 +714,19 @@ class ParentController {
             // Update student record (attempt parent_id + parent_name; fallback to only parent_id)
             try {
                 if ($parent_name !== null) {
-                    $update_student_query = "UPDATE students SET parent_id = :parent_id, parent_name = :parent_name WHERE id = :student_id";
+                    $update_student_query = "UPDATE students SET parent_id = :parent_id, parent_name = :parent_name WHERE id = :student_id AND school_id = :school_id";
                     $update_student_stmt = $this->conn->prepare($update_student_query);
                     $update_student_stmt->bindParam(':parent_id', $parent_id);
                     $update_student_stmt->bindParam(':parent_name', $parent_name);
                     $update_student_stmt->bindParam(':student_id', $student_id);
+                    $update_student_stmt->bindParam(':school_id', $school_id);
                     $update_student_stmt->execute();
                 } else {
-                    $update_student_query = "UPDATE students SET parent_id = :parent_id WHERE id = :student_id";
+                    $update_student_query = "UPDATE students SET parent_id = :parent_id WHERE id = :student_id AND school_id = :school_id";
                     $update_student_stmt = $this->conn->prepare($update_student_query);
                     $update_student_stmt->bindParam(':parent_id', $parent_id);
                     $update_student_stmt->bindParam(':student_id', $student_id);
+                    $update_student_stmt->bindParam(':school_id', $school_id);
                     $update_student_stmt->execute();
                 }
             } catch (Exception $e) {
@@ -699,10 +736,11 @@ class ParentController {
             // Ensure parent's linked_id matches the parent_id used in students table (best-effort)
             if (!empty($parent_email)) {
                 try {
-                    $update_user_query = "UPDATE users SET linked_id = :parent_id WHERE email = :email AND LOWER(role) = 'parent'";
+                    $update_user_query = "UPDATE users SET linked_id = :parent_id WHERE email = :email AND LOWER(role) = 'parent' AND school_id = :school_id";
                     $update_user_stmt = $this->conn->prepare($update_user_query);
                     $update_user_stmt->bindParam(':parent_id', $parent_id, PDO::PARAM_INT);
                     $update_user_stmt->bindParam(':email', $parent_email);
+                    $update_user_stmt->bindParam(':school_id', $school_id);
                     $update_user_stmt->execute();
                 } catch (Exception $e) {
                     error_log('Warning: Failed to update users.linked_id during link: ' . $e->getMessage());
@@ -752,16 +790,18 @@ class ParentController {
     public function unlinkFromStudent($parent_id, $student_id) {
         Middleware::requireRole('admin');
         $token_data = Middleware::requireAuth();
+        $school_id = $this->school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         $parent_id = Middleware::validateInteger($parent_id, 'parent_id');
         $student_id = Middleware::validateInteger($student_id, 'student_id');
         
         try {
             // Check if link exists
-            $check_query = "SELECT id FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $check_query = "SELECT id FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':parent_id', $parent_id);
             $check_stmt->bindParam(':student_id', $student_id);
+            $check_stmt->bindParam(':school_id', $school_id);
             $check_stmt->execute();
             
             $link = $check_stmt->fetch();
@@ -770,32 +810,36 @@ class ParentController {
             }
             
             // Delete link
-            $delete_query = "DELETE FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id";
+            $delete_query = "DELETE FROM parent_student_links WHERE parent_id = :parent_id AND student_id = :student_id AND school_id = :school_id";
             $delete_stmt = $this->conn->prepare($delete_query);
             $delete_stmt->bindParam(':parent_id', $parent_id);
             $delete_stmt->bindParam(':student_id', $student_id);
+            $delete_stmt->bindParam(':school_id', $school_id);
             $delete_stmt->execute();
 
             // If no more links exist for this student, clear cached parent fields on student record
-            $remaining_query = "SELECT COUNT(*) FROM parent_student_links WHERE student_id = :student_id";
+            $remaining_query = "SELECT COUNT(*) FROM parent_student_links WHERE student_id = :student_id AND school_id = :school_id";
             $remaining_stmt = $this->conn->prepare($remaining_query);
             $remaining_stmt->bindParam(':student_id', $student_id);
+            $remaining_stmt->bindParam(':school_id', $school_id);
             $remaining_stmt->execute();
             $remaining_count = (int)$remaining_stmt->fetchColumn();
 
             if ($remaining_count === 0) {
                 // Best-effort cache clear (some environments may not have parent_name)
                 try {
-                    $clear_student_query = "UPDATE students SET parent_id = NULL, parent_name = NULL WHERE id = :student_id";
+                    $clear_student_query = "UPDATE students SET parent_id = NULL, parent_name = NULL WHERE id = :student_id AND school_id = :school_id";
                     $clear_student_stmt = $this->conn->prepare($clear_student_query);
                     $clear_student_stmt->bindParam(':student_id', $student_id);
+                    $clear_student_stmt->bindParam(':school_id', $school_id);
                     $clear_student_stmt->execute();
                 } catch (Exception $e) {
                     error_log('Warning: Failed to clear students.parent_name during unlink, falling back to parent_id only: ' . $e->getMessage());
                     try {
-                        $clear_student_query = "UPDATE students SET parent_id = NULL WHERE id = :student_id";
+                        $clear_student_query = "UPDATE students SET parent_id = NULL WHERE id = :student_id AND school_id = :school_id";
                         $clear_student_stmt = $this->conn->prepare($clear_student_query);
                         $clear_student_stmt->bindParam(':student_id', $student_id);
+                        $clear_student_stmt->bindParam(':school_id', $school_id);
                         $clear_student_stmt->execute();
                     } catch (Exception $e2) {
                         error_log('Warning: Failed to clear students.parent_id during unlink: ' . $e2->getMessage());

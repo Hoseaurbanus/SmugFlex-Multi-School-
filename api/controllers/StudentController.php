@@ -139,7 +139,7 @@ class StudentController {
             if ($token_data['role'] === 'parent') {
                 $query .= " AND s.id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id)";
             } elseif ($token_data['role'] === 'teacher') {
-                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id)";
+                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND school_id = :school_id)";
             }
             
             $stmt = $this->conn->prepare($query);
@@ -752,14 +752,15 @@ class StudentController {
                     }
                 
                 // Record promotion with enhanced fields
-                $promotion_query = "INSERT INTO student_promotions (student_id, from_class_id, to_class_id, 
+                $promotion_query = "INSERT INTO student_promotions (student_id, school_id, from_class_id, to_class_id, 
                                     from_academic_year, to_academic_year, promotion_status, promoted_by, promotion_date,
                                     manual_override, override_reason)
-                                    VALUES (:student_id, :from_class_id, :to_class_id, :from_academic_year, 
+                                    VALUES (:student_id, :school_id, :from_class_id, :to_class_id, :from_academic_year, 
                                            :to_academic_year, :status, :promoted_by, :promotion_date, :manual_override, :override_reason)";
                 
                 $promotion_stmt = $this->conn->prepare($promotion_query);
                 $promotion_stmt->bindParam(':student_id', $student_id);
+                $promotion_stmt->bindParam(':school_id', $school_id);
                 $promotion_stmt->bindParam(':from_class_id', $from_class_id);
                 $promotion_stmt->bindParam(':to_class_id', $to_class_id);
                 $promotion_stmt->bindParam(':from_academic_year', $from_academic_year);
@@ -1014,6 +1015,7 @@ class StudentController {
      * Get Student Attendance Summary
      */
     private function getStudentAttendanceSummary($student_id) {
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $query = "SELECT 
                     COUNT(*) as total_days,
                     SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as present_days,
@@ -1021,10 +1023,12 @@ class StudentController {
                     SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) as late_days
                   FROM attendance 
                   WHERE student_id = :student_id 
+                  AND school_id = :school_id
                   AND date >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':student_id', $student_id);
+        $stmt->bindParam(':school_id', $school_id);
         $stmt->execute();
         
         return $stmt->fetch();
@@ -1054,14 +1058,16 @@ class StudentController {
      * Get Student Payment History
      */
     private function getStudentPaymentHistory($student_id) {
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $query = "SELECT amount, payment_type, payment_method, receipt_number, recorded_date, status
                   FROM payments 
-                  WHERE student_id = :student_id
+                  WHERE student_id = :student_id AND school_id = :school_id
                   ORDER BY recorded_date DESC
                   LIMIT 10";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':student_id', $student_id);
+        $stmt->bindParam(':school_id', $school_id);
         $stmt->execute();
         
         return $stmt->fetchAll();

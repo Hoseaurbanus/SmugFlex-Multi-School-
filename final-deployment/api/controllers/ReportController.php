@@ -267,7 +267,7 @@ class ReportController {
                                           FROM subjects sub
                                           JOIN subject_assignments sa ON sub.id = sa.subject_id
                                           LEFT JOIN scores sc ON sa.id = sc.subject_assignment_id
-                                          WHERE sa.class_id = :class_id AND sa.term = :term AND sa.academic_year = :academic_year
+                                          WHERE sa.class_id = :class_id AND sa.term = :term AND sa.academic_year = :academic_year AND sa.school_id = :school_id
                                           GROUP BY sub.id, sub.name, sub.code
                                           ORDER BY sub.name";
             
@@ -275,6 +275,7 @@ class ReportController {
             $subject_performance_stmt->bindParam(':class_id', $class_id);
             $subject_performance_stmt->bindParam(':term', $term);
             $subject_performance_stmt->bindParam(':academic_year', $academic_year);
+            $subject_performance_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $subject_performance_stmt->execute();
             
             $subjects_performance = $subject_performance_stmt->fetchAll();
@@ -346,6 +347,7 @@ class ReportController {
      */
     public function generateFinancialReport() {
         Middleware::requireAnyRole(['admin', 'accountant']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $date_from = isset($_GET['date_from']) ? Middleware::validateDate($_GET['date_from']) : date('Y-m-01');
@@ -359,10 +361,10 @@ class ReportController {
                     $report_data = $this->generateFinancialSummary($date_from, $date_to);
                     break;
                 case 'detailed':
-                    $report_data = $this->generateDetailedFinancialReport($date_from, $date_to);
+                    $report_data = $this->generateDetailedFinancialReport($date_from, $date_to, $school_id);
                     break;
                 case 'by_class':
-                    $report_data = $this->generateFinancialByClass($date_from, $date_to);
+                    $report_data = $this->generateFinancialByClass($date_from, $date_to, $school_id);
                     break;
                 case 'by_payment_type':
                     $report_data = $this->generateFinancialByPaymentType($date_from, $date_to);
@@ -381,6 +383,7 @@ class ReportController {
      */
     public function generateAttendanceReport() {
         $token_data = Middleware::requireAuth();
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {
             $date_from = isset($_GET['date_from']) ? Middleware::validateDate($_GET['date_from']) : date('Y-m-01');
@@ -393,10 +396,11 @@ class ReportController {
                     Response::badRequest('Class ID is required for teachers');
                 }
                 
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id";
+                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
+                $check_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -419,8 +423,12 @@ class ReportController {
             $params = [];
             $conditions = [];
             
+            // Always scope by school_id
+            $conditions[] = "a.school_id = :school_id";
+            $params[':school_id'] = $school_id;
+            
             if ($class_id) {
-                $conditions[] = "a.student_id IN (SELECT id FROM students WHERE class_id = :class_id)";
+                $conditions[] = "a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id)";
                 $params[':class_id'] = $class_id;
             }
             
@@ -471,13 +479,14 @@ class ReportController {
                                 FROM attendance a
                                 JOIN students s ON a.student_id = s.id
                                 JOIN classes c ON s.class_id = c.id
-                                WHERE a.date BETWEEN :date_from AND :date_to
+                                WHERE a.date BETWEEN :date_from AND :date_to AND s.school_id = :school_id
                                 GROUP BY c.id, c.name, c.level
                                 ORDER BY c.level, c.name";
                 
                 $class_stmt = $this->conn->prepare($class_query);
                 $class_stmt->bindParam(':date_from', $date_from);
                 $class_stmt->bindParam(':date_to', $date_to);
+                $class_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
                 $class_stmt->execute();
                 $class_breakdown = $class_stmt->fetchAll();
             }
@@ -558,7 +567,7 @@ class ReportController {
     /**
      * Generate Detailed Financial Report Helper
      */
-    private function generateDetailedFinancialReport($date_from, $date_to) {
+    private function generateDetailedFinancialReport($date_from, $date_to, $school_id) {
         $query = "SELECT p.*, s.first_name, s.last_name, s.admission_number,
                          c.name as class_name, c.level,
                          CONCAT(u.first_name, ' ', u.last_name) as recorded_by_name
@@ -566,12 +575,13 @@ class ReportController {
                   JOIN students s ON p.student_id = s.id
                   JOIN classes c ON s.class_id = c.id
                   LEFT JOIN users u ON p.recorded_by = u.id
-                  WHERE p.recorded_date BETWEEN :date_from AND :date_to
+                  WHERE p.recorded_date BETWEEN :date_from AND :date_to AND s.school_id = :school_id
                   ORDER BY p.recorded_date DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':date_from', $date_from);
         $stmt->bindParam(':date_to', $date_to);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return ['payments' => $stmt->fetchAll()];
@@ -580,7 +590,7 @@ class ReportController {
     /**
      * Generate Financial by Class Helper
      */
-    private function generateFinancialByClass($date_from, $date_to) {
+    private function generateFinancialByClass($date_from, $date_to, $school_id) {
         $query = "SELECT c.name as class_name, c.level,
                      COUNT(*) as transaction_count,
                      COALESCE(SUM(CASE WHEN p.status = 'Verified' THEN p.amount ELSE 0 END), 0) as total_verified,
@@ -589,13 +599,14 @@ class ReportController {
                   FROM payments p
                   JOIN students s ON p.student_id = s.id
                   JOIN classes c ON s.class_id = c.id
-                  WHERE p.recorded_date BETWEEN :date_from AND :date_to
+                  WHERE p.recorded_date BETWEEN :date_from AND :date_to AND s.school_id = :school_id
                   GROUP BY c.id, c.name, c.level
                   ORDER BY c.level, c.name";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':date_from', $date_from);
         $stmt->bindParam(':date_to', $date_to);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return ['by_class' => $stmt->fetchAll()];

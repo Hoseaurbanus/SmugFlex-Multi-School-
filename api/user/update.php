@@ -9,11 +9,17 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: PUT, PATCH, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
+require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
+
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
+
+// Require authentication
+$token_data = Middleware::requireAuth();
 
 // Only allow PUT/PATCH requests
 if (!in_array($_SERVER['REQUEST_METHOD'], ['PUT', 'PATCH'])) {
@@ -50,9 +56,11 @@ try {
         throw new Exception('Database connection failed');
     }
     
-    // Check if user exists
-    $stmt = $conn->prepare("SELECT id FROM users WHERE id = ?");
-    $stmt->execute([$userId]);
+    $school_id = TenantMiddleware::resolveSchoolId($conn);
+    
+    // Check if user exists — scoped to school
+    $stmt = $conn->prepare("SELECT id FROM users WHERE id = ? AND school_id = ?");
+    $stmt->execute([$userId, $school_id]);
     if (!$stmt->fetch()) {
         http_response_code(404);
         echo json_encode(['error' => 'User not found']);
@@ -71,8 +79,8 @@ try {
         if (isset($input[$field]) && (!is_string($input[$field]) || trim($input[$field]) !== '')) {
             // Special handling for username and email uniqueness
             if ($field === 'username') {
-                $stmt = $conn->prepare("SELECT id FROM users WHERE username = ? AND id != ?");
-                $stmt->execute([$input[$field], $userId]);
+                $stmt = $conn->prepare("SELECT id FROM users WHERE username = ? AND id != ? AND school_id = ?");
+                $stmt->execute([$input[$field], $userId, $school_id]);
                 if ($stmt->fetch()) {
                     http_response_code(400);
                     echo json_encode(['error' => 'Username already exists']);
@@ -81,8 +89,8 @@ try {
             }
             
             if ($field === 'email') {
-                $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
-                $stmt->execute([$input[$field], $userId]);
+                $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND id != ? AND school_id = ?");
+                $stmt->execute([$input[$field], $userId, $school_id]);
                 if ($stmt->fetch()) {
                     http_response_code(400);
                     echo json_encode(['error' => 'Email already exists']);
@@ -132,8 +140,8 @@ try {
     ];
     
     // Get current user role and linked_id
-    $stmt = $conn->prepare("SELECT role, linked_id FROM users WHERE id = ?");
-    $stmt->execute([$userId]);
+    $stmt = $conn->prepare("SELECT role, linked_id FROM users WHERE id = ? AND school_id = ?");
+    $stmt->execute([$userId, $school_id]);
     $currentUser = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$currentUser) {
@@ -159,7 +167,8 @@ try {
     $conn->beginTransaction();
     
     try {
-        $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE id = ?";
+        $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE id = ? AND school_id = ?";
+        $updateValues[] = $school_id;
         $stmt = $conn->prepare($sql);
         $stmt->execute($updateValues);
         $affected = $stmt->rowCount();
@@ -234,7 +243,8 @@ try {
                     $teacherFields[] = "updated_at = NOW()";
                     $teacherValues[] = $linkedId;
                     
-                    $teacherSql = "UPDATE teachers SET " . implode(', ', $teacherFields) . " WHERE id = ?";
+                    $teacherSql = "UPDATE teachers SET " . implode(', ', $teacherFields) . " WHERE id = ? AND school_id = ?";
+                    $teacherValues[] = $school_id;
                     $teacherStmt = $conn->prepare($teacherSql);
                     $teacherStmt->execute($teacherValues);
                     $profileUpdated = $teacherStmt->rowCount() > 0;
@@ -273,7 +283,8 @@ try {
                     $parentFields[] = "updated_at = NOW()";
                     $parentValues[] = $linkedId;
                     
-                    $parentSql = "UPDATE parents SET " . implode(', ', $parentFields) . " WHERE id = ?";
+                    $parentSql = "UPDATE parents SET " . implode(', ', $parentFields) . " WHERE id = ? AND school_id = ?";
+                    $parentValues[] = $school_id;
                     $parentStmt = $conn->prepare($parentSql);
                     $parentStmt->execute($parentValues);
                     $profileUpdated = $parentStmt->rowCount() > 0;
@@ -308,7 +319,8 @@ try {
                     $accountantFields[] = "updated_at = NOW()";
                     $accountantValues[] = $linkedId;
                     
-                    $accountantSql = "UPDATE accountants SET " . implode(', ', $accountantFields) . " WHERE id = ?";
+                    $accountantSql = "UPDATE accountants SET " . implode(', ', $accountantFields) . " WHERE id = ? AND school_id = ?";
+                    $accountantValues[] = $school_id;
                     $accountantStmt = $conn->prepare($accountantSql);
                     $accountantStmt->execute($accountantValues);
                     $profileUpdated = $accountantStmt->rowCount() > 0;

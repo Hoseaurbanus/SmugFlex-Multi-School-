@@ -92,11 +92,41 @@ try {
     // Audit log for all queries
     error_log("SQL_QUERY_AUDIT: user=" . ($token_data['username'] ?? 'unknown') . " role={$role} type={$queryType} school_id={$school_id}");
 
-    if ($queryType === 'SELECT') {
+    // Helper: check if a table has a school_id column
+    function tableHasSchoolId($pdo, $tableName) {
+        $tableName = preg_replace('/[^a-zA-Z0-9_]/', '', $tableName);
+        if (empty($tableName)) return false;
+        $colStmt = $pdo->prepare("SHOW COLUMNS FROM `$tableName` LIKE 'school_id'");
+        $colStmt->execute();
+        return $colStmt->fetch() !== false;
+    }
+
+    // Helper: extract primary table name from query
+    function extractTableName($query, $queryType) {
+        if ($queryType === 'INSERT') {
+            if (preg_match('/INSERT\s+INTO\s+`?(\w+)`?/i', $query, $m)) return $m[1];
+        } elseif ($queryType === 'UPDATE') {
+            if (preg_match('/UPDATE\s+`?(\w+)`?/i', $query, $m)) return $m[1];
+        } elseif ($queryType === 'DELETE') {
+            if (preg_match('/DELETE\s+FROM\s+`?(\w+)`?/i', $query, $m)) return $m[1];
+        } elseif ($queryType === 'SELECT') {
+            if (preg_match('/FROM\s+`?(\w+)`?/i', $query, $m)) return $m[1];
+        }
+        return null;
+    }
+
+    $targetTable = extractTableName($query, $queryType);
+    $hasSchoolId = $targetTable ? tableHasSchoolId($pdo, $targetTable) : false;
+
+    if (!$hasSchoolId && $targetTable) {
+        error_log("SQL_QUERY_AUDIT_WARNING: Table '{$targetTable}' has no school_id column — skipping tenant injection for query type {$queryType}");
+    }
+
+    if ($queryType === 'SELECT' && $hasSchoolId) {
         // Wrap user query as subquery and filter at outer level — prevents UNION/subquery bypass
         $query = "SELECT _inner.* FROM ($query) AS _inner WHERE _inner.school_id = :_school_id_";
         $params[':_school_id_'] = $school_id;
-    } elseif ($queryType === 'INSERT') {
+    } elseif ($queryType === 'INSERT' && $hasSchoolId) {
         $query = preg_replace(
             '/^INSERT\s+INTO\s+`?(\w+)`?\s*\(/i',
             "INSERT INTO $1 (school_id, ",
@@ -108,7 +138,7 @@ try {
             $query
         );
         $params[':_school_id_'] = $school_id;
-    } elseif (in_array($queryType, ['UPDATE', 'DELETE'], true)) {
+    } elseif (in_array($queryType, ['UPDATE', 'DELETE'], true) && $hasSchoolId) {
         $hasWhere = (bool)preg_match('/\bWHERE\b/i', $query);
         if ($hasWhere) {
             $query .= ' AND school_id = :_school_id_';
