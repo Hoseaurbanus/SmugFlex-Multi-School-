@@ -71,28 +71,28 @@ class Database {
             if (empty($line) || strpos($line, '#') === 0) continue;
             if (strpos($line, '=') === false) continue;
 
-                $parts = explode('=', $line, 2);
-                if (count($parts) !== 2) {
-                    continue;
-                }
+            $parts = explode('=', $line, 2);
+            if (count($parts) !== 2) {
+                continue;
+            }
 
-                $name = trim($parts[0]);
-                if ($name === '') {
-                    continue;
-                }
+            $name = trim($parts[0]);
+            if ($name === '') {
+                continue;
+            }
 
-                $value = trim($parts[1]);
+            $value = trim($parts[1]);
 
-                // Remove quotes if present
-                if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
-                    (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
-                    $value = substr($value, 1, -1);
-                }
+            // Remove quotes if present
+            if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
+                (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
+                $value = substr($value, 1, -1);
+            }
 
-                if (!array_key_exists($name, $_ENV)) {
-                    $_ENV[$name] = $value;
-                    putenv("$name=$value");
-                }
+            if (!array_key_exists($name, $_ENV)) {
+                $_ENV[$name] = $value;
+                putenv("$name=$value");
+            }
         }
     }
     
@@ -159,27 +159,27 @@ class Config {
             if (empty($line) || strpos($line, '#') === 0) continue;
             if (strpos($line, '=') === false) continue;
 
-                $parts = explode('=', $line, 2);
-                if (count($parts) !== 2) {
-                    continue;
-                }
+            $parts = explode('=', $line, 2);
+            if (count($parts) !== 2) {
+                continue;
+            }
 
-                $name = trim($parts[0]);
-                if ($name === '') {
-                    continue;
-                }
+            $name = trim($parts[0]);
+            if ($name === '') {
+                continue;
+            }
 
-                $value = trim($parts[1]);
+            $value = trim($parts[1]);
 
-                if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
-                    (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
-                    $value = substr($value, 1, -1);
-                }
+            if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
+                (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
+                $value = substr($value, 1, -1);
+            }
 
-                if (!array_key_exists($name, $_ENV)) {
-                    $_ENV[$name] = $value;
-                    putenv("$name=$value");
-                }
+            if (!array_key_exists($name, $_ENV)) {
+                $_ENV[$name] = $value;
+                putenv("$name=$value");
+            }
         }
     }
 
