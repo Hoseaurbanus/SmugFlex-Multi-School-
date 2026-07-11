@@ -151,7 +151,7 @@ class NotificationController {
             // Get total count
             $count_stmt = $this->conn->prepare($count_query);
             foreach ($params as $key => $value) {
-                if ($key === ':user_id') continue;
+                if ($key === ':user_id' || $key === ':user_id_json') continue;
                 $count_stmt->bindValue($key, $value);
             }
             $count_stmt->execute();
