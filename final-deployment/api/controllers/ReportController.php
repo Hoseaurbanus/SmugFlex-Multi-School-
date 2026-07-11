@@ -46,12 +46,18 @@ class ReportController {
                 }
             } elseif ($token_data['role'] === 'teacher') {
                 $check_query = "SELECT COUNT(*) as count FROM students s
-                               JOIN subject_assignments sa ON s.class_id = sa.class_id
-                               WHERE s.id = :student_id AND sa.teacher_id = :teacher_id AND s.school_id = :school_id";
+                               WHERE s.id = :student_id AND s.school_id = :school_id
+                               AND s.class_id IN (
+                                   SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id
+                                   UNION
+                                   SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta
+                               )";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':student_id', $student_id);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindValue(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -185,6 +191,7 @@ class ReportController {
             Response::success($report_data, 'Report card generated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ReportController: " . $e->getMessage());
             Response::serverError('Database error generating report card');
         }
     }
@@ -206,11 +213,14 @@ class ReportController {
             
             // Teacher can only generate reports for their classes
             if ($token_data['role'] === 'teacher') {
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id);
+                $check_stmt->bindParam(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -307,7 +317,7 @@ class ReportController {
                                    ROUND((SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) as attendance_percentage
                                  FROM attendance a
                                  JOIN students s ON a.student_id = s.id
-                                 WHERE s.class_id = :class_id AND a.date BETWEEN :term_start AND :term_end";
+                                 WHERE s.class_id = :class_id AND a.date BETWEEN :term_start AND :term_end AND a.school_id = :school_id";
             
             $term_dates = $this->getTermDates($term, $academic_year);
             
@@ -315,6 +325,7 @@ class ReportController {
             $attendance_stmt->bindParam(':class_id', $class_id);
             $attendance_stmt->bindParam(':term_start', $term_dates['start']);
             $attendance_stmt->bindParam(':term_end', $term_dates['end']);
+            $attendance_stmt->bindParam(':school_id', $school_id);
             $attendance_stmt->execute();
             
             $attendance_summary = $attendance_stmt->fetch();
@@ -338,6 +349,7 @@ class ReportController {
             Response::success($report_data, 'Class performance report generated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ReportController: " . $e->getMessage());
             Response::serverError('Database error generating class performance report');
         }
     }
@@ -358,7 +370,7 @@ class ReportController {
             
             switch ($report_type) {
                 case 'summary':
-                    $report_data = $this->generateFinancialSummary($date_from, $date_to);
+                    $report_data = $this->generateFinancialSummary($date_from, $date_to, $school_id);
                     break;
                 case 'detailed':
                     $report_data = $this->generateDetailedFinancialReport($date_from, $date_to, $school_id);
@@ -367,13 +379,14 @@ class ReportController {
                     $report_data = $this->generateFinancialByClass($date_from, $date_to, $school_id);
                     break;
                 case 'by_payment_type':
-                    $report_data = $this->generateFinancialByPaymentType($date_from, $date_to);
+                    $report_data = $this->generateFinancialByPaymentType($date_from, $date_to, $school_id);
                     break;
             }
             
             Response::success($report_data, 'Financial report generated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ReportController: " . $e->getMessage());
             Response::serverError('Database error generating financial report');
         }
     }
@@ -396,11 +409,14 @@ class ReportController {
                     Response::badRequest('Class ID is required for teachers');
                 }
                 
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id, PDO::PARAM_INT);
+                $check_stmt->bindParam(':school_id_cta', $school_id, PDO::PARAM_INT);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -506,6 +522,7 @@ class ReportController {
             Response::success($report_data, 'Attendance report generated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ReportController: " . $e->getMessage());
             Response::serverError('Database error generating attendance report');
         }
     }
@@ -544,7 +561,7 @@ class ReportController {
     /**
      * Generate Financial Summary Helper
      */
-    private function generateFinancialSummary($date_from, $date_to) {
+    private function generateFinancialSummary($date_from, $date_to, $school_id) {
         $query = "SELECT 
                    COUNT(*) as total_transactions,
                    COALESCE(SUM(CASE WHEN status = 'Verified' THEN amount ELSE 0 END), 0) as total_verified,
@@ -554,11 +571,12 @@ class ReportController {
                    COUNT(CASE WHEN payment_method = 'Cash' THEN 1 END) as cash_payments,
                    COUNT(CASE WHEN payment_method = 'POS' THEN 1 END) as pos_payments
                  FROM payments 
-                 WHERE recorded_date BETWEEN :date_from AND :date_to";
+                 WHERE recorded_date BETWEEN :date_from AND :date_to AND school_id = :school_id";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':date_from', $date_from);
         $stmt->bindParam(':date_to', $date_to);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return $stmt->fetch();
@@ -570,7 +588,7 @@ class ReportController {
     private function generateDetailedFinancialReport($date_from, $date_to, $school_id) {
         $query = "SELECT p.*, s.first_name, s.last_name, s.admission_number,
                          c.name as class_name, c.level,
-                         CONCAT(u.first_name, ' ', u.last_name) as recorded_by_name
+                         COALESCE(u.username, 'System') as recorded_by_name
                   FROM payments p
                   JOIN students s ON p.student_id = s.id
                   JOIN classes c ON s.class_id = c.id
@@ -615,19 +633,20 @@ class ReportController {
     /**
      * Generate Financial by Payment Type Helper
      */
-    private function generateFinancialByPaymentType($date_from, $date_to) {
+    private function generateFinancialByPaymentType($date_from, $date_to, $school_id) {
         $query = "SELECT payment_type, payment_method,
                      COUNT(*) as transaction_count,
                      COALESCE(SUM(CASE WHEN status = 'Verified' THEN amount ELSE 0 END), 0) as total_verified,
                      COALESCE(SUM(amount), 0) as total_amount
                   FROM payments 
-                  WHERE recorded_date BETWEEN :date_from AND :date_to
+                  WHERE recorded_date BETWEEN :date_from AND :date_to AND school_id = :school_id
                   GROUP BY payment_type, payment_method
                   ORDER BY total_amount DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':date_from', $date_from);
         $stmt->bindParam(':date_to', $date_to);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         
         return ['by_payment_type' => $stmt->fetchAll()];

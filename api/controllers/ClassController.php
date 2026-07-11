@@ -100,6 +100,7 @@ class ClassController {
             Response::paginated($mappedClasses, $pagination['page'], $pagination['limit'], $total);
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error retrieving classes');
         }
     }
@@ -150,6 +151,7 @@ class ClassController {
             Response::success($class, 'Class retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error retrieving class');
         }
     }
@@ -442,6 +444,7 @@ class ClassController {
             Response::success(null, 'Class updated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error updating class');
         }
     }
@@ -516,6 +519,7 @@ class ClassController {
             Response::success(null, 'Class deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error deleting class');
         }
     }
@@ -532,11 +536,14 @@ class ClassController {
             // Check access permissions
             if ($token_data['role'] === 'teacher') {
                 // Verify teacher has access to this class
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id);
+                $check_stmt->bindParam(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -568,6 +575,7 @@ class ClassController {
             Response::success($students, 'Class students retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error retrieving class students');
         }
     }
@@ -601,6 +609,7 @@ class ClassController {
             Response::success($subjects, 'Class subjects retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error retrieving class subjects');
         }
     }
@@ -643,6 +652,7 @@ class ClassController {
             Response::success($statistics, 'Class statistics retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error retrieving class statistics');
         }
     }
@@ -675,6 +685,7 @@ class ClassController {
             Response::success($classes, 'Classes by level retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error retrieving classes by level');
         }
     }
@@ -781,6 +792,7 @@ class ClassController {
             Response::success($mapped_groups, 'WhatsApp groups retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ClassController: " . $e->getMessage());
             Response::serverError('Database error retrieving WhatsApp groups');
         }
     }

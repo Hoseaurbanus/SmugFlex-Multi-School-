@@ -45,6 +45,7 @@ class ProgressionController {
             Response::success($rules, 'Progression rules retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ProgressionController: " . $e->getMessage());
             Response::serverError('Database error retrieving progression rules');
         }
     }
@@ -111,6 +112,7 @@ class ProgressionController {
             Response::created(['id' => $rule_id], 'Progression rule created successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ProgressionController: " . $e->getMessage());
             Response::serverError('Database error creating progression rule');
         }
     }
@@ -122,9 +124,10 @@ class ProgressionController {
         try {
             $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             // Get student's current class
-            $student_query = "SELECT class_id, school_id FROM students WHERE id = :student_id";
+            $student_query = "SELECT class_id, school_id FROM students WHERE id = :student_id AND school_id = :school_id";
             $student_stmt = $this->conn->prepare($student_query);
             $student_stmt->bindParam(':student_id', $studentId);
+            $student_stmt->bindParam(':school_id', $school_id);
             $student_stmt->execute();
             $student = $student_stmt->fetch(PDO::FETCH_ASSOC);
             
@@ -181,6 +184,7 @@ class ProgressionController {
             Response::success(null, 'Progression rule updated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ProgressionController: " . $e->getMessage());
             Response::serverError('Database error updating progression rule');
         }
     }
@@ -204,6 +208,7 @@ class ProgressionController {
             Response::success(null, 'Progression rule deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ProgressionController: " . $e->getMessage());
             Response::serverError('Database error deleting progression rule');
         }
     }

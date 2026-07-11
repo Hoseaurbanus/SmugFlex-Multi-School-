@@ -403,7 +403,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
           </div>
 
           {/* Key information */}
-          <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 text-sm">
             <div>
               <span className="text-gray-500">Reg No:</span>
               <p className="font-medium font-mono text-xs">{student.admissionNumber}</p>
@@ -836,7 +836,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium">Level</Label>
                 <Select value={filterLevel} onValueChange={setFilterLevel}>

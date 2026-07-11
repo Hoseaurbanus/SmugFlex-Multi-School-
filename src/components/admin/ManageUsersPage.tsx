@@ -721,7 +721,7 @@ export function ManageUsersPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-12">
@@ -733,10 +733,10 @@ export function ManageUsersPage() {
       )}
       
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-600">Create and manage system users with role-based access</p>
+          <h1 className="text-xl sm:text-2xl font-heading font-bold text-gray-900">User Management</h1>
+          <p className="text-sm sm:text-base text-gray-600">Create and manage system users with role-based access</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Button
@@ -871,7 +871,7 @@ export function ManageUsersPage() {
                 </div>
               </div>
             </div>
-            <div className="md:col-span-3 flex items-center justify-center text-sm text-gray-500">
+            <div className="flex items-center justify-center text-sm text-gray-500">
               <span className="bg-gray-100 px-3 py-2 rounded-lg">
                 {filteredUsers.length} of {users.length} users
               </span>
@@ -1033,18 +1033,18 @@ export function ManageUsersPage() {
 
           {/* Users Card View - Mobile */}
           <div className="section-band border-gray-100 block lg:hidden">
-            <CardHeader className="border-b border-gray-100">
+            <CardHeader className="border-b border-gray-100 px-4 py-3 sm:p-6">
               <h3 className="text-lg font-heading font-semibold text-gray-900">Users ({filteredUsers.length})</h3>
             </CardHeader>
-            <CardContent className="p-4 space-y-4">
+            <CardContent className="p-3 sm:p-6 space-y-3">
               {filteredUsers.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   No users found matching your criteria
                 </div>
               ) : (
                 paginatedUsers.map((user: UserType) => (
-                  <div key={user.id} className="section-band border-gray-100">
-                    <CardContent className="p-4 space-y-3">
+                  <div key={user.id} className="border border-gray-100 rounded-xl bg-white">
+                    <CardContent className="p-3 sm:p-4 space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-gray-900 text-sm truncate">
@@ -1217,7 +1217,7 @@ export function ManageUsersPage() {
               </Select>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="firstName">First Name *</Label>
                 <Input
@@ -1435,14 +1435,14 @@ export function ManageUsersPage() {
           <div className="space-y-4">
             {/* User Photo Display */}
             {selectedUser && (
-              <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                <div className="w-16 h-16 bg-[#0A2540]/10 rounded-full flex items-center justify-center">
-                  <User className="w-8 h-8 text-[#0A2540]" weight="bold" />
+              <div className="flex items-center gap-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#0A2540]/10 rounded-full flex items-center justify-center shrink-0">
+                  <User className="w-6 h-6 sm:w-8 sm:h-8 text-[#0A2540]" weight="bold" />
                 </div>
-                <div>
-                  <h3 className="font-heading font-semibold text-lg">{getUserFullName(selectedUser)}</h3>
-                  <p className="text-sm text-gray-500">@{selectedUser.username}</p>
-                  <Badge className={getRoleBadgeColor(selectedUser.role)}>
+                <div className="min-w-0">
+                  <h3 className="font-heading font-semibold text-base sm:text-lg truncate">{getUserFullName(selectedUser)}</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 truncate">@{selectedUser.username}</p>
+                  <Badge className={`${getRoleBadgeColor(selectedUser.role)} text-xs`}>
                     {selectedUser.role}
                   </Badge>
                 </div>
@@ -1855,7 +1855,7 @@ export function ManageUsersPage() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="grid grid-cols-2 gap-4 py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Username</Label>
               <p className="text-sm">{selectedUser?.username}</p>

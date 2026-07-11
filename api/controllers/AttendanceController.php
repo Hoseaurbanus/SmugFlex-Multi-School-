@@ -93,10 +93,16 @@ class AttendanceController {
             if ($token_data['role'] === 'teacher') {
                 $conditions[] = "a.student_id IN (
                     SELECT s.id FROM students s 
-                    JOIN subject_assignments sa ON s.class_id = sa.class_id 
-                    WHERE sa.teacher_id = :teacher_id AND sa.school_id = :school_id
+                    WHERE s.class_id IN (
+                        SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id_sa AND status = 'Active' AND school_id = :school_id_sa
+                        UNION
+                        SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta
+                    ) AND s.school_id = :school_id
                 )";
-                $params[':teacher_id'] = $token_data['linked_id'];
+                $params[':teacher_id_sa'] = $token_data['linked_id'];
+                $params[':school_id_sa'] = $school_id;
+                $params[':teacher_id_cta'] = $token_data['linked_id'];
+                $params[':school_id_cta'] = $school_id;
             }
             
             // Parent can only see attendance for their children
@@ -151,6 +157,7 @@ class AttendanceController {
             Response::paginated($attendance, $pagination['page'], $pagination['limit'], $total);
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AttendanceController: " . $e->getMessage());
             Response::serverError('Database error retrieving attendance');
         }
     }
@@ -193,11 +200,14 @@ class AttendanceController {
                 }
                 
                 // Verify teacher has access to this class
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id);
+                $check_stmt->bindParam(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -242,6 +252,7 @@ class AttendanceController {
             Response::success($attendance, 'Attendance retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AttendanceController: " . $e->getMessage());
             Response::serverError('Database error retrieving attendance');
         }
     }
@@ -268,11 +279,14 @@ class AttendanceController {
             
             // Teacher can only mark attendance for their classes
             if ($token_data['role'] === 'teacher') {
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id);
+                $check_stmt->bindParam(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -427,12 +441,18 @@ class AttendanceController {
         } elseif ($token_data['role'] === 'teacher') {
             // Verify teacher has access to this student's class
             $check_query = "SELECT COUNT(*) as count FROM students s
-                           JOIN subject_assignments sa ON s.class_id = sa.class_id
-                           WHERE s.id = :student_id AND sa.teacher_id = :teacher_id AND s.school_id = :school_id";
+                           WHERE s.id = :student_id AND s.school_id = :school_id
+                           AND s.class_id IN (
+                               SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id
+                               UNION
+                               SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta
+                           )";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':student_id', $student_id);
             $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
             $check_stmt->bindParam(':school_id', $school_id);
+            $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+            $check_stmt->bindValue(':school_id_cta', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -493,6 +513,7 @@ class AttendanceController {
             Response::success($result_data, 'Student attendance summary retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AttendanceController: " . $e->getMessage());
             Response::serverError('Database error retrieving attendance summary');
         }
     }
@@ -507,11 +528,14 @@ class AttendanceController {
         
         // Teacher can only see attendance for their classes
         if ($token_data['role'] === 'teacher') {
-            $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+            $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
             $check_stmt = $this->conn->prepare($check_query);
             $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
             $check_stmt->bindParam(':class_id', $class_id);
             $check_stmt->bindParam(':school_id', $school_id);
+            $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+            $check_stmt->bindParam(':class_id_cta', $class_id);
+            $check_stmt->bindParam(':school_id_cta', $school_id);
             $check_stmt->execute();
             
             if ($check_stmt->fetch()['count'] == 0) {
@@ -572,6 +596,7 @@ class AttendanceController {
             Response::success($result_data, 'Class attendance summary retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AttendanceController: " . $e->getMessage());
             Response::serverError('Database error retrieving class attendance summary');
         }
     }
@@ -696,6 +721,7 @@ class AttendanceController {
             Response::success($report_data, 'Attendance reports retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AttendanceController: " . $e->getMessage());
             Response::serverError('Database error generating attendance reports');
         }
     }

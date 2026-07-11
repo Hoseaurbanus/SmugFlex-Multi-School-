@@ -570,16 +570,16 @@ export function ManageTeacherAssignmentsPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-[#0A2540]/5">
       {/* Modern Header */}
       <div className="bg-white border-b border-gray-200/80 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-heading font-bold text-gray-900 flex items-center gap-3">
-                <div className="p-2 bg-[#0A2540] rounded-lg">
-                  <UserCheck weight="bold" className="w-6 h-6 text-white" />
+              <h1 className="text-xl sm:text-3xl font-heading font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 bg-[#0A2540] rounded-lg">
+                  <UserCheck weight="bold" className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 Teacher Assignments
               </h1>
-              <p className="text-gray-600 mt-1">Manage subject assignments and class teacher roles</p>
+              <p className="text-gray-600 mt-1 text-xs sm:text-sm">Manage subject assignments and class teacher roles</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <Button
@@ -606,7 +606,7 @@ export function ManageTeacherAssignmentsPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Loading State */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24">
@@ -616,74 +616,74 @@ export function ManageTeacherAssignmentsPage() {
         ) : (<>
         
         {/* Modern Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
           <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Total Assignments</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalAssignments}</p>
-                  <p className="text-xs text-emerald-600 mt-2 flex items-center">
-                    <Lightning weight="bold" className="w-3 h-3 mr-1" />
+                  <p className="text-gray-600 text-xs sm:text-sm font-medium">Total Assignments</p>
+                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.totalAssignments}</p>
+                  <p className="text-[10px] sm:text-xs text-emerald-600 mt-1 sm:mt-2 flex items-center">
+                    <Lightning weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     Active this term
                   </p>
                 </div>
-                <div className="p-3 bg-[#0A2540]/10 rounded-xl">
-                  <BookOpen weight="bold" className="w-6 h-6 text-[#0A2540]" />
+                <div className="p-2 sm:p-3 bg-[#0A2540]/10 rounded-xl">
+                  <BookOpen weight="bold" className="w-4 h-4 sm:w-6 sm:h-6 text-[#0A2540]" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Active Teachers</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{stats.uniqueTeachers}</p>
-                  <p className="text-xs text-[#0A2540] mt-2 flex items-center">
-                    <Users weight="bold" className="w-3 h-3 mr-1" />
+                  <p className="text-gray-600 text-xs sm:text-sm font-medium">Active Teachers</p>
+                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.uniqueTeachers}</p>
+                  <p className="text-[10px] sm:text-xs text-[#0A2540] mt-1 sm:mt-2 flex items-center">
+                    <Users weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     With assignments
                   </p>
                 </div>
-                <div className="p-3 bg-[#0A2540]/10 rounded-xl">
-                  <Users weight="bold" className="w-6 h-6 text-[#0A2540]" />
+                <div className="p-2 sm:p-3 bg-[#0A2540]/10 rounded-xl">
+                  <Users weight="bold" className="w-4 h-4 sm:w-6 sm:h-6 text-[#0A2540]" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Subjects Covered</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{stats.uniqueSubjects}</p>
-                  <p className="text-xs text-orange-600 mt-2 flex items-center">
-                    <Trophy weight="bold" className="w-3 h-3 mr-1" />
+                  <p className="text-gray-600 text-xs sm:text-sm font-medium">Subjects Covered</p>
+                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.uniqueSubjects}</p>
+                  <p className="text-[10px] sm:text-xs text-orange-600 mt-1 sm:mt-2 flex items-center">
+                    <Trophy weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     Across curriculum
                   </p>
                 </div>
-                <div className="p-3 bg-orange-100 rounded-xl">
-                  <Trophy weight="bold" className="w-6 h-6 text-orange-600" />
+                <div className="p-2 sm:p-3 bg-orange-100 rounded-xl">
+                  <Trophy weight="bold" className="w-4 h-4 sm:w-6 sm:h-6 text-orange-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden">
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Classes Served</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{stats.uniqueClasses}</p>
-                  <p className="text-xs text-emerald-600 mt-2 flex items-center">
-                    <Calendar weight="bold" className="w-3 h-3 mr-1" />
+                  <p className="text-gray-600 text-xs sm:text-sm font-medium">Classes Served</p>
+                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.uniqueClasses}</p>
+                  <p className="text-[10px] sm:text-xs text-emerald-600 mt-1 sm:mt-2 flex items-center">
+                    <Calendar weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     All levels
                   </p>
                 </div>
-                <div className="p-3 bg-emerald-100 rounded-xl">
-                  <Calendar weight="bold" className="w-6 h-6 text-emerald-600" />
+                <div className="p-2 sm:p-3 bg-emerald-100 rounded-xl">
+                  <Calendar weight="bold" className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-600" />
                 </div>
               </div>
             </CardContent>
@@ -691,8 +691,8 @@ export function ManageTeacherAssignmentsPage() {
         </div>
 
         {/* Modern Filters and Search */}
-        <Card className="bg-white border border-gray-100 shadow-lg rounded-2xl mb-8">
-          <CardContent className="p-6">
+        <Card className="bg-white border border-gray-100 shadow-lg rounded-2xl mb-6 sm:mb-8">
+          <CardContent className="p-3 sm:p-6">
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
@@ -701,13 +701,13 @@ export function ManageTeacherAssignmentsPage() {
                     placeholder="Search by teacher, subject, or class..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-12 rounded-xl border-gray-200 focus:border-[#0A2540] focus:ring-[#0A2540]/20"
+                    className="pl-10 h-10 sm:h-12 rounded-xl border-gray-200 focus:border-[#0A2540] focus:ring-[#0A2540]/20"
                   />
                 </div>
               </div>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex gap-3">
                 <Select value={filterTeacher} onValueChange={setFilterTeacher}>
-                  <SelectTrigger className="w-48 h-12 rounded-xl border-gray-200">
+                  <SelectTrigger className="w-full lg:w-48 h-10 rounded-xl border-gray-200">
                     <div className="flex items-center gap-2">
                       <User weight="bold" className="w-4 h-4 text-gray-400" />
                       <SelectValue placeholder="All Teachers" />
@@ -729,7 +729,7 @@ export function ManageTeacherAssignmentsPage() {
                 </Select>
 
                 <Select value={filterClass} onValueChange={setFilterClass}>
-                  <SelectTrigger className="w-48 h-12 rounded-xl border-gray-200">
+                  <SelectTrigger className="w-full lg:w-48 h-10 rounded-xl border-gray-200">
                     <div className="flex items-center gap-2">
                       <SquaresFour weight="bold" className="w-4 h-4 text-gray-400" />
                       <SelectValue placeholder="All Classes" />
@@ -797,8 +797,9 @@ export function ManageTeacherAssignmentsPage() {
             <Tabs value={activeTab} className="w-full">
               <TabsContent value="subjects" className="m-0">
                 {viewMode === 'table' ? (
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[600px] lg:min-w-full">
+                  <>
+                  {/* Desktop Table */}
+                  <div className="hidden lg:block overflow-x-auto">
                       <Table>
                       <TableHeader>
                         <TableRow className="bg-gray-50 border-b border-gray-200">
@@ -821,10 +822,7 @@ export function ManageTeacherAssignmentsPage() {
                                   <p className="text-gray-900 font-medium">No assignments found</p>
                                   <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
                                 </div>
-                                <Button
-                                  onClick={handleOpenAssignDialog}
-                                  className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white"
-                                >
+                                <Button onClick={handleOpenAssignDialog} className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white">
                                   <Plus weight="bold" className="w-4 h-4 mr-2" />
                                   Create First Assignment
                                 </Button>
@@ -892,8 +890,68 @@ export function ManageTeacherAssignmentsPage() {
                     )}
                   </TableBody>
                 </Table>
-              </div>
-              </div>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="block lg:hidden">
+                    {filteredAssignments.length === 0 ? (
+                      <div className="flex flex-col items-center gap-3 py-12 px-4">
+                        <div className="p-3 bg-gray-100 rounded-full">
+                          <BookOpen weight="bold" className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <p className="text-gray-900 font-medium text-sm">No assignments found</p>
+                        <p className="text-gray-500 text-xs">Try adjusting your search or filters</p>
+                        <Button onClick={handleOpenAssignDialog} className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white h-8 text-xs" size="sm">
+                          <Plus weight="bold" className="w-3 h-3 mr-1" />
+                          Create Assignment
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        {paginatedFilteredAssignments.map((assignment) => (
+                          <div key={assignment.id} className="p-3 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-8 h-8 bg-gradient-to-br from-[#0A2540] to-[#0A2540]/80 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                                  {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium text-gray-900 text-sm truncate">{assignment.teacher_name}</p>
+                                  <p className="text-xs text-gray-500">{assignment.teacher_id}</p>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setConfirmDeleteId(String(assignment.id));
+                                  setConfirmDeleteType('subject');
+                                  setConfirmDeleteDetails(`${assignment.subject_name} - ${assignment.class_name} (${assignment.teacher_name})`);
+                                }}
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-8 w-8 flex-shrink-0"
+                              >
+                                <Trash weight="bold" className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline" className="bg-orange-50 text-orange-700 text-xs py-0 px-1.5 h-5">
+                                {assignment.subject_name}
+                              </Badge>
+                              <span className="text-gray-300 text-xs">/</span>
+                              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 text-xs py-0 px-1.5 h-5">
+                                {assignment.class_name}
+                              </Badge>
+                              <span className="text-gray-300 text-xs">/</span>
+                              <Badge variant="outline" className="bg-gray-100 text-gray-600 text-xs py-0 px-1.5 h-5">
+                                {assignment.term}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                   </>
                 ) : (
                   /* Grid View for Subject Assignments */
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
@@ -981,13 +1039,13 @@ export function ManageTeacherAssignmentsPage() {
 
                 {/* Pagination for Subject Assignments */}
                 {paginatedCounts.total > 0 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-6 px-6 pb-4">
-                    <div className="text-sm text-gray-600">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-6 px-3 sm:px-6 pb-4">
+                    <div className="text-xs sm:text-sm text-gray-600">
                       Showing {Math.min(paginatedCounts.total, (currentPage - 1) * pageSize + 1)}-{Math.min(paginatedCounts.total, currentPage * pageSize)} of {paginatedCounts.total}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
-                        <SelectTrigger className="w-[140px]">
+                        <SelectTrigger className="w-[100px] sm:w-[140px] h-8 sm:h-9">
                           <SelectValue placeholder="Rows" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1003,10 +1061,11 @@ export function ManageTeacherAssignmentsPage() {
                         size="sm"
                         disabled={currentPage <= 1}
                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className="h-8 px-2 sm:px-3 text-xs sm:text-sm"
                       >
                         Previous
                       </Button>
-                      <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                      <div className="text-xs sm:text-sm text-gray-700 min-w-[70px] sm:min-w-[90px] text-center">
                         Page {currentPage} / {paginatedCounts.totalPages}
                       </div>
                       <Button
@@ -1015,6 +1074,7 @@ export function ManageTeacherAssignmentsPage() {
                         size="sm"
                         disabled={currentPage >= paginatedCounts.totalPages}
                         onClick={() => setCurrentPage(p => Math.min(paginatedCounts.totalPages, p + 1))}
+                        className="h-8 px-2 sm:px-3 text-xs sm:text-sm"
                       >
                         Next
                       </Button>
@@ -1023,15 +1083,15 @@ export function ManageTeacherAssignmentsPage() {
                 )}
               </TabsContent>
               <TabsContent value="class-teachers" className="m-0">
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
+                <div className="p-3 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
                     <div>
-                      <h3 className="text-lg font-heading font-bold text-gray-900">Class Teacher Assignments</h3>
-                      <p className="text-sm text-gray-500">Manage class teachers for {currentTerm} {currentAcademicYear}</p>
+                      <h3 className="text-base sm:text-lg font-heading font-bold text-gray-900">Class Teacher Assignments</h3>
+                      <p className="text-xs sm:text-sm text-gray-500">Manage class teachers for {currentTerm} {currentAcademicYear}</p>
                     </div>
                     <Button
                       onClick={() => setIsClassTeacherDialogOpen(true)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-10 sm:h-auto w-full sm:w-auto"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-9 sm:h-auto w-full sm:w-auto text-sm"
                     >
                       <Plus weight="bold" className="w-4 h-4 flex-shrink-0" />
                       <span className="hidden sm:inline whitespace-nowrap">Assign Class Teacher</span>
@@ -1040,15 +1100,15 @@ export function ManageTeacherAssignmentsPage() {
                   </div>
 
                   {classTeacherAssignments.length === 0 ? (
-                    <div className="text-center py-16">
-                      <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                        <UserCheck weight="bold" className="w-8 h-8 text-gray-400" />
+                    <div className="text-center py-10 sm:py-16">
+                      <div className="p-3 bg-gray-100 rounded-full w-12 h-12 mx-auto mb-3 flex items-center justify-center">
+                        <UserCheck weight="bold" className="w-6 h-6 text-gray-400" />
                       </div>
-                      <p className="text-gray-900 font-medium text-lg mb-2">No class teachers assigned</p>
-                      <p className="text-gray-500 text-sm mb-6">Assign class teachers to manage classes</p>
+                      <p className="text-gray-900 font-medium text-sm sm:text-lg mb-1">No class teachers assigned</p>
+                      <p className="text-gray-500 text-xs sm:text-sm mb-4">Assign class teachers to manage classes</p>
                       <Button
                         onClick={() => setIsClassTeacherDialogOpen(true)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-10 sm:h-auto w-full sm:w-auto"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-9 sm:h-auto w-full sm:w-auto text-sm"
                       >
                         <Plus weight="bold" className="w-4 h-4 flex-shrink-0" />
                         <span className="hidden sm:inline whitespace-nowrap">Assign First Class Teacher</span>
@@ -1056,53 +1116,47 @@ export function ManageTeacherAssignmentsPage() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-2 sm:space-y-4">
                       {paginatedClassTeacherAssignments.map((assignment) => (
-                        <div key={assignment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#0A2540] rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
-                              {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                        <div key={assignment.id} className="p-3 sm:p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#0A2540] rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-semibold flex-shrink-0">
+                                {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 text-sm truncate">{assignment.teacher_name}</p>
+                                <p className="text-xs text-gray-500 truncate hidden sm:block">{assignment.teacher_email}</p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-medium text-gray-900 truncate">{assignment.teacher_name}</p>
-                              <p className="text-xs sm:text-sm text-gray-500 truncate">{assignment.teacher_email}</p>
+
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                              <Badge className="bg-emerald-100 text-emerald-800 text-xs whitespace-nowrap hidden sm:inline-flex">
+                                {assignment.class_name}
+                              </Badge>
+                              <span className="text-gray-300 text-xs hidden sm:inline">/</span>
+                              <Badge className="bg-emerald-100 text-emerald-800 text-xs whitespace-nowrap">
+                                {assignment.term}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setConfirmDeleteId(String(assignment.id));
+                                  setConfirmDeleteType('class-teacher');
+                                  setConfirmDeleteDetails(`${assignment.teacher_name} - ${assignment.class_name}`);
+                                }}
+                                disabled={removingAssignmentId === String(assignment.id)}
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-8 w-8"
+                              >
+                                <Trash weight="bold" className="w-3.5 h-3.5" />
+                              </Button>
                             </div>
                           </div>
-
-                          <div className="flex items-center gap-2 ml-0 sm:ml-auto">
-                            <div className="p-1.5 sm:p-2 bg-[#0A2540]/10 rounded-lg flex-shrink-0">
-                              <Users weight="bold" className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A2540]" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{assignment.class_name}</p>
-                              <p className="text-xs text-gray-500 truncate">{assignment.class_level}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 sm:gap-2">
-                            <Badge className="bg-emerald-100 text-emerald-800 text-xs whitespace-nowrap">
-                              {assignment.term}
+                          <div className="mt-1.5 sm:hidden">
+                            <Badge className="bg-emerald-100 text-emerald-800 text-xs">
+                              {assignment.class_name}
                             </Badge>
-                            <Badge className="bg-emerald-100 text-emerald-800 text-xs whitespace-nowrap">
-                              {assignment.academic_year}
-                            </Badge>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setConfirmDeleteId(String(assignment.id));
-                                setConfirmDeleteType('class-teacher');
-                                setConfirmDeleteDetails(`${assignment.teacher_name} - ${assignment.class_name}`);
-                              }}
-                              disabled={removingAssignmentId === String(assignment.id)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
-                              aria-label="Remove class teacher"
-                            >
-                              <Trash weight="bold" className="w-4 h-4" />
-                            </Button>
                           </div>
                         </div>
                       ))}
@@ -1110,13 +1164,13 @@ export function ManageTeacherAssignmentsPage() {
                   )}
 
                   {paginatedCounts.total > 0 && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-6">
-                      <div className="text-sm text-gray-600">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-200 mt-4 sm:mt-6">
+                      <div className="text-xs sm:text-sm text-gray-600">
                         Showing {Math.min(paginatedCounts.total, (currentPage - 1) * pageSize + 1)}-{Math.min(paginatedCounts.total, currentPage * pageSize)} of {paginatedCounts.total}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
                         <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) || 20)}>
-                          <SelectTrigger className="w-[140px]">
+                          <SelectTrigger className="w-[100px] sm:w-[140px] h-8 sm:h-9">
                             <SelectValue placeholder="Rows" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1132,10 +1186,11 @@ export function ManageTeacherAssignmentsPage() {
                           size="sm"
                           disabled={currentPage <= 1}
                           onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          className="h-8 px-2 sm:px-3 text-xs sm:text-sm"
                         >
                           Previous
                         </Button>
-                        <div className="text-sm text-gray-700 min-w-[90px] text-center">
+                        <div className="text-xs sm:text-sm text-gray-700 min-w-[70px] sm:min-w-[90px] text-center">
                           Page {currentPage} / {paginatedCounts.totalPages}
                         </div>
                         <Button
@@ -1144,6 +1199,7 @@ export function ManageTeacherAssignmentsPage() {
                           size="sm"
                           disabled={currentPage >= paginatedCounts.totalPages}
                           onClick={() => setCurrentPage(p => Math.min(paginatedCounts.totalPages, p + 1))}
+                          className="h-8 px-2 sm:px-3 text-xs sm:text-sm"
                         >
                           Next
                         </Button>
@@ -1189,7 +1245,7 @@ export function ManageTeacherAssignmentsPage() {
         
         {/* Assignment Dialog */}
         <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-4xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -1452,7 +1508,7 @@ export function ManageTeacherAssignmentsPage() {
 
         {/* Class Teacher Dialog */}
         <Dialog open={isClassTeacherDialogOpen} onOpenChange={setIsClassTeacherDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
 <DialogHeader>
               <DialogTitle className="text-xl font-bold text-gray-900">Assign Class Teacher</DialogTitle>
               <DialogDescription>Assign a class teacher to manage this class. This will update the class teacher information.</DialogDescription>

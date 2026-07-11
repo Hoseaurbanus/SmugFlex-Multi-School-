@@ -108,8 +108,8 @@ try {
     $conn->beginTransaction();
     
     // Check for duplicate username
-    $stmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
-    $stmt->execute([$username]);
+    $stmt = $conn->prepare("SELECT id FROM users WHERE username = ? AND school_id = ?");
+    $stmt->execute([$username, $school_id]);
     if ($stmt->fetch()) {
         $conn->rollBack();
         http_response_code(400);
@@ -118,8 +118,8 @@ try {
     }
     
     // Check for duplicate email
-    $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-    $stmt->execute([$email]);
+    $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND school_id = ?");
+    $stmt->execute([$email, $school_id]);
     if ($stmt->fetch()) {
         $conn->rollBack();
         http_response_code(400);
@@ -159,8 +159,8 @@ try {
             $attempt = 0;
             $maxAttempts = 10;
             while (true) {
-                $stmt = $conn->prepare("SELECT MAX(CAST(SUBSTRING(employee_id, 8) AS UNSIGNED)) AS max_seq FROM teachers WHERE employee_id LIKE ?");
-                $stmt->execute(["{$basePrefix}%"]);
+                $stmt = $conn->prepare("SELECT MAX(CAST(SUBSTRING(employee_id, 8) AS UNSIGNED)) AS max_seq FROM teachers WHERE employee_id LIKE ? AND school_id = ?");
+                $stmt->execute(["{$basePrefix}%", $school_id]);
                 $row = $stmt->fetch(PDO::FETCH_ASSOC);
                 $maxSeq = isset($row['max_seq']) && $row['max_seq'] !== null ? (int)$row['max_seq'] : 0;
 
@@ -206,8 +206,8 @@ try {
             // Generate unique employee ID for accountants
             $prefix = 'ACC';
             $year = date('Y');
-            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM accountants WHERE employee_id LIKE ?");
-            $stmt->execute(["{$prefix}%"]);
+            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM accountants WHERE employee_id LIKE ? AND school_id = ?");
+            $stmt->execute(["{$prefix}%", $school_id]);
             $count = $stmt->fetch()['count'];
             $employee_id = $prefix . $year . sprintf('%03d', $count + 1);
         }

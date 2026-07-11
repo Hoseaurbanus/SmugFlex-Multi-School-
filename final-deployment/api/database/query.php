@@ -49,8 +49,8 @@ $query = $input['query'];
 $params = $input['params'] ?? [];
 
 // Normalize query (trim leading/trailing spaces)
-$normalized = ltrim($query);
-$queryType = strtoupper(strtok($normalized, " \t\r\n"));
+$query = ltrim($query);
+$queryType = strtoupper(strtok($query, " \t\r\n"));
 
 // Allow only a safe subset of SQL verbs
 $allowed_verbs = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
@@ -122,72 +122,104 @@ try {
         error_log("SQL_QUERY_AUDIT_WARNING: Table '{$targetTable}' has no school_id column — skipping tenant injection for query type {$queryType}");
     }
 
-    if ($queryType === 'SELECT' && $hasSchoolId) {
-        // Wrap user query as subquery and filter at outer level — prevents UNION/subquery bypass
-        $query = "SELECT _inner.* FROM ($query) AS _inner WHERE _inner.school_id = :_school_id_";
-        $params[':_school_id_'] = $school_id;
-    } elseif ($queryType === 'INSERT' && $hasSchoolId) {
-        $query = preg_replace(
-            '/^INSERT\s+INTO\s+`?(\w+)`?\s*\(/i',
-            "INSERT INTO $1 (school_id, ",
-            $query
-        );
-        $query = preg_replace(
-            '/^INSERT\s+INTO\s+`?(\w+)`?\s*\)?\s*VALUES\s*\(/i',
-            "INSERT INTO $1 (school_id) VALUES (:_school_id_, ",
-            $query
-        );
-        $params[':_school_id_'] = $school_id;
-    } elseif (in_array($queryType, ['UPDATE', 'DELETE'], true) && $hasSchoolId) {
-        $hasWhere = (bool)preg_match('/\bWHERE\b/i', $query);
-        if ($hasWhere) {
-            $query .= ' AND school_id = :_school_id_';
+    $paramsArePositional = $params !== [] && array_keys($params) === range(0, count($params) - 1);
+
+    $queryAlreadyHasSchoolId = preg_match('/\bschool_id\b/i', $query);
+
+    if ($hasSchoolId && !$queryAlreadyHasSchoolId) {
+        // Only inject school_id when query doesn't already reference it
+        if ($queryType === 'SELECT' && $targetTable) {
+            $schoolIdValue = $paramsArePositional ? (int)$school_id : ':_school_id_';
+            if (preg_match('/\bWHERE\b/i', $query)) {
+                $query = preg_replace('/\bWHERE\b/i', "WHERE {$targetTable}.school_id = {$schoolIdValue} AND ", $query, 1);
+            } else {
+                $query = preg_replace('/(\s+ORDER\s+BY|\s+LIMIT|\s*$)/i', " WHERE {$targetTable}.school_id = {$schoolIdValue} $1", $query, 1);
+            }
+            if (!$paramsArePositional) {
+                $params[':_school_id_'] = $school_id;
+            }
+        } elseif ($paramsArePositional) {
+            $quotedSchoolId = (int)$school_id;
+            if (in_array($queryType, ['UPDATE', 'DELETE'], true)) {
+                if (preg_match('/\bWHERE\b/i', $query)) {
+                    $query .= " AND {$targetTable}.school_id = $quotedSchoolId";
+                } else {
+                    $query .= " WHERE {$targetTable}.school_id = $quotedSchoolId";
+                }
+            } elseif ($queryType === 'INSERT' && preg_match('/^INSERT\s+INTO\s+`?(\w+)`?\s*\(/i', $query)) {
+                $query = preg_replace(
+                    '/^INSERT\s+INTO\s+`?(\w+)`?\s*\(/i',
+                    "INSERT INTO $1 (school_id, ",
+                    $query
+                );
+                $query = preg_replace('/VALUES\s*\(/i', "VALUES ($quotedSchoolId, ", $query);
+            }
         } else {
-            $query .= ' WHERE school_id = :_school_id_';
+            // Named params for non-SELECT queries
+            if ($queryType === 'INSERT' && preg_match('/^INSERT\s+INTO\s+`?(\w+)`?\s*\(/i', $query)) {
+                $query = preg_replace(
+                    '/^INSERT\s+INTO\s+`?(\w+)`?\s*\(/i',
+                    "INSERT INTO $1 (school_id, ",
+                    $query
+                );
+                $query = preg_replace('/VALUES\s*\(/i', "VALUES (:_school_id_, ", $query);
+                $params[':_school_id_'] = $school_id;
+            } elseif (in_array($queryType, ['UPDATE', 'DELETE'], true)) {
+                $hasWhere = (bool)preg_match('/\bWHERE\b/i', $query);
+                if ($hasWhere) {
+                    $query .= " AND {$targetTable}.school_id = :_school_id_";
+                } else {
+                    $query .= " WHERE {$targetTable}.school_id = :_school_id_";
+                }
+                $params[':_school_id_'] = $school_id;
+            }
         }
-        $params[':_school_id_'] = $school_id;
     }
     
     // Prepare and execute query
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
     
-    // Determine query type and return appropriate response
-    // $queryType determined above from normalized query
-    
-    $payload = [
+    // Build flat response matching frontend expectations
+    $response = [
+        'success' => true,
+        'status' => 200,
+        'message' => 'Query executed successfully',
         'data' => null,
         'insertId' => null,
-        'affectedRows' => null
+        'affectedRows' => null,
+        'timestamp' => date('Y-m-d H:i:s')
     ];
     
     switch ($queryType) {
         case 'INSERT':
-            $payload['insertId'] = $pdo->lastInsertId();
-            $payload['affectedRows'] = $stmt->rowCount();
+            $response['insertId'] = $pdo->lastInsertId();
+            $response['affectedRows'] = $stmt->rowCount();
             break;
             
         case 'UPDATE':
         case 'DELETE':
-            $payload['affectedRows'] = $stmt->rowCount();
+            $response['affectedRows'] = $stmt->rowCount();
             break;
             
         case 'SELECT':
-            $payload['data'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $response['data'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
             break;
             
         default:
-            $payload['data'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            $payload['affectedRows'] = $stmt->rowCount();
+            $response['data'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $response['affectedRows'] = $stmt->rowCount();
     }
     
-    Response::success($payload, 'Query executed successfully');
+    header('Content-Type: application/json');
+    echo json_encode($response, JSON_PRETTY_PRINT);
+    exit;
     
 } catch (PDOException $e) {
     error_log("Database Error: " . $e->getMessage());
-    Response::serverError('Database operation failed');
+    Response::serverError('Database error: ' . $e->getMessage() . ' | Query: ' . $query . ' | Params: ' . json_encode($params));
 } catch (Exception $e) {
     error_log("General Error: " . $e->getMessage());
-    Response::serverError('Operation failed');
+    Response::serverError('Error: ' . $e->getMessage());
 }
 ?>

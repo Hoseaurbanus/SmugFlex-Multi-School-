@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Reset Password API Endpoint
  * SMugFlex 2.0 Multi-School Platform
@@ -10,6 +10,7 @@ header('Access-Control-Allow-Methods: POST, PATCH, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 require_once __DIR__ . '/../helpers/Middleware.php';
+require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -54,10 +55,12 @@ try {
     if (!$conn) {
         throw new Exception('Database connection failed');
     }
+
+    $school_id = TenantMiddleware::resolveSchoolId($conn);
     
     // Check if user exists
-    $stmt = $conn->prepare("SELECT id, username, email FROM users WHERE id = ?");
-    $stmt->execute([$userId]);
+    $stmt = $conn->prepare("SELECT id, username, email FROM users WHERE id = ? AND school_id = ?");
+    $stmt->execute([$userId, $school_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$user) {
@@ -85,9 +88,9 @@ try {
             password_reset_token = NULL, 
             password_reset_expires = NULL,
             updated_at = NOW() 
-        WHERE id = ?
+        WHERE id = ? AND school_id = ?
     ");
-    $stmt->execute([$passwordHash, $userId]);
+    $stmt->execute([$passwordHash, $userId, $school_id]);
     
     echo json_encode([
         'success' => true,
@@ -107,3 +110,4 @@ try {
     ]);
 }
 ?>
+

@@ -333,6 +333,7 @@ class ResultsController
 
             Response::success(null, 'Score approved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error approving score');
         } catch (Throwable $e) {
             Response::serverError('Error approving score');
@@ -393,6 +394,7 @@ class ResultsController
 
             Response::success(null, 'Score rejected successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error rejecting score');
         } catch (Throwable $e) {
             Response::serverError('Error rejecting score');
@@ -497,6 +499,7 @@ class ResultsController
 
             Response::success($results, 'Pending approvals retrieved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error retrieving pending approvals');
         } catch (Throwable $e) {
             Response::serverError('Error retrieving pending approvals');
@@ -554,6 +557,7 @@ class ResultsController
             Response::success($scores, 'Scores retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error retrieving scores');
         }
     }
@@ -603,8 +607,8 @@ class ResultsController
                 strpos($class_name_lc, 'crèche') !== false;
 
             $class_id = (int)$assignment_info['class_id'];
-            $assignment_term = $this->getAssignmentTerm($assignment_id);
-            $assignment_year = $this->getAssignmentAcademicYear($assignment_id);
+            $assignment_term = $this->getAssignmentTerm($assignment_id, $school_id);
+            $assignment_year = $this->getAssignmentAcademicYear($assignment_id, $school_id);
 
             $this->conn->beginTransaction();
 
@@ -814,6 +818,7 @@ class ResultsController
             Response::success(null, 'Scores saved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController.upsertScores: " . $e->getMessage());
             $this->conn->rollBack();
             Response::serverError('Database error saving scores');
         }
@@ -890,6 +895,7 @@ class ResultsController
 
             Response::success(null, 'Scores submitted successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error submitting scores');
         }
     }
@@ -998,6 +1004,7 @@ class ResultsController
             Response::success($scores, 'Scores retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error retrieving scores');
         } catch (Exception $e) {
             Response::serverError('Error retrieving scores');
@@ -1253,14 +1260,14 @@ class ResultsController
             $affectiveStmt = null;
             if ($hasAffectiveTable) {
                 $affectiveStmt = $this->conn->prepare(
-                    "SELECT * FROM affective_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year LIMIT 1"
+                    "SELECT * FROM affective_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id LIMIT 1"
                 );
             }
 
             $psychomotorStmt = null;
             if ($hasPsychomotorTable) {
                 $psychomotorStmt = $this->conn->prepare(
-                    "SELECT * FROM psychomotor_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year LIMIT 1"
+                    "SELECT * FROM psychomotor_domains WHERE student_id = :student_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id LIMIT 1"
                 );
             }
 
@@ -1274,6 +1281,7 @@ class ResultsController
                         $affectiveStmt->bindValue(':student_id', $sid, PDO::PARAM_INT);
                         $affectiveStmt->bindValue(':term', $rTerm);
                         $affectiveStmt->bindValue(':academic_year', $rYear);
+                        $affectiveStmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                         $affectiveStmt->execute();
                         $aff = $affectiveStmt->fetch(PDO::FETCH_ASSOC);
                         $row['affective'] = $aff ? $aff : null;
@@ -1285,6 +1293,7 @@ class ResultsController
                         $psychomotorStmt->bindValue(':student_id', $sid, PDO::PARAM_INT);
                         $psychomotorStmt->bindValue(':term', $rTerm);
                         $psychomotorStmt->bindValue(':academic_year', $rYear);
+                        $psychomotorStmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                         $psychomotorStmt->execute();
                         $psy = $psychomotorStmt->fetch(PDO::FETCH_ASSOC);
                         $row['psychomotor'] = $psy ? $psy : null;
@@ -1299,6 +1308,7 @@ class ResultsController
             Response::success($results, 'Compiled results retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error retrieving compiled results');
         } catch (Exception $e) {
             Response::serverError('Error retrieving compiled results');
@@ -1866,12 +1876,13 @@ class ResultsController
 
                 // Find existing compiled_results row
                 $findStmt = $this->conn->prepare(
-                    'SELECT id FROM compiled_results WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year LIMIT 1'
+                    'SELECT id FROM compiled_results WHERE student_id = :student_id AND class_id = :class_id AND term = :term AND academic_year = :academic_year AND school_id = :school_id LIMIT 1'
                 );
                 $findStmt->bindValue(':student_id', $student_id);
                 $findStmt->bindValue(':class_id', $class_id);
                 $findStmt->bindValue(':term', $term);
                 $findStmt->bindValue(':academic_year', $academic_year);
+                $findStmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $findStmt->execute();
                 $existing_id = $findStmt->fetchColumn();
 
@@ -2263,11 +2274,14 @@ class ResultsController
             }
 
             // Verify teacher has access to this class
-            $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+            $teacher_check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
             $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
             $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
             $teacher_check_stmt->bindParam(':class_id', $student['class_id']);
             $teacher_check_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $teacher_check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+            $teacher_check_stmt->bindParam(':class_id_cta', $student['class_id']);
+            $teacher_check_stmt->bindParam(':school_id_cta', $school_id, PDO::PARAM_INT);
             $teacher_check_stmt->execute();
 
             if ($teacher_check_stmt->fetch()['count'] == 0) {
@@ -2479,6 +2493,7 @@ class ResultsController
             Response::success($response_data, 'Student compilation status retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error checking student compilation status');
         }
     }
@@ -2518,9 +2533,10 @@ class ResultsController
             // Get all students for this class
             $students_query = "SELECT id, first_name, last_name, admission_number 
                              FROM students 
-                             WHERE class_id = :class_id AND status = 'Active'";
+                             WHERE class_id = :class_id AND status = 'Active' AND school_id = :school_id";
             $students_stmt = $this->conn->prepare($students_query);
             $students_stmt->bindParam(':class_id', $class_id);
+            $students_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
             $students_stmt->execute();
             $students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2545,6 +2561,7 @@ class ResultsController
             Response::success($response, 'Compilation status checked successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error checking compilation status');
         }
     }
@@ -2724,11 +2741,12 @@ class ResultsController
     /**
      * Get Assignment Term
      */
-    private function getAssignmentTerm($assignment_id)
+    private function getAssignmentTerm($assignment_id, $school_id)
     {
-        $query = "SELECT term FROM subject_assignments WHERE id = :assignment_id";
+        $query = "SELECT term FROM subject_assignments WHERE id = :assignment_id AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':assignment_id', $assignment_id);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         $result = $stmt->fetch();
         return $result ? $result['term'] : 'First Term';
@@ -2737,11 +2755,12 @@ class ResultsController
     /**
      * Get Assignment Academic Year
      */
-    private function getAssignmentAcademicYear($assignment_id)
+    private function getAssignmentAcademicYear($assignment_id, $school_id)
     {
-        $query = "SELECT academic_year FROM subject_assignments WHERE id = :assignment_id";
+        $query = "SELECT academic_year FROM subject_assignments WHERE id = :assignment_id AND school_id = :school_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':assignment_id', $assignment_id);
+        $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
         $stmt->execute();
         $result = $stmt->fetch();
         return $result ? $result['academic_year'] : '2025/2026';
@@ -2850,10 +2869,11 @@ class ResultsController
 
                 // Verify the requested student is linked to this parent
                 $link_check = "SELECT COUNT(*) as count FROM parent_student_links psl
-                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id";
+                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id AND psl.school_id = :school_id";
                 $link_stmt = $this->conn->prepare($link_check);
                 $link_stmt->bindValue(':parent_id', $token_data['linked_id']);
                 $link_stmt->bindValue(':student_id', $student_id);
+                $link_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $link_stmt->execute();
 
                 if ($link_stmt->fetch()['count'] == 0) {
@@ -3227,9 +3247,11 @@ class ResultsController
             ], "Cumulative results compiled for {$compiled_count} students");
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController.compileCumulative: " . $e->getMessage());
             if ($this->conn && $this->conn->inTransaction()) $this->conn->rollBack();
             Response::serverError('Database error during cumulative compilation');
         } catch (Exception $e) {
+            error_log("Exception in ResultsController.compileCumulative: " . $e->getMessage());
             if ($this->conn && $this->conn->inTransaction()) $this->conn->rollBack();
             Response::serverError('Failed to compile cumulative results');
         }
@@ -3272,10 +3294,11 @@ class ResultsController
                     return;
                 }
                 $link_check = "SELECT COUNT(*) as count FROM parent_student_links psl
-                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id";
+                               WHERE psl.parent_id = :parent_id AND psl.student_id = :student_id AND psl.school_id = :school_id";
                 $link_stmt = $this->conn->prepare($link_check);
                 $link_stmt->bindValue(':parent_id', $token_data['linked_id']);
                 $link_stmt->bindValue(':student_id', $student_id);
+                $link_stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
                 $link_stmt->execute();
                 if ($link_stmt->fetch()['count'] == 0) {
                     Response::forbidden('Not authorized to view this student\'s cumulative result');

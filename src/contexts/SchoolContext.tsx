@@ -1762,7 +1762,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       return { term: loadedTerm, year: loadedYear };
     } catch (error) {
-      return { term: null, year: null };
+      console.error('loadSubjectsFromAPI error:', error);
+      return false;
     }
   };
 
@@ -1809,69 +1810,115 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // User API Methods
   const loadUsersFromAPI = async (): Promise<boolean> => {
     try {
-      // Loading users from API
-      
       // Ensure token is available
       const hasToken = await tokenManager.ensureToken(currentUser);
       if (!hasToken) {
-        return false;
+        console.error('[loadUsersFromAPI] No valid token available');
       }
       
       let allUsers: any[] = [];
-      let page = 1;
-      let hasMore = true;
-      const MAX_RETRIES = 3;
-      const MAX_PAGES = 100; // Safeguard to prevent infinite loops
       
-      while (hasMore && page <= MAX_PAGES) {
-        let retries = 0;
-        let success = false;
+      // Attempt REST endpoint with pagination
+      if (hasToken) {
+        let page = 1;
+        let hasMore = true;
+        const MAX_RETRIES = 3;
+        const MAX_PAGES = 100;
+        let lastError: any = null;
         
-        while (!success && retries < MAX_RETRIES) {
-          try {
-            // Add a small delay between pages to prevent socket exhaustion
-            if (page > 1) {
-              await new Promise(resolve => setTimeout(resolve, 300));
-            }
+        while (hasMore && page <= MAX_PAGES) {
+          let retries = 0;
+          let success = false;
+          
+          while (!success && retries < MAX_RETRIES) {
+            try {
+              if (page > 1) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+              }
 
-            const response = await api.get(API_CONFIG.ENDPOINTS.USERS.LIST, { page, limit: 50 });
-            
-            if (response.success && response.data) {
-              const data = response.data as any;
-              const items = data.items || [];
-              const pagination = data.pagination || {};
+              const response = await api.get(API_CONFIG.ENDPOINTS.USERS.LIST, { page, limit: 50 });
               
-              allUsers = allUsers.concat(items);
-              
-              // Check if there are more pages using pagination data
-              if (page >= pagination.total_pages || !pagination.has_next) {
+              if (response.success && response.data) {
+                const data = response.data as any;
+                const items = data.items || [];
+                const pagination = data.pagination || {};
+                
+                allUsers = allUsers.concat(items);
+                
+                if (page >= pagination.total_pages || !pagination.has_next) {
+                  hasMore = false;
+                } else {
+                  page++;
+                }
+                success = true;
+              } else {
+                hasMore = false;
+                success = true;
+              }
+            } catch (error: any) {
+              lastError = error;
+              retries++;
+              if (retries >= MAX_RETRIES) {
                 hasMore = false;
               } else {
-                page++;
+                await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
               }
-              success = true;
-            } else {
-              hasMore = false;
-              success = true; // Exit retry loop on API error
-            }
-          } catch (error) {
-            retries++;
-            if (retries >= MAX_RETRIES) {
-              hasMore = false; // Stop fetching
-            } else {
-              // Exponential backoff
-              await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
             }
           }
         }
+        
+        if (allUsers.length > 0) {
+          setUsers(allUsers);
+          return true;
+        }
+        
+        if (lastError) {
+          console.error('[loadUsersFromAPI] REST failed after retries:', lastError);
+        }
       }
       
-      if (allUsers.length > 0) {
-        setUsers(allUsers);
-        return true;
+      // Fallback: load users via SQL query layer when REST endpoint fails.
+      // Uses JOINs (no subqueries) so extractTableName() correctly matches FROM users
+      // and database/query.php auto-injects users.school_id into WHERE.
+      try {
+        const sqlResult = await sqlDatabase.executeQuery(
+          `SELECT u.*,
+                  COALESCE(t.first_name, p.first_name, a.first_name, '') as first_name,
+                  COALESCE(t.last_name, p.last_name, a.last_name, '') as last_name,
+                  CASE 
+                      WHEN u.role = 'teacher' THEN CONCAT_WS(' ', t.first_name, t.last_name)
+                      WHEN u.role = 'parent' THEN CONCAT_WS(' ', p.first_name, p.last_name)
+                      WHEN u.role = 'accountant' THEN CONCAT_WS(' ', a.first_name, a.last_name)
+                      ELSE u.username
+                  END as display_name,
+                  CASE 
+                      WHEN u.role = 'teacher' THEN t.phone
+                      WHEN u.role = 'parent' THEN p.phone
+                      WHEN u.role = 'accountant' THEN a.phone
+                      ELSE NULL
+                  END as phone
+           FROM users u
+           LEFT JOIN teachers t ON u.linked_id = t.id AND u.role = 'teacher'
+           LEFT JOIN parents p ON u.linked_id = p.id AND u.role = 'parent'
+           LEFT JOIN accountants a ON u.linked_id = a.id AND u.role = 'accountant'
+           ORDER BY u.created_at DESC`
+        );
+
+        const rows: any[] = Array.isArray((sqlResult as any)?.data) ? (sqlResult as any).data : [];
+        if (rows.length > 0) {
+          setUsers(rows);
+          return true;
+        }
+
+        console.error('[loadUsersFromAPI] SQL fallback returned empty');
+      } catch (fallbackError: any) {
+        console.error('[loadUsersFromAPI] SQL fallback failed:', fallbackError);
       }
+      
+      toast.error('Failed to load users. Check console for details.');
       return false;
     } catch (error) {
+      console.error('[loadUsersFromAPI] Unexpected error:', error);
       return false;
     }
   };
@@ -2049,20 +2096,19 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           setParents(parentsWithComputed);
           return true;
         }
-
-        // Silent fail for security
+        console.error('[loadParentsFromAPI] REST response data is not an array:', typeof parentsData);
+      } else {
+        console.error('[loadParentsFromAPI] REST endpoint failed:', response?.message || 'unknown error');
       }
 
-      // Silent fail for security
-
       // Fallback: load parents via SQL query layer when REST endpoint fails.
-      // This keeps admin pages functional even if /parents is misbehaving in production.
+      // NOTE: Do NOT use a subquery in SELECT (e.g. (SELECT COUNT(*) ...)) because
+      // database/query.php's extractTableName() matches the first FROM inside the
+      // subquery, injecting school_id into the wrong WHERE clause. Use a simple
+      // query on the parents table only; children_count is computed on the frontend.
       try {
         const sqlResult = await sqlDatabase.executeQuery(
-          `SELECT p.*,
-                  (SELECT COUNT(*) FROM parent_student_links psl WHERE psl.parent_id = p.id) AS children_count
-           FROM parents p
-           ORDER BY p.first_name, p.last_name`
+          `SELECT * FROM parents ORDER BY first_name, last_name`
         );
 
         const rows: any[] = Array.isArray((sqlResult as any)?.data) ? (sqlResult as any).data : [];
@@ -2078,11 +2124,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           return true;
         }
       } catch (fallbackError: any) {
-        // Silent fail for security
+        console.error('[loadParentsFromAPI] SQL fallback failed:', fallbackError);
       }
 
       return false;
     } catch (error: any) {
+      console.error('[loadParentsFromAPI] Unexpected error:', error);
       return false;
     }
   };
@@ -2788,7 +2835,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return 0;
     } catch (error: any) {
-      return 0;
+      throw error;
     }
   };
 
@@ -3071,6 +3118,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         roleLoads = [
           loadTeachersFromAPI().catch(() => null),
           loadSubjectAssignmentsFromAPI(true).catch(() => null),
+          loadClassTeacherAssignmentsFromAPI(true).catch(() => null),
         ];
       } else if (user.role === 'accountant') {
         roleLoads = [

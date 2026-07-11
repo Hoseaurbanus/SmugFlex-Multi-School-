@@ -238,20 +238,20 @@ export function SubjectRegistrationPage() {
   );
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Subject Registration & Assignment</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Subject Registration & Assignment</h1>
+          <p className="text-gray-600 mt-1 text-xs sm:text-sm">
             Manage subject registration per class and assign teachers for {academicYear} - {term}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-sm">
+          <Badge variant="outline" className="text-xs sm:text-sm">
             {academicYear}
           </Badge>
-          <Badge variant="outline" className="text-sm">
+          <Badge variant="outline" className="text-xs sm:text-sm">
             {term}
           </Badge>
         </div>
@@ -262,18 +262,20 @@ export function SubjectRegistrationPage() {
         <Button
           variant={activeTab === "registration" ? "default" : "ghost"}
           onClick={() => setActiveTab("registration")}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4"
         >
-          <BookOpen className="w-4 h-4" />
-          Subject Registration
+          <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <span className="hidden sm:inline">Subject Registration</span>
+          <span className="sm:hidden">Registration</span>
         </Button>
         <Button
           variant={activeTab === "assignment" ? "default" : "ghost"}
           onClick={() => setActiveTab("assignment")}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4"
         >
-          <Check className="w-4 h-4" />
-          Teacher Assignment
+          <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <span className="hidden sm:inline">Teacher Assignment</span>
+          <span className="sm:hidden">Assignment</span>
         </Button>
       </div>
 
@@ -346,18 +348,19 @@ export function SubjectRegistrationPage() {
       {/* Subject Registration Tab */}
       {activeTab === "registration" && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <BookOpen className="w-5 h-5" />
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-6">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
               Subject Registration
             </CardTitle>
-            <Button onClick={() => setRegistrationDialogOpen(true)}>
+            <Button onClick={() => setRegistrationDialogOpen(true)} className="h-9 sm:h-auto text-sm" size="sm">
               <Plus className="w-4 h-4 mr-2" />
               Register Subject
             </Button>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
+          <CardContent className="p-0 sm:p-6 sm:pt-0">
+            {/* Desktop Table */}
+            <div className="hidden lg:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -366,7 +369,7 @@ export function SubjectRegistrationPage() {
                     <TableHead>Category</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -413,7 +416,7 @@ export function SubjectRegistrationPage() {
                             {registration.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-right">
                           <Button
                             size="sm"
                             variant="destructive"
@@ -429,6 +432,49 @@ export function SubjectRegistrationPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Mobile Cards */}
+            <div className="block lg:hidden">
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 py-12">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm text-gray-500">Loading...</span>
+                </div>
+              ) : filteredRegistrations.length === 0 ? (
+                <div className="text-center py-12 text-sm text-gray-500">No subject registrations found</div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {filteredRegistrations.map((registration) => (
+                    <div key={registration.id} className="p-3 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 text-sm">{registration.subject_name || 'No subject'}</p>
+                          <p className="text-xs text-gray-500">{registration.subject_code || 'No code'}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveRegistration(registration)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-7 w-7 flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <Badge variant="outline" className="text-xs py-0 px-1.5 h-5">{registration.class_name || 'No class'}</Badge>
+                        <Badge variant="outline" className="text-xs py-0 px-1.5 h-5">{registration.subject_category || 'Category'}</Badge>
+                        <Badge variant={registration.is_compulsory ? "default" : "secondary"} className="text-xs py-0 px-1.5 h-5">
+                          {registration.is_compulsory ? "Compulsory" : "Optional"}
+                        </Badge>
+                        <Badge variant={registration.status === "Active" ? "default" : "destructive"} className="text-xs py-0 px-1.5 h-5">
+                          {registration.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -436,18 +482,19 @@ export function SubjectRegistrationPage() {
       {/* Teacher Assignment Tab */}
       {activeTab === "assignment" && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Check className="w-5 h-5" />
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-6">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <Check className="w-4 h-4 sm:w-5 sm:h-5" />
               Teacher Assignment
             </CardTitle>
-            <Button onClick={() => setAssignmentDialogOpen(true)}>
+            <Button onClick={() => setAssignmentDialogOpen(true)} className="h-9 sm:h-auto text-sm" size="sm">
               <Plus className="w-4 h-4 mr-2" />
               Assign Subject
             </Button>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
+          <CardContent className="p-0 sm:p-6 sm:pt-0">
+            {/* Desktop Table */}
+            <div className="hidden lg:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -455,7 +502,7 @@ export function SubjectRegistrationPage() {
                     <TableHead>Class</TableHead>
                     <TableHead>Teacher</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -499,7 +546,7 @@ export function SubjectRegistrationPage() {
                             {assignment.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-right">
                           <Button
                             size="sm"
                             variant="destructive"
@@ -515,13 +562,52 @@ export function SubjectRegistrationPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Mobile Cards */}
+            <div className="block lg:hidden">
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 py-12">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm text-gray-500">Loading...</span>
+                </div>
+              ) : filteredAssignments.length === 0 ? (
+                <div className="text-center py-12 text-sm text-gray-500">No subject assignments found</div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {filteredAssignments.map((assignment) => (
+                    <div key={assignment.id} className="p-3 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 text-sm">{assignment.subject_name || 'No subject'}</p>
+                          <p className="text-xs text-gray-500">{assignment.class_name || 'No class'}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveAssignment(assignment)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-7 w-7 flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <Badge variant="outline" className="text-xs py-0 px-1.5 h-5">{assignment.teacher_name || 'Unassigned'}</Badge>
+                        <Badge variant={assignment.status === "Active" ? "default" : "destructive"} className="text-xs py-0 px-1.5 h-5">
+                          {assignment.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
 
       {/* Subject Registration Dialog */}
       <Dialog open={registrationDialogOpen} onOpenChange={setRegistrationDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Register Subject for Class</DialogTitle>
             <DialogDescription>
@@ -593,7 +679,7 @@ export function SubjectRegistrationPage() {
 
       {/* Subject Assignment Dialog */}
       <Dialog open={assignmentDialogOpen} onOpenChange={setAssignmentDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Assign Subject to Teacher</DialogTitle>
             <DialogDescription>

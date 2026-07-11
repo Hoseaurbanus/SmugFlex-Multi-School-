@@ -83,6 +83,7 @@ class CbtController {
 
             Response::paginated($exams, $pagination['page'], $pagination['limit'], $total);
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving exams');
         }
     }
@@ -111,6 +112,7 @@ class CbtController {
 
             Response::success($exam, 'Exam retrieved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving exam');
         }
     }
@@ -161,6 +163,7 @@ class CbtController {
             $examId = $this->conn->lastInsertId();
             Response::created(['id' => (int)$examId], 'Exam created successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error creating exam');
         }
     }
@@ -220,6 +223,7 @@ class CbtController {
 
             Response::success(['id' => $id], 'Exam updated successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error updating exam');
         }
     }
@@ -312,6 +316,7 @@ class CbtController {
 
             Response::success(['id' => $id], 'Exam published successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error publishing exam');
         }
     }
@@ -342,6 +347,7 @@ class CbtController {
 
             Response::success($questions, 'Questions retrieved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving questions');
         }
     }
@@ -385,6 +391,7 @@ class CbtController {
 
             Response::created(['id' => (int)$questionId], 'Question added successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error adding question');
         }
     }
@@ -461,6 +468,7 @@ class CbtController {
 
             Response::success(['id' => $question_id], 'Question updated successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error updating question');
         }
     }
@@ -484,6 +492,7 @@ class CbtController {
 
             Response::noContent('Question deleted successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error deleting question');
         }
     }
@@ -512,6 +521,7 @@ class CbtController {
 
             Response::success(null, 'Questions reordered successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error reordering questions');
         }
     }
@@ -590,6 +600,7 @@ class CbtController {
 
             Response::paginated($questions, $pagination['page'], $pagination['limit'], $total);
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving question bank');
         }
     }
@@ -632,6 +643,7 @@ class CbtController {
             $id = $this->conn->lastInsertId();
             Response::created(['id' => (int)$id], 'Question added to bank');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error adding to question bank');
         }
     }
@@ -651,6 +663,7 @@ class CbtController {
 
             Response::noContent('Question removed from bank');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error removing from question bank');
         }
     }
@@ -705,6 +718,7 @@ class CbtController {
 
             Response::created(['ids' => $insertedIds], count($insertedIds) . ' questions imported from bank');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error importing from question bank');
         }
     }
@@ -751,6 +765,7 @@ class CbtController {
 
             Response::success($attempts, 'Attempts retrieved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving attempts');
         }
     }
@@ -829,6 +844,7 @@ class CbtController {
             }
             Response::success($attempt, 'Attempt retrieved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving attempt');
         }
     }
@@ -856,6 +872,7 @@ class CbtController {
 
             Response::success($attempts, 'Your attempts retrieved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving your attempts');
         }
     }
@@ -1165,6 +1182,7 @@ class CbtController {
 
             Response::success(null, 'Answer saved');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error saving answer');
         }
     }
@@ -1332,6 +1350,7 @@ class CbtController {
                 'remark' => $remark,
             ], 'Exam submitted successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error submitting attempt');
         }
     }
@@ -1394,6 +1413,7 @@ class CbtController {
 
             Response::success($exams, 'Available exams retrieved');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving available exams');
         }
     }
@@ -1436,6 +1456,7 @@ class CbtController {
 
             Response::success($results, 'Exam results retrieved');
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error retrieving exam results');
         }
     }
@@ -1555,6 +1576,7 @@ class CbtController {
 
             Response::success(['fed_count' => $fed], "$fed score(s) fed successfully");
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error feeding scores');
         }
     }
@@ -1593,6 +1615,7 @@ class CbtController {
             $affected = $stmt->rowCount();
             Response::success(['deleted_count' => $affected], "$affected score(s) deleted");
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error deleting scores');
         }
     }
@@ -1657,6 +1680,7 @@ class CbtController {
                 'errors' => $errors
             ], "$imported question(s) imported successfully" . (!empty($errors) ? ' with ' . count($errors) . ' error(s)' : ''));
         } catch (PDOException $e) {
+            error_log("PDO Error in CbtController: " . $e->getMessage());
             Response::serverError('Database error during bulk import');
         }
     }

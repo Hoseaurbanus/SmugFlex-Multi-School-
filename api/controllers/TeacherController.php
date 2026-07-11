@@ -91,6 +91,7 @@ class TeacherController {
             Response::success($mappedTeachers, 'All teachers retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in TeacherController: " . $e->getMessage());
             Response::serverError('Database error retrieving teachers');
         }
     }
@@ -155,6 +156,7 @@ class TeacherController {
             Response::success($teacher, 'Teacher retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in TeacherController: " . $e->getMessage());
             Response::serverError('Database error retrieving teacher');
         }
     }
@@ -368,6 +370,7 @@ class TeacherController {
             Response::success(null, 'Teacher updated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in TeacherController: " . $e->getMessage());
             Response::serverError('Database error updating teacher');
         }
     }
@@ -431,6 +434,7 @@ class TeacherController {
             Response::success(null, 'Teacher deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in TeacherController: " . $e->getMessage());
             Response::serverError('Database error deleting teacher');
         }
     }
@@ -489,6 +493,7 @@ class TeacherController {
             Response::success($assignments, 'Teacher assignments for ' . $term . ' ' . $academic_year . ' retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in TeacherController: " . $e->getMessage());
             Response::serverError('Database error retrieving teacher assignments');
         }
     }
@@ -510,14 +515,17 @@ class TeacherController {
                              c.name as class_name, c.level
                       FROM students s
                       JOIN classes c ON s.class_id = c.id
-                      JOIN subject_assignments sa ON c.id = sa.class_id
-                      WHERE sa.teacher_id = :teacher_id AND s.status = 'Active'
-                      AND sa.school_id = :school_id AND s.school_id = :school_id
+                      LEFT JOIN subject_assignments sa ON c.id = sa.class_id AND sa.teacher_id = :teacher_id AND sa.status = 'Active' AND sa.school_id = :school_id
+                      LEFT JOIN class_teacher_assignments cta ON c.id = cta.class_id AND cta.teacher_id = :teacher_id_cta AND cta.status = 'Active' AND cta.school_id = :school_id_cta
+                      WHERE s.status = 'Active' AND s.school_id = :school_id
+                      AND (sa.id IS NOT NULL OR cta.id IS NOT NULL)
                       ORDER BY c.level, c.name, s.last_name, s.first_name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':teacher_id', $teacher_id);
             $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':teacher_id_cta', $teacher_id);
+            $stmt->bindParam(':school_id_cta', $school_id);
             $stmt->execute();
             
             $students = $stmt->fetchAll();
@@ -525,6 +533,7 @@ class TeacherController {
             Response::success($students, 'Teacher class students retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in TeacherController: " . $e->getMessage());
             Response::serverError('Database error retrieving teacher class students');
         }
     }

@@ -45,6 +45,7 @@ class ProgressionController {
             Response::success($rules, 'Progression rules retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ProgressionController: " . $e->getMessage());
             Response::serverError('Database error retrieving progression rules');
         }
     }
@@ -111,6 +112,7 @@ class ProgressionController {
             Response::created(['id' => $rule_id], 'Progression rule created successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ProgressionController: " . $e->getMessage());
             Response::serverError('Database error creating progression rule');
         }
     }
@@ -182,6 +184,7 @@ class ProgressionController {
             Response::success(null, 'Progression rule updated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ProgressionController: " . $e->getMessage());
             Response::serverError('Database error updating progression rule');
         }
     }
@@ -205,6 +208,7 @@ class ProgressionController {
             Response::success(null, 'Progression rule deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ProgressionController: " . $e->getMessage());
             Response::serverError('Database error deleting progression rule');
         }
     }

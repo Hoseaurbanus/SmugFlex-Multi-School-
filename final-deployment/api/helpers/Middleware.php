@@ -281,8 +281,8 @@ class Middleware {
             $database = new Database();
             $conn = $database->getConnection();
             
-            $query = "INSERT INTO activity_logs (actor, actor_role, action, target, ip_address, status, details, user_id, school_id) 
-                      VALUES (:actor, :actor_role, :action, :target, :ip_address, :status, :details, :user_id, :school_id)";
+            $query = "INSERT INTO activity_logs (actor, actor_role, action, target, ip_address, status, details, user_id) 
+                      VALUES (:actor, :actor_role, :action, :target, :ip_address, :status, :details, :user_id)";
             
             $stmt = $conn->prepare($query);
             
@@ -294,7 +294,6 @@ class Middleware {
             $stmt->bindParam(':status', $status);
             $stmt->bindParam(':details', $details);
             $stmt->bindParam(':user_id', $user_id);
-            $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
         } catch (Exception $e) {

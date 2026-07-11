@@ -542,7 +542,7 @@ class SQLDatabaseService {
       [subjectId, classId, academicYear, term]
     );
 
-    const existingRows = existingResult?.data || [];
+    const existingRows = Array.isArray(existingResult?.data) ? existingResult.data : (existingResult?.data?.data || []);
 
     if (existingRows.length > 0) {
       const existing: any = existingRows[0];

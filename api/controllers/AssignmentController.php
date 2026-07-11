@@ -121,6 +121,7 @@ class AssignmentController {
             Response::paginated($assignments, $pagination['page'], $pagination['limit'], $total);
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AssignmentController: " . $e->getMessage());
             Response::serverError('Database error retrieving assignments');
         }
     }
@@ -181,6 +182,7 @@ class AssignmentController {
             Response::success($assignment, 'Assignment retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AssignmentController: " . $e->getMessage());
             Response::serverError('Database error retrieving assignment');
         }
     }
@@ -212,13 +214,18 @@ class AssignmentController {
             
             // Teacher can only create assignments for their subjects/classes
             if ($token_data['role'] === 'teacher') {
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments 
-                                WHERE teacher_id = :teacher_id AND subject_id = :subject_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments 
+                                WHERE teacher_id = :teacher_id AND subject_id = :subject_id AND class_id = :class_id AND school_id = :school_id
+                                UNION SELECT id FROM class_teacher_assignments 
+                                WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':subject_id', $subject_id);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id);
+                $check_stmt->bindValue(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -275,6 +282,7 @@ class AssignmentController {
             Response::created(['id' => $assignment_id], 'Assignment created successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AssignmentController: " . $e->getMessage());
             Response::serverError('Database error creating assignment');
         }
     }
@@ -366,6 +374,7 @@ class AssignmentController {
             Response::success(null, 'Assignment updated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AssignmentController: " . $e->getMessage());
             Response::serverError('Database error updating assignment');
         }
     }
@@ -438,6 +447,7 @@ class AssignmentController {
             Response::success(null, 'Assignment deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AssignmentController: " . $e->getMessage());
             Response::serverError('Database error deleting assignment');
         }
     }
@@ -514,6 +524,7 @@ class AssignmentController {
             Response::success($submissions, 'Assignment submissions retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AssignmentController: " . $e->getMessage());
             Response::serverError('Database error retrieving submissions');
         }
     }
@@ -709,6 +720,7 @@ class AssignmentController {
             Response::success(null, 'Assignment graded successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in AssignmentController: " . $e->getMessage());
             Response::serverError('Database error grading assignment');
         }
     }

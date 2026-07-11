@@ -112,7 +112,7 @@ export function StudentProfilePage() {
                   </div>
 
                   {/* Quick Stats */}
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center p-3 bg-[#F9FAFB] rounded-lg">
                       <p className="text-2xl font-semibold text-[#1F2937]">{studentScores.length}</p>
                       <p className="text-sm text-[#6B7280]">Subjects</p>
@@ -141,25 +141,27 @@ export function StudentProfilePage() {
               <Card className="rounded-xl bg-white border border-[#E5E7EB] shadow-clinical">
                 <Tabs defaultValue="personal" className="w-full">
                   <CardHeader className="border-b border-[#E5E7EB] p-0">
-                    <TabsList className="w-full justify-start rounded-none bg-transparent p-0">
-                      <TabsTrigger value="personal" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#3B82F6]">
-                        Personal Info
-                      </TabsTrigger>
-                      <TabsTrigger value="academic" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#3B82F6]">
-                        Academic
-                      </TabsTrigger>
-                      <TabsTrigger value="financial" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#3B82F6]">
-                        Financial
-                      </TabsTrigger>
-                      <TabsTrigger value="parent" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#3B82F6]">
-                        Parent/Guardian
-                      </TabsTrigger>
-                    </TabsList>
+                    <div className="overflow-x-auto">
+                      <TabsList className="w-full justify-start rounded-none bg-transparent p-0 min-w-max">
+                        <TabsTrigger value="personal" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#3B82F6]">
+                          Personal Info
+                        </TabsTrigger>
+                        <TabsTrigger value="academic" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#3B82F6]">
+                          Academic
+                        </TabsTrigger>
+                        <TabsTrigger value="financial" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#3B82F6]">
+                          Financial
+                        </TabsTrigger>
+                        <TabsTrigger value="parent" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#3B82F6]">
+                          Parent/Guardian
+                        </TabsTrigger>
+                      </TabsList>
+                    </div>
                   </CardHeader>
 
                   <CardContent className="p-6">
                     <TabsContent value="personal" className="space-y-4 mt-0">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex items-start gap-3">
                           <span className="w-5 h-5 text-[#6B7280] mt-1" />
                           <div>
@@ -209,7 +211,7 @@ export function StudentProfilePage() {
                                   {score.grade}
                                 </Badge>
                               </div>
-                              <div className="grid grid-cols-4 gap-2 text-sm">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                                 <div>
                                   <p className="text-[#6B7280]">CA1</p>
                                   <p className="font-medium text-[#1F2937]">{score.ca1}/20</p>

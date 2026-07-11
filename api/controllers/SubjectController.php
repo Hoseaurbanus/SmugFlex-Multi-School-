@@ -78,6 +78,7 @@ class SubjectController {
             // Get total count
             $count_stmt = $this->conn->prepare($count_query);
             foreach ($params as $key => $value) {
+                if ($key === ':school_id_sub') continue;
                 $count_stmt->bindValue($key, $value);
             }
             $count_stmt->execute();
@@ -86,6 +87,7 @@ class SubjectController {
             Response::paginated($subjects, $pagination['page'], $pagination['limit'], $total);
             
         } catch (PDOException $e) {
+            error_log("PDO Error in SubjectController: " . $e->getMessage());
             Response::serverError('Database error retrieving subjects');
         }
     }
@@ -142,6 +144,7 @@ class SubjectController {
             Response::success($subject, 'Subject retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in SubjectController: " . $e->getMessage());
             Response::serverError('Database error retrieving subject');
         }
     }
@@ -189,7 +192,7 @@ class SubjectController {
             $stmt->bindParam(':category', $category);
             $stmt->bindParam(':department', $department);
             $stmt->bindParam(':description', $description);
-            $stmt->bindParam(':is_core', $is_core);
+            $stmt->bindValue(':is_core', $is_core ? 1 : 0, PDO::PARAM_INT);
             $stmt->bindParam(':school_id', $school_id);
             
             $stmt->execute();
@@ -214,6 +217,7 @@ class SubjectController {
             Response::created(['id' => $subject_id], 'Subject created successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in SubjectController.createSubject: " . $e->getMessage());
             if ($e->getCode() == 23000) {
                 Response::conflict('Duplicate entry detected');
             }
@@ -302,6 +306,7 @@ class SubjectController {
             Response::success(null, 'Subject updated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in SubjectController: " . $e->getMessage());
             Response::serverError('Database error updating subject');
         }
     }
@@ -365,6 +370,7 @@ class SubjectController {
             Response::success(null, 'Subject deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in SubjectController: " . $e->getMessage());
             Response::serverError('Database error deleting subject');
         }
     }
@@ -396,6 +402,7 @@ class SubjectController {
             Response::success($subjects, 'Subjects by category retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in SubjectController: " . $e->getMessage());
             Response::serverError('Database error retrieving subjects by category');
         }
     }
@@ -485,25 +492,33 @@ class SubjectController {
             $stmt->execute();
             $assignment_id = $this->conn->lastInsertId();
             
-            // Update teacher assignment count in real-time
-            $update_count_query = "UPDATE teachers SET assignment_count = (
-                SELECT COUNT(*) FROM subject_assignments 
-                WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id
-            ) WHERE id = :teacher_id AND school_id = :school_id";
-            $update_stmt = $this->conn->prepare($update_count_query);
-            $update_stmt->bindParam(':teacher_id', $teacher_id);
-            $update_stmt->bindParam(':school_id', $school_id);
-            $update_stmt->execute();
+            // Update teacher assignment count (safe: catches missing column)
+            try {
+                $update_count_query = "UPDATE teachers SET assignment_count = (
+                    SELECT COUNT(*) FROM subject_assignments 
+                    WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id
+                ) WHERE id = :teacher_id AND school_id = :school_id";
+                $update_stmt = $this->conn->prepare($update_count_query);
+                $update_stmt->bindParam(':teacher_id', $teacher_id);
+                $update_stmt->bindParam(':school_id', $school_id);
+                $update_stmt->execute();
+            } catch (PDOException $e) {
+                error_log("SubjectController: Could not update assignment_count: " . $e->getMessage());
+            }
             
-            // Update class assignment count in real-time
-            $update_class_count_query = "UPDATE classes SET current_assignments = (
-                SELECT COUNT(*) FROM subject_assignments 
-                WHERE class_id = :class_id AND status = 'Active' AND school_id = :school_id
-            ) WHERE id = :class_id AND school_id = :school_id";
-            $update_class_stmt = $this->conn->prepare($update_class_count_query);
-            $update_class_stmt->bindParam(':class_id', $class_id);
-            $update_class_stmt->bindParam(':school_id', $school_id);
-            $update_class_stmt->execute();
+            // Update class assignment count (safe: catches missing column)
+            try {
+                $update_class_count_query = "UPDATE classes SET current_assignments = (
+                    SELECT COUNT(*) FROM subject_assignments 
+                    WHERE class_id = :class_id AND status = 'Active' AND school_id = :school_id
+                ) WHERE id = :class_id AND school_id = :school_id";
+                $update_class_stmt = $this->conn->prepare($update_class_count_query);
+                $update_class_stmt->bindParam(':class_id', $class_id);
+                $update_class_stmt->bindParam(':school_id', $school_id);
+                $update_class_stmt->execute();
+            } catch (PDOException $e) {
+                error_log("SubjectController: Could not update current_assignments: " . $e->getMessage());
+            }
             
             // Log activity
             Middleware::logActivity(
@@ -513,7 +528,7 @@ class SubjectController {
                 "Subject: {$verification['subject_name']} to Class: {$verification['class_name']} by Teacher: {$verification['teacher_name']}",
                 'Success',
                 'Subject assigned successfully',
-                $_SESSION['user_id'] ?? null
+                $token_data['user_id'] ?? null
             );
 
             RealtimeEvents::publish(['subject_assignments', 'classes', 'teachers', 'scores', 'compiled_results'], [
@@ -536,7 +551,8 @@ class SubjectController {
             ], 'Subject assigned successfully');
             
         } catch (PDOException $e) {
-            Response::serverError('Database error assigning subject');
+            error_log("PDO Error in SubjectController: " . $e->getMessage());
+            Response::serverError('Database error assigning subject: ' . $e->getMessage());
         }
     }
     
@@ -633,6 +649,7 @@ class SubjectController {
 
             Response::success(null, 'Assignment updated successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in SubjectController: " . $e->getMessage());
             Response::serverError('Database error updating assignment');
         }
     }
@@ -701,6 +718,7 @@ class SubjectController {
             Response::success(null, 'Assignment deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in SubjectController: " . $e->getMessage());
             Response::serverError('Database error deleting assignment');
         }
     }
@@ -719,9 +737,9 @@ class SubjectController {
                              c.name as class_name, c.level,
                              CONCAT(t.first_name, ' ', t.last_name) as teacher_name, t.employee_id
                       FROM subject_assignments sa
-                      JOIN subjects sub ON sa.subject_id = sub.id
-                      JOIN classes c ON sa.class_id = c.id
-                      JOIN teachers t ON sa.teacher_id = t.id
+                      JOIN subjects sub ON sa.subject_id = sub.id AND sub.school_id = :school_id
+                      JOIN classes c ON sa.class_id = c.id AND c.school_id = :school_id
+                      JOIN teachers t ON sa.teacher_id = t.id AND t.school_id = :school_id
                       WHERE sa.status = 'Active' AND sa.school_id = :school_id";
             
             $conditions = [];

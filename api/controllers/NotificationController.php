@@ -52,7 +52,7 @@ class NotificationController {
             $has_user_notifications = $table_check->fetch(PDO::FETCH_ASSOC) !== false;
 
             // Build query dynamically based on schema
-            $select_cols = "n.*, CONCAT(u.first_name, ' ', u.last_name) as created_by_name";
+            $select_cols = "n.*, COALESCE(u.username, 'System') as created_by_name";
             $joins = "LEFT JOIN users u ON n.sent_by = u.id";
             $params = [];
 
@@ -151,6 +151,7 @@ class NotificationController {
             // Get total count
             $count_stmt = $this->conn->prepare($count_query);
             foreach ($params as $key => $value) {
+                if ($key === ':user_id') continue;
                 $count_stmt->bindValue($key, $value);
             }
             $count_stmt->execute();
@@ -159,9 +160,10 @@ class NotificationController {
             Response::paginated($notifications, $page, $limit, $total);
 
         } catch (PDOException $e) {
-            Response::serverError('Database error retrieving notifications');
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         } catch (Exception $e) {
-            Response::serverError('Error retrieving notifications');
+            Response::serverError('Error: ' . $e->getMessage());
         }
     }
     
@@ -175,10 +177,10 @@ class NotificationController {
         
         try {
             $query = "SELECT n.*, 
-                             CONCAT(u.first_name, ' ', u.last_name) as created_by_name
-                      FROM notifications n
-                      LEFT JOIN users u ON n.sent_by = u.id
-                      WHERE n.id = :id AND n.school_id = :school_id";
+                             COALESCE(u.username, 'System') as created_by_name
+                       FROM notifications n
+                       LEFT JOIN users u ON n.sent_by = u.id
+                       WHERE n.id = :id AND n.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $notification_id);
@@ -201,6 +203,7 @@ class NotificationController {
             Response::success($notification, 'Notification retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
             Response::serverError('Database error retrieving notification');
         }
     }
@@ -283,6 +286,7 @@ class NotificationController {
             Response::created(['id' => $notification_id], 'Notification created successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
             Response::serverError('Database error creating notification');
         }
     }
@@ -341,6 +345,7 @@ class NotificationController {
             Response::success(null, 'Notification marked as read');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
             Response::serverError('Database error marking notification as read');
         }
     }
@@ -398,6 +403,7 @@ class NotificationController {
             Response::success(null, 'All notifications marked as read');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
             Response::serverError('Database error marking all notifications as read');
         }
     }
@@ -450,6 +456,7 @@ class NotificationController {
                 Response::serverError('Failed to delete notification');
             }
         } catch (PDOException $e) {
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
             Response::serverError('Database error deleting notification');
         }
     }
@@ -511,6 +518,7 @@ class NotificationController {
             Response::success(null, 'Notification dismissed for user.');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
             Response::serverError('Database error updating notification');
         }
     }
@@ -562,6 +570,7 @@ class NotificationController {
             Response::success(['unread_count' => $result['unread_count']], 'Unread count retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
             Response::serverError('Database error retrieving unread count');
         }
     }
@@ -623,7 +632,7 @@ class NotificationController {
             }
 
             // Build query dynamically based on schema
-            $select_cols = "n.*, CONCAT(u.first_name, ' ', u.last_name) as created_by_name";
+            $select_cols = "n.*, COALESCE(u.username, 'System') as created_by_name";
             $joins = "LEFT JOIN users u ON n.sent_by = u.id";
             $params = [];
             
@@ -667,7 +676,7 @@ class NotificationController {
                       FROM notifications n
                       $joins
                       WHERE $where
-                      ORDER BY n.created_at DESC
+                       ORDER BY n.sent_date DESC
                       LIMIT :limit OFFSET :offset";
 
             $stmt = $this->conn->prepare($query);
@@ -685,12 +694,10 @@ class NotificationController {
             
         } catch (PDOException $e) {
             error_log("Database error in getUserNotifications: " . $e->getMessage());
-            error_log("Error details: " . $e->getTraceAsString());
-            Response::serverError('Database error retrieving user notifications');
+            Response::serverError('Database error: ' . $e->getMessage());
         } catch (Exception $e) {
             error_log("General error in getUserNotifications: " . $e->getMessage());
-            error_log("Error details: " . $e->getTraceAsString());
-            Response::serverError('Error retrieving user notifications');
+            Response::serverError('Error: ' . $e->getMessage());
         }
     }
     
@@ -776,6 +783,7 @@ class NotificationController {
             Response::created(['id' => $notification_id, 'target_users' => count($target_users)], 'Notification broadcasted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in NotificationController: " . $e->getMessage());
             Response::serverError('Database error broadcasting notification');
         }
     }

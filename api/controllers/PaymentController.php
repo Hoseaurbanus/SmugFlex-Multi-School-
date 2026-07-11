@@ -207,6 +207,7 @@ class PaymentController {
             // Get total count
             $count_stmt = $this->conn->prepare($count_query);
             foreach ($params as $key => $value) {
+                if (in_array($key, [':school_id2', ':school_id3', ':school_id4'], true)) continue;
                 $count_stmt->bindValue($key, $value);
             }
             $count_stmt->execute();
@@ -215,10 +216,11 @@ class PaymentController {
             Response::paginated($payments, $pagination['page'], $pagination['limit'], $total);
             
         } catch (PDOException $e) {
-            Response::serverError('Database error retrieving payments');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
-    
+
     /**
      * Get Payment by ID
      */
@@ -258,7 +260,8 @@ class PaymentController {
             Response::success($payment, 'Payment retrieved successfully');
             
         } catch (PDOException $e) {
-            Response::serverError('Database error retrieving payment');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
     
@@ -407,7 +410,8 @@ class PaymentController {
             Response::created(['id' => $payment_id, 'receipt_number' => $receipt_number], 'Payment recorded successfully');
             
         } catch (PDOException $e) {
-            Response::serverError('Database error recording payment');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
     
@@ -537,7 +541,8 @@ class PaymentController {
             Response::success(null, $message);
             
         } catch (PDOException $e) {
-            Response::serverError('Database error updating payment');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
 
@@ -661,7 +666,8 @@ class PaymentController {
                 'invoice_id' => $invoice_id
             ], 'Payment reversed successfully');
         } catch (PDOException $e) {
-            Response::serverError('Database error reversing payment');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
     
@@ -755,7 +761,8 @@ class PaymentController {
             Response::success($result_data, 'Student payment history retrieved successfully');
             
         } catch (PDOException $e) {
-            Response::serverError('Database error retrieving payment history');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
 
@@ -890,7 +897,8 @@ class PaymentController {
                 'receipt_number' => $receipt_number
             ], 'Bank transfer submitted successfully');
         } catch (PDOException $e) {
-            Response::serverError('Database error submitting bank transfer');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
     
@@ -961,7 +969,8 @@ class PaymentController {
             Response::success($fee_balance, 'Fee balance retrieved successfully');
             
         } catch (PDOException $e) {
-            Response::serverError('Database error retrieving fee balance');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
     
@@ -1040,7 +1049,8 @@ class PaymentController {
             Response::success($report_data, 'Payment reports retrieved successfully');
             
         } catch (PDOException $e) {
-            Response::serverError('Database error generating payment reports');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
 
@@ -1078,7 +1088,8 @@ class PaymentController {
                 'items' => $rows
             ], 'Reconciliation summary retrieved successfully');
         } catch (PDOException $e) {
-            Response::serverError('Database error generating reconciliation summary');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
 
@@ -1134,7 +1145,8 @@ class PaymentController {
                 'pending_bank_transfers' => $bank_stmt->fetchAll(PDO::FETCH_ASSOC)
             ], 'Payment exceptions retrieved successfully');
         } catch (PDOException $e) {
-            Response::serverError('Database error retrieving payment exceptions');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
     
@@ -1364,7 +1376,8 @@ class PaymentController {
             ], 'Online payment initialized successfully');
             
         } catch (PDOException $e) {
-            Response::serverError('Database error initializing online payment');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
     
@@ -1543,7 +1556,8 @@ class PaymentController {
             }
             
         } catch (PDOException $e) {
-            Response::serverError('Database error verifying online payment');
+            error_log("PDO Error in PaymentController: " . $e->getMessage());
+            Response::serverError('Database error: ' . $e->getMessage());
         }
     }
     

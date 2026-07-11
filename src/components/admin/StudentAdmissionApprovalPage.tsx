@@ -126,7 +126,7 @@ export function StudentAdmissionApprovalPage() {
                           </h3>
                           <p className="text-sm text-[#6B7280] mb-2">{student.admissionNumber}</p>
                           
-                          <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mt-3">
                             <div className="flex items-center gap-2 text-sm">
                               <span className="w-4 h-4 text-[#6B7280]" />
                               <span className="text-[#6B7280]">DOB:</span>
@@ -151,7 +151,7 @@ export function StudentAdmissionApprovalPage() {
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -208,7 +208,7 @@ export function StudentAdmissionApprovalPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
                 <div>
                   <p className="text-sm text-[#6B7280] mb-1">Date of Birth</p>
                   <p className="text-[#1F2937] font-medium">{viewStudent.dateOfBirth}</p>

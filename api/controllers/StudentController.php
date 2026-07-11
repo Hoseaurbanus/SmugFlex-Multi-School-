@@ -54,9 +54,11 @@ class StudentController {
                 if (empty($teacher_id)) {
                     Response::forbidden('Teacher account not properly linked');
                 }
-                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND school_id = :school_id_ta)";
+                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id_ta UNION SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
                 $params[':teacher_id'] = (int)$teacher_id;
                 $params[':school_id_ta'] = $school_id;
+                $params[':teacher_id_cta'] = (int)$teacher_id;
+                $params[':school_id_cta'] = $school_id;
             } elseif (($token_data['role'] ?? null) === 'accountant' || ($token_data['role'] ?? null) === 'admin') {
                 // Full access
             } else {
@@ -139,7 +141,7 @@ class StudentController {
             if ($token_data['role'] === 'parent') {
                 $query .= " AND s.id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id)";
             } elseif ($token_data['role'] === 'teacher') {
-                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND school_id = :school_id)";
+                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id UNION SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
             }
             
             $stmt = $this->conn->prepare($query);
@@ -150,6 +152,8 @@ class StudentController {
                 $stmt->bindParam(':parent_id', $token_data['linked_id']);
             } elseif ($token_data['role'] === 'teacher') {
                 $stmt->bindParam(':teacher_id', $token_data['linked_id']);
+                $stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $stmt->bindParam(':school_id_cta', $school_id);
             }
             
             $stmt->execute();
@@ -204,6 +208,7 @@ class StudentController {
             Response::success($mappedStudent, 'Student retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController: " . $e->getMessage());
             Response::serverError('Database error retrieving student');
         }
     }
@@ -331,6 +336,7 @@ class StudentController {
             Response::created(['id' => $student_id, 'admission_number' => $admission_number], 'Student created successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController.createStudent: " . $e->getMessage());
             if ($e->getCode() == 23000) {
                 Response::conflict('Duplicate entry detected');
             }
@@ -438,6 +444,7 @@ class StudentController {
             Response::success(null, 'Student updated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController: " . $e->getMessage());
             Response::serverError('Database error updating student');
         }
     }
@@ -490,6 +497,7 @@ class StudentController {
             Response::success(null, 'Student deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController: " . $e->getMessage());
             Response::serverError('Database error deleting student');
         }
     }
@@ -506,11 +514,14 @@ class StudentController {
             // Check access permissions
             if ($token_data['role'] === 'teacher') {
                 // Verify teacher has access to this class
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id);
+                $check_stmt->bindParam(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -538,6 +549,7 @@ class StudentController {
             Response::success($students, 'Students retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController: " . $e->getMessage());
             Response::serverError('Database error retrieving class students');
         }
     }
@@ -961,6 +973,7 @@ class StudentController {
             Response::success($promotions, 'Promotion history retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController: " . $e->getMessage());
             Response::serverError('Database error retrieving promotion history');
         }
     }
@@ -1110,6 +1123,7 @@ class StudentController {
             Response::success($statistics, 'Student statistics retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController: " . $e->getMessage());
             Response::serverError('Database error retrieving student statistics');
         }
     }
@@ -1150,15 +1164,23 @@ class StudentController {
             
             // Teacher can only save for their classes in current term
             if ($token_data['role'] === 'teacher') {
-                $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments 
+                $teacher_check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments 
                                        WHERE teacher_id = :teacher_id AND class_id = :class_id 
-                                       AND academic_year = :academic_year AND term = :term AND status = 'Active' AND school_id = :school_id2";
+                                       AND academic_year = :academic_year AND term = :term AND status = 'Active' AND school_id = :school_id
+                                       UNION SELECT id FROM class_teacher_assignments 
+                                       WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta 
+                                       AND academic_year = :academic_year_cta AND term = :term_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
                 $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $teacher_check_stmt->bindParam(':class_id', $class_id);
                 $teacher_check_stmt->bindParam(':academic_year', $academic_year);
                 $teacher_check_stmt->bindParam(':term', $term);
-                $teacher_check_stmt->bindValue(':school_id2', $school_id);
+                $teacher_check_stmt->bindValue(':school_id', $school_id);
+                $teacher_check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $teacher_check_stmt->bindParam(':class_id_cta', $class_id);
+                $teacher_check_stmt->bindParam(':academic_year_cta', $academic_year);
+                $teacher_check_stmt->bindParam(':term_cta', $term);
+                $teacher_check_stmt->bindValue(':school_id_cta', $school_id);
                 $teacher_check_stmt->execute();
                 
                 if ($teacher_check_stmt->fetch()['count'] == 0) {
@@ -1254,6 +1276,7 @@ class StudentController {
             Response::success(['message' => 'Affective domains saved successfully'], 'Affective domains saved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController.saveAffectiveDomains: " . $e->getMessage());
             $this->conn->rollBack();
             Response::serverError('Database error saving affective domains');
         }
@@ -1295,15 +1318,23 @@ class StudentController {
             
             // Teacher can only save for their classes in current term
             if ($token_data['role'] === 'teacher') {
-                $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments 
+                $teacher_check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments 
                                        WHERE teacher_id = :teacher_id AND class_id = :class_id 
-                                       AND academic_year = :academic_year AND term = :term AND status = 'Active' AND school_id = :school_id2";
+                                       AND academic_year = :academic_year AND term = :term AND status = 'Active' AND school_id = :school_id
+                                       UNION SELECT id FROM class_teacher_assignments 
+                                       WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta 
+                                       AND academic_year = :academic_year_cta AND term = :term_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
                 $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $teacher_check_stmt->bindParam(':class_id', $class_id);
                 $teacher_check_stmt->bindParam(':academic_year', $academic_year);
                 $teacher_check_stmt->bindParam(':term', $term);
-                $teacher_check_stmt->bindValue(':school_id2', $school_id);
+                $teacher_check_stmt->bindValue(':school_id', $school_id);
+                $teacher_check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $teacher_check_stmt->bindParam(':class_id_cta', $class_id);
+                $teacher_check_stmt->bindParam(':academic_year_cta', $academic_year);
+                $teacher_check_stmt->bindParam(':term_cta', $term);
+                $teacher_check_stmt->bindValue(':school_id_cta', $school_id);
                 $teacher_check_stmt->execute();
                 
                 if ($teacher_check_stmt->fetch()['count'] == 0) {
@@ -1399,6 +1430,7 @@ class StudentController {
             Response::success(['message' => 'Psychomotor domains saved successfully'], 'Psychomotor domains saved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in StudentController.savePsychomotorDomains: " . $e->getMessage());
             $this->conn->rollBack();
             Response::serverError('Database error saving psychomotor domains');
         }

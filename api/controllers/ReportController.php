@@ -46,12 +46,18 @@ class ReportController {
                 }
             } elseif ($token_data['role'] === 'teacher') {
                 $check_query = "SELECT COUNT(*) as count FROM students s
-                               JOIN subject_assignments sa ON s.class_id = sa.class_id
-                               WHERE s.id = :student_id AND sa.teacher_id = :teacher_id AND s.school_id = :school_id";
+                               WHERE s.id = :student_id AND s.school_id = :school_id
+                               AND s.class_id IN (
+                                   SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id
+                                   UNION
+                                   SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta
+                               )";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':student_id', $student_id);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindValue(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -185,6 +191,7 @@ class ReportController {
             Response::success($report_data, 'Report card generated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ReportController: " . $e->getMessage());
             Response::serverError('Database error generating report card');
         }
     }
@@ -206,11 +213,14 @@ class ReportController {
             
             // Teacher can only generate reports for their classes
             if ($token_data['role'] === 'teacher') {
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id);
+                $check_stmt->bindParam(':school_id_cta', $school_id);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -339,6 +349,7 @@ class ReportController {
             Response::success($report_data, 'Class performance report generated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ReportController: " . $e->getMessage());
             Response::serverError('Database error generating class performance report');
         }
     }
@@ -375,6 +386,7 @@ class ReportController {
             Response::success($report_data, 'Financial report generated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ReportController: " . $e->getMessage());
             Response::serverError('Database error generating financial report');
         }
     }
@@ -397,11 +409,14 @@ class ReportController {
                     Response::badRequest('Class ID is required for teachers');
                 }
                 
-                $check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+                $check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
                 $check_stmt = $this->conn->prepare($check_query);
                 $check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $check_stmt->bindParam(':class_id', $class_id);
                 $check_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+                $check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $check_stmt->bindParam(':class_id_cta', $class_id, PDO::PARAM_INT);
+                $check_stmt->bindParam(':school_id_cta', $school_id, PDO::PARAM_INT);
                 $check_stmt->execute();
                 
                 if ($check_stmt->fetch()['count'] == 0) {
@@ -507,6 +522,7 @@ class ReportController {
             Response::success($report_data, 'Attendance report generated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ReportController: " . $e->getMessage());
             Response::serverError('Database error generating attendance report');
         }
     }
@@ -572,7 +588,7 @@ class ReportController {
     private function generateDetailedFinancialReport($date_from, $date_to, $school_id) {
         $query = "SELECT p.*, s.first_name, s.last_name, s.admission_number,
                          c.name as class_name, c.level,
-                         CONCAT(u.first_name, ' ', u.last_name) as recorded_by_name
+                         COALESCE(u.username, 'System') as recorded_by_name
                   FROM payments p
                   JOIN students s ON p.student_id = s.id
                   JOIN classes c ON s.class_id = c.id

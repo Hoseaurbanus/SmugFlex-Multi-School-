@@ -174,6 +174,7 @@ class ParentController {
             Response::success($parent, 'Parent retrieved successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ParentController: " . $e->getMessage());
             Response::serverError('Database error retrieving parent');
         }
     }
@@ -360,6 +361,7 @@ class ParentController {
             Response::success(null, 'Parent updated successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ParentController: " . $e->getMessage());
             Response::serverError('Database error updating parent');
         }
     }
@@ -423,6 +425,7 @@ class ParentController {
             Response::success(null, 'Parent deleted successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ParentController: " . $e->getMessage());
             Response::serverError('Database error deleting parent');
         }
     }
@@ -867,6 +870,7 @@ class ParentController {
             Response::success(null, 'Parent unlinked from student successfully');
             
         } catch (PDOException $e) {
+            error_log("PDO Error in ParentController: " . $e->getMessage());
             Response::serverError('Database error unlinking parent from student');
         }
     }

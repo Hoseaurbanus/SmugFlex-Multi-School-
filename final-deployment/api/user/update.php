@@ -167,7 +167,8 @@ try {
     $conn->beginTransaction();
     
     try {
-        $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE id = ?";
+        $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE id = ? AND school_id = ?";
+        $updateValues[] = $school_id;
         $stmt = $conn->prepare($sql);
         $stmt->execute($updateValues);
         $affected = $stmt->rowCount();
@@ -242,7 +243,8 @@ try {
                     $teacherFields[] = "updated_at = NOW()";
                     $teacherValues[] = $linkedId;
                     
-                    $teacherSql = "UPDATE teachers SET " . implode(', ', $teacherFields) . " WHERE id = ?";
+                    $teacherSql = "UPDATE teachers SET " . implode(', ', $teacherFields) . " WHERE id = ? AND school_id = ?";
+                    $teacherValues[] = $school_id;
                     $teacherStmt = $conn->prepare($teacherSql);
                     $teacherStmt->execute($teacherValues);
                     $profileUpdated = $teacherStmt->rowCount() > 0;
@@ -281,7 +283,8 @@ try {
                     $parentFields[] = "updated_at = NOW()";
                     $parentValues[] = $linkedId;
                     
-                    $parentSql = "UPDATE parents SET " . implode(', ', $parentFields) . " WHERE id = ?";
+                    $parentSql = "UPDATE parents SET " . implode(', ', $parentFields) . " WHERE id = ? AND school_id = ?";
+                    $parentValues[] = $school_id;
                     $parentStmt = $conn->prepare($parentSql);
                     $parentStmt->execute($parentValues);
                     $profileUpdated = $parentStmt->rowCount() > 0;
@@ -316,7 +319,8 @@ try {
                     $accountantFields[] = "updated_at = NOW()";
                     $accountantValues[] = $linkedId;
                     
-                    $accountantSql = "UPDATE accountants SET " . implode(', ', $accountantFields) . " WHERE id = ?";
+                    $accountantSql = "UPDATE accountants SET " . implode(', ', $accountantFields) . " WHERE id = ? AND school_id = ?";
+                    $accountantValues[] = $school_id;
                     $accountantStmt = $conn->prepare($accountantSql);
                     $accountantStmt->execute($accountantValues);
                     $profileUpdated = $accountantStmt->rowCount() > 0;

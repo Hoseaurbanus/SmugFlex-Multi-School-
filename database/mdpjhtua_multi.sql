@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jul 06, 2026 at 12:22 PM
+-- Generation Time: Jul 11, 2026 at 04:55 AM
 -- Server version: 11.4.12-MariaDB
 -- PHP Version: 8.4.22
 
@@ -75,6 +75,27 @@ CREATE TABLE `activity_logs` (
   `user_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `activity_logs`
+--
+
+INSERT INTO `activity_logs` (`id`, `actor`, `actor_role`, `action`, `target`, `ip_address`, `status`, `details`, `user_id`, `created_at`) VALUES
+(1, 'Admin', 'Admin', 'CREATE_CLASS', 'Class: JSS 2 (JSS 2)', '102.91.77.121', 'Success', 'New class created', NULL, '2026-07-10 04:41:36'),
+(2, 'Admin', 'Admin', 'DELETE_ASSIGNMENT', 'Assignment: MATHEMATICS - JSS1 by HOSEA URBANUS', '102.91.77.121', 'Success', 'Subject assignment deleted', NULL, '2026-07-10 04:42:21'),
+(3, 'Admin', 'Admin', 'DELETE_ASSIGNMENT', 'Assignment: PHYSICAL HEALTH EDUCATION - JSS1 by HOSEA URBANUS', '102.91.77.121', 'Success', 'Subject assignment deleted', NULL, '2026-07-10 04:42:30'),
+(4, 'Admin', 'Admin', 'ASSIGN_SUBJECT', 'Subject: ENGLISH LANGUAGE to Class: JSS 2 by Teacher: HOSEA URBANUS', '102.91.77.121', 'Success', 'Subject assigned successfully', 3, '2026-07-10 04:42:56'),
+(5, 'Admin', 'Admin', 'ASSIGN_SUBJECT', 'Subject: COMPUTER STUDIES to Class: JSS 2 by Teacher: HOSEA URBANUS', '102.91.77.121', 'Success', 'Subject assigned successfully', 3, '2026-07-10 04:43:32'),
+(6, 'Admin', 'Admin', 'ASSIGN_SUBJECT', 'Subject: MATHEMATICS to Class: JSS1 by Teacher: JET GOF', '102.91.77.121', 'Success', 'Subject assigned successfully', 3, '2026-07-10 04:43:47'),
+(7, 'Admin', 'Admin', 'ASSIGN_SUBJECT', 'Subject: PHYSICAL HEALTH EDUCATION to Class: JSS1 by Teacher: JET GOF', '102.91.77.121', 'Success', 'Subject assigned successfully', 3, '2026-07-10 04:43:47'),
+(8, 'Admin', 'Admin', 'ASSIGN_SUBJECT', 'Subject: MATHEMATICS to Class: JSS 2 by Teacher: JET GOF', '102.91.77.121', 'Success', 'Subject assigned successfully', 3, '2026-07-10 04:43:59'),
+(9, 'Admin', 'Admin', 'ASSIGN_SUBJECT', 'Subject: PHYSICAL HEALTH EDUCATION to Class: JSS 2 by Teacher: JET GOF', '102.91.77.121', 'Success', 'Subject assigned successfully', 3, '2026-07-10 04:43:59'),
+(10, 'Admin', 'Admin', 'CREATE_STUDENT', 'Student: MOSES LOT (ECW/2026/0002)', '102.91.77.121', 'Success', 'New student admitted to class JSS 2', NULL, '2026-07-10 04:46:44'),
+(11, 'Admin', 'Admin', 'UNLINK_PARENT_STUDENT', 'Parent ID: 1, Student ID: 2', '102.91.77.121', 'Success', 'Parent unlinked from student', 3, '2026-07-10 04:47:23'),
+(12, 'admin', 'Admin', 'LOGOUT', 'Authentication', '102.91.77.254', 'Success', 'User logged out successfully', 3, '2026-07-10 12:45:10'),
+(13, 'john.daniel', 'Parent', 'LOGOUT', 'Authentication', '102.91.77.254', 'Success', 'User logged out successfully', 13, '2026-07-10 12:46:15'),
+(14, 'Admin', 'Admin', 'LINK_PARENT_STUDENT', 'Parent ID: 2, Student ID: 2', '102.91.77.254', 'Success', 'Parent linked to student as Guardian', NULL, '2026-07-10 13:28:04'),
+(15, 'Admin', 'Admin', 'UPDATE_STUDENT', 'Student ID: 2', '102.91.77.254', 'Success', 'Student information updated', NULL, '2026-07-10 13:28:04');
 
 -- --------------------------------------------------------
 
@@ -392,7 +413,8 @@ CREATE TABLE `classes` (
 --
 
 INSERT INTO `classes` (`id`, `school_id`, `name`, `level`, `section`, `category`, `capacity`, `max_capacity`, `current_promotions`, `promotion_locked`, `sort_order`, `current_students`, `class_teacher_id`, `class_teacher`, `academic_year`, `status`, `created_at`, `updated_at`) VALUES
-(1, 4, 'JSS1', 'JSS 1', '', 'Secondary', 50, 40, 0, 0, 0, 0, 1, NULL, '2026/2027', 'Active', '2026-07-05 19:36:27', '2026-07-05 19:36:27');
+(1, 4, 'JSS1', 'JSS 1', '', 'Secondary', 50, 40, 0, 0, 0, 0, 1, NULL, '2026/2027', 'Active', '2026-07-05 19:36:27', '2026-07-05 19:36:27'),
+(2, 4, 'JSS 2', 'JSS 2', '', 'Secondary', 50, 40, 0, 0, 0, 0, 2, NULL, '2026/2027', 'Active', '2026-07-10 04:41:36', '2026-07-10 04:41:36');
 
 -- --------------------------------------------------------
 
@@ -446,6 +468,14 @@ CREATE TABLE `class_teacher_assignments` (
   `assigned_at` timestamp NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `class_teacher_assignments`
+--
+
+INSERT INTO `class_teacher_assignments` (`id`, `school_id`, `teacher_id`, `class_id`, `academic_year`, `term`, `status`, `assigned_at`, `updated_at`) VALUES
+(1, 4, 1, 1, '2026/2027', 'First Term', 'Active', '2026-07-06 12:31:05', '2026-07-06 12:31:05'),
+(2, 4, 2, 2, '2026/2027', 'First Term', 'Active', '2026-07-10 04:41:36', '2026-07-10 04:41:36');
 
 -- --------------------------------------------------------
 
@@ -758,7 +788,8 @@ CREATE TABLE `parents` (
 --
 
 INSERT INTO `parents` (`id`, `school_id`, `first_name`, `last_name`, `email`, `phone`, `alternate_phone`, `address`, `occupation`, `status`, `created_at`, `updated_at`) VALUES
-(1, 4, 'KIND', 'URBANUS', 'hoseaurbanusaudu2@gmail.com', '09030031278', NULL, NULL, NULL, 'Active', '2026-07-05 07:29:41', '2026-07-05 07:29:41');
+(1, 4, 'KIND', 'URBANUS', 'hoseaurbanusaudu2@gmail.com', '09030031278', NULL, NULL, NULL, 'Active', '2026-07-05 07:29:41', '2026-07-05 07:29:41'),
+(2, 4, 'Daniel', 'John', 'john.daniel@school.local', '09033392958', NULL, NULL, NULL, 'Active', '2026-07-10 12:42:09', '2026-07-10 12:42:09');
 
 -- --------------------------------------------------------
 
@@ -772,9 +803,16 @@ CREATE TABLE `parent_student_links` (
   `student_id` int(11) NOT NULL,
   `relationship` enum('Father','Mother','Guardian') NOT NULL,
   `is_primary` tinyint(1) DEFAULT 0,
-  `school_id` int(11) NOT NULL DEFAULT 0,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `parent_student_links`
+--
+
+INSERT INTO `parent_student_links` (`id`, `parent_id`, `student_id`, `relationship`, `is_primary`, `school_id`, `created_at`) VALUES
+(2, 2, 2, 'Guardian', 1, 4, '2026-07-10 13:28:04');
 
 -- --------------------------------------------------------
 
@@ -920,10 +958,92 @@ CREATE TABLE `psychomotor_domains` (
 
 CREATE TABLE `realtime_events` (
   `id` bigint(20) NOT NULL,
+  `school_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
   `topic` varchar(64) NOT NULL,
   `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`payload`)),
   `created_at` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `realtime_events`
+--
+
+INSERT INTO `realtime_events` (`id`, `school_id`, `topic`, `payload`, `created_at`) VALUES
+(1, 4, 'students', '{\"action\":\"created\",\"student_id\":1,\"class_id\":1}', '2026-07-08 13:17:49'),
+(2, 4, 'classes', '{\"action\":\"created\",\"student_id\":1,\"class_id\":1}', '2026-07-08 13:17:49'),
+(3, 4, 'subjects', '{\"action\":\"created\",\"subject_id\":1}', '2026-07-09 19:42:28'),
+(4, 4, 'subject_assignments', '{\"action\":\"created\",\"subject_id\":1}', '2026-07-09 19:42:28'),
+(5, 4, 'scores', '{\"action\":\"created\",\"subject_id\":1}', '2026-07-09 19:42:28'),
+(6, 4, 'compiled_results', '{\"action\":\"created\",\"subject_id\":1}', '2026-07-09 19:42:28'),
+(7, 4, 'subjects', '{\"action\":\"created\",\"subject_id\":2}', '2026-07-10 03:03:58'),
+(8, 4, 'subject_assignments', '{\"action\":\"created\",\"subject_id\":2}', '2026-07-10 03:03:58'),
+(9, 4, 'scores', '{\"action\":\"created\",\"subject_id\":2}', '2026-07-10 03:03:58'),
+(10, 4, 'compiled_results', '{\"action\":\"created\",\"subject_id\":2}', '2026-07-10 03:03:58'),
+(11, 4, 'subjects', '{\"action\":\"created\",\"subject_id\":3}', '2026-07-10 03:08:34'),
+(12, 4, 'subject_assignments', '{\"action\":\"created\",\"subject_id\":3}', '2026-07-10 03:08:34'),
+(13, 4, 'scores', '{\"action\":\"created\",\"subject_id\":3}', '2026-07-10 03:08:34'),
+(14, 4, 'compiled_results', '{\"action\":\"created\",\"subject_id\":3}', '2026-07-10 03:08:34'),
+(15, 4, 'subjects', '{\"action\":\"created\",\"subject_id\":4}', '2026-07-10 03:16:28'),
+(16, 4, 'subject_assignments', '{\"action\":\"created\",\"subject_id\":4}', '2026-07-10 03:16:28'),
+(17, 4, 'scores', '{\"action\":\"created\",\"subject_id\":4}', '2026-07-10 03:16:28'),
+(18, 4, 'compiled_results', '{\"action\":\"created\",\"subject_id\":4}', '2026-07-10 03:16:28'),
+(19, 4, 'classes', '{\"action\":\"created\",\"class_id\":2}', '2026-07-10 04:41:36'),
+(20, 4, 'students', '{\"action\":\"created\",\"class_id\":2}', '2026-07-10 04:41:36'),
+(21, 4, 'subject_assignments', '{\"action\":\"created\",\"class_id\":2}', '2026-07-10 04:41:36'),
+(22, 4, 'subject_assignments', '{\"action\":\"deleted\",\"assignment_id\":1}', '2026-07-10 04:42:21'),
+(23, 4, 'classes', '{\"action\":\"deleted\",\"assignment_id\":1}', '2026-07-10 04:42:21'),
+(24, 4, 'teachers', '{\"action\":\"deleted\",\"assignment_id\":1}', '2026-07-10 04:42:21'),
+(25, 4, 'scores', '{\"action\":\"deleted\",\"assignment_id\":1}', '2026-07-10 04:42:21'),
+(26, 4, 'compiled_results', '{\"action\":\"deleted\",\"assignment_id\":1}', '2026-07-10 04:42:21'),
+(27, 4, 'subject_assignments', '{\"action\":\"deleted\",\"assignment_id\":3}', '2026-07-10 04:42:30'),
+(28, 4, 'classes', '{\"action\":\"deleted\",\"assignment_id\":3}', '2026-07-10 04:42:30'),
+(29, 4, 'teachers', '{\"action\":\"deleted\",\"assignment_id\":3}', '2026-07-10 04:42:30'),
+(30, 4, 'scores', '{\"action\":\"deleted\",\"assignment_id\":3}', '2026-07-10 04:42:30'),
+(31, 4, 'compiled_results', '{\"action\":\"deleted\",\"assignment_id\":3}', '2026-07-10 04:42:30'),
+(32, 4, 'subject_assignments', '{\"action\":\"created\",\"assignment_id\":5,\"class_id\":2,\"teacher_id\":1,\"subject_id\":2,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:42:56'),
+(33, 4, 'classes', '{\"action\":\"created\",\"assignment_id\":5,\"class_id\":2,\"teacher_id\":1,\"subject_id\":2,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:42:56'),
+(34, 4, 'teachers', '{\"action\":\"created\",\"assignment_id\":5,\"class_id\":2,\"teacher_id\":1,\"subject_id\":2,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:42:56'),
+(35, 4, 'scores', '{\"action\":\"created\",\"assignment_id\":5,\"class_id\":2,\"teacher_id\":1,\"subject_id\":2,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:42:56'),
+(36, 4, 'compiled_results', '{\"action\":\"created\",\"assignment_id\":5,\"class_id\":2,\"teacher_id\":1,\"subject_id\":2,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:42:56'),
+(37, 4, 'subject_assignments', '{\"action\":\"created\",\"assignment_id\":6,\"class_id\":2,\"teacher_id\":1,\"subject_id\":4,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:32'),
+(38, 4, 'classes', '{\"action\":\"created\",\"assignment_id\":6,\"class_id\":2,\"teacher_id\":1,\"subject_id\":4,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:32'),
+(39, 4, 'teachers', '{\"action\":\"created\",\"assignment_id\":6,\"class_id\":2,\"teacher_id\":1,\"subject_id\":4,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:32'),
+(40, 4, 'scores', '{\"action\":\"created\",\"assignment_id\":6,\"class_id\":2,\"teacher_id\":1,\"subject_id\":4,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:32'),
+(41, 4, 'compiled_results', '{\"action\":\"created\",\"assignment_id\":6,\"class_id\":2,\"teacher_id\":1,\"subject_id\":4,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:32'),
+(42, 4, 'subject_assignments', '{\"action\":\"created\",\"assignment_id\":7,\"class_id\":1,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(43, 4, 'classes', '{\"action\":\"created\",\"assignment_id\":7,\"class_id\":1,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(44, 4, 'teachers', '{\"action\":\"created\",\"assignment_id\":7,\"class_id\":1,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(45, 4, 'scores', '{\"action\":\"created\",\"assignment_id\":7,\"class_id\":1,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(46, 4, 'compiled_results', '{\"action\":\"created\",\"assignment_id\":7,\"class_id\":1,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(47, 4, 'subject_assignments', '{\"action\":\"created\",\"assignment_id\":8,\"class_id\":1,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(48, 4, 'classes', '{\"action\":\"created\",\"assignment_id\":8,\"class_id\":1,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(49, 4, 'teachers', '{\"action\":\"created\",\"assignment_id\":8,\"class_id\":1,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(50, 4, 'scores', '{\"action\":\"created\",\"assignment_id\":8,\"class_id\":1,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(51, 4, 'compiled_results', '{\"action\":\"created\",\"assignment_id\":8,\"class_id\":1,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:47'),
+(52, 4, 'subject_assignments', '{\"action\":\"created\",\"assignment_id\":9,\"class_id\":2,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(53, 4, 'classes', '{\"action\":\"created\",\"assignment_id\":9,\"class_id\":2,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(54, 4, 'teachers', '{\"action\":\"created\",\"assignment_id\":9,\"class_id\":2,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(55, 4, 'scores', '{\"action\":\"created\",\"assignment_id\":9,\"class_id\":2,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(56, 4, 'compiled_results', '{\"action\":\"created\",\"assignment_id\":9,\"class_id\":2,\"teacher_id\":2,\"subject_id\":1,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(57, 4, 'subject_assignments', '{\"action\":\"created\",\"assignment_id\":10,\"class_id\":2,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(58, 4, 'classes', '{\"action\":\"created\",\"assignment_id\":10,\"class_id\":2,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(59, 4, 'teachers', '{\"action\":\"created\",\"assignment_id\":10,\"class_id\":2,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(60, 4, 'scores', '{\"action\":\"created\",\"assignment_id\":10,\"class_id\":2,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(61, 4, 'compiled_results', '{\"action\":\"created\",\"assignment_id\":10,\"class_id\":2,\"teacher_id\":2,\"subject_id\":3,\"term\":\"First Term\",\"academic_year\":\"2026\\/2027\"}', '2026-07-10 04:43:59'),
+(62, 4, 'students', '{\"action\":\"created\",\"student_id\":2,\"class_id\":2}', '2026-07-10 04:46:44'),
+(63, 4, 'classes', '{\"action\":\"created\",\"student_id\":2,\"class_id\":2}', '2026-07-10 04:46:44'),
+(64, 4, 'parents', '{\"action\":\"unlinked\",\"parent_id\":1,\"student_id\":2}', '2026-07-10 04:47:23'),
+(65, 4, 'students', '{\"action\":\"unlinked\",\"parent_id\":1,\"student_id\":2}', '2026-07-10 04:47:23'),
+(66, 4, 'notifications', '{\"action\":\"unlinked\",\"parent_id\":1,\"student_id\":2}', '2026-07-10 04:47:23'),
+(67, 4, 'payments', '{\"action\":\"unlinked\",\"parent_id\":1,\"student_id\":2}', '2026-07-10 04:47:23'),
+(68, 4, 'compiled_results', '{\"action\":\"unlinked\",\"parent_id\":1,\"student_id\":2}', '2026-07-10 04:47:23'),
+(69, 4, 'parents', '{\"action\":\"linked\",\"parent_id\":2,\"student_id\":2}', '2026-07-10 13:28:04'),
+(70, 4, 'students', '{\"action\":\"linked\",\"parent_id\":2,\"student_id\":2}', '2026-07-10 13:28:04'),
+(71, 4, 'notifications', '{\"action\":\"linked\",\"parent_id\":2,\"student_id\":2}', '2026-07-10 13:28:04'),
+(72, 4, 'payments', '{\"action\":\"linked\",\"parent_id\":2,\"student_id\":2}', '2026-07-10 13:28:04'),
+(73, 4, 'compiled_results', '{\"action\":\"linked\",\"parent_id\":2,\"student_id\":2}', '2026-07-10 13:28:04'),
+(74, 4, 'students', '{\"action\":\"updated\",\"student_id\":2}', '2026-07-10 13:28:04'),
+(75, 4, 'classes', '{\"action\":\"updated\",\"student_id\":2}', '2026-07-10 13:28:04');
 
 -- --------------------------------------------------------
 
@@ -1241,6 +1361,14 @@ CREATE TABLE `students` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `students`
+--
+
+INSERT INTO `students` (`id`, `school_id`, `first_name`, `last_name`, `other_name`, `admission_number`, `class_id`, `level`, `parent_id`, `date_of_birth`, `gender`, `photo_url`, `passport_photo`, `status`, `academic_year`, `admission_date`, `created_at`, `updated_at`) VALUES
+(1, 4, 'Mark', 'Micheal', '', 'ECW/2026/0001', 1, 'JSS 1', NULL, '2017-07-08', 'Male', NULL, NULL, 'Active', '2026/2027', '2026-07-08', '2026-07-08 13:17:49', '2026-07-08 13:17:49'),
+(2, 4, 'MOSES', 'LOT', '', 'ECW/2026/0002', 2, 'JSS 2', 2, '2020-06-10', 'Male', NULL, NULL, 'Active', '2026/2027', '2026-07-10', '2026-07-10 04:46:44', '2026-07-10 13:28:04');
+
 -- --------------------------------------------------------
 
 --
@@ -1394,6 +1522,16 @@ CREATE TABLE `subjects` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `subjects`
+--
+
+INSERT INTO `subjects` (`id`, `school_id`, `name`, `code`, `category`, `department`, `description`, `is_core`, `status`, `created_at`, `updated_at`) VALUES
+(1, 4, 'MATHEMATICS', 'MATH', 'General', 'General', '', 0, 'Active', '2026-07-09 19:42:28', '2026-07-09 19:42:28'),
+(2, 4, 'ENGLISH LANGUAGE', 'ENG', 'General', 'General', '', 1, 'Active', '2026-07-10 03:03:58', '2026-07-10 03:03:58'),
+(3, 4, 'PHYSICAL HEALTH EDUCATION', 'PHE', 'General', 'General', '', 0, 'Active', '2026-07-10 03:08:34', '2026-07-10 03:08:34'),
+(4, 4, 'COMPUTER STUDIES', 'COMP', 'General', 'General', '', 0, 'Active', '2026-07-10 03:16:28', '2026-07-10 03:16:28');
+
 -- --------------------------------------------------------
 
 --
@@ -1413,6 +1551,20 @@ CREATE TABLE `subject_assignments` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `subject_assignments`
+--
+
+INSERT INTO `subject_assignments` (`id`, `school_id`, `subject_id`, `class_id`, `teacher_id`, `academic_year`, `term`, `status`, `created_at`, `updated_at`) VALUES
+(2, 4, 2, 1, 1, '2026/2027', 'First Term', 'Active', '2026-07-10 04:08:15', '2026-07-10 04:08:15'),
+(4, 4, 4, 1, 1, '2026/2027', 'First Term', 'Active', '2026-07-10 04:08:16', '2026-07-10 04:08:16'),
+(5, 4, 2, 2, 1, '2026/2027', 'First Term', 'Active', '2026-07-10 04:42:56', '2026-07-10 04:42:56'),
+(6, 4, 4, 2, 1, '2026/2027', 'First Term', 'Active', '2026-07-10 04:43:32', '2026-07-10 04:43:32'),
+(7, 4, 1, 1, 2, '2026/2027', 'First Term', 'Active', '2026-07-10 04:43:47', '2026-07-10 04:43:47'),
+(8, 4, 3, 1, 2, '2026/2027', 'First Term', 'Active', '2026-07-10 04:43:47', '2026-07-10 04:43:47'),
+(9, 4, 1, 2, 2, '2026/2027', 'First Term', 'Active', '2026-07-10 04:43:59', '2026-07-10 04:43:59'),
+(10, 4, 3, 2, 2, '2026/2027', 'First Term', 'Active', '2026-07-10 04:43:59', '2026-07-10 04:43:59');
+
 -- --------------------------------------------------------
 
 --
@@ -1431,6 +1583,20 @@ CREATE TABLE `subject_registrations` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `subject_registrations`
+--
+
+INSERT INTO `subject_registrations` (`id`, `school_id`, `subject_id`, `class_id`, `academic_year`, `term`, `is_compulsory`, `status`, `created_at`, `updated_at`) VALUES
+(17, 4, 1, 1, '2026/2027', 'First Term', 1, 'Active', '2026-07-10 04:02:34', '2026-07-10 04:02:34'),
+(22, 4, 2, 1, '2026/2027', 'First Term', 1, 'Active', '2026-07-10 04:07:02', '2026-07-10 04:07:02'),
+(23, 4, 3, 1, '2026/2027', 'First Term', 1, 'Active', '2026-07-10 04:07:03', '2026-07-10 04:07:03'),
+(24, 4, 4, 1, '2026/2027', 'First Term', 1, 'Active', '2026-07-10 04:07:05', '2026-07-10 04:07:05'),
+(25, 4, 1, 2, '2026/2027', 'First Term', 1, 'Active', '2026-07-10 04:42:04', '2026-07-10 04:42:04'),
+(26, 4, 2, 2, '2026/2027', 'First Term', 1, 'Active', '2026-07-10 04:42:06', '2026-07-10 04:42:06'),
+(27, 4, 3, 2, '2026/2027', 'First Term', 1, 'Active', '2026-07-10 04:42:07', '2026-07-10 04:42:07'),
+(28, 4, 4, 2, '2026/2027', 'First Term', 1, 'Active', '2026-07-10 04:42:08', '2026-07-10 04:42:08');
 
 -- --------------------------------------------------------
 
@@ -1457,7 +1623,7 @@ CREATE TABLE `super_admins` (
 --
 
 INSERT INTO `super_admins` (`id`, `username`, `email`, `password_hash`, `first_name`, `last_name`, `status`, `last_login`, `last_login_ip`, `created_at`, `updated_at`) VALUES
-(1, 'superadmin', 'admin@smugflex.com', '$2y$12$2YwkQnhYP9RukMdl6wdCmOJAYkQW.SsZKjUMhFQsSd91WQYgggonO', 'SMugFlex', 'Admin', 'active', '2026-07-05 17:04:12', '197.211.63.165', '2026-07-04 10:45:46', '2026-07-05 17:04:12');
+(1, 'superadmin', 'admin@smugflex.com', '$2y$12$2YwkQnhYP9RukMdl6wdCmOJAYkQW.SsZKjUMhFQsSd91WQYgggonO', 'SMugFlex', 'Admin', 'active', '2026-07-10 05:48:03', '102.91.77.121', '2026-07-04 10:45:46', '2026-07-10 05:48:03');
 
 -- --------------------------------------------------------
 
@@ -1490,7 +1656,8 @@ CREATE TABLE `teachers` (
 --
 
 INSERT INTO `teachers` (`id`, `school_id`, `first_name`, `last_name`, `other_name`, `employee_id`, `email`, `phone`, `gender`, `qualification`, `specialization`, `status`, `is_class_teacher`, `department_id`, `signature`, `created_at`, `updated_at`) VALUES
-(1, 4, 'HOSEA', 'URBANUS', NULL, 'TCH2026001', 'hoseaurbanusaudu1@gmail.com', '09030031278', NULL, 'B.Sc', '[]', 'Active', 1, NULL, NULL, '2026-07-04 15:02:56', '2026-07-05 19:36:27');
+(1, 4, 'HOSEA', 'URBANUS', NULL, 'TCH2026001', 'hoseaurbanusaudu1@gmail.com', '09030031278', NULL, 'B.Sc', '[]', 'Active', 1, NULL, NULL, '2026-07-04 15:02:56', '2026-07-05 19:36:27'),
+(2, 4, 'JET', 'GOF', NULL, 'TCH2026002', 'get.gof@school.local', '09080767565', NULL, '', '[]', 'Active', 1, NULL, NULL, '2026-07-10 04:40:06', '2026-07-10 04:41:36');
 
 -- --------------------------------------------------------
 
@@ -1569,9 +1736,11 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `school_id`, `username`, `password_hash`, `password_reset_token`, `password_reset_expires`, `role`, `linked_id`, `email`, `status`, `must_change_password`, `last_login`, `created_at`, `updated_at`) VALUES
-(3, 4, 'admin', '$2y$12$YOPVUoQ10smUW28ONr5vpeYJD3p/ikUUPugXGs4mhOwo7C3ZnUMeS', NULL, NULL, 'admin', 0, 'admin@ecwa', 'Active', 0, '2026-07-05 20:36:22', '2026-07-04 13:41:16', '2026-07-05 20:36:22'),
-(4, 4, 'Urbanus.audu', '$2y$10$lpqGdwwSlyyh6TEDA7QCH.m/mcrHnQEEC3V/rnXTvHp76nlHLgqV.', NULL, NULL, 'teacher', 1, 'hoseaurbanusaudu1@gmail.com', 'Active', 0, '2026-07-05 20:38:37', '2026-07-04 15:02:56', '2026-07-05 20:38:37'),
-(5, 4, 'Jacob.nesai', '$2y$10$l.3YKjWtLuXTpkLuRSsyvu6OZbj0kr5Z0.NzqGrat4nzJeQ9J71oe', NULL, NULL, 'parent', 1, 'hoseaurbanusaudu2@gmail.com', 'Active', 0, '2026-07-05 07:30:17', '2026-07-05 07:29:41', '2026-07-05 07:30:17');
+(3, 4, 'admin', '$2y$12$YOPVUoQ10smUW28ONr5vpeYJD3p/ikUUPugXGs4mhOwo7C3ZnUMeS', NULL, NULL, 'admin', 0, 'admin@ecwa', 'Active', 0, '2026-07-10 12:46:28', '2026-07-04 13:41:16', '2026-07-10 12:46:28'),
+(4, 4, 'Urbanus.audu', '$2y$10$lpqGdwwSlyyh6TEDA7QCH.m/mcrHnQEEC3V/rnXTvHp76nlHLgqV.', NULL, NULL, 'teacher', 1, 'hoseaurbanusaudu1@gmail.com', 'Active', 0, '2026-07-10 04:21:38', '2026-07-04 15:02:56', '2026-07-10 04:21:38'),
+(5, 4, 'Jacob.nesai', '$2y$10$l.3YKjWtLuXTpkLuRSsyvu6OZbj0kr5Z0.NzqGrat4nzJeQ9J71oe', NULL, NULL, 'parent', 1, 'hoseaurbanusaudu2@gmail.com', 'Active', 0, '2026-07-05 07:30:17', '2026-07-05 07:29:41', '2026-07-05 07:30:17'),
+(11, 4, 'get.gof', '$2y$10$sGsjKKqzULUQBNPr0UrsSON2A8sV3Kx3bP1cupsMlpKzyrWJTukbi', NULL, NULL, 'teacher', 2, 'get.gof@school.local', 'Active', 0, NULL, '2026-07-10 04:40:06', '2026-07-10 04:40:06'),
+(13, 4, 'john.daniel', '$2y$10$AMJ2BhFbzh0WBukz/CPH2e5cIxRTKJyfXKq1GiXjK3RM87MQLr8VK', NULL, NULL, 'parent', 2, 'john.daniel@school.local', 'Active', 0, '2026-07-10 12:45:41', '2026-07-10 12:42:09', '2026-07-10 12:45:41');
 
 -- --------------------------------------------------------
 
@@ -2025,7 +2194,8 @@ ALTER TABLE `psychomotor_domains`
 ALTER TABLE `realtime_events`
   ADD PRIMARY KEY (`id`),
   ADD KEY `topic` (`topic`),
-  ADD KEY `created_at` (`created_at`);
+  ADD KEY `created_at` (`created_at`),
+  ADD KEY `idx_realtime_events_school_id` (`school_id`);
 
 --
 -- Indexes for table `role_permissions`
@@ -2311,7 +2481,7 @@ ALTER TABLE `accountants`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `affective_domains`
@@ -2383,7 +2553,7 @@ ALTER TABLE `cbt_question_bank`
 -- AUTO_INCREMENT for table `classes`
 --
 ALTER TABLE `classes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `class_progression_rules`
@@ -2395,7 +2565,7 @@ ALTER TABLE `class_progression_rules`
 -- AUTO_INCREMENT for table `class_teacher_assignments`
 --
 ALTER TABLE `class_teacher_assignments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `class_timetable`
@@ -2473,13 +2643,13 @@ ALTER TABLE `notifications`
 -- AUTO_INCREMENT for table `parents`
 --
 ALTER TABLE `parents`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `parent_student_links`
 --
 ALTER TABLE `parent_student_links`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `password_reset_log`
@@ -2521,7 +2691,7 @@ ALTER TABLE `psychomotor_domains`
 -- AUTO_INCREMENT for table `realtime_events`
 --
 ALTER TABLE `realtime_events`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=76;
 
 --
 -- AUTO_INCREMENT for table `role_permissions`
@@ -2539,7 +2709,7 @@ ALTER TABLE `scholarships`
 -- AUTO_INCREMENT for table `schools`
 --
 ALTER TABLE `schools`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `school_calendar`
@@ -2587,7 +2757,7 @@ ALTER TABLE `signature_settings`
 -- AUTO_INCREMENT for table `students`
 --
 ALTER TABLE `students`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `student_fee_balances`
@@ -2617,19 +2787,19 @@ ALTER TABLE `student_term_invoices`
 -- AUTO_INCREMENT for table `subjects`
 --
 ALTER TABLE `subjects`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `subject_assignments`
 --
 ALTER TABLE `subject_assignments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `subject_registrations`
 --
 ALTER TABLE `subject_registrations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `super_admins`
@@ -2641,7 +2811,7 @@ ALTER TABLE `super_admins`
 -- AUTO_INCREMENT for table `teachers`
 --
 ALTER TABLE `teachers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `terms`
@@ -2653,7 +2823,7 @@ ALTER TABLE `terms`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `user_dashboard_responsibilities`
@@ -2843,6 +3013,12 @@ ALTER TABLE `parents`
   ADD CONSTRAINT `fk_parents_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `parent_student_links`
+--
+ALTER TABLE `parent_student_links`
+  ADD CONSTRAINT `fk_parent_student_links_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `payments`
 --
 ALTER TABLE `payments`
@@ -2859,6 +3035,12 @@ ALTER TABLE `platform_activity_logs`
 --
 ALTER TABLE `psychomotor_domains`
   ADD CONSTRAINT `fk_psychomotor_domains_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `realtime_events`
+--
+ALTER TABLE `realtime_events`
+  ADD CONSTRAINT `fk_realtime_events_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `scholarships`

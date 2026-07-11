@@ -319,6 +319,7 @@ class InvoiceController {
             ], 'Invoices generated successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in InvoiceController: " . $e->getMessage());
             Response::serverError('Database error generating invoices');
         }
     }
@@ -370,6 +371,7 @@ class InvoiceController {
             ], 'Invoice retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in InvoiceController: " . $e->getMessage());
             Response::serverError('Database error retrieving invoice');
         }
     }
@@ -416,6 +418,7 @@ class InvoiceController {
             Response::success($rows, 'Class invoices retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in InvoiceController: " . $e->getMessage());
             Response::serverError('Database error retrieving class invoices');
         }
     }

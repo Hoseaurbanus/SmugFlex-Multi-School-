@@ -12,9 +12,11 @@ class RealtimeEvents {
     private static function ensureTable(PDO $conn): void {
         $sql = "CREATE TABLE IF NOT EXISTS realtime_events (\n"
             . "  id BIGINT AUTO_INCREMENT PRIMARY KEY,\n"
+            . "  school_id INT(10) UNSIGNED NOT NULL DEFAULT 1,\n"
             . "  topic VARCHAR(64) NOT NULL,\n"
             . "  payload JSON NULL,\n"
             . "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n"
+            . "  INDEX (school_id),\n"
             . "  INDEX (topic),\n"
             . "  INDEX (created_at)\n"
             . ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
@@ -57,18 +59,12 @@ class RealtimeEvents {
         }
     }
 
-    public static function fetchSince(PDO $conn, int $lastId, int $limit = 50, ?int $school_id = null): array {
+    public static function fetchSince(PDO $conn, int $lastId, int $limit = 50, int $school_id = 0): array {
         self::ensureTable($conn);
-        if ($school_id !== null) {
-            $stmt = $conn->prepare("SELECT id, topic, payload, created_at FROM realtime_events WHERE id > :id AND school_id = :school_id ORDER BY id ASC LIMIT :lim");
-            $stmt->bindValue(':id', $lastId, PDO::PARAM_INT);
-            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
-            $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
-        } else {
-            $stmt = $conn->prepare("SELECT id, topic, payload, created_at FROM realtime_events WHERE id > :id ORDER BY id ASC LIMIT :lim");
-            $stmt->bindValue(':id', $lastId, PDO::PARAM_INT);
-            $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
-        }
+        $stmt = $conn->prepare("SELECT id, topic, payload, created_at FROM realtime_events WHERE id > :id AND school_id = :school_id ORDER BY id ASC LIMIT :lim");
+        $stmt->bindValue(':id', $lastId, PDO::PARAM_INT);
+        $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }

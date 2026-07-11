@@ -125,15 +125,7 @@ class UserController {
             $countStmt->execute($params);
             $total = $countStmt->fetch()['total'];
             
-            Response::success([
-                'items' => $users,
-                'pagination' => [
-                    'page' => $page,
-                    'limit' => $limit,
-                    'total' => $total,
-                    'totalPages' => ceil($total / $limit)
-                ]
-            ]);
+            Response::paginated($users, $page, $limit, $total, 'Users retrieved successfully');
             
         } catch (Exception $e) {
             Response::error('Failed to fetch users: An error occurred');

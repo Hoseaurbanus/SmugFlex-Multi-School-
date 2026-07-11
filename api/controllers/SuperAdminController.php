@@ -218,6 +218,7 @@ class SuperAdminController {
 
             $this->conn->commit();
         } catch (PDOException $e) {
+            error_log("PDO Error in SuperAdminController.approveSchool: " . $e->getMessage());
             $this->conn->rollBack();
             Response::serverError('Failed to approve school');
         }
@@ -664,6 +665,7 @@ class SuperAdminController {
             }
             $this->conn->commit();
         } catch (PDOException $e) {
+            error_log("PDO Error in SuperAdminController.updateSchoolModules: " . $e->getMessage());
             $this->conn->rollBack();
             Response::serverError('Failed to update modules');
         }
@@ -754,6 +756,7 @@ class SuperAdminController {
 
             $this->conn->commit();
         } catch (PDOException $e) {
+            error_log("PDO Error in SuperAdminController.createSchool: " . $e->getMessage());
             $this->conn->rollBack();
             Response::serverError('Failed to create school');
         }

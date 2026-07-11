@@ -333,6 +333,7 @@ class ResultsController
 
             Response::success(null, 'Score approved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error approving score');
         } catch (Throwable $e) {
             Response::serverError('Error approving score');
@@ -393,6 +394,7 @@ class ResultsController
 
             Response::success(null, 'Score rejected successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error rejecting score');
         } catch (Throwable $e) {
             Response::serverError('Error rejecting score');
@@ -497,6 +499,7 @@ class ResultsController
 
             Response::success($results, 'Pending approvals retrieved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error retrieving pending approvals');
         } catch (Throwable $e) {
             Response::serverError('Error retrieving pending approvals');
@@ -554,6 +557,7 @@ class ResultsController
             Response::success($scores, 'Scores retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error retrieving scores');
         }
     }
@@ -814,6 +818,7 @@ class ResultsController
             Response::success(null, 'Scores saved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController.upsertScores: " . $e->getMessage());
             $this->conn->rollBack();
             Response::serverError('Database error saving scores');
         }
@@ -890,6 +895,7 @@ class ResultsController
 
             Response::success(null, 'Scores submitted successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error submitting scores');
         }
     }
@@ -998,6 +1004,7 @@ class ResultsController
             Response::success($scores, 'Scores retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error retrieving scores');
         } catch (Exception $e) {
             Response::serverError('Error retrieving scores');
@@ -1301,6 +1308,7 @@ class ResultsController
             Response::success($results, 'Compiled results retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error retrieving compiled results');
         } catch (Exception $e) {
             Response::serverError('Error retrieving compiled results');
@@ -2266,11 +2274,14 @@ class ResultsController
             }
 
             // Verify teacher has access to this class
-            $teacher_check_query = "SELECT COUNT(*) as count FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND school_id = :school_id";
+            $teacher_check_query = "SELECT COUNT(*) as count FROM (SELECT id FROM subject_assignments WHERE teacher_id = :teacher_id AND class_id = :class_id AND status = 'Active' AND school_id = :school_id UNION SELECT id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND class_id = :class_id_cta AND status = 'Active' AND school_id = :school_id_cta) AS access_check";
             $teacher_check_stmt = $this->conn->prepare($teacher_check_query);
             $teacher_check_stmt->bindParam(':teacher_id', $token_data['linked_id']);
             $teacher_check_stmt->bindParam(':class_id', $student['class_id']);
             $teacher_check_stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $teacher_check_stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+            $teacher_check_stmt->bindParam(':class_id_cta', $student['class_id']);
+            $teacher_check_stmt->bindParam(':school_id_cta', $school_id, PDO::PARAM_INT);
             $teacher_check_stmt->execute();
 
             if ($teacher_check_stmt->fetch()['count'] == 0) {
@@ -2482,6 +2493,7 @@ class ResultsController
             Response::success($response_data, 'Student compilation status retrieved successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error checking student compilation status');
         }
     }
@@ -2549,6 +2561,7 @@ class ResultsController
             Response::success($response, 'Compilation status checked successfully');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController: " . $e->getMessage());
             Response::serverError('Database error checking compilation status');
         }
     }
@@ -3234,9 +3247,11 @@ class ResultsController
             ], "Cumulative results compiled for {$compiled_count} students");
 
         } catch (PDOException $e) {
+            error_log("PDO Error in ResultsController.compileCumulative: " . $e->getMessage());
             if ($this->conn && $this->conn->inTransaction()) $this->conn->rollBack();
             Response::serverError('Database error during cumulative compilation');
         } catch (Exception $e) {
+            error_log("Exception in ResultsController.compileCumulative: " . $e->getMessage());
             if ($this->conn && $this->conn->inTransaction()) $this->conn->rollBack();
             Response::serverError('Failed to compile cumulative results');
         }

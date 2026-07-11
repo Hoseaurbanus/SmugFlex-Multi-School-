@@ -730,7 +730,7 @@ function ManageClassesPageDesktop() {
           {selectedClass && (
             <div className="section-band">
               <div>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <div>
                     <h2 className="text-2xl font-heading font-bold text-[#0A2540]">{selectedClass.name}</h2>
                     <p className="text-gray-600">{selectedClass.level} • {selectedClass.category}</p>
@@ -791,26 +791,38 @@ function ManageClassesPageDesktop() {
                     <h3 className="text-lg font-semibold mb-4">Students ({selectedClass.currentStudents})</h3>
                     <div className="max-h-96 overflow-y-auto">
                       {classStudents.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Admission No</TableHead>
-                                <TableHead>Gender</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {classStudents.map((student: Student) => (
-                                <TableRow key={student.id}>
-                                  <TableCell>{student.firstName} {student.lastName}</TableCell>
-                                  <TableCell>{student.admissionNumber}</TableCell>
-                                  <TableCell>{student.gender}</TableCell>
+                        <>
+                          <div className="hidden lg:block overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>Admission No</TableHead>
+                                  <TableHead>Gender</TableHead>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
+                              </TableHeader>
+                              <TableBody>
+                                {classStudents.map((student: Student) => (
+                                  <TableRow key={student.id}>
+                                    <TableCell>{student.firstName} {student.lastName}</TableCell>
+                                    <TableCell>{student.admissionNumber}</TableCell>
+                                    <TableCell>{student.gender}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          <div className="block lg:hidden space-y-2">
+                            {classStudents.map((student: Student) => (
+                              <div key={student.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
+                                <div className="min-w-0">
+                                  <p className="font-medium text-sm truncate">{student.firstName} {student.lastName}</p>
+                                  <p className="text-xs text-gray-500">ADM: {student.admissionNumber} • {student.gender}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
                       ) : (
                         <p className="text-gray-500 text-center py-8">No students enrolled in this class</p>
                       )}
@@ -821,53 +833,82 @@ function ManageClassesPageDesktop() {
                 {/* Subject Management Section */}
                 <div className="mt-8 border-t pt-6">
                   <h3 className="text-lg font-semibold mb-4">Registered Subjects ({classRegisteredSubjects.length})</h3>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Subject</TableHead>
-                          <TableHead>Code</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {classRegisteredSubjects.length > 0 ? (
-                          classRegisteredSubjects.map((reg) => (
-                            <TableRow key={reg.id}>
-                              <TableCell className="font-medium">{reg.subject_name || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.name || 'Unknown'}</TableCell>
-                              <TableCell>{reg.subject_code || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.code || '-'}</TableCell>
-                              <TableCell>
-                                <Badge variant={reg.is_compulsory ? 'default' : 'secondary'}>
-                                  {reg.is_compulsory ? 'Compulsory' : 'Optional'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => handleRemoveSubject(reg.subject_id)}
-                                  disabled={actionLoading === `remove-${reg.subject_id}`}
-                                >
-                                  {actionLoading === `remove-${reg.subject_id}` ? (
-                                    <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
-                                  ) : (
-                                    <Trash className="w-4 h-4" weight="bold" />
-                                  )}
-                                </Button>
+                  <>
+                    <div className="hidden lg:block overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Subject</TableHead>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {classRegisteredSubjects.length > 0 ? (
+                            classRegisteredSubjects.map((reg) => (
+                              <TableRow key={reg.id}>
+                                <TableCell className="font-medium">{reg.subject_name || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.name || 'Unknown'}</TableCell>
+                                <TableCell>{reg.subject_code || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.code || '-'}</TableCell>
+                                <TableCell>
+                                  <Badge variant={reg.is_compulsory ? 'default' : 'secondary'}>
+                                    {reg.is_compulsory ? 'Compulsory' : 'Optional'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleRemoveSubject(reg.subject_id)}
+                                    disabled={actionLoading === `remove-${reg.subject_id}`}
+                                  >
+                                    {actionLoading === `remove-${reg.subject_id}` ? (
+                                      <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
+                                    ) : (
+                                      <Trash className="w-4 h-4" weight="bold" />
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                                No subjects registered yet
                               </TableCell>
                             </TableRow>
-                          ))
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                              No subjects registered yet
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <div className="block lg:hidden space-y-2">
+                      {classRegisteredSubjects.length > 0 ? (
+                        classRegisteredSubjects.map((reg) => (
+                          <div key={reg.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate">{reg.subject_name || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.name || 'Unknown'}</p>
+                              <p className="text-xs text-gray-500">{reg.subject_code || subjects.find(s => Number(s.id) === Number(reg.subject_id))?.code || '-'} • <Badge variant={reg.is_compulsory ? 'default' : 'secondary'} className="text-[10px] px-1 py-0">{reg.is_compulsory ? 'Compulsory' : 'Optional'}</Badge></p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleRemoveSubject(reg.subject_id)}
+                              disabled={actionLoading === `remove-${reg.subject_id}`}
+                              className="shrink-0 ml-2"
+                            >
+                              {actionLoading === `remove-${reg.subject_id}` ? (
+                                <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
+                              ) : (
+                                <Trash className="w-4 h-4" weight="bold" />
+                              )}
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center py-4 text-gray-500 text-sm">No subjects registered yet</p>
+                      )}
+                    </div>
+                  </>
 
                   {/* Available Subjects to Register */}
                   {availableSubjects.length > 0 && (

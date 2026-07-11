@@ -124,6 +124,7 @@ class AuthController {
 
             $tokenPayload = [
                 'user_id'             => (int)$user['id'],
+                'linked_id'           => (int)$user['linked_id'],
                 'username'            => $username,
                 'full_identity'       => "{$username}@{$suffix}",
                 'role'                => $user['role'],
@@ -159,6 +160,7 @@ class AuthController {
             ], 'Login successful');
 
         } catch (PDOException $e) {
+            error_log("PDO Error in AuthController: " . $e->getMessage());
             Response::serverError('Database error during login');
         }
     }
@@ -399,6 +401,7 @@ class AuthController {
             $user_data['school_name'] = $token_data['school_name'] ?? '';
             Response::success($user_data, 'Profile retrieved successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in AuthController: " . $e->getMessage());
             Response::serverError('Database error retrieving profile');
         }
     }
@@ -455,6 +458,7 @@ class AuthController {
 
             Response::success(null, 'Password changed successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in AuthController: " . $e->getMessage());
             Response::serverError('Database error changing password');
         }
     }
@@ -503,6 +507,7 @@ class AuthController {
 
             Response::success($user_data, 'Token refreshed successfully');
         } catch (PDOException $e) {
+            error_log("PDO Error in AuthController: " . $e->getMessage());
             Response::serverError('Database error refreshing token');
         }
     }

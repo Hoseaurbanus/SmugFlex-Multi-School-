@@ -237,7 +237,7 @@ const LinkStudentParentPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Modern Header */}
       <div className="bg-gradient-to-r from-[#0A2540] to-[#1a3a5c] rounded-2xl p-6 md:p-8 text-white mb-8 shadow-xl relative">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
@@ -250,13 +250,13 @@ const LinkStudentParentPage: React.FC = () => {
               Connect students with their parents/guardians for seamless portal access and real-time progress tracking
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl">
-            <Users weight="bold" className="w-5 h-5" style={{ color: 'white' }} />
-            <span className="font-medium" style={{ color: 'white' }}>{totalStudents} Total Students</span>
+          <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 sm:px-4 py-2 rounded-xl">
+            <Users weight="bold" className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: 'white' }} />
+            <span className="font-medium text-sm sm:text-base" style={{ color: 'white' }}>{totalStudents} Students</span>
             <button
               onClick={refreshData}
               disabled={isRefreshing}
-              className="ml-2 p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors disabled:opacity-50"
+              className="ml-1 sm:ml-2 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors disabled:opacity-50"
               title="Refresh data"
             >
               {isRefreshing ? (
@@ -397,9 +397,9 @@ const LinkStudentParentPage: React.FC = () => {
                           <p className="text-xs text-gray-500">{student.admissionNumber}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {isLinked && (
-                          <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">
+                          <span className="text-[10px] sm:text-xs bg-emerald-100 text-emerald-800 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
                             Linked
                           </span>
                         )}
@@ -410,12 +410,13 @@ const LinkStudentParentPage: React.FC = () => {
                               handleLinkStudentParent();
                             }}
                             disabled={isLinking}
-                            className="bg-[#0A2540] text-white px-3 py-1 rounded text-xs font-medium hover:bg-[#0A2540]/90 disabled:opacity-50 flex items-center gap-1"
+                            className="bg-[#0A2540] text-white px-2 sm:px-3 py-1 rounded text-[10px] sm:text-xs font-medium hover:bg-[#0A2540]/90 disabled:opacity-50 flex items-center gap-1"
                           >
                             {isLinking ? (
                               <>
                                 <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-                                Linking...
+                                <span className="hidden sm:inline">Linking...</span>
+                                <span className="sm:hidden">...</span>
                               </>
                             ) : (
                               <>
@@ -507,9 +508,9 @@ const LinkStudentParentPage: React.FC = () => {
                           <p className="text-xs text-gray-500">{getParentEmail(parent)}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {linkedStudents.length > 0 && (
-                          <span className="text-xs bg-[#0A2540]/10 text-[#0A2540] px-2 py-1 rounded-full">
+                          <span className="text-[10px] sm:text-xs bg-[#0A2540]/10 text-[#0A2540] px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
                             {linkedStudents.length} linked
                           </span>
                         )}
@@ -520,12 +521,13 @@ const LinkStudentParentPage: React.FC = () => {
                               handleLinkStudentParent();
                             }}
                             disabled={isLinking}
-                            className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1"
+                            className="bg-emerald-600 text-white px-2 sm:px-3 py-1 rounded text-[10px] sm:text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1"
                           >
                             {isLinking ? (
                               <>
                                 <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-                                Linking...
+                                <span className="hidden sm:inline">Linking...</span>
+                                <span className="sm:hidden">...</span>
                               </>
                             ) : (
                               <>
@@ -568,9 +570,9 @@ const LinkStudentParentPage: React.FC = () => {
             if (!parent) return null;
             
             return (
-              <div key={student.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div key={student.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-[#0A2540]/10 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-[#0A2540]/10 rounded-full flex items-center justify-center shrink-0">
                     <User weight="bold" className="w-5 h-5 text-[#0A2540]" />
                   </div>
                   <div>
@@ -583,7 +585,7 @@ const LinkStudentParentPage: React.FC = () => {
                 
                 <div className="flex items-center gap-2 text-gray-400">
                   <Link weight="bold" className="w-4 h-4" />
-                  <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
                     <Users weight="bold" className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
@@ -640,11 +642,11 @@ const LinkStudentParentPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex gap-4 mt-6">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6">
           <button
             onClick={handleLinkStudentParent}
             disabled={!selectedStudent || !selectedParent || isLinking}
-            className="flex-1 bg-gradient-to-r from-[#0A2540] to-[#1a3a5c] text-white px-6 py-3 rounded-lg font-medium hover:from-[#0A2540]/90 hover:to-[#1a3a5c]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            className="flex-1 bg-gradient-to-r from-[#0A2540] to-[#1a3a5c] text-white px-6 py-3 rounded-lg font-medium hover:from-[#0A2540]/90 hover:to-[#1a3a5c]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
           >
             {isLinking ? (
               <>
@@ -663,7 +665,7 @@ const LinkStudentParentPage: React.FC = () => {
               <button
                 onClick={() => setShowUnlinkDialog(true)}
                 disabled={isUnlinking}
-                className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 {isUnlinking ? (
                   <>
@@ -684,14 +686,14 @@ const LinkStudentParentPage: React.FC = () => {
       {/* Unlink Confirmation Dialog */}
       {showUnlinkDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <Warning weight="bold" className="w-6 h-6 text-red-600" />
+          <div className="bg-white rounded-xl shadow-xl max-w-sm sm:max-w-md w-full p-5 sm:p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+                <Warning weight="bold" className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-heading font-bold text-gray-900">Confirm Unlink</h3>
-                  <p className="text-sm text-gray-500">
+                <h3 className="text-base sm:text-lg font-heading font-bold text-gray-900">Confirm Unlink</h3>
+                <p className="text-xs sm:text-sm text-gray-500">
                   Are you sure you want to unlink {selectedStudent?.firstName} {selectedStudent?.lastName} from their parent?
                 </p>
               </div>
@@ -700,13 +702,13 @@ const LinkStudentParentPage: React.FC = () => {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowUnlinkDialog(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUnlinkChild}
-                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm"
               >
                 Unlink
               </button>

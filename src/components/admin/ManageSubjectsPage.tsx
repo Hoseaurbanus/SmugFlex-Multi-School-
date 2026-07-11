@@ -35,6 +35,11 @@ export function ManageSubjectsPageFixed() {
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Refresh subjects list when page mounts
+  useEffect(() => {
+    loadSubjectsFromAPI(true);
+  }, []);
+
   // Filter subjects
   const filteredSubjects = subjects.filter(subject => {
     const matchesSearch = 
@@ -511,82 +516,137 @@ export function ManageSubjectsPageFixed() {
       {/* Subjects Table */}
       <div className="section-band p-6">
           {filteredSubjects.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Subject Code</TableHead>
-                    <TableHead>Subject Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Assignments</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedSubjects.map((subject: any) => (
-                    <TableRow key={subject.id}>
-                      <TableCell className="font-mono">{subject.code}</TableCell>
-                      <TableCell className="font-medium">{subject.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{subject.category}</Badge>
-                      </TableCell>
-                      <TableCell>{subject.department || subject.category}</TableCell>
-                      <TableCell>
-                        {subject.is_core ? (
-                          <Badge variant="default">Core</Badge>
-                        ) : (
-                          <Badge variant="secondary">Elective</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={subject.status === 'Active' ? 'default' : 'secondary'}>
-                          {subject.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">
-                          {getAssignmentCount(subject.id)} classes
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleToggleStatus(subject)}
-                            className="h-8"
-                            disabled={actionLoading === `toggle-${subject.id}`}
-                          >
-                            {actionLoading === `toggle-${subject.id}`
-                              ? 'Updating...'
-                              : (subject.status === 'Active' ? 'Disable' : 'Enable')}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openEditForm(subject)}
-                            className="h-8"
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => openDeleteDialog(subject)}
-                            className="h-8"
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </TableCell>
+            <>
+              <div className="hidden lg:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Subject Code</TableHead>
+                      <TableHead>Subject Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Assignments</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedSubjects.map((subject: any) => (
+                      <TableRow key={subject.id}>
+                        <TableCell className="font-mono">{subject.code}</TableCell>
+                        <TableCell className="font-medium">{subject.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{subject.category}</Badge>
+                        </TableCell>
+                        <TableCell>{subject.department || subject.category}</TableCell>
+                        <TableCell>
+                          {subject.is_core ? (
+                            <Badge variant="default">Core</Badge>
+                          ) : (
+                            <Badge variant="secondary">Elective</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={subject.status === 'Active' ? 'default' : 'secondary'}>
+                            {subject.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600">
+                            {getAssignmentCount(subject.id)} classes
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleToggleStatus(subject)}
+                              className="h-8"
+                              disabled={actionLoading === `toggle-${subject.id}`}
+                            >
+                              {actionLoading === `toggle-${subject.id}`
+                                ? 'Updating...'
+                                : (subject.status === 'Active' ? 'Disable' : 'Enable')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEditForm(subject)}
+                              className="h-8"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => openDeleteDialog(subject)}
+                              className="h-8"
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="block lg:hidden space-y-2">
+                {paginatedSubjects.map((subject: any) => (
+                  <div key={subject.id} className="p-2 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs text-gray-500">{subject.code}</p>
+                        <p className="font-medium text-sm truncate">{subject.name}</p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Badge variant="outline" className="text-[10px] px-1 py-0">{subject.category}</Badge>
+                        {subject.is_core ? (
+                          <Badge variant="default" className="text-[10px] px-1 py-0">Core</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0">Elective</Badge>
+                        )}
+                        <Badge variant={subject.status === 'Active' ? 'default' : 'secondary'} className="text-[10px] px-1 py-0">{subject.status}</Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-xs text-gray-500">{getAssignmentCount(subject.id)} classes</span>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleStatus(subject)}
+                          className="h-7 px-2 text-xs"
+                          disabled={actionLoading === `toggle-${subject.id}`}
+                        >
+                          {actionLoading === `toggle-${subject.id}`
+                            ? '...'
+                            : (subject.status === 'Active' ? 'Disable' : 'Enable')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditForm(subject)}
+                          className="h-7 px-2 text-xs"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => openDeleteDialog(subject)}
+                          className="h-7 px-2 text-xs"
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="text-center py-12">
               <Books weight="light" className="w-16 h-16 mx-auto mb-4 text-gray-300" />

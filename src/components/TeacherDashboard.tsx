@@ -185,9 +185,16 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     return (teacherClasses || []).filter((tc) => {
       const studentCount = Number(tc?.studentCount ?? 0);
       const subjectsCount = Array.isArray(tc?.subjects) ? tc.subjects.length : 0;
-      return studentCount > 0 || subjectsCount > 0;
+      const isClassTeacherClass = classTeacherAssignments.some((cta: any) =>
+        String(cta.teacher_id) === String(teacherId) &&
+        String(cta.class_id) === String(tc.classId) &&
+        cta.academic_year === currentAcademicYear &&
+        cta.term === currentTerm &&
+        cta.status === 'Active'
+      );
+      return studentCount > 0 || subjectsCount > 0 || isClassTeacherClass;
     });
-  }, [teacherClasses]);
+  }, [teacherClasses, classTeacherAssignments, currentAcademicYear, currentTerm, teacherId]);
   
   useEffect(() => {
     if (!teacherId) return;
@@ -199,6 +206,8 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           loadSubjectAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
           loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
         ]);
+        // Allow React state to settle before reading updated state
+        await new Promise((resolve) => setTimeout(resolve, 0));
         const classes = await getTeacherClasses(Number(teacherId));
         if (isMounted) { setTeacherClasses(classes); setDashboardLoadError(null); }
       } catch (error) {
