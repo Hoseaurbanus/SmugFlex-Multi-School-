@@ -114,7 +114,7 @@ export function PromotionSystemPage() {
   const loadProgressionRules = async () => {
     try {
       const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
-      const response = await fetch(`/api/progression/rules?academic_year=${encodeURIComponent(currentAcademicYear)}`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/progression/rules?academic_year=${encodeURIComponent(currentAcademicYear)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (response.ok) {
@@ -146,7 +146,7 @@ export function PromotionSystemPage() {
   const loadPromotionHistory = async () => {
     try {
       const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
-      const response = await fetch('/api/student/promotion-history', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/student/promotion-history`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (response.ok) {
@@ -179,7 +179,7 @@ export function PromotionSystemPage() {
 
     try {
       const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
-      const response = await fetch('/api/progression/rules', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/progression/rules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -443,7 +443,7 @@ export function PromotionSystemPage() {
 
     try {
       const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
-      const response = await fetch('/api/student/manual-class-change', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/student/manual-class-change`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -656,7 +656,7 @@ export function PromotionSystemPage() {
 
       // Call the API
       const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
-      const response = await fetch('/api/student/promote-students', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/student/promote-students`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

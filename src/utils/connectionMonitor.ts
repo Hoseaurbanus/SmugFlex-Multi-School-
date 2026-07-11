@@ -4,6 +4,7 @@
  */
 
 import { tokenManager } from './tokenManager';
+import { API_CONFIG } from '../config/api';
 
 export interface ConnectionMonitor {
   startMonitoring: () => void;
@@ -150,7 +151,7 @@ class ConnectionMonitorImpl implements ConnectionMonitor {
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
       try {
-        const response = await fetch(`${window.location.origin}/api/health.php`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/health.php`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${tokenManager.getToken()}`,

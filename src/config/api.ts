@@ -3,21 +3,30 @@
  * SMugFlex 2.0 Multi-School Management Platform
  */
 
+const DEFAULT_PRODUCTION_API_BASE_URL = 'https://smug.site.gracelandroyalacademy.com.ng/api';
+
+const getApiBaseUrl = () => {
+  const configuredBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, '');
+  }
+
+  if (typeof window === 'undefined') {
+    return DEFAULT_PRODUCTION_API_BASE_URL;
+  }
+
+  const host = window.location.hostname;
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  if (isLocal) {
+    return `${window.location.origin}/api`;
+  }
+
+  return DEFAULT_PRODUCTION_API_BASE_URL;
+};
+
 export const API_CONFIG = {
-  // Base URL - change this to match your server
-  BASE_URL: (() => {
-    if (typeof window === 'undefined') {
-      return (import.meta as any).env?.VITE_API_BASE_URL || `${(globalThis as any).location?.origin || 'http://localhost:3000'}/api`;
-    }
-
-    const host = window.location.hostname;
-    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
-    if (isLocal) {
-      return `${window.location.origin}/api`;
-    }
-
-    return (import.meta as any).env?.VITE_API_BASE_URL || `${window.location.origin}/api`;
-  })(),
+  // Base URL - points the Vercel frontend to the cPanel backend in production
+  BASE_URL: getApiBaseUrl(),
   
   // API Version
   VERSION: 'v1',

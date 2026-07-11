@@ -6,6 +6,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import bgImage from "../assets/images/smug.jpg";
+import { API_CONFIG } from "../config/api";
 
 const STATES = [
   "Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue","Borno",
@@ -36,7 +37,7 @@ export function RegistrationPage() {
 
     try {
       const res = await fetch(
-        `${window.location.origin.replace(/:\d+$/, "")}/api/schools/register`,
+        `${API_CONFIG.BASE_URL}/schools/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
