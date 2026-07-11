@@ -25,6 +25,18 @@ class Database {
         }
     }
 
+    private function shouldEmulatePrepares() {
+        $value = $_ENV['DB_EMULATE_PREPARES'] ?? getenv('DB_EMULATE_PREPARES');
+        if ($value === null || $value === false) {
+            return false;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        $value = strtolower(trim((string)$value));
+        return in_array($value, ['1', 'true', 'on', 'yes'], true);
+    }
+
     private function loadEnv() {
         if (isset($_ENV['DB_HOST']) || getenv('DB_HOST')) return;
 
@@ -65,6 +77,10 @@ class Database {
                 }
 
                 $name = trim($parts[0]);
+                if ($name === '') {
+                    continue;
+                }
+
                 $value = trim($parts[1]);
 
                 // Remove quotes if present
@@ -88,11 +104,11 @@ class Database {
             $this->conn = new PDO($dsn, $this->username, $this->password, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => true,
+                PDO::ATTR_EMULATE_PREPARES => $this->shouldEmulatePrepares(),
             ]);
         } catch(PDOException $exception) {
             error_log("Database connection failed: " . $exception->getMessage());
-            throw new Exception("Database connection failed");
+            throw new Exception("Database connection failed", 0, $exception);
         }
         
         return $this->conn;
@@ -149,6 +165,10 @@ class Config {
                 }
 
                 $name = trim($parts[0]);
+                if ($name === '') {
+                    continue;
+                }
+
                 $value = trim($parts[1]);
 
                 if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
@@ -242,7 +262,7 @@ class Config {
     
     // Timezone
     public static function getTimezone() {
-        return self::get('APP_TIMEZONE', 'Africa/Lagos');
+        return self::get('APP_TIMEZONE', date_default_timezone_get() ?: 'UTC');
     }
 }
 ?>
