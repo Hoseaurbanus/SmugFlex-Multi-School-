@@ -6,14 +6,12 @@
  * Integrates with existing database configuration
  */
 
+require_once __DIR__ . '/../helpers/Cors.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    Response::options();
-}
+Cors::handle();
 
 // Only allow POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

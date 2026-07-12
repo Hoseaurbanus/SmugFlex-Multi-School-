@@ -1,14 +1,12 @@
 <?php
 // Academic Years endpoint
+require_once 'helpers/Cors.php';
+Cors::handle();
 require_once 'config/database.php';
 require_once 'helpers/Response.php';
 require_once 'helpers/JWT.php';
 require_once 'helpers/Middleware.php';
 require_once 'helpers/TenantMiddleware.php';
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    Response::options();
-}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     Response::error('Method not allowed', 405);

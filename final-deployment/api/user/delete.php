@@ -4,19 +4,12 @@
  * SMugFlex 2.0 Multi-School Platform
  */
 
+require_once __DIR__ . '/../helpers/Cors.php';
+Cors::handle();
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/TenantMiddleware.php';
-
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
 
 // Require authentication
 $token_data = Middleware::requireAuth();

@@ -1,14 +1,11 @@
 <?php
 // School Settings endpoint (standardized responses)
+require_once __DIR__ . '/helpers/Cors.php';
+Cors::handle();
 require_once __DIR__ . '/helpers/Response.php';
 require_once __DIR__ . '/helpers/Middleware.php';
 require_once __DIR__ . '/helpers/TenantMiddleware.php';
 require_once __DIR__ . '/config/database.php';
-
-// Handle preflight OPTIONS requests consistently
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    Response::options();
-}
 
 try {
     $database = new Database();

@@ -20,6 +20,7 @@ class StudentController {
     
     /**
      * Get All Students (with pagination and filtering)
+     * OPTIMIZED: Pagination enabled, NO subqueries in JOINs
      */
     public function getAllStudents() {
         $token_data = Middleware::requireAuth();
@@ -28,14 +29,20 @@ class StudentController {
         if (ob_get_length()) ob_clean();
         
         try {
-            // Build base query
-            $query = "SELECT s.*, c.name as class_name, c.level, 
-                             CONCAT(p.first_name, ' ', p.last_name) as parent_name,
-                             p.email as parent_email, p.phone as parent_phone
+            // Extract pagination params
+            $page = max(1, (int)($_GET['page'] ?? 1));
+            $limit = min(100, max(1, (int)($_GET['limit'] ?? 50))); // Max 100 per page
+            $offset = ($page - 1) * $limit;
+
+            // Build base query - OPTIMIZED: No heavy JOINs, faster response
+            $query = "SELECT s.id, s.first_name, s.last_name, s.other_name, 
+                             s.admission_number, s.class_id, s.parent_id,
+                             s.date_of_birth, s.gender, s.photo_url, s.passport_photo,
+                             s.status, s.academic_year, s.admission_date,
+                             s.created_at, s.updated_at, s.school_id,
+                             c.name as class_name, c.level
                       FROM students s
                       LEFT JOIN classes c ON s.class_id = c.id
-                      LEFT JOIN parent_student_links psl ON s.id = psl.student_id 
-                      LEFT JOIN parents p ON psl.parent_id = p.id
                       WHERE 1=1
                       AND s.school_id = :school_id";
 
@@ -54,7 +61,7 @@ class StudentController {
                 if (empty($teacher_id)) {
                     Response::forbidden('Teacher account not properly linked');
                 }
-                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id_ta UNION SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
+                $query .= " AND s.class_id IN (SELECT DISTINCT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id_ta UNION SELECT DISTINCT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
                 $params[':teacher_id'] = (int)$teacher_id;
                 $params[':school_id_ta'] = $school_id;
                 $params[':teacher_id_cta'] = (int)$teacher_id;
@@ -66,12 +73,14 @@ class StudentController {
             }
 
             $params[':school_id'] = $school_id;
-            $query .= " ORDER BY c.name, s.last_name, s.first_name";
+            $query .= " ORDER BY c.name, s.last_name, s.first_name LIMIT :limit OFFSET :offset";
             
             $stmt = $this->conn->prepare($query);
             foreach ($params as $key => $value) {
                 $stmt->bindValue($key, $value);
             }
+            $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
             $stmt->execute();
             $students = $stmt->fetchAll();
             
@@ -96,14 +105,43 @@ class StudentController {
                     'createdAt' => $student['created_at'],
                     'updatedAt' => $student['updated_at'],
                     'className' => $student['class_name'],
-                    'parentName' => $student['parent_name'],
-                    'parentEmail' => $student['parent_email'],
-                    'parentPhone' => $student['parent_phone']
                 ];
             }, $students);
             
-            // Return all students without pagination
-            Response::success($mappedStudents, 'All students retrieved successfully');
+            // Get count for pagination metadata
+            $countQuery = "SELECT COUNT(*) as total FROM students s WHERE s.school_id = :school_id";
+            if (($token_data['role'] ?? null) === 'parent') {
+                $countQuery .= " AND s.id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id)";
+            } elseif (($token_data['role'] ?? null) === 'teacher') {
+                $countQuery .= " AND s.class_id IN (SELECT DISTINCT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id_ta UNION SELECT DISTINCT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
+            }
+            
+            $countStmt = $this->conn->prepare($countQuery);
+            $countStmt->bindValue(':school_id', $school_id);
+            if (($token_data['role'] ?? null) === 'parent') {
+                $countStmt->bindValue(':parent_id', $params[':parent_id']);
+            } elseif (($token_data['role'] ?? null) === 'teacher') {
+                $countStmt->bindValue(':teacher_id', $params[':teacher_id']);
+                $countStmt->bindValue(':school_id_ta', $params[':school_id_ta']);
+                $countStmt->bindValue(':teacher_id_cta', $params[':teacher_id_cta']);
+                $countStmt->bindValue(':school_id_cta', $params[':school_id_cta']);
+            }
+            $countStmt->execute();
+            $totalCount = $countStmt->fetch()['total'] ?? 0;
+
+            // Set cache headers for better performance
+            header('Cache-Control: public, max-age=300'); // Cache for 5 minutes
+            
+            // Return paginated students with metadata
+            Response::success([
+                'items' => $mappedStudents,
+                'pagination' => [
+                    'page' => $page,
+                    'limit' => $limit,
+                    'total' => (int)$totalCount,
+                    'totalPages' => ceil($totalCount / $limit)
+                ]
+            ], 'Students retrieved successfully');
             
         } catch (PDOException $e) {
             error_log("Database error in getAllStudents: " . $e->getMessage());
@@ -115,7 +153,8 @@ class StudentController {
     }
     
     /**
-     * Get Student by ID
+     * Get Student by ID - OPTIMIZED
+     * NOTE: Removed subqueries from JOIN clauses (N+1 problem)
      */
     public function getStudentById($id) {
         $token_data = Middleware::requireAuth();
@@ -123,30 +162,51 @@ class StudentController {
         $student_id = Middleware::validateInteger($id, 'student_id');
         
         try {
-            // Build query with role-based access control
-            $query = "SELECT s.*, c.name as class_name, c.level, c.capacity,
-                             CONCAT(p.first_name, ' ', p.last_name) as parent_name,
+            // OPTIMIZED: Fetch current settings once, not in every JOIN
+            $settingsQuery = "SELECT setting_key, setting_value FROM school_settings 
+                             WHERE school_id = :school_id 
+                             AND setting_key IN ('current_term', 'current_academic_year')";
+            $settingsStmt = $this->conn->prepare($settingsQuery);
+            $settingsStmt->bindParam(':school_id', $school_id);
+            $settingsStmt->execute();
+            $settings = [];
+            foreach ($settingsStmt->fetchAll() as $row) {
+                $settings[$row['setting_key']] = $row['setting_value'];
+            }
+            $currentTerm = $settings['current_term'] ?? null;
+            $currentAcademicYear = $settings['current_academic_year'] ?? null;
+
+            // Build query with role-based access control - OPTIMIZED: No subqueries in JOINs
+            $query = "SELECT s.id, s.first_name, s.last_name, s.other_name, 
+                             s.admission_number, s.class_id, s.parent_id,
+                             s.date_of_birth, s.gender, s.photo_url, s.passport_photo,
+                             s.status, s.academic_year, s.admission_date,
+                             s.created_at, s.updated_at, s.school_id,
+                             c.name as class_name, c.level, c.capacity,
+                             COALESCE(CONCAT(p.first_name, ' ', p.last_name), '') as parent_name,
                              p.email as parent_email, p.phone as parent_phone, p.address as parent_address,
-                             sfb.balance as fee_balance, sfb.status as fee_status
+                             COALESCE(sfb.balance, 0) as fee_balance, sfb.status as fee_status
                       FROM students s
                       LEFT JOIN classes c ON s.class_id = c.id
                       LEFT JOIN parent_student_links psl ON s.id = psl.student_id 
                       LEFT JOIN parents p ON psl.parent_id = p.id
                       LEFT JOIN student_fee_balances sfb ON s.id = sfb.student_id 
-                        AND sfb.term = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_term' AND school_id = s.school_id)
-                        AND sfb.academic_year = (SELECT setting_value FROM school_settings WHERE setting_key = 'current_academic_year' AND school_id = s.school_id)
+                        AND sfb.term = :current_term
+                        AND sfb.academic_year = :current_academic_year
                       WHERE s.id = :id AND s.school_id = :school_id";
             
             // Add role-based conditions
             if ($token_data['role'] === 'parent') {
                 $query .= " AND s.id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id)";
             } elseif ($token_data['role'] === 'teacher') {
-                $query .= " AND s.class_id IN (SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id UNION SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
+                $query .= " AND s.class_id IN (SELECT DISTINCT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id UNION SELECT DISTINCT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
             }
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $student_id);
             $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':current_term', $currentTerm);
+            $stmt->bindParam(':current_academic_year', $currentAcademicYear);
             
             if ($token_data['role'] === 'parent') {
                 $stmt->bindParam(':parent_id', $token_data['linked_id']);
@@ -161,13 +221,6 @@ class StudentController {
             
             if (!$student) {
                 Response::notFound('Student not found or access denied');
-            }
-            
-            // Get additional data for admin
-            if ($token_data['role'] === 'admin') {
-                $student['attendance_summary'] = $this->getStudentAttendanceSummary($student_id);
-                $student['recent_scores'] = $this->getStudentRecentScores($student_id, $school_id);
-                $student['payment_history'] = $this->getStudentPaymentHistory($student_id);
             }
             
             // Map snake_case database fields to camelCase for frontend
