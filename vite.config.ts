@@ -61,6 +61,13 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'https://smug.site.gracelandroyalacademy.com.ng',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   cacheDir: '.vite',
   // Enable build optimizations
