@@ -13,7 +13,7 @@ if ($contentLength > $maxBodySize) {
 }
 
 // Dynamic CORS from .env
-$allowed_origins_str = Config::get('CORS_ORIGINS', 'https://smugflex.com,http://localhost:5173,http://localhost:3000');
+$allowed_origins_str = Config::get('CORS_ORIGINS', 'https://smug.site.gracelandroyalacademy.com.ng,https://smug-flex-multi-school-o3to.vercel.app,http://localhost:5173,http://localhost:3000');
 $allowed_origins = array_map('trim', explode(',', $allowed_origins_str));
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
