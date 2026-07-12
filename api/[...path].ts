@@ -1,6 +1,7 @@
 const CPANEL_API = process.env.CPANEL_API_URL || 'https://smug.site.gracelandroyalacademy.com.ng/api';
 
 export default async function handler(req: any, res: any) {
+  // CORS preflight
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
@@ -11,45 +12,45 @@ export default async function handler(req: any, res: any) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const pathParts = req.query.path;
-  const path = Array.isArray(pathParts) ? pathParts.join('/') : (pathParts || '');
-
-  const params = new URLSearchParams();
-  for (const [key, val] of Object.entries(req.query)) {
-    if (key !== 'path' && val !== undefined) {
-      params.set(key, Array.isArray(val) ? val[0] : String(val));
-    }
-  }
-  const qs = params.toString();
-  const targetUrl = `${CPANEL_API}/${path}${qs ? '?' + qs : ''}`;
-
-  const headers: Record<string, string> = {};
-  for (const h of ['content-type', 'authorization', 'x-school-id', 'accept']) {
-    if (req.headers[h]) headers[h] = req.headers[h] as string;
-  }
-
-  const fetchOptions: RequestInit = { method: req.method, headers };
-
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    if (chunks.length > 0) {
-      fetchOptions.body = Buffer.concat(chunks);
-    }
-  }
-
   try {
-    const response = await fetch(targetUrl, fetchOptions);
-    const ct = response.headers.get('content-type');
+    const pathParts = req.query.path;
+    const path = Array.isArray(pathParts) ? pathParts.join('/') : (pathParts || '');
+
+    // Build query string (exclude 'path' from params)
+    const params = new URLSearchParams();
+    for (const [key, val] of Object.entries(req.query)) {
+      if (key !== 'path' && val !== undefined) {
+        params.set(key, Array.isArray(val) ? val[0] : String(val));
+      }
+    }
+    const qs = params.toString();
+    const targetUrl = CPANEL_API + '/' + path + (qs ? '?' + qs : '');
+
+    // Forward relevant headers
+    const fwdHeaders: Record<string, string> = {};
+    if (req.headers['content-type']) fwdHeaders['Content-Type'] = req.headers['content-type'];
+    if (req.headers['authorization']) fwdHeaders['Authorization'] = req.headers['authorization'];
+    if (req.headers['x-school-id']) fwdHeaders['X-School-ID'] = req.headers['x-school-id'];
+    if (req.headers['accept']) fwdHeaders['Accept'] = req.headers['accept'];
+
+    const fetchOpts: any = { method: req.method, headers: fwdHeaders };
+
+    // Forward body for write methods
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      if (req.body) {
+        fetchOpts.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      }
+    }
+
+    const resp = await fetch(targetUrl, fetchOpts);
+    const ct = resp.headers.get('content-type');
     if (ct) res.setHeader('Content-Type', ct);
-    const body = await response.text();
-    return res.status(response.status).send(body);
-  } catch (error) {
-    console.error('Proxy error:', error);
+    const body = await resp.text();
+    return res.status(resp.status).send(body);
+  } catch (err: any) {
+    console.error('Proxy error:', err.message || err);
     return res.status(502).json({ success: false, message: 'Backend API unreachable' });
   }
 }
 
-export const config = { api: { bodyParser: false } };
+export const config = { api: { bodyParser: true } };
