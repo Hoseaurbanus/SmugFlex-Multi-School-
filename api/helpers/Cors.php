@@ -20,7 +20,7 @@ class Cors {
         }
 
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
-        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, X-School-ID');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, X-School-ID, Cache-Control, cache-control, Pragma');
         header('Access-Control-Max-Age: 3600');
 
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
