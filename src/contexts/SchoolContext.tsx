@@ -3112,12 +3112,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         roleLoads = [
           loadTeachersFromAPI().catch(() => null),
           loadSubjectAssignmentsFromAPI(false).catch(() => null),
+          loadSubjectRegistrationsFromAPI().catch(() => null),
           loadParentStudentLinksFromAPI().catch(() => null),
         ];
       } else if (user.role === 'teacher') {
         roleLoads = [
           loadTeachersFromAPI().catch(() => null),
           loadSubjectAssignmentsFromAPI(true).catch(() => null),
+          loadSubjectRegistrationsFromAPI().catch(() => null),
           loadClassTeacherAssignmentsFromAPI(true).catch(() => null),
         ];
       } else if (user.role === 'accountant') {

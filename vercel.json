@@ -2,9 +2,11 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "build",
+  "cleanUrls": false,
+  "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/).*)",
       "destination": "/index.html"
     }
   ]
