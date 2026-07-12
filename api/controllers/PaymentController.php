@@ -16,10 +16,22 @@ class PaymentController {
     public function __construct() {
         $database = new Database();
         $this->conn = $database->getConnection();
+        $this->ensureSchema();
     }
 
     private function ensureSchema() {
         try {
+            // Ensure school_id column exists (required for multi-school tenant isolation)
+            $col_stmt = $this->conn->prepare("SHOW COLUMNS FROM payments LIKE 'school_id'");
+            $col_stmt->execute();
+            $col = $col_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$col) {
+                $this->conn->exec("ALTER TABLE payments ADD COLUMN school_id INT NOT NULL AFTER student_id");
+                $this->conn->exec("CREATE INDEX idx_payments_school_id ON payments(school_id)");
+                // Backfill from students table
+                $this->conn->exec("UPDATE payments p INNER JOIN students s ON p.student_id = s.id SET p.school_id = s.school_id WHERE (p.school_id IS NULL OR p.school_id = 0) AND s.school_id IS NOT NULL");
+            }
+
             $col_stmt = $this->conn->prepare("SHOW COLUMNS FROM payments LIKE 'invoice_id'");
             $col_stmt->execute();
             $col = $col_stmt->fetch(PDO::FETCH_ASSOC);
