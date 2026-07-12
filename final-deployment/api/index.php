@@ -28,7 +28,7 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('X-XSS-Protection: 1; mode=block');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
-header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, X-School-ID');
+header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, X-School-ID, Cache-Control, Pragma');
 header('Access-Control-Max-Age: 3600');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
