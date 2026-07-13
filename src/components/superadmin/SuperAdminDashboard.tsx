@@ -98,6 +98,39 @@ type Tab = 'dashboard' | 'schools' | 'pending' | 'modules' | 'activity';
 const fadeIn = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2 } } };
 const slideIn = { hidden: { x: -20, opacity: 0 }, visible: { x: 0, opacity: 1, transition: { duration: 0.3 } } };
 
+function AnimatedPrimaryCard({ label, value, icon: Icon, gradient, subtitle, delay }: {
+  label: string; value: number; icon: any; gradient: string; subtitle: string; delay: number;
+}) {
+  const animVal = useAnimatedCounter(value);
+  return (
+    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} whileHover={{ y: -3, scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+        <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg mb-3`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+        <p className="text-2xl sm:text-3xl font-heading font-bold text-gray-900 tabular-nums">{animVal.toLocaleString()}</p>
+        <p className="text-sm text-gray-500 font-medium mt-0.5">{label}</p>
+        <p className="text-[11px] text-gray-400">{subtitle}</p>
+      </div>
+    </motion.div>
+  );
+}
+
+function AnimatedSecondaryCard({ label, value, icon: Icon, color, delay }: {
+  label: string; value: number; icon: any; color: string; delay: number;
+}) {
+  const animVal = useAnimatedCounter(value);
+  return (
+    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} whileHover={{ y: -3 }} className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      <div className="flex items-center gap-2 mb-2">
+        <Icon className="w-4 h-4" style={{ color }} />
+        <p className="text-xs text-gray-500 font-medium">{label}</p>
+      </div>
+      <p className="text-2xl sm:text-3xl font-heading font-bold text-gray-900 tabular-nums">{animVal.toLocaleString()}</p>
+    </motion.div>
+  );
+}
+
 /* Animated counter hook */
 function useAnimatedCounter(target: number, duration = 1200) {
   const [count, setCount] = React.useState(0);
@@ -445,48 +478,25 @@ export function SuperAdminDashboard() {
 
                   {/* Primary Stats */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                    {[
+                    {([
                       { label: 'Total Schools', value: stats?.total_schools || 0, icon: School, gradient: 'from-[#0A2540] to-[#1a3a5c]', subtitle: 'All registered' },
                       { label: 'Active', value: stats?.active_schools || 0, icon: Check, gradient: 'from-emerald-500 to-teal-500', subtitle: 'Running now' },
                       { label: 'Pending', value: stats?.pending_schools || 0, icon: Clock, gradient: 'from-amber-500 to-orange-500', subtitle: 'Awaiting review' },
                       { label: 'Suspended', value: stats?.suspended_schools || 0, icon: Ban, gradient: 'from-red-500 to-rose-500', subtitle: 'On hold' },
-                    ].map((card, i) => {
-                      const animVal = useAnimatedCounter(card.value);
-                      const Icon = card.icon;
-                      return (
-                        <motion.div key={card.label} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.06 }} whileHover={{ y: -3, scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-lg mb-3`}>
-                              <Icon className="w-5 h-5 text-white" />
-                            </div>
-                            <p className="text-2xl sm:text-3xl font-heading font-bold text-gray-900 tabular-nums">{animVal.toLocaleString()}</p>
-                            <p className="text-sm text-gray-500 font-medium mt-0.5">{card.label}</p>
-                            <p className="text-[11px] text-gray-400">{card.subtitle}</p>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
+                    ] as const).map((card, i) => (
+                      <AnimatedPrimaryCard key={card.label} label={card.label} value={card.value} icon={card.icon} gradient={card.gradient} subtitle={card.subtitle} delay={0.1 + i * 0.06} />
+                    ))}
                   </div>
 
                   {/* Secondary Stats */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                    {[
+                    {([
                       { label: 'Total Students', value: stats?.total_students || 0, icon: GraduationCap, color: '#6366F1' },
                       { label: 'Total Teachers', value: stats?.total_teachers || 0, icon: Users, color: '#10B981' },
                       { label: 'New This Month', value: stats?.new_schools_this_month || 0, icon: Plus, color: '#F97316' },
-                    ].map((card, i) => {
-                      const animVal = useAnimatedCounter(card.value);
-                      const Icon = card.icon;
-                      return (
-                        <motion.div key={card.label} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + i * 0.06 }} whileHover={{ y: -3 }} className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Icon className="w-4 h-4" style={{ color: card.color }} />
-                            <p className="text-xs text-gray-500 font-medium">{card.label}</p>
-                          </div>
-                          <p className="text-2xl sm:text-3xl font-heading font-bold text-gray-900 tabular-nums">{animVal.toLocaleString()}</p>
-                        </motion.div>
-                      );
-                    })}
+                    ] as const).map((card, i) => (
+                      <AnimatedSecondaryCard key={card.label} label={card.label} value={card.value} icon={card.icon} color={card.color} delay={0.3 + i * 0.06} />
+                    ))}
                     {/* Plan Distribution */}
                     <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }} className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
                       <p className="text-xs text-gray-500 font-medium mb-3">Plan Distribution</p>
