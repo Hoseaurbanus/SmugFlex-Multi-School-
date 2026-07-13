@@ -218,7 +218,7 @@ class SuperAdminController {
             $this->conn->commit();
         } catch (Throwable $e) {
             error_log("Error in SuperAdminController.approveSchool: " . $e->getMessage());
-            try { $this->conn->rollBack(); } catch ($x) {}
+            try { $this->conn->rollBack(); } catch (Throwable $x) {}
             Response::serverError('Failed to approve school');
         }
 
@@ -671,7 +671,7 @@ class SuperAdminController {
             $this->conn->commit();
         } catch (Throwable $e) {
             error_log("Error in SuperAdminController.updateSchoolModules: " . $e->getMessage());
-            try { $this->conn->rollBack(); } catch ($x) {}
+            try { $this->conn->rollBack(); } catch (Throwable $x) {}
             Response::serverError('Failed to update modules');
         }
 
@@ -719,8 +719,8 @@ class SuperAdminController {
             $this->conn->commit();
         } catch (Throwable $e) {
             error_log("Error in SuperAdminController.deleteSchool: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
-            try { $this->conn->exec("SET FOREIGN_KEY_CHECKS = 1"); } catch ($x) {}
-            try { $this->conn->rollBack(); } catch ($x) {}
+            try { $this->conn->exec("SET FOREIGN_KEY_CHECKS = 1"); } catch (Throwable $x) {}
+            try { $this->conn->rollBack(); } catch (Throwable $x) {}
             Response::serverError('Failed to delete school: ' . $e->getMessage());
         }
 
@@ -796,7 +796,7 @@ class SuperAdminController {
             $this->conn->commit();
         } catch (Throwable $e) {
             error_log("Error in SuperAdminController.createSchool: " . $e->getMessage());
-            try { $this->conn->rollBack(); } catch ($x) {}
+            try { $this->conn->rollBack(); } catch (Throwable $x) {}
             Response::serverError('Failed to create school: ' . $e->getMessage());
         }
 
