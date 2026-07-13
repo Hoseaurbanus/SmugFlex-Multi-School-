@@ -14,6 +14,10 @@ import {
   Clock,
   Lightning,
   ArrowsClockwise,
+  Student,
+  ChalkboardTeacher,
+  EnvelopeSimpleOpen,
+  FileText,
 } from "@phosphor-icons/react";
 
 interface DashboardWelcomeProps {
@@ -58,43 +62,6 @@ function useAnimatedCounter(target: number, duration = 1200) {
   return count;
 }
 
-/* ── Mini sparkline SVG ────────────────────────────────── */
-function MiniSparkline({ color, data }: { color: string; data: number[] }) {
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const w = 80;
-  const h = 32;
-  const points = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * w;
-      const y = h - ((v - min) / range) * h;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  const areaPoints = `0,${h} ${points} ${w},${h}`;
-
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
-      <defs>
-        <linearGradient id={`spark-${color}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon points={areaPoints} fill={`url(#spark-${color})`} />
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 /* ── Date/time display ─────────────────────────────────── */
 function LiveDateTime() {
   const [now, setNow] = useState(new Date());
@@ -115,19 +82,22 @@ function LiveDateTime() {
   });
 
   return (
-    <span className="text-muted-foreground text-sm font-medium">
+    <span className="text-sm font-medium">
       {dateStr} &middot; {timeStr}
     </span>
   );
 }
 
-/* ── Gradient sparkline data (deterministic per label) ─── */
-const sparkData: Record<string, number[]> = {
-  Students: [12, 15, 14, 18, 16, 22, 20, 25, 24, 28, 26, 30],
-  Staff: [5, 6, 5, 7, 6, 8, 7, 9, 8, 10, 9, 11],
-  Pending: [8, 6, 9, 5, 7, 4, 6, 3, 5, 2, 4, 1],
-  Messages: [3, 5, 4, 7, 6, 8, 7, 10, 9, 12, 11, 14],
-};
+/* ── Floating orb (decorative) ──────────────────────────── */
+function FloatingOrb({ className }: { className?: string }) {
+  return (
+    <motion.div
+      animate={{ y: [0, -12, 0], x: [0, 6, 0] }}
+      transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+      className={`absolute rounded-full blur-2xl opacity-30 pointer-events-none ${className}`}
+    />
+  );
+}
 
 export default function DashboardWelcome({
   adminName,
@@ -166,26 +136,28 @@ export default function DashboardWelcome({
 
   const stats = [
     {
-      icon: Users,
+      icon: Student,
       label: "Students",
       value: activeStudents,
       animated: animatedStudents,
       color: "#6366F1",
-      gradient: "from-indigo-500 to-indigo-600",
+      bgGradient: "from-indigo-500 to-violet-500",
       bgLight: "bg-indigo-50",
-      trend: "+12%",
+      ring: "ring-indigo-100",
       action: "manage-students",
+      subtitle: "Active enrollment",
     },
     {
-      icon: GraduationCap,
+      icon: ChalkboardTeacher,
       label: "Staff",
       value: activeTeachers,
       animated: animatedTeachers,
       color: "#10B981",
-      gradient: "from-emerald-500 to-emerald-600",
+      bgGradient: "from-emerald-500 to-teal-500",
       bgLight: "bg-emerald-50",
-      trend: "+5%",
+      ring: "ring-emerald-100",
       action: "manage-users",
+      subtitle: "Teaching & non-teaching",
     },
     {
       icon: ClipboardText,
@@ -193,106 +165,117 @@ export default function DashboardWelcome({
       value: pendingResults,
       animated: animatedPending,
       color: "#F97316",
-      gradient: "from-orange-500 to-amber-500",
+      bgGradient: "from-orange-500 to-amber-500",
       bgLight: "bg-orange-50",
-      trend: pendingResults > 0 ? `${pendingResults}` : "0",
+      ring: "ring-orange-100",
       action: "results-management",
+      subtitle: "Awaiting approval",
     },
     {
-      icon: Bell,
+      icon: EnvelopeSimpleOpen,
       label: "Messages",
       value: unreadCount,
       animated: animatedMessages,
       color: "#EC4899",
-      gradient: "from-pink-500 to-rose-500",
+      bgGradient: "from-pink-500 to-rose-500",
       bgLight: "bg-pink-50",
-      trend: unreadCount > 0 ? `${unreadCount}` : "0",
+      ring: "ring-pink-100",
       action: "view-messages",
+      subtitle: "Unread notifications",
     },
   ];
 
   const quickActions = [
-    { icon: UserPlus, label: "Register User", action: "register-user", gradient: "from-indigo-500 to-indigo-600" },
+    { icon: UserPlus, label: "Register User", action: "register-user", gradient: "from-[#0A2540] to-[#1a3a5c]" },
     { icon: BookOpen, label: "Manage Classes", action: "manage-classes", gradient: "from-emerald-500 to-teal-500" },
     { icon: ChartBar, label: "Results", action: "results-management", gradient: "from-orange-500 to-amber-500" },
-    { icon: Gear, label: "Settings", action: "settings", gradient: "from-pink-500 to-rose-500" },
+    { icon: Gear, label: "Settings", action: "settings", gradient: "from-[#0A2540] to-[#1a3a5c]" },
   ];
 
   return (
-    <div ref={ref} className="space-y-6 sm:space-y-8">
+    <div ref={ref} className="space-y-5 sm:space-y-6">
       {/* ───────── HERO SECTION ───────── */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={isInView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-white via-white to-indigo-50/50 border border-border p-6 sm:p-8 lg:p-10"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0A2540] via-[#0d2f52] to-[#112240] p-6 sm:p-8 lg:p-10"
       >
-        {/* Background mesh blobs */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-indigo-500/[0.04] blur-[80px]" />
-          <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-pink-500/[0.04] blur-[60px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-cyan-500/[0.02] blur-[100px]" />
-        </div>
+        {/* Animated background orbs */}
+        <FloatingOrb className="w-48 h-48 bg-indigo-400 -top-12 -right-12" />
+        <FloatingOrb className="w-36 h-36 bg-cyan-400 bottom-0 left-0" />
+        <FloatingOrb className="w-24 h-24 bg-purple-400 top-1/2 left-1/3" />
 
-        {/* Dot pattern */}
+        {/* Dot pattern overlay */}
         <div
-          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          className="absolute inset-0 opacity-[0.06] pointer-events-none"
           style={{
-            backgroundImage: "radial-gradient(circle, #6366F1 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
+            backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
           }}
         />
 
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div>
+        <div className="relative z-10">
+          {/* Top row: date + refresh */}
+          <div className="flex items-center justify-between mb-4">
             <motion.p
-              initial={{ opacity: 0, y: 10 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
+              initial={{ opacity: 0 }}
+              animate={isInView ? { opacity: 1 } : {}}
               transition={{ delay: 0.1 }}
-              className="text-muted-foreground text-sm font-medium mb-1"
+              className="text-white/50 text-sm"
             >
               <LiveDateTime />
             </motion.p>
-            <motion.h1
-              initial={{ opacity: 0, y: 10 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: 0.15 }}
-              className="text-2xl sm:text-3xl lg:text-4xl font-heading font-bold text-foreground tracking-tight"
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={isInView ? { opacity: 1, scale: 1 } : {}}
+              transition={{ delay: 0.3 }}
+              onClick={handleRefresh}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm transition-colors cursor-pointer"
             >
-              {getGreeting()},{" "}
-              <span className="bg-gradient-to-r from-[#6366F1] via-[#A855F7] to-[#EC4899] bg-clip-text text-transparent">
-                {adminName}
-              </span>
-            </motion.h1>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: 0.2 }}
-              className="flex flex-wrap items-center gap-2 mt-3"
-            >
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-heading font-semibold border border-indigo-100">
-                <Lightning className="w-3 h-3" />
-                {schoolName}
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-muted-foreground text-xs font-heading font-semibold">
-                <CalendarBlank className="w-3 h-3" />
-                {currentAcademicYear} &middot; {currentTerm}
-              </span>
-            </motion.div>
+              <ArrowsClockwise className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </motion.button>
           </div>
 
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={isInView ? { opacity: 1, scale: 1 } : {}}
-            transition={{ delay: 0.3 }}
-            onClick={handleRefresh}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#A855F7] text-white text-sm font-heading font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 transition-shadow cursor-pointer flex-shrink-0"
+          {/* Greeting */}
+          <motion.h1
+            initial={{ opacity: 0, y: 10 }}
+            animate={isInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.15 }}
+            className="text-2xl sm:text-3xl lg:text-4xl font-heading font-bold text-white leading-tight"
           >
-            <ArrowsClockwise className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </motion.button>
+            {getGreeting()},{" "}
+            <span className="bg-gradient-to-r from-amber-300 via-orange-300 to-pink-300 bg-clip-text text-transparent">
+              {adminName}
+            </span>
+            <motion.span
+              animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
+              transition={{ duration: 2.5, delay: 0.5, ease: "easeInOut" }}
+              className="inline-block ml-2"
+            >
+              👋
+            </motion.span>
+          </motion.h1>
+
+          {/* Badges */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={isInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.25 }}
+            className="flex flex-wrap items-center gap-2 mt-4"
+          >
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/90 text-xs font-semibold">
+              <Lightning className="w-3 h-3 text-amber-300" />
+              {schoolName}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/70 text-xs font-semibold">
+              <CalendarBlank className="w-3 h-3" />
+              {currentAcademicYear} &middot; {currentTerm}
+            </span>
+          </motion.div>
         </div>
       </motion.div>
 
@@ -309,49 +292,27 @@ export default function DashboardWelcome({
               whileHover={{ y: -4, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => onNavigate(stat.action)}
-              className="group relative overflow-hidden rounded-2xl bg-white border border-border p-4 sm:p-5 text-left cursor-pointer transition-shadow duration-300 hover:shadow-xl"
-              style={{
-                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-              }}
+              className="group relative bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 text-left cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200"
+              style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
             >
-              {/* Hover glow */}
-              <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                style={{
-                  background: `radial-gradient(circle at 30% 30%, ${stat.color}08 0%, transparent 70%)`,
-                }}
-              />
-
-              {/* Gradient top accent line */}
-              <div
-                className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${stat.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-              />
-
               <div className="relative z-10">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}
-                    style={{ boxShadow: `0 4px 14px ${stat.color}25` }}
-                  >
-                    <Icon weight="bold" className="w-5 h-5 text-white" />
-                  </div>
-                  <MiniSparkline color={stat.color} data={sparkData[stat.label]} />
+                {/* Icon */}
+                <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${stat.bgGradient} flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300`}
+                  style={{ boxShadow: `0 4px 14px ${stat.color}25` }}
+                >
+                  <Icon weight="bold" className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
 
-                <p className="text-2xl sm:text-3xl font-heading font-bold text-foreground tabular-nums">
+                {/* Number */}
+                <p className="text-2xl sm:text-3xl font-heading font-bold text-gray-900 tabular-nums leading-none">
                   {stat.animated.toLocaleString()}
                 </p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
-                  <span
-                    className="text-[11px] font-heading font-semibold px-1.5 py-0.5 rounded-md"
-                    style={{
-                      color: stat.color,
-                      backgroundColor: `${stat.color}10`,
-                    }}
-                  >
-                    {stat.trend}
-                  </span>
-                </div>
+
+                {/* Label */}
+                <p className="text-sm text-gray-500 font-medium mt-1">{stat.label}</p>
+
+                {/* Subtitle */}
+                <p className="text-[11px] text-gray-400 mt-0.5">{stat.subtitle}</p>
               </div>
             </motion.button>
           );
@@ -365,10 +326,11 @@ export default function DashboardWelcome({
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ delay: 0.35, duration: 0.45 }}
-          className="bg-white rounded-2xl border border-border p-5 sm:p-6"
+          className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6"
           style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
         >
-          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">
+          <h3 className="text-sm font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="w-1 h-4 rounded-full bg-gradient-to-b from-[#0A2540] to-[#1a3a5c]" />
             Quick Actions
           </h3>
           <div className="grid grid-cols-2 gap-3">
@@ -380,12 +342,12 @@ export default function DashboardWelcome({
                   whileHover={{ scale: 1.04, y: -2 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => onNavigate(item.action)}
-                  className="group flex flex-col items-center gap-2.5 p-4 rounded-xl bg-muted/50 hover:bg-muted border border-transparent hover:border-border cursor-pointer transition-all duration-200"
+                  className="group flex flex-col items-center gap-2.5 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 cursor-pointer transition-all duration-200"
                 >
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow`}>
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all duration-300`}>
                     <Icon weight="bold" className="w-5 h-5 text-white" />
                   </div>
-                  <span className="text-xs font-heading font-semibold text-muted-foreground group-hover:text-foreground transition-colors text-center">
+                  <span className="text-xs font-heading font-semibold text-gray-500 group-hover:text-gray-900 transition-colors text-center">
                     {item.label}
                   </span>
                 </motion.button>
@@ -399,28 +361,28 @@ export default function DashboardWelcome({
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ delay: 0.4, duration: 0.45 }}
-          className="bg-white rounded-2xl border border-border overflow-hidden"
+          className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
           style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
         >
-          {/* Gradient top bar */}
-          <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+          <div className="h-1 bg-gradient-to-r from-[#0A2540] via-purple-500 to-pink-500" />
           <div className="p-5 sm:p-6">
-            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">
+            <h3 className="text-sm font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="w-1 h-4 rounded-full bg-gradient-to-b from-indigo-500 to-purple-500" />
               Academic Session
             </h3>
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md shadow-indigo-500/20">
-                  <CalendarBlank weight="bold" className="w-5 h-5 text-white" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                  <CalendarBlank weight="bold" className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-lg font-heading font-bold text-foreground">
+                  <p className="text-lg font-heading font-bold text-gray-900">
                     {currentAcademicYear}
                   </p>
-                  <p className="text-sm text-muted-foreground">{currentTerm}</p>
+                  <p className="text-sm text-gray-500">{currentTerm}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 pt-3 border-t border-border">
+              <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
@@ -438,20 +400,20 @@ export default function DashboardWelcome({
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ delay: 0.45, duration: 0.45 }}
-          className="bg-white rounded-2xl border border-border overflow-hidden"
+          className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
           style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
         >
-          {/* Gradient top bar */}
           <div className="h-1 bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500" />
           <div className="p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-heading font-semibold text-foreground">
+              <h3 className="text-sm font-heading font-semibold text-gray-900 flex items-center gap-2">
+                <div className="w-1 h-4 rounded-full bg-gradient-to-b from-pink-500 to-rose-500" />
                 Notifications
               </h3>
               {unreadCount > 0 && (
                 <button
                   onClick={() => onNavigate("view-messages")}
-                  className="text-xs font-heading font-semibold text-primary hover:text-primary-hover transition-colors"
+                  className="text-xs font-heading font-semibold text-[#0A2540] hover:underline transition-colors"
                 >
                   View all
                 </button>
@@ -474,20 +436,20 @@ export default function DashboardWelcome({
                       <div className="flex items-start gap-3">
                         <div className="w-2 h-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 mt-1.5 flex-shrink-0 group-hover:scale-125 transition-transform" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground/80 group-hover:text-foreground transition-colors leading-snug truncate">
+                          <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors leading-snug truncate">
                             {n.title}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                          <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">
                             {n.message}
                           </p>
-                          <p className="text-[11px] text-muted-foreground/60 mt-1 flex items-center gap-1">
+                          <p className="text-[11px] text-gray-300 mt-1 flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {new Date(n.sentDate).toLocaleDateString()}
                           </p>
                         </div>
                         <CaretRight
                           weight="bold"
-                          className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-foreground opacity-0 group-hover:opacity-100 transition-all mt-1 flex-shrink-0"
+                          className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-900 opacity-0 group-hover:opacity-100 transition-all mt-1 flex-shrink-0"
                         />
                       </div>
                     </motion.div>
@@ -495,13 +457,13 @@ export default function DashboardWelcome({
               </div>
             ) : (
               <div className="text-center py-8">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-                  <Bell weight="light" className="w-6 h-6 text-muted-foreground/40" />
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center mx-auto mb-3">
+                  <Bell weight="light" className="w-7 h-7 text-gray-300" />
                 </div>
-                <p className="text-sm text-muted-foreground font-medium">
+                <p className="text-sm text-gray-500 font-medium">
                   No new notifications
                 </p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
+                <p className="text-xs text-gray-300 mt-1">
                   You're all caught up!
                 </p>
               </div>
