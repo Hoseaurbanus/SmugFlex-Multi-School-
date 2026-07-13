@@ -11,6 +11,33 @@ try {
     $database = new Database();
     $conn = $database->getConnection();
     
+    // Ensure school_settings has school_id column
+    try {
+        $colCheck = $conn->prepare("SHOW COLUMNS FROM school_settings LIKE 'school_id'");
+        $colCheck->execute();
+        if (!$colCheck->fetch()) {
+            $conn->exec("ALTER TABLE school_settings ADD COLUMN school_id INT NOT NULL DEFAULT 0 AFTER id");
+            $conn->exec("CREATE INDEX idx_ss_school_id ON school_settings(school_id)");
+        }
+    } catch (PDOException $e) {
+        // Table may not exist — create it
+        try {
+            $conn->exec("CREATE TABLE IF NOT EXISTS school_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key VARCHAR(100) NOT NULL,
+                setting_value TEXT NULL,
+                setting_type VARCHAR(50) DEFAULT 'string',
+                description TEXT NULL,
+                school_id INT NOT NULL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_ss_key_school (setting_key, school_id)
+            )");
+        } catch (PDOException $e2) {
+            error_log("Failed to create school_settings: " . $e2->getMessage());
+        }
+    }
+    
     $method = $_SERVER['REQUEST_METHOD'];
     
     switch ($method) {
@@ -38,8 +65,9 @@ try {
                 // Log the actual error for debugging
                 error_log("School Settings Error: " . $e->getMessage());
                 
-                // If table doesn't exist, return default settings
-                if (strpos($e->getMessage(), "doesn't exist") !== false || strpos($e->getMessage(), "Table") !== false) {
+                // If table or column doesn't exist, return default settings
+                $msg = $e->getMessage();
+                if (strpos($msg, "doesn't exist") !== false || strpos($msg, "Table") !== false || strpos($msg, "Unknown column") !== false) {
                     Response::success([
                         ['setting_key' => 'school_name', 'setting_value' => 'My School', 'setting_type' => 'string', 'description' => 'Official school name'],
                         ['setting_key' => 'school_motto', 'setting_value' => 'Excellence & Character', 'setting_type' => 'string', 'description' => 'School motto'],

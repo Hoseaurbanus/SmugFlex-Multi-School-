@@ -65,43 +65,53 @@ class UserController {
             
             $whereClause = !empty($whereConditions) ? "WHERE " . implode(" AND ", $whereConditions) : "";
             
+            // Check if accountants table exists to decide whether to JOIN it
+            $acctCheck = $this->conn->prepare("SHOW TABLES LIKE 'accountants'");
+            $acctCheck->execute();
+            $hasAccountants = $acctCheck->fetch(PDO::FETCH_ASSOC) !== false;
+            $aJoin = $hasAccountants ? "LEFT JOIN accountants a ON u.role = 'accountant' AND u.linked_id = a.id" : "";
+            $aFirst = $hasAccountants ? "a.first_name" : "NULL";
+            $aLast = $hasAccountants ? "a.last_name" : "NULL";
+            $aEmail = $hasAccountants ? "a.email" : "NULL";
+            $aPhone = $hasAccountants ? "a.phone" : "NULL";
+            
             // Build main query
             $query = "
                 SELECT u.id, u.username, u.role, u.status, u.email, u.last_login,
                        CASE 
                            WHEN u.role = 'teacher' THEN TRIM(CONCAT(COALESCE(t.first_name, ''), ' ', COALESCE(t.last_name, '')))
                            WHEN u.role = 'parent' THEN TRIM(CONCAT(COALESCE(p.first_name, ''), ' ', COALESCE(p.last_name, '')))
-                           WHEN u.role = 'accountant' THEN TRIM(CONCAT(COALESCE(a.first_name, ''), ' ', COALESCE(a.last_name, '')))
+                           WHEN u.role = 'accountant' THEN TRIM(CONCAT(COALESCE({$aFirst}, ''), ' ', COALESCE({$aLast}, '')))
                            ELSE u.username
                        END as display_name,
                        CASE 
                            WHEN u.role = 'teacher' THEN t.first_name
                            WHEN u.role = 'parent' THEN p.first_name
-                           WHEN u.role = 'accountant' THEN a.first_name
+                           WHEN u.role = 'accountant' THEN {$aFirst}
                            ELSE NULL
                        END as first_name,
                        CASE 
                            WHEN u.role = 'teacher' THEN t.last_name
                            WHEN u.role = 'parent' THEN p.last_name
-                           WHEN u.role = 'accountant' THEN a.last_name
+                           WHEN u.role = 'accountant' THEN {$aLast}
                            ELSE NULL
                        END as last_name,
                        CASE 
                            WHEN u.role = 'teacher' THEN t.email
                            WHEN u.role = 'parent' THEN p.email
-                           WHEN u.role = 'accountant' THEN a.email
+                           WHEN u.role = 'accountant' THEN {$aEmail}
                            ELSE u.email
                        END as linked_email,
                        CASE 
                            WHEN u.role = 'teacher' THEN t.phone
                            WHEN u.role = 'parent' THEN p.phone
-                           WHEN u.role = 'accountant' THEN a.phone
+                           WHEN u.role = 'accountant' THEN {$aPhone}
                            ELSE NULL
                        END as linked_phone
                 FROM users u
                 LEFT JOIN teachers t ON u.role = 'teacher' AND u.linked_id = t.id
                 LEFT JOIN parents p ON u.role = 'parent' AND u.linked_id = p.id
-                LEFT JOIN accountants a ON u.role = 'accountant' AND u.linked_id = a.id
+                {$aJoin}
                 $whereClause
                 ORDER BY u.created_at DESC
                 LIMIT ? OFFSET ?
@@ -117,7 +127,7 @@ class UserController {
                 FROM users u
                 LEFT JOIN teachers t ON u.role = 'teacher' AND u.linked_id = t.id
                 LEFT JOIN parents p ON u.role = 'parent' AND u.linked_id = p.id
-                LEFT JOIN accountants a ON u.role = 'accountant' AND u.linked_id = a.id
+                {$aJoin}
                 $whereClause
             ";
             

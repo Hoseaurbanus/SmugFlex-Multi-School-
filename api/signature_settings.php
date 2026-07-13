@@ -155,8 +155,8 @@ try {
     $msg = $e->getMessage();
     error_log('Signature settings error: ' . $msg);
     $lower = strtolower($msg);
-    if (str_contains($lower, 'signature_settings') && (str_contains($lower, 'doesn\'t exist') || str_contains($lower, 'does not exist') || str_contains($lower, 'unknown table') || str_contains($lower, 'table') )) {
-        Response::serverError('signature_settings table is missing on the server. Create the signature_settings table and retry.');
+    if (str_contains($lower, "doesn't exist") || str_contains($lower, 'does not exist') || str_contains($lower, 'unknown')) {
+        Response::success(null, 'No signature settings found');
     } else {
         Response::serverError('Database error');
     }
