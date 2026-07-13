@@ -82,14 +82,6 @@ export function SuperAdminLoginPage() {
           transition={{ duration: 0.5 }}
           className="text-center mb-8"
         >
-          <motion.div
-            initial={{ scale: 0.5, rotate: -10 }}
-            animate={mounted ? { scale: 1, rotate: 0 } : {}}
-            transition={{ duration: 0.5, delay: 0.1, type: "spring", stiffness: 200 }}
-            className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-amber-500/30"
-          >
-            <Shield className="w-8 h-8 text-[#0A2540]" weight="fill" />
-          </motion.div>
           <h1 className="text-2xl sm:text-3xl text-white font-heading font-bold tracking-tight">
             SmugFlex Admin
           </h1>

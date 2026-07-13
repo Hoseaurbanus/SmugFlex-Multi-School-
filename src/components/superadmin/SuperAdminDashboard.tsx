@@ -98,6 +98,25 @@ type Tab = 'dashboard' | 'schools' | 'pending' | 'modules' | 'activity';
 const fadeIn = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2 } } };
 const slideIn = { hidden: { x: -20, opacity: 0 }, visible: { x: 0, opacity: 1, transition: { duration: 0.3 } } };
 
+/* Animated counter hook */
+function useAnimatedCounter(target: number, duration = 1200) {
+  const [count, setCount] = React.useState(0);
+  React.useEffect(() => {
+    if (target === 0) { setCount(0); return; }
+    const start = performance.now();
+    let raf: number;
+    const step = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(eased * target));
+      if (progress < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return count;
+}
+
 export function SuperAdminDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -392,91 +411,133 @@ export function SuperAdminDashboard() {
             <AnimatePresence mode="wait">
               {/* ─── DASHBOARD TAB ─── */}
               {activeTab === 'dashboard' && (
-                <motion.div key="dashboard" variants={fadeIn} initial="hidden" animate="visible" exit="hidden">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-[#0A2540]">Platform Overview</h2>
-                    <Button onClick={() => setShowCreateSchool(true)} className="bg-[#0A2540] hover:bg-[#0d3558] text-white">
-                      <Plus className="w-4 h-4 mr-2" /> Add School
-                    </Button>
-                  </div>
+                <motion.div key="dashboard" variants={fadeIn} initial="hidden" animate="visible" exit="hidden" className="space-y-6">
+                  {/* Welcome Hero */}
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0A2540] via-[#0d2f52] to-[#112240] p-6 sm:p-8">
+                    {/* Animated orbs */}
+                    <motion.div animate={{ y: [0, -12, 0], x: [0, 6, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="absolute w-40 h-40 bg-indigo-400/10 rounded-full blur-3xl -top-10 -right-10 pointer-events-none" />
+                    <motion.div animate={{ y: [0, 10, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }} className="absolute w-32 h-32 bg-amber-400/10 rounded-full blur-3xl bottom-0 left-0 pointer-events-none" />
+                    {/* Dot pattern */}
+                    <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
 
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    {[
-                      { label: 'Total Schools', value: stats?.total_schools || 0, icon: School, color: 'bg-[#0A2540]' },
-                      { label: 'Active', value: stats?.active_schools || 0, icon: Check, color: 'bg-emerald-500' },
-                      { label: 'Pending', value: stats?.pending_schools || 0, icon: Clock, color: 'bg-amber-500' },
-                      { label: 'Suspended', value: stats?.suspended_schools || 0, icon: Ban, color: 'bg-red-500' },
-                    ].map((card, i) => (
-                      <motion.div key={card.label} variants={fadeIn} transition={{ delay: i * 0.05 }}>
-                        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-xl ${card.color} flex items-center justify-center`}>
-                                <card.icon className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <p className="text-2xl font-bold text-[#0A2540]">{card.value}</p>
-                                <p className="text-xs text-gray-500">{card.label}</p>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-white/40 text-sm">
+                          {new Date().toLocaleDateString("en-NG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                        </motion.p>
+                        <motion.h2 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold text-white mt-1">
+                          Welcome back, <span className="bg-gradient-to-r from-amber-300 to-pink-300 bg-clip-text text-transparent">{superAdminAuth.getCurrentUser()?.first_name || 'Admin'}</span>
+                          <motion.span animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }} transition={{ duration: 2.5, delay: 0.5, ease: "easeInOut" }} className="inline-block ml-2">👋</motion.span>
+                        </motion.h2>
+                        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="text-white/50 text-sm mt-2">
+                          Platform overview &middot; {stats?.total_schools || 0} schools onboarded
+                        </motion.p>
+                      </div>
+                      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}>
+                        <Button onClick={() => setShowCreateSchool(true)} className="bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm border-0 rounded-xl font-semibold shadow-lg">
+                          <Plus className="w-4 h-4 mr-2" /> Add School
+                        </Button>
                       </motion.div>
-                    ))}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <Card className="border-0 shadow-sm">
-                      <CardContent className="p-4 text-center">
-                        <p className="text-3xl font-bold text-[#0A2540]">{stats?.total_students || 0}</p>
-                        <p className="text-xs text-gray-500 mt-1">Total Students</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-0 shadow-sm">
-                      <CardContent className="p-4 text-center">
-                        <p className="text-3xl font-bold text-[#0A2540]">{stats?.total_teachers || 0}</p>
-                        <p className="text-xs text-gray-500 mt-1">Total Teachers</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-0 shadow-sm">
-                      <CardContent className="p-4 text-center">
-                        <p className="text-3xl font-bold text-[#0A2540]">{stats?.new_schools_this_month || 0}</p>
-                        <p className="text-xs text-gray-500 mt-1">New This Month</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-0 shadow-sm">
-                      <CardContent className="p-4 text-center">
-                        <div className="flex gap-2 justify-center flex-wrap">
-                          <span className="px-2 py-1 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-700">Trial: {stats?.trial_schools || 0}</span>
-                          <span className="px-2 py-1 text-[10px] font-semibold rounded-full bg-purple-100 text-purple-700">Basic: {stats?.basic_schools || 0}</span>
-                          <span className="px-2 py-1 text-[10px] font-semibold rounded-full bg-orange-100 text-orange-700">Std: {stats?.standard_schools || 0}</span>
-                          <span className="px-2 py-1 text-[10px] font-semibold rounded-full bg-yellow-100 text-yellow-700">Prem: {stats?.premium_schools || 0}</span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">Plan Distribution</p>
-                      </CardContent>
-                    </Card>
+                  {/* Primary Stats */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    {[
+                      { label: 'Total Schools', value: stats?.total_schools || 0, icon: School, gradient: 'from-[#0A2540] to-[#1a3a5c]', subtitle: 'All registered' },
+                      { label: 'Active', value: stats?.active_schools || 0, icon: Check, gradient: 'from-emerald-500 to-teal-500', subtitle: 'Running now' },
+                      { label: 'Pending', value: stats?.pending_schools || 0, icon: Clock, gradient: 'from-amber-500 to-orange-500', subtitle: 'Awaiting review' },
+                      { label: 'Suspended', value: stats?.suspended_schools || 0, icon: Ban, gradient: 'from-red-500 to-rose-500', subtitle: 'On hold' },
+                    ].map((card, i) => {
+                      const animVal = useAnimatedCounter(card.value);
+                      const Icon = card.icon;
+                      return (
+                        <motion.div key={card.label} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.06 }} whileHover={{ y: -3, scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-lg mb-3`}>
+                              <Icon className="w-5 h-5 text-white" />
+                            </div>
+                            <p className="text-2xl sm:text-3xl font-heading font-bold text-gray-900 tabular-nums">{animVal.toLocaleString()}</p>
+                            <p className="text-sm text-gray-500 font-medium mt-0.5">{card.label}</p>
+                            <p className="text-[11px] text-gray-400">{card.subtitle}</p>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                   </div>
 
-                  <Card className="border-0 shadow-sm">
-                    <CardHeader className="pb-2">
-                      <h3 className="font-semibold text-[#0A2540]">Recent Activity</h3>
-                    </CardHeader>
-                    <CardContent>
-                      {activityLogs.slice(0, 5).map((log) => (
-                        <div key={log.id} className="flex items-center gap-3 py-2 border-b last:border-0">
-                          <div className="w-8 h-8 rounded-full bg-[#0A2540]/10 flex items-center justify-center">
-                            <Activity className="w-4 h-4 text-[#0A2540]" />
+                  {/* Secondary Stats */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    {[
+                      { label: 'Total Students', value: stats?.total_students || 0, icon: GraduationCap, color: '#6366F1' },
+                      { label: 'Total Teachers', value: stats?.total_teachers || 0, icon: Users, color: '#10B981' },
+                      { label: 'New This Month', value: stats?.new_schools_this_month || 0, icon: Plus, color: '#F97316' },
+                    ].map((card, i) => {
+                      const animVal = useAnimatedCounter(card.value);
+                      const Icon = card.icon;
+                      return (
+                        <motion.div key={card.label} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + i * 0.06 }} whileHover={{ y: -3 }} className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon className="w-4 h-4" style={{ color: card.color }} />
+                            <p className="text-xs text-gray-500 font-medium">{card.label}</p>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800 truncate">{log.action.replace(/_/g, ' ')}</p>
-                            <p className="text-xs text-gray-500">{log.school_name} &middot; {log.super_admin_name}</p>
+                          <p className="text-2xl sm:text-3xl font-heading font-bold text-gray-900 tabular-nums">{animVal.toLocaleString()}</p>
+                        </motion.div>
+                      );
+                    })}
+                    {/* Plan Distribution */}
+                    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }} className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                      <p className="text-xs text-gray-500 font-medium mb-3">Plan Distribution</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { label: 'Trial', value: stats?.trial_schools || 0, bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
+                          { label: 'Basic', value: stats?.basic_schools || 0, bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+                          { label: 'Standard', value: stats?.standard_schools || 0, bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
+                          { label: 'Premium', value: stats?.premium_schools || 0, bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
+                        ].map((p) => (
+                          <div key={p.label} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg ${p.bg}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${p.dot}`} />
+                            <span className={`text-[11px] font-semibold ${p.text}`}>{p.label}: {p.value}</span>
                           </div>
-                          <span className="text-[10px] text-gray-400 whitespace-nowrap">{new Date(log.created_at).toLocaleDateString()}</span>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </div>
+
+                  {/* Recent Activity */}
+                  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-2xl border border-gray-100 overflow-hidden" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                    <div className="h-1 bg-gradient-to-r from-[#0A2540] via-purple-500 to-pink-500" />
+                    <div className="p-5 sm:p-6">
+                      <h3 className="text-sm font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <div className="w-1 h-4 rounded-full bg-gradient-to-b from-[#0A2540] to-purple-500" />
+                        Recent Activity
+                      </h3>
+                      {activityLogs.slice(0, 5).length > 0 ? (
+                        <div className="space-y-3">
+                          {activityLogs.slice(0, 5).map((log, i) => (
+                            <motion.div key={log.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.55 + i * 0.05 }} className="flex items-center gap-3 group">
+                              <div className="w-9 h-9 rounded-xl bg-gray-50 group-hover:bg-gray-100 flex items-center justify-center flex-shrink-0 transition-colors">
+                                <Activity className="w-4 h-4 text-[#0A2540]" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{log.action.replace(/_/g, ' ')}</p>
+                                <p className="text-xs text-gray-400">{log.school_name} &middot; {log.super_admin_name}</p>
+                              </div>
+                              <span className="text-[11px] text-gray-300 whitespace-nowrap">{new Date(log.created_at).toLocaleDateString()}</span>
+                            </motion.div>
+                          ))}
                         </div>
-                      ))}
-                      {activityLogs.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No activity yet</p>}
-                    </CardContent>
-                  </Card>
+                      ) : (
+                        <div className="text-center py-8">
+                          <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                            <Activity className="w-7 h-7 text-gray-200" />
+                          </div>
+                          <p className="text-sm text-gray-500 font-medium">No activity yet</p>
+                          <p className="text-xs text-gray-300 mt-1">Actions will appear here</p>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
                 </motion.div>
               )}
 
