@@ -464,12 +464,14 @@ class SubjectController {
                             FROM subjects s, classes c, teachers t
                             WHERE s.id = :subject_id AND c.id = :class_id AND t.id = :teacher_id
                             AND s.status = 'Active' AND c.status = 'Active' AND t.status = 'Active'
-                            AND s.school_id = :school_id AND c.school_id = :school_id AND t.school_id = :school_id";
+                            AND s.school_id = :school_id_s AND c.school_id = :school_id_c AND t.school_id = :school_id_t";
             $verify_stmt = $this->conn->prepare($verify_query);
             $verify_stmt->bindParam(':subject_id', $subject_id);
             $verify_stmt->bindParam(':class_id', $class_id);
             $verify_stmt->bindParam(':teacher_id', $teacher_id);
-            $verify_stmt->bindParam(':school_id', $school_id);
+            $verify_stmt->bindParam(':school_id_s', $school_id);
+            $verify_stmt->bindParam(':school_id_c', $school_id);
+            $verify_stmt->bindParam(':school_id_t', $school_id);
             $verify_stmt->execute();
             
             $verification = $verify_stmt->fetch();
@@ -496,11 +498,13 @@ class SubjectController {
             try {
                 $update_count_query = "UPDATE teachers SET assignment_count = (
                     SELECT COUNT(*) FROM subject_assignments 
-                    WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id
+                    WHERE teacher_id = :teacher_id_sub AND status = 'Active' AND school_id = :school_id_sub
                 ) WHERE id = :teacher_id AND school_id = :school_id";
                 $update_stmt = $this->conn->prepare($update_count_query);
                 $update_stmt->bindParam(':teacher_id', $teacher_id);
                 $update_stmt->bindParam(':school_id', $school_id);
+                $update_stmt->bindParam(':teacher_id_sub', $teacher_id);
+                $update_stmt->bindParam(':school_id_sub', $school_id);
                 $update_stmt->execute();
             } catch (PDOException $e) {
                 error_log("SubjectController: Could not update assignment_count: " . $e->getMessage());
@@ -510,11 +514,13 @@ class SubjectController {
             try {
                 $update_class_count_query = "UPDATE classes SET current_assignments = (
                     SELECT COUNT(*) FROM subject_assignments 
-                    WHERE class_id = :class_id AND status = 'Active' AND school_id = :school_id
+                    WHERE class_id = :class_id_sub AND status = 'Active' AND school_id = :school_id_cls
                 ) WHERE id = :class_id AND school_id = :school_id";
                 $update_class_stmt = $this->conn->prepare($update_class_count_query);
                 $update_class_stmt->bindParam(':class_id', $class_id);
                 $update_class_stmt->bindParam(':school_id', $school_id);
+                $update_class_stmt->bindParam(':class_id_sub', $class_id);
+                $update_class_stmt->bindParam(':school_id_cls', $school_id);
                 $update_class_stmt->execute();
             } catch (PDOException $e) {
                 error_log("SubjectController: Could not update current_assignments: " . $e->getMessage());
@@ -737,13 +743,13 @@ class SubjectController {
                              c.name as class_name, c.level,
                              CONCAT(t.first_name, ' ', t.last_name) as teacher_name, t.employee_id
                       FROM subject_assignments sa
-                      JOIN subjects sub ON sa.subject_id = sub.id AND sub.school_id = :school_id
-                      JOIN classes c ON sa.class_id = c.id AND c.school_id = :school_id
-                      JOIN teachers t ON sa.teacher_id = t.id AND t.school_id = :school_id
-                      WHERE sa.status = 'Active' AND sa.school_id = :school_id";
+                      JOIN subjects sub ON sa.subject_id = sub.id AND sub.school_id = :school_id1
+                      JOIN classes c ON sa.class_id = c.id AND c.school_id = :school_id2
+                      JOIN teachers t ON sa.teacher_id = t.id AND t.school_id = :school_id3
+                      WHERE sa.status = 'Active' AND sa.school_id = :school_id4";
             
             $conditions = [];
-            $params = [':school_id' => $school_id];
+            $params = [':school_id1' => $school_id, ':school_id2' => $school_id, ':school_id3' => $school_id, ':school_id4' => $school_id];
             
             // Add optional term/year filters
             if (!empty($_GET['term'])) {

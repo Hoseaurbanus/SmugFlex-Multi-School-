@@ -56,17 +56,19 @@ class ParentController {
             }
 
             $query = "SELECT p.*, 
-                             (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id AND school_id = :school_id) as children_count,
+                             (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id AND school_id = :school_id1) as children_count,
                              (SELECT GROUP_CONCAT(s.first_name, ' ', s.last_name) 
-                              FROM parent_student_links psl 
-                              JOIN students s ON psl.student_id = s.id 
-                              WHERE psl.parent_id = p.id AND s.status = 'Active' AND psl.school_id = :school_id) as children_names
+                               FROM parent_student_links psl 
+                               JOIN students s ON psl.student_id = s.id 
+                               WHERE psl.parent_id = p.id AND s.status = 'Active' AND psl.school_id = :school_id2) as children_names
                       FROM parents p
-                      WHERE p.school_id = :school_id
+                      WHERE p.school_id = :school_id3
                       ORDER BY p.first_name, p.last_name";
             
             $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindValue(':school_id1', $school_id);
+            $stmt->bindValue(':school_id2', $school_id);
+            $stmt->bindValue(':school_id3', $school_id);
             $stmt->execute();
             $parents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -133,7 +135,7 @@ class ParentController {
         
         try {
             $query = "SELECT p.*, 
-                             (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id AND school_id = :school_id) as children_count,
+                             (SELECT COUNT(*) FROM parent_student_links WHERE parent_id = p.id AND school_id = :school_id1) as children_count,
                              (SELECT GROUP_CONCAT(
                                  JSON_OBJECT(
                                      'student_id', s.id,
@@ -149,13 +151,15 @@ class ParentController {
                               FROM parent_student_links psl 
                               JOIN students s ON psl.student_id = s.id 
                               JOIN classes c ON s.class_id = c.id
-                              WHERE psl.parent_id = p.id AND s.status = 'Active' AND s.school_id = :school_id) as children
+                              WHERE psl.parent_id = p.id AND s.status = 'Active' AND s.school_id = :school_id2) as children
                       FROM parents p
-                      WHERE p.id = :id AND p.school_id = :school_id";
+                      WHERE p.id = :id AND p.school_id = :school_id3";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $parent_id);
-            $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindValue(':school_id1', $school_id);
+            $stmt->bindValue(':school_id2', $school_id);
+            $stmt->bindValue(':school_id3', $school_id);
             $stmt->execute();
             
             $parent = $stmt->fetch();
@@ -566,10 +570,11 @@ class ParentController {
                              p.first_name as parent_first_name, 
                              p.last_name as parent_last_name
                       FROM parent_student_links psl
-                      LEFT JOIN students s ON psl.student_id = s.id AND s.school_id = :school_id
+                      LEFT JOIN students s ON psl.student_id = s.id AND s.school_id = :school_id_s
                       LEFT JOIN parents p ON psl.parent_id = p.id AND p.school_id = :school_id2
                       $whereClause
                       ORDER BY psl.created_at DESC";
+            $params[':school_id_s'] = $school_id;
             $params[':school_id2'] = $school_id;
             
             $stmt = $this->conn->prepare($query);
