@@ -472,7 +472,7 @@ class AuthController {
         }
 
         $old_token = $matches[1];
-        $decoded = JWT::decode($old_token, false);
+        $decoded = JWT::decode($old_token, false, 900);
         if ($decoded && isset($decoded['user_id'])) {
             $rateLimitKey = "{$decoded['user_id']}:token_refresh";
             if (RateLimiter::isLimited($rateLimitKey, 'token_refresh')) {

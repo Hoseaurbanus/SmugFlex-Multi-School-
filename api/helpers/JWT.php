@@ -29,7 +29,7 @@ class JWT {
         return "$header_encoded.$payload_encoded.$signature_encoded";
     }
 
-    public static function decode(string $jwt, bool $useSuperAdminSecret = false) {
+    public static function decode(string $jwt, bool $useSuperAdminSecret = false, int $graceSeconds = 0) {
         $parts = explode('.', $jwt);
         if (count($parts) !== 3) return false;
 
@@ -44,7 +44,7 @@ class JWT {
         $signature_check = self::base64url_decode($signature_encoded);
 
         if (!hash_equals($signature, $signature_check)) return false;
-        if (isset($payload['exp']) && $payload['exp'] < time()) return false;
+        if (isset($payload['exp']) && $payload['exp'] < time() - $graceSeconds) return false;
 
         return $payload;
     }
@@ -106,10 +106,10 @@ class JWT {
     }
 
     public static function refreshToken(string $token) {
-        $decoded = self::decode($token, false);
+        $decoded = self::decode($token, false, 900);
         if (!$decoded) return false;
 
-        if (time() - $decoded['exp'] > 900) return false;
+        if (isset($decoded['exp']) && time() - $decoded['exp'] > 900) return false;
 
         self::blacklistToken($decoded);
 
