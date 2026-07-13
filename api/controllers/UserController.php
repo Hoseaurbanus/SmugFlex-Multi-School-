@@ -118,7 +118,12 @@ class UserController {
             ";
             
             $stmt = $this->conn->prepare($query);
-            $stmt->execute(array_merge($params, [$limit, $offset]));
+            foreach ($params as $i => $val) {
+                $stmt->bindValue($i + 1, $val);
+            }
+            $stmt->bindValue(count($params) + 1, $limit, PDO::PARAM_INT);
+            $stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
+            $stmt->execute();
             $users = $stmt->fetchAll();
             
             // Get total count

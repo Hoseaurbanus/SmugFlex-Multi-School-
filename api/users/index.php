@@ -77,7 +77,10 @@ try {
     // Get total count
     $countSql = "SELECT COUNT(DISTINCT u.id) as total FROM users u $whereClause";
     $stmt = $conn->prepare($countSql);
-    $stmt->execute($params);
+    foreach ($params as $i => $val) {
+        $stmt->bindValue($i + 1, $val);
+    }
+    $stmt->execute();
     $total = $stmt->fetch()['total'];
     
     // Build main query with conditional accountants JOIN
@@ -132,10 +135,15 @@ try {
         LIMIT ? OFFSET ?
     ";
     
-    $mainParams = array_merge($params, $joinParams, [$limit, $offset]);
+    $mainParams = array_merge($params, $joinParams);
     
     $stmt = $conn->prepare($sql);
-    $stmt->execute($mainParams);
+    foreach ($mainParams as $i => $val) {
+        $stmt->bindValue($i + 1, $val);
+    }
+    $stmt->bindValue(count($mainParams) + 1, $limit, PDO::PARAM_INT);
+    $stmt->bindValue(count($mainParams) + 2, $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Format dates
