@@ -30,10 +30,14 @@ class SchemaMigration {
         self::addColumnIfMissing($conn, 'payments', 'reversed_from_payment_id', 'INT NULL', 'invoice_id');
         self::addColumnIfMissing($conn, 'payments', 'reversed_by', 'INT NULL', 'verified_by');
         self::addColumnIfMissing($conn, 'payments', 'reversed_date', 'DATETIME NULL', 'reversed_by');
+        self::addColumnIfMissing($conn, 'payments', 'academic_year', "VARCHAR(20) NULL", 'payment_method');
+        self::addColumnIfMissing($conn, 'payments', 'term', "VARCHAR(20) NULL", 'academic_year');
         self::addColumnIfMissing($conn, 'notifications', 'priority', "ENUM('Low','Medium','High','Urgent') DEFAULT 'Medium'", 'type');
         self::addColumnIfMissing($conn, 'notifications', 'created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP', 'sent_date');
         self::addColumnIfMissing($conn, 'notifications', 'status', "ENUM('active','archived') DEFAULT 'active'", 'type');
         self::addColumnIfMissing($conn, 'students', 'admission_number', 'VARCHAR(50) NULL', 'first_name');
+        self::addColumnIfMissing($conn, 'students', 'status', "VARCHAR(20) DEFAULT 'Active'", 'gender');
+        self::addColumnIfMissing($conn, 'parents', 'status', "VARCHAR(20) DEFAULT 'Active'", 'phone');
     }
 
     private static function addSchoolIdIfMissing($conn, $table, $afterCol = 'id') {
@@ -42,7 +46,14 @@ class SchemaMigration {
             $stmt->execute();
             if ($stmt->fetch()) return;
 
-            $conn->exec("ALTER TABLE `$table` ADD COLUMN school_id INT NOT NULL AFTER `$afterCol`");
+            // Check if afterCol exists, fall back to ADD COLUMN at end
+            $colCheck = $conn->prepare("SHOW COLUMNS FROM `$table` LIKE '$afterCol'");
+            $colCheck->execute();
+            if ($colCheck->fetch()) {
+                $conn->exec("ALTER TABLE `$table` ADD COLUMN school_id INT NOT NULL AFTER `$afterCol`");
+            } else {
+                $conn->exec("ALTER TABLE `$table` ADD COLUMN school_id INT NOT NULL");
+            }
             try {
                 $conn->exec("CREATE INDEX idx_{$table}_school_id ON `$table`(school_id)");
             } catch (PDOException $e) {
@@ -60,7 +71,14 @@ class SchemaMigration {
             $stmt->execute();
             if ($stmt->fetch()) return;
 
-            $conn->exec("ALTER TABLE `$table` ADD COLUMN `$column` $type AFTER `$afterCol`");
+            // Check if afterCol exists, fall back to ADD COLUMN at end
+            $colCheck = $conn->prepare("SHOW COLUMNS FROM `$table` LIKE '$afterCol'");
+            $colCheck->execute();
+            if ($colCheck->fetch()) {
+                $conn->exec("ALTER TABLE `$table` ADD COLUMN `$column` $type AFTER `$afterCol`");
+            } else {
+                $conn->exec("ALTER TABLE `$table` ADD COLUMN `$column` $type");
+            }
             error_log("SchemaMigration: Added $column to $table");
         } catch (PDOException $e) {
             error_log("SchemaMigration: Failed adding $column to $table: " . $e->getMessage());
