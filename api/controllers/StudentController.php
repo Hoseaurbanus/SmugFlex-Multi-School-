@@ -199,7 +199,7 @@ class StudentController {
             if ($token_data['role'] === 'parent') {
                 $query .= " AND s.id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id)";
             } elseif ($token_data['role'] === 'teacher') {
-                $query .= " AND s.class_id IN (SELECT DISTINCT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id UNION SELECT DISTINCT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
+                $query .= " AND s.class_id IN (SELECT DISTINCT class_id FROM subject_assignments WHERE teacher_id = :teacher_id AND status = 'Active' AND school_id = :school_id_tchr UNION SELECT DISTINCT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta)";
             }
             
             $stmt = $this->conn->prepare($query);
@@ -213,6 +213,7 @@ class StudentController {
             } elseif ($token_data['role'] === 'teacher') {
                 $stmt->bindParam(':teacher_id', $token_data['linked_id']);
                 $stmt->bindParam(':teacher_id_cta', $token_data['linked_id']);
+                $stmt->bindParam(':school_id_tchr', $school_id);
                 $stmt->bindParam(':school_id_cta', $school_id);
             }
             

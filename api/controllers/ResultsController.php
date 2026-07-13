@@ -477,11 +477,12 @@ class ResultsController
                       AND cta.term = :cta_term
                       AND cta.academic_year = :cta_academic_year
                       AND cta.status = 'Active'
-                      AND cta.school_id = :school_id
+                      AND cta.school_id = :school_id_cta
                 )";
                 $params[':teacher_id'] = $token_data['linked_id'];
                 $params[':cta_term'] = $term;
                 $params[':cta_academic_year'] = $academic_year;
+                $params[':school_id_cta'] = $school_id;
             }
 
             $query .= " ORDER BY c.name, s.last_name, s.first_name";
@@ -1145,9 +1146,10 @@ class ResultsController
                 // Add parent filtering - only show results for parent's linked children
                 $query .= " AND cr.student_id IN (
                     SELECT psl.student_id FROM parent_student_links psl
-                    WHERE psl.parent_id = :parent_id AND psl.school_id = :school_id
+                    WHERE psl.parent_id = :parent_id AND psl.school_id = :school_id_psl
                 )";
                 $params[':parent_id'] = $token_data['linked_id'];
+                $params[':school_id_psl'] = $school_id;
             } else if ($role === 'teacher') {
                 if (!isset($token_data['linked_id']) || empty($token_data['linked_id'])) {
                     Response::success([], 'Teacher profile not linked');

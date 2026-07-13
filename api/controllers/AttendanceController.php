@@ -85,8 +85,9 @@ class AttendanceController {
             
             // Filter by class
             if (isset($_GET['class_id'])) {
-                $conditions[] = "a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id)";
+                $conditions[] = "a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id_cls)";
                 $params[':class_id'] = Middleware::validateInteger($_GET['class_id'], 'class_id');
+                $params[':school_id_cls'] = $school_id;
             }
             
             // Teacher can only see attendance for their classes
@@ -97,20 +98,22 @@ class AttendanceController {
                         SELECT class_id FROM subject_assignments WHERE teacher_id = :teacher_id_sa AND status = 'Active' AND school_id = :school_id_sa
                         UNION
                         SELECT class_id FROM class_teacher_assignments WHERE teacher_id = :teacher_id_cta AND status = 'Active' AND school_id = :school_id_cta
-                    ) AND s.school_id = :school_id
+                    ) AND s.school_id = :school_id_tchr
                 )";
                 $params[':teacher_id_sa'] = $token_data['linked_id'];
                 $params[':school_id_sa'] = $school_id;
                 $params[':teacher_id_cta'] = $token_data['linked_id'];
                 $params[':school_id_cta'] = $school_id;
+                $params[':school_id_tchr'] = $school_id;
             }
             
             // Parent can only see attendance for their children
             if ($token_data['role'] === 'parent') {
                 $conditions[] = "a.student_id IN (
-                    SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id AND school_id = :school_id
+                    SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id AND school_id = :school_id_prnt
                 )";
                 $params[':parent_id'] = $token_data['linked_id'];
+                $params[':school_id_prnt'] = $school_id;
             }
             
             // ============ NEW: MANDATORY TERM AND ACADEMIC YEAR FILTERING ============
@@ -228,14 +231,16 @@ class AttendanceController {
             $params = [':date' => $date, ':academic_year' => $academic_year, ':term' => $term, ':school_id' => $school_id];
             
             if ($class_id) {
-                $query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id)";
+                $query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id_cls)";
                 $params[':class_id'] = $class_id;
+                $params[':school_id_cls'] = $school_id;
             }
             
             // Parent can only see attendance for their children
             if ($token_data['role'] === 'parent') {
-                $query .= " AND a.student_id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id AND school_id = :school_id)";
+                $query .= " AND a.student_id IN (SELECT student_id FROM parent_student_links WHERE parent_id = :parent_id AND school_id = :school_id_prnt)";
                 $params[':parent_id'] = $token_data['linked_id'];
+                $params[':school_id_prnt'] = $school_id;
             }
             
             $query .= " ORDER BY c.level, c.name, s.last_name, s.first_name";
@@ -669,7 +674,7 @@ class AttendanceController {
                             WHERE a.date BETWEEN :date_from AND :date_to AND a.school_id = :school_id";
             
             if ($class_id) {
-                $daily_query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id)";
+                $daily_query .= " AND a.student_id IN (SELECT id FROM students WHERE class_id = :class_id AND school_id = :school_id_cls)";
             }
             
             $daily_query .= " GROUP BY DATE(a.date) ORDER BY date";
@@ -678,6 +683,7 @@ class AttendanceController {
             $daily_params = [':date_from' => $date_from, ':date_to' => $date_to, ':school_id' => $school_id];
             if ($class_id) {
                 $daily_params[':class_id'] = $class_id;
+                $daily_params[':school_id_cls'] = $school_id;
             }
             foreach ($daily_params as $key => $value) {
                 $daily_stmt->bindValue($key, $value);

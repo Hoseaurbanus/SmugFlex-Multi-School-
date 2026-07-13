@@ -472,8 +472,8 @@ class TeacherController {
             
             $query = "SELECT sa.*, sub.name as subject_name, sub.code as subject_code, c.name as class_name, c.level
                       FROM subject_assignments sa
-                      JOIN subjects sub ON sa.subject_id = sub.id AND sub.school_id = :school_id
-                      JOIN classes c ON sa.class_id = c.id AND c.school_id = :school_id
+                      JOIN subjects sub ON sa.subject_id = sub.id AND sub.school_id = :school_id_sub
+                      JOIN classes c ON sa.class_id = c.id AND c.school_id = :school_id_c
                       WHERE sa.teacher_id = :teacher_id 
                       AND sa.academic_year = :academic_year 
                       AND sa.term = :term 
@@ -486,6 +486,8 @@ class TeacherController {
             $stmt->bindParam(':academic_year', $academic_year);
             $stmt->bindParam(':term', $term);
             $stmt->bindParam(':school_id', $school_id);
+            $stmt->bindParam(':school_id_sub', $school_id);
+            $stmt->bindParam(':school_id_c', $school_id);
             $stmt->execute();
             
             $assignments = $stmt->fetchAll();
@@ -515,7 +517,7 @@ class TeacherController {
                              c.name as class_name, c.level
                       FROM students s
                       JOIN classes c ON s.class_id = c.id
-                      LEFT JOIN subject_assignments sa ON c.id = sa.class_id AND sa.teacher_id = :teacher_id AND sa.status = 'Active' AND sa.school_id = :school_id
+                      LEFT JOIN subject_assignments sa ON c.id = sa.class_id AND sa.teacher_id = :teacher_id AND sa.status = 'Active' AND sa.school_id = :school_id_sa
                       LEFT JOIN class_teacher_assignments cta ON c.id = cta.class_id AND cta.teacher_id = :teacher_id_cta AND cta.status = 'Active' AND cta.school_id = :school_id_cta
                       WHERE s.status = 'Active' AND s.school_id = :school_id
                       AND (sa.id IS NOT NULL OR cta.id IS NOT NULL)
@@ -525,6 +527,7 @@ class TeacherController {
             $stmt->bindParam(':teacher_id', $teacher_id);
             $stmt->bindParam(':school_id', $school_id);
             $stmt->bindParam(':teacher_id_cta', $teacher_id);
+            $stmt->bindParam(':school_id_sa', $school_id);
             $stmt->bindParam(':school_id_cta', $school_id);
             $stmt->execute();
             

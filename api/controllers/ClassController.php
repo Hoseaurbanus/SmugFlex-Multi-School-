@@ -626,21 +626,26 @@ class ClassController {
         try {
             $query = "SELECT 
                         c.name, c.level, c.capacity, c.current_students,
-                        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as active_students,
-                        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Inactive' AND school_id = :school_id) as inactive_students,
-                        (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as subject_assignments,
+                        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id_active) as active_students,
+                        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Inactive' AND school_id = :school_id_inactive) as inactive_students,
+                        (SELECT COUNT(*) FROM subject_assignments WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id_sa) as subject_assignments,
                         (SELECT COUNT(*) FROM attendance a 
                          JOIN students s ON a.student_id = s.id 
-                         WHERE s.class_id = c.id AND s.school_id = :school_id AND a.date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as attendance_records_30_days,
+                         WHERE s.class_id = c.id AND s.school_id = :school_id_att AND a.date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as attendance_records_30_days,
                         (SELECT COUNT(*) FROM payments p 
                          JOIN students s ON p.student_id = s.id 
-                         WHERE s.class_id = c.id AND s.school_id = :school_id AND p.recorded_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as payments_30_days
+                         WHERE s.class_id = c.id AND s.school_id = :school_id_pay AND p.recorded_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as payments_30_days
                       FROM classes c
                       WHERE c.id = :id AND c.school_id = :school_id";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $class_id);
             $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $stmt->bindParam(':school_id_active', $school_id, PDO::PARAM_INT);
+            $stmt->bindParam(':school_id_inactive', $school_id, PDO::PARAM_INT);
+            $stmt->bindParam(':school_id_sa', $school_id, PDO::PARAM_INT);
+            $stmt->bindParam(':school_id_att', $school_id, PDO::PARAM_INT);
+            $stmt->bindParam(':school_id_pay', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             
             $statistics = $stmt->fetch();
@@ -669,7 +674,7 @@ class ClassController {
         try {
             $query = "SELECT c.*, 
                              CONCAT(t.first_name, ' ', t.last_name) as class_teacher_name,
-                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id) as current_students
+                             (SELECT COUNT(*) FROM students WHERE class_id = c.id AND status = 'Active' AND school_id = :school_id_sub) as current_students
                       FROM classes c
                       LEFT JOIN teachers t ON c.class_teacher_id = t.id
                       WHERE c.level = :level AND c.status = 'Active' AND c.school_id = :school_id
@@ -678,6 +683,7 @@ class ClassController {
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':level', $level);
             $stmt->bindParam(':school_id', $school_id, PDO::PARAM_INT);
+            $stmt->bindParam(':school_id_sub', $school_id, PDO::PARAM_INT);
             $stmt->execute();
             
             $classes = $stmt->fetchAll();
