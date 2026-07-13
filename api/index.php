@@ -1,7 +1,7 @@
 <?php
 
 // Load database config (which loads .env)
-require_once 'config/database.php';
+require_once __DIR__ . '/config/database.php';
 
 // ─── SECURITY: Enforce request size limits ───
 $maxBodySize = 10 * 1024 * 1024; // 10MB max POST body
@@ -37,12 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Include helpers
-require_once 'helpers/Response.php';
-require_once 'helpers/Middleware.php';
-require_once 'helpers/JWT.php';
-require_once 'helpers/RateLimiter.php';
-require_once 'helpers/TenantMiddleware.php';
-require_once 'helpers/SchemaMigration.php';
+require_once __DIR__ . '/helpers/Response.php';
+require_once __DIR__ . '/helpers/Middleware.php';
+require_once __DIR__ . '/helpers/JWT.php';
+require_once __DIR__ . '/helpers/RateLimiter.php';
+require_once __DIR__ . '/helpers/TenantMiddleware.php';
+require_once __DIR__ . '/helpers/SchemaMigration.php';
 
 // Run auto-migration once (adds missing school_id columns, etc.)
 try {

@@ -114,20 +114,16 @@ foreach ($controllers as $ctrl) {
         echo "   $ctrl: FILE MISSING\n";
         continue;
     }
-    $code = file_get_contents($file);
-    // Check for syntax errors using token_get_all
-    $tokens = @token_get_all($code);
-    if ($tokens === false) {
-        echo "   $ctrl: TOKEN ERROR\n";
+    // Check for BOM (Byte Order Mark) — causes PHP to treat file as HTML output
+    $head = file_get_contents($file, false, null, 0, 3);
+    if (bin2hex($head) === 'efbbbf') {
+        echo "   $ctrl: HAS UTF-8 BOM — remove it!\n";
         continue;
     }
-    // Try to compile
-    $tmpFile = tempnam(sys_get_temp_dir(), 'php_check_');
-    file_put_contents($tmpFile, '<?php ' . $code);
+    // Syntax check — use the file directly (it already has <?php)
     $output = [];
     $exitCode = 0;
-    exec('php -l ' . escapeshellarg($tmpFile) . ' 2>&1', $output, $exitCode);
-    unlink($tmpFile);
+    exec('php -l ' . escapeshellarg($file) . ' 2>&1', $output, $exitCode);
     if ($exitCode === 0) {
         echo "   $ctrl: OK\n";
     } else {
@@ -144,12 +140,14 @@ foreach ($helpers as $h) {
         echo "   $h: FILE MISSING\n";
         continue;
     }
-    $tmpFile = tempnam(sys_get_temp_dir(), 'php_check_');
-    file_put_contents($tmpFile, '<?php ' . file_get_contents($file));
+    $head = file_get_contents($file, false, null, 0, 3);
+    if (bin2hex($head) === 'efbbbf') {
+        echo "   $h: HAS UTF-8 BOM — remove it!\n";
+        continue;
+    }
     $output = [];
     $exitCode = 0;
-    exec('php -l ' . escapeshellarg($tmpFile) . ' 2>&1', $output, $exitCode);
-    unlink($tmpFile);
+    exec('php -l ' . escapeshellarg($file) . ' 2>&1', $output, $exitCode);
     if ($exitCode === 0) {
         echo "   $h: OK\n";
     } else {
@@ -157,10 +155,26 @@ foreach ($helpers as $h) {
     }
 }
 
-// 7. Test index.php init
-echo "\n7. index.php initialization test:\n";
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
+// 7. Test index.php
+echo "\n7. index.php parse check:\n";
+$head = file_get_contents(__DIR__ . '/index.php', false, null, 0, 3);
+if (bin2hex($head) === 'efbbbf') {
+    echo "   index.php: HAS UTF-8 BOM — remove it!\n";
+} else {
+    $output = [];
+    $exitCode = 0;
+    exec('php -l ' . escapeshellarg(__DIR__ . '/index.php') . ' 2>&1', $output, $exitCode);
+    echo "   index.php: " . ($exitCode === 0 ? "OK" : implode("\n   ", $output)) . "\n";
+}
+
+// 8. CWD vs __DIR__ check
+echo "\n8. Path resolution check:\n";
+echo "   CWD: " . getcwd() . "\n";
+echo "   __DIR__: " . __DIR__ . "\n";
+echo "   config/database.php exists (CWD): " . (file_exists('config/database.php') ? 'YES' : 'NO') . "\n";
+echo "   config/database.php exists (__DIR__): " . (file_exists(__DIR__ . '/config/database.php') ? 'YES' : 'NO') . "\n";
+echo "   helpers/Response.php exists (CWD): " . (file_exists('helpers/Response.php') ? 'YES' : 'NO') . "\n";
+echo "   helpers/Response.php exists (__DIR__): " . (file_exists(__DIR__ . '/helpers/Response.php') ? 'YES' : 'NO') . "\n";
 
 echo "\n=== END DIAGNOSTIC ===\n";
 echo "DELETE THIS FILE AFTER USE!\n";
