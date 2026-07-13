@@ -12,6 +12,11 @@ require_once __DIR__ . '/helpers/TenantMiddleware.php';
 Cors::handle();
 header('Content-Type: application/json');
 
+// Allow token from query param for browser testing
+if (isset($_GET['token']) && !isset($_SERVER['HTTP_AUTHORIZATION'])) {
+    $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $_GET['token'];
+}
+
 $debug = ['steps' => [], 'errors' => [], 'env' => []];
 
 try {
