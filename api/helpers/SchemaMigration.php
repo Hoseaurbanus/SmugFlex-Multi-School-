@@ -76,6 +76,9 @@ class SchemaMigration {
             INDEX idx_results_school_id (school_id),
             INDEX idx_results_student_id (student_id)
         )");
+
+        // Ensure token_blacklist has school_id column
+        self::addColumnIfMissing($conn, 'token_blacklist', 'school_id', 'INT UNSIGNED NULL', 'expires_at');
     }
 
     private static function createTableIfMissing($conn, $table, $sql) {

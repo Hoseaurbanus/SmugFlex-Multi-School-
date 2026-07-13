@@ -45,7 +45,11 @@ require_once 'helpers/TenantMiddleware.php';
 require_once 'helpers/SchemaMigration.php';
 
 // Run auto-migration once (adds missing school_id columns, etc.)
-SchemaMigration::run((new Database())->getConnection());
+try {
+    SchemaMigration::run((new Database())->getConnection());
+} catch (Exception $e) {
+    error_log("SchemaMigration failed: " . $e->getMessage());
+}
 
 // Include controllers
 require_once 'controllers/AuthController.php';
