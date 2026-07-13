@@ -15,6 +15,26 @@ class AuthController {
         $this->conn = $database->getConnection();
     }
 
+    private function ensureAccountantsTable(): void {
+        try {
+            $this->conn->query("SELECT 1 FROM accountants LIMIT 1");
+        } catch (PDOException $e) {
+            $this->conn->exec("CREATE TABLE IF NOT EXISTS `accountants` (
+                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `school_id` INT UNSIGNED NOT NULL,
+                `first_name` VARCHAR(100) NOT NULL,
+                `last_name` VARCHAR(100) NOT NULL,
+                `email` VARCHAR(191),
+                `phone` VARCHAR(30),
+                `status` VARCHAR(20) DEFAULT 'Active',
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                KEY `idx_school_id` (`school_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        }
+    }
+
     public function login() {
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['identity', 'password', 'role']);
@@ -70,6 +90,8 @@ class AuthController {
             }
 
             $school_id = (int)$school['id'];
+
+            $this->ensureAccountantsTable();
 
             $query = "SELECT u.*,
                         CASE WHEN u.role='teacher'    THEN t.first_name
