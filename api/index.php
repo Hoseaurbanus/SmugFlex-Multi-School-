@@ -42,6 +42,10 @@ require_once 'helpers/Middleware.php';
 require_once 'helpers/JWT.php';
 require_once 'helpers/RateLimiter.php';
 require_once 'helpers/TenantMiddleware.php';
+require_once 'helpers/SchemaMigration.php';
+
+// Run auto-migration once (adds missing school_id columns, etc.)
+SchemaMigration::run((new Database())->getConnection());
 
 // Include controllers
 require_once 'controllers/AuthController.php';
