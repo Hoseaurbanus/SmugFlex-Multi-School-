@@ -1545,24 +1545,29 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // SSE should only be active when logged in.
     if (!currentUser) {
       if (realtimeEventSourceRef.current) {
         realtimeEventSourceRef.current.close();
         realtimeEventSourceRef.current = null;
       }
+      stopRealtimePollingFallback();
       return;
     }
 
     const token = tokenManager.getToken() || getAuthToken();
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
-    // Close any previous connection
     if (realtimeEventSourceRef.current) {
       realtimeEventSourceRef.current.close();
       realtimeEventSourceRef.current = null;
+    }
+
+    // SSE cannot work through Vercel middleware proxy (fetch buffers responses,
+    // killing the streaming connection). Always use polling fallback instead.
+    const isProxy = API_CONFIG.BASE_URL.startsWith('/');
+    if (isProxy) {
+      startRealtimePollingFallback();
+      return;
     }
 
     const url = `${API_CONFIG.BASE_URL}/realtime/stream?token=${encodeURIComponent(String(token))}&lastEventId=${encodeURIComponent(String(lastRealtimeEventIdRef.current || 0))}`;
@@ -1630,7 +1635,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
     return () => {
       try {
-        es.close();
+        if (realtimeEventSourceRef.current) {
+          realtimeEventSourceRef.current.close();
+          realtimeEventSourceRef.current = null;
+        }
       } catch {}
       stopRealtimePollingFallback();
       if (realtimeReconnectTimerRef.current) {
