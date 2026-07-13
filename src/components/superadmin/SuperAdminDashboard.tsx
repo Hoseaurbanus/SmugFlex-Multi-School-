@@ -266,6 +266,13 @@ export function SuperAdminDashboard() {
     return () => clearTimeout(timer);
   }, [search, statusFilter, fetchSchools]);
 
+  // Auto-refresh stats every 30 seconds while on dashboard tab
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    const interval = setInterval(() => { fetchStats(); }, 30000);
+    return () => clearInterval(interval);
+  }, [activeTab, fetchStats]);
+
   const handleLogout = () => { superAdminAuth.logout(); navigate('/super-admin/login'); };
 
   const handleAction = async (url: string, body?: any) => {
