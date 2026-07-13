@@ -145,7 +145,15 @@ try {
             } elseif ($action === 'check-suffix' && $method === 'GET') {
                 $superAdmin->checkSuffix();
             } elseif ($action === 'stats' && $method === 'GET') {
-                $superAdmin->getPlatformStats();
+                // Inline stats handler — bypasses controller to avoid OPcache issues
+                $saAuth = TenantMiddleware::requireSuperAdminAuth();
+                $db = (new Database())->getConnection();
+                $out = ['total_schools'=>0,'active_schools'=>0,'pending_schools'=>0,'inactive_schools'=>0,'suspended_schools'=>0,'new_schools_this_month'=>0,'total_students'=>0,'total_teachers'=>0,'trial_schools'=>0,'basic_schools'=>0,'standard_schools'=>0,'premium_schools'=>0];
+                try { $r = $db->query("SELECT COUNT(*) as t, SUM(status='active') as a, SUM(status='pending') as p, SUM(status='inactive') as i, SUM(status='suspended') as s, SUM(created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as n FROM schools")->fetch(PDO::FETCH_ASSOC); $out['total_schools']=(int)$r['t']; $out['active_schools']=(int)($r['a']??0); $out['pending_schools']=(int)($r['p']??0); $out['inactive_schools']=(int)($r['i']??0); $out['suspended_schools']=(int)($r['s']??0); $out['new_schools_this_month']=(int)($r['n']??0); } catch(Throwable $e){ error_log("stats-schools: ".$e->getMessage()); }
+                try { $r = $db->query("SELECT SUM(plan='trial') as t, SUM(plan='basic') as b, SUM(plan='standard') as s, SUM(plan='premium') as p FROM schools WHERE status='active'")->fetch(PDO::FETCH_ASSOC); $out['trial_schools']=(int)($r['t']??0); $out['basic_schools']=(int)($r['b']??0); $out['standard_schools']=(int)($r['s']??0); $out['premium_schools']=(int)($r['p']??0); } catch(Throwable $e){ error_log("stats-plans: ".$e->getMessage()); }
+                try { $out['total_students']=(int)$db->query("SELECT COUNT(*) FROM students")->fetchColumn(); } catch(Throwable $e){ error_log("stats-students: ".$e->getMessage()); }
+                try { $out['total_teachers']=(int)$db->query("SELECT COUNT(*) FROM teachers")->fetchColumn(); } catch(Throwable $e){ error_log("stats-teachers: ".$e->getMessage()); }
+                Response::success($out, 'Platform stats retrieved');
             } elseif ($action === 'activity-logs' && $method === 'GET') {
                 $superAdmin->getActivityLogs();
             } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'modules' && $method === 'GET') {

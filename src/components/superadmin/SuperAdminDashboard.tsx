@@ -200,7 +200,8 @@ export function SuperAdminDashboard() {
   const apiCall = async (url: string, options: RequestInit = {}) => {
     const res = await fetch(`${API_CONFIG.BASE_URL}${url}`, { ...options, headers: getAuthHeaders() });
     const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.message || 'Request failed');
+    if (res.status === 401) { superAdminAuth.logout(); navigate('/super-admin/login'); throw new Error('Session expired'); }
+    if (!res.ok || !data.success) throw new Error(data.message || `Request failed (${res.status})`);
     return data;
   };
 
@@ -214,7 +215,9 @@ export function SuperAdminDashboard() {
     try {
       const data = await apiCall(API_CONFIG.ENDPOINTS.SUPER_ADMIN.STATS);
       setStats(data.data);
-    } catch { toast.error('Failed to load stats'); }
+    } catch (e: any) {
+      if (e.message !== 'Session expired') toast.error('Failed to load stats: ' + (e.message || 'Unknown error'));
+    }
   }, []);
 
   const fetchSchools = useCallback(async () => {
