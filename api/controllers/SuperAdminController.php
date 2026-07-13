@@ -489,30 +489,48 @@ class SuperAdminController {
     public function getPlatformStats() {
         $this->requireAuth();
 
-        // Single efficient query for school counts by status
-        $statusRow = $this->conn->query("
-            SELECT
-                COUNT(*) as total_schools,
-                SUM(status='active') as active_schools,
-                SUM(status='pending') as pending_schools,
-                SUM(status='inactive') as inactive_schools,
-                SUM(status='suspended') as suspended_schools,
-                SUM(created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) as new_schools_this_month
-            FROM schools
-        ")->fetch(PDO::FETCH_ASSOC);
+        try {
+            $statusRow = $this->conn->query("
+                SELECT
+                    COUNT(*) as total_schools,
+                    SUM(status='active') as active_schools,
+                    SUM(status='pending') as pending_schools,
+                    SUM(status='inactive') as inactive_schools,
+                    SUM(status='suspended') as suspended_schools
+                FROM schools
+            ")->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            error_log("Stats schools query failed: " . $e->getMessage());
+            $statusRow = ['total_schools'=>0,'active_schools'=>0,'pending_schools'=>0,'inactive_schools'=>0,'suspended_schools'=>0];
+        }
 
-        // Single query for plan distribution among active schools
-        $planRow = $this->conn->query("
-            SELECT
-                SUM(plan='trial') as trial_schools,
-                SUM(plan='basic') as basic_schools,
-                SUM(plan='standard') as standard_schools,
-                SUM(plan='premium') as premium_schools
-            FROM schools WHERE status='active'
-        ")->fetch(PDO::FETCH_ASSOC);
+        try {
+            $planRow = $this->conn->query("
+                SELECT
+                    SUM(plan='trial') as trial_schools,
+                    SUM(plan='basic') as basic_schools,
+                    SUM(plan='standard') as standard_schools,
+                    SUM(plan='premium') as premium_schools
+                FROM schools WHERE status='active'
+            ")->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            error_log("Stats plan query failed: " . $e->getMessage());
+            $planRow = ['trial_schools'=>0,'basic_schools'=>0,'standard_schools'=>0,'premium_schools'=>0];
+        }
 
-        $studentCount = $this->conn->query("SELECT COUNT(*) FROM students")->fetchColumn();
-        $teacherCount = $this->conn->query("SELECT COUNT(*) FROM teachers")->fetchColumn();
+        try {
+            $studentCount = $this->conn->query("SELECT COUNT(*) FROM students")->fetchColumn();
+        } catch (Throwable $e) {
+            error_log("Stats students count failed: " . $e->getMessage());
+            $studentCount = 0;
+        }
+
+        try {
+            $teacherCount = $this->conn->query("SELECT COUNT(*) FROM teachers")->fetchColumn();
+        } catch (Throwable $e) {
+            error_log("Stats teachers count failed: " . $e->getMessage());
+            $teacherCount = 0;
+        }
 
         $stats = array_merge($statusRow, $planRow, [
             'total_students' => (int)$studentCount,
