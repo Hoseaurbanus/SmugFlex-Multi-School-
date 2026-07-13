@@ -12,7 +12,10 @@ require_once __DIR__ . '/../helpers/TenantMiddleware.php';
 class ProgressionController {
     private $conn;
     
-    public function __construct($database) {
+    public function __construct($database = null) {
+        if ($database === null) {
+            $database = new Database();
+        }
         $this->conn = $database->getConnection();
     }
     

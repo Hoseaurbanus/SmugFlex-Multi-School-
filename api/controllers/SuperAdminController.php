@@ -18,8 +18,7 @@ class SuperAdminController {
     private function ensureSchoolModulesTable(): void {
         try {
             $this->conn->query("SELECT 1 FROM school_modules LIMIT 1");
-        } catch (PDOException $e) {
-            error_log("school_modules table missing, auto-creating...");
+        } catch (Throwable $e) {
             $this->conn->exec("CREATE TABLE IF NOT EXISTS `school_modules` (
                 `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
                 `school_id` INT UNSIGNED NOT NULL,
@@ -217,9 +216,9 @@ class SuperAdminController {
             }
 
             $this->conn->commit();
-        } catch (PDOException $e) {
-            error_log("PDO Error in SuperAdminController.approveSchool: " . $e->getMessage());
-            $this->conn->rollBack();
+        } catch (Throwable $e) {
+            error_log("Error in SuperAdminController.approveSchool: " . $e->getMessage());
+            try { $this->conn->rollBack(); } catch ($x) {}
             Response::serverError('Failed to approve school');
         }
 
@@ -466,7 +465,7 @@ class SuperAdminController {
                 $cstmt = $this->conn->prepare("SELECT COUNT(*) FROM {$table} WHERE school_id = :sid");
                 $cstmt->execute([':sid' => $id]);
                 $counts[$key] = (int)$cstmt->fetchColumn();
-            } catch (PDOException $e) {
+            } catch (Throwable $e) {
                 error_log("School detail count error ({$table}): " . $e->getMessage());
             }
         }
@@ -480,7 +479,7 @@ class SuperAdminController {
             );
             $logStmt->execute([':sid' => $id]);
             $school['recent_activity'] = $logStmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
+        } catch (Throwable $e) {
             error_log("School detail activity_logs error: " . $e->getMessage());
         }
 
@@ -670,9 +669,9 @@ class SuperAdminController {
                 )->execute([':sid' => $id, ':name' => $name, ':enabled' => $enabled, ':reason' => $reason]);
             }
             $this->conn->commit();
-        } catch (PDOException $e) {
-            error_log("PDO Error in SuperAdminController.updateSchoolModules: " . $e->getMessage());
-            $this->conn->rollBack();
+        } catch (Throwable $e) {
+            error_log("Error in SuperAdminController.updateSchoolModules: " . $e->getMessage());
+            try { $this->conn->rollBack(); } catch ($x) {}
             Response::serverError('Failed to update modules');
         }
 
@@ -707,7 +706,8 @@ class SuperAdminController {
             foreach ($cascadeTables as $table) {
                 try {
                     $this->conn->prepare("DELETE FROM {$table} WHERE school_id = :sid")->execute([':sid' => $id]);
-                } catch (PDOException $e) {
+        } catch (Throwable $e) {
+            error_log("school_modules table missing, auto-creating...");
                     error_log("Cascade delete skip ({$table}): " . $e->getMessage());
                 }
             }
@@ -717,11 +717,11 @@ class SuperAdminController {
 
             $this->conn->exec("SET FOREIGN_KEY_CHECKS = 1");
             $this->conn->commit();
-        } catch (PDOException $e) {
-            error_log("PDO Error in SuperAdminController.deleteSchool: " . $e->getMessage());
+        } catch (Throwable $e) {
+            error_log("Error in SuperAdminController.deleteSchool: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
             try { $this->conn->exec("SET FOREIGN_KEY_CHECKS = 1"); } catch ($x) {}
-            $this->conn->rollBack();
-            Response::serverError('Failed to delete school');
+            try { $this->conn->rollBack(); } catch ($x) {}
+            Response::serverError('Failed to delete school: ' . $e->getMessage());
         }
 
         $this->logAction('delete_school', $id, $school['name']);
@@ -794,10 +794,10 @@ class SuperAdminController {
             }
 
             $this->conn->commit();
-        } catch (PDOException $e) {
-            error_log("PDO Error in SuperAdminController.createSchool: " . $e->getMessage());
-            $this->conn->rollBack();
-            Response::serverError('Failed to create school');
+        } catch (Throwable $e) {
+            error_log("Error in SuperAdminController.createSchool: " . $e->getMessage());
+            try { $this->conn->rollBack(); } catch ($x) {}
+            Response::serverError('Failed to create school: ' . $e->getMessage());
         }
 
         $this->logAction('create_school', $newSchoolId, $name, ['suffix' => $suffix]);

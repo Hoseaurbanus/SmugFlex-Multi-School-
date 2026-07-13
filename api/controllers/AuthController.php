@@ -181,9 +181,9 @@ class AuthController {
                 'must_change_password' => $mustChangePassword,
             ], 'Login successful');
 
-        } catch (PDOException $e) {
-            error_log("PDO Error in AuthController: " . $e->getMessage());
-            Response::serverError('Database error during login');
+        } catch (Throwable $e) {
+            error_log("Error in AuthController.login [{$identity}]: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+            Response::serverError('Login failed: ' . $e->getMessage());
         }
     }
 

@@ -47,31 +47,34 @@ require_once 'helpers/SchemaMigration.php';
 // Run auto-migration once (adds missing school_id columns, etc.)
 try {
     SchemaMigration::run((new Database())->getConnection());
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log("SchemaMigration failed: " . $e->getMessage());
 }
 
-// Include controllers
-require_once 'controllers/AuthController.php';
-require_once 'controllers/SuperAdminController.php';
-require_once 'controllers/TenantController.php';
-require_once 'controllers/StudentController.php';
-require_once 'controllers/TeacherController.php';
-require_once 'controllers/ClassController.php';
-require_once 'controllers/SubjectController.php';
-require_once 'controllers/ResultsController.php';
-require_once 'controllers/PaymentController.php';
-require_once 'controllers/InvoiceController.php';
-require_once 'controllers/ParentController.php';
-require_once 'controllers/ReportController.php';
-require_once 'controllers/AttendanceController.php';
-require_once 'controllers/NotificationController.php';
-require_once 'controllers/AssignmentController.php';
-require_once 'controllers/FileController.php';
-require_once 'controllers/UserController.php';
-require_once 'controllers/ProgressionController.php';
-require_once 'controllers/RealtimeController.php';
-require_once 'controllers/CbtController.php';
+// Include controllers — use @include_once to prevent Fatal Errors from
+// killing the entire request if one file has a syntax error on cPanel
+$controllerDir = __DIR__ . '/controllers/';
+$controllerFiles = [
+    'AuthController', 'SuperAdminController', 'TenantController', 'StudentController',
+    'TeacherController', 'ClassController', 'SubjectController', 'ResultsController',
+    'PaymentController', 'InvoiceController', 'ParentController', 'ReportController',
+    'AttendanceController', 'NotificationController', 'AssignmentController',
+    'FileController', 'UserController', 'ProgressionController', 'RealtimeController', 'CbtController',
+];
+$loadedControllers = [];
+foreach ($controllerFiles as $ctrl) {
+    $file = $controllerDir . $ctrl . '.php';
+    if (file_exists($file)) {
+        $result = @include_once $file;
+        if ($result !== false && class_exists($ctrl)) {
+            $loadedControllers[] = $ctrl;
+        } else {
+            error_log("SMugFlex: Failed to load controller $ctrl — check for syntax errors in $file");
+        }
+    } else {
+        error_log("SMugFlex: Controller file missing: $file");
+    }
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -90,6 +93,15 @@ $action = $path_parts[1] ?? '';
 $param = $path_parts[2] ?? null;
 $subparam = $path_parts[3] ?? null;
 
+// Safe controller loader — returns instance or sends error response
+function loadController(string $className) {
+    if (!class_exists($className)) {
+        error_log("SMugFlex: Controller class '$className' not found — file may have a syntax error");
+        Response::serverError("Controller '$className' failed to load. Check PHP error log on cPanel.");
+    }
+    return new $className();
+}
+
 // ─── SECURITY: Validate params ───
 // Note: $param is NOT sanitized here because routes like
 // /super-admin/schools/pending use string values in $param.
@@ -101,7 +113,7 @@ try {
         // ─── SMUGFLEX PLATFORM ROUTES ───
 
         case 'super-admin':
-            $superAdmin = new SuperAdminController();
+            $superAdmin = loadController('SuperAdminController');
             if ($action === 'login' && $method === 'POST') {
                 $superAdmin->login();
             } elseif ($action === 'schools' && $param === 'pending' && $method === 'GET') {
@@ -150,7 +162,7 @@ try {
             break;
 
         case 'schools':
-            $tenant = new TenantController();
+            $tenant = loadController('TenantController');
             if ($action === 'register' && $method === 'POST') {
                 $tenant->register();
             } elseif ($action === 'public-info' && $method === 'GET') {
@@ -169,7 +181,7 @@ try {
         // ─── EXISTING SCHOOL ROUTES (unchanged routing, but controllers now use TenantMiddleware) ───
 
         case 'realtime':
-            $realtimeController = new RealtimeController();
+            $realtimeController = loadController('RealtimeController');
             if ($method === 'GET' && $action === 'stream') {
                 $realtimeController->stream();
             } else {
@@ -186,7 +198,7 @@ try {
             break;
 
         case 'invoices':
-            $invoiceController = new InvoiceController();
+            $invoiceController = loadController('InvoiceController');
             if ($method === 'POST' && $action === 'auto-generate') {
                 $invoiceController->autoGenerateInvoices();
             } elseif ($method === 'GET' && $action === 'student' && $param) {
@@ -199,7 +211,7 @@ try {
             break;
 
         case 'auth':
-            $authController = new AuthController();
+            $authController = loadController('AuthController');
             if ($method === 'POST' && $action === 'login') {
                 $authController->login();
             } elseif ($method === 'POST' && $action === 'student-login') {
@@ -218,7 +230,7 @@ try {
             break;
 
         case 'users':
-            $userController = new UserController();
+            $userController = loadController('UserController');
             if ($method === 'GET' && !$action) {
                 $userController->getAllUsers();
             } elseif ($method === 'POST' && $action === 'reset-password' && $param) {
@@ -239,7 +251,7 @@ try {
             break;
 
         case 'progression':
-            $progressionController = new ProgressionController();
+            $progressionController = loadController('ProgressionController');
             if ($method === 'GET' && $action === 'rules') {
                 $progressionController->getProgressionRules();
             } elseif ($method === 'POST' && $action === 'rules') {
@@ -255,7 +267,7 @@ try {
 
         case 'students':
         case 'student':
-            $studentController = new StudentController();
+            $studentController = loadController('StudentController');
             if ($method === 'GET' && $action === 'statistics') {
                 $studentController->getStudentStatistics();
             } elseif ($method === 'GET' && $action === 'promotion-history') {
@@ -286,7 +298,7 @@ try {
             break;
 
         case 'teachers':
-            $teacherController = new TeacherController();
+            $teacherController = loadController('TeacherController');
             if ($method === 'GET' && $action === 'assignments' && $param) {
                 $teacherController->getTeacherAssignments((int)$param);
             } elseif ($method === 'GET' && $action === 'students' && $param) {
@@ -307,7 +319,7 @@ try {
             break;
 
         case 'classes':
-            $classController = new ClassController();
+            $classController = loadController('ClassController');
             if ($method === 'GET' && $action === 'students' && $param) {
                 $classController->getClassStudents((int)$param);
             } elseif ($method === 'GET' && $action === 'subjects' && $param) {
@@ -334,7 +346,7 @@ try {
             break;
 
         case 'subjects':
-            $subjectController = new SubjectController();
+            $subjectController = loadController('SubjectController');
             if ($method === 'GET' && $action === 'category' && $param) {
                 $subjectController->getSubjectsByCategory($param);
             } elseif ($method === 'GET' && $action === 'assignments') {
@@ -365,7 +377,7 @@ try {
             break;
 
         case 'results':
-            $resultsController = new ResultsController();
+            $resultsController = loadController('ResultsController');
             if ($method === 'GET' && $action === 'scores' && $param === 'by-term') {
                 $resultsController->getScoresByTerm();
             } elseif ($method === 'GET' && $action === 'scores' && $param) {
@@ -408,7 +420,7 @@ try {
             break;
 
         case 'payments':
-            $paymentController = new PaymentController();
+            $paymentController = loadController('PaymentController');
             if ($method === 'GET' && $action === 'reports') {
                 $paymentController->getPaymentReports();
             } elseif ($method === 'GET' && $action === 'reconciliation-summary') {
@@ -441,7 +453,7 @@ try {
             break;
 
         case 'parent-student-links':
-            $parentController = new ParentController();
+            $parentController = loadController('ParentController');
             if ($method === 'GET') {
                 $parentController->getAllParentStudentLinks();
             } else {
@@ -450,7 +462,7 @@ try {
             break;
 
         case 'parents':
-            $parentController = new ParentController();
+            $parentController = loadController('ParentController');
             if ($method === 'GET' && $action === 'children' && $param) {
                 $parentController->getParentChildren((int)$param);
             } elseif ($method === 'GET' && $action) {
@@ -473,7 +485,7 @@ try {
             break;
 
         case 'attendance':
-            $attendanceController = new AttendanceController();
+            $attendanceController = loadController('AttendanceController');
             if ($method === 'GET' && $action === 'student' && $param) {
                 $attendanceController->getStudentAttendanceSummary((int)$param);
             } elseif ($method === 'GET' && $action === 'class' && $param) {
@@ -492,7 +504,7 @@ try {
             break;
 
         case 'notifications':
-            $notificationController = new NotificationController();
+            $notificationController = loadController('NotificationController');
             if ($method === 'GET' && $action === 'unread-count') {
                 $notificationController->getUnreadCount();
             } elseif ($method === 'GET' && $action === 'user') {
@@ -517,7 +529,7 @@ try {
             break;
 
         case 'assignments':
-            $assignmentController = new AssignmentController();
+            $assignmentController = loadController('AssignmentController');
             if ($method === 'GET' && $action === 'submissions' && $param) {
                 $assignmentController->getSubmissions((int)$param);
             } elseif ($method === 'GET' && $action) {
@@ -540,7 +552,7 @@ try {
             break;
 
         case 'reports':
-            $reportController = new ReportController();
+            $reportController = loadController('ReportController');
             if ($method === 'POST' && $action === 'student') {
                 $reportController->generateStudentReportCard();
             } elseif ($method === 'POST' && $action === 'class') {
@@ -555,7 +567,7 @@ try {
             break;
 
         case 'files':
-            $fileController = new FileController();
+            $fileController = loadController('FileController');
             if ($method === 'POST' && $action === 'upload') {
                 $fileController->uploadLogo();
             } elseif ($method === 'DELETE' && $action) {
@@ -578,7 +590,7 @@ try {
             break;
 
         case 'cbt':
-            $cbtController = new CbtController();
+            $cbtController = loadController('CbtController');
             if ($method === 'GET' && $action === 'exams' && $param && $subparam === 'questions') {
                 $cbtController->getExamQuestions((int)$param);
             } elseif ($method === 'GET' && $action === 'exams' && $param) {
@@ -663,7 +675,7 @@ try {
         default:
             Response::notFound('Endpoint not found');
     }
-} catch (Exception $e) {
-    error_log("API Error: " . $e->getMessage());
-    Response::serverError('An internal error occurred');
+} catch (Throwable $e) {
+    error_log("API Error [" . ($_SERVER['REQUEST_URI'] ?? '') . "]: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+    Response::serverError('An internal error occurred: ' . $e->getMessage());
 }
