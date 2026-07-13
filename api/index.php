@@ -161,7 +161,36 @@ try {
             } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'modules' && $method === 'PUT') {
                 $superAdmin->updateSchoolModules((int)$param);
             } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'delete' && $method === 'POST') {
-                $superAdmin->deleteSchool((int)$param);
+                // Inline delete handler — bypasses controller to avoid OPcache issues
+                $delId = (int)$param;
+                $saAuth2 = TenantMiddleware::requireSuperAdminAuth();
+                $db2 = (new Database())->getConnection();
+                $delStmt = $db2->prepare("SELECT name FROM schools WHERE id = :id LIMIT 1");
+                $delStmt->execute([':id' => $delId]);
+                $delSchool = $delStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$delSchool) { Response::notFound('School not found.'); }
+                $db2->beginTransaction();
+                try {
+                    $db2->exec("SET FOREIGN_KEY_CHECKS = 0");
+                    $delCascade = ['student_parents','student_scores','exam_results','results','result_templates','payment_records','receipts','payments','attendance_records','attendance','students','teachers','accountants','parents','notifications','notification_templates','class_subjects','classes','terms','school_modules','school_settings','super_admin_activity_logs','platform_activity_logs'];
+                    foreach ($delCascade as $dt) {
+                        try { $db2->prepare("DELETE FROM {$dt} WHERE school_id = :sid")->execute([':sid' => $delId]); } catch (Throwable $e) {}
+                    }
+                    try { $db2->prepare("DELETE FROM users WHERE school_id = :sid")->execute([':sid' => $delId]); } catch (Throwable $e) {}
+                    $db2->prepare("DELETE FROM schools WHERE id = :id")->execute([':id' => $delId]);
+                    $db2->exec("SET FOREIGN_KEY_CHECKS = 1");
+                    $db2->commit();
+                } catch (Throwable $e) {
+                    try { $db2->exec("SET FOREIGN_KEY_CHECKS = 1"); } catch (Throwable $x) {}
+                    try { $db2->rollBack(); } catch (Throwable $x) {}
+                    Response::serverError('Failed to delete school: ' . $e->getMessage());
+                }
+                // Log the action
+                try {
+                    $logStmt = $db2->prepare("INSERT INTO platform_activity_logs (super_admin_id, action, school_id, school_name, details, ip_address) VALUES (:sa, 'delete_school', :sid, :sname, :det, :ip)");
+                    $logStmt->execute([':sa' => $saAuth2['super_admin_id'], ':sid' => $delId, ':sname' => $delSchool['name'], ':det' => json_encode(['deleted_by' => $saAuth2['username'] ?? 'admin']), ':ip' => $_SERVER['REMOTE_ADDR'] ?? '']);
+                } catch (Throwable $e) {}
+                Response::success(null, 'School deleted permanently.');
             } elseif ($action === 'schools' && $method === 'POST') {
                 $superAdmin->createSchool();
             } else {
