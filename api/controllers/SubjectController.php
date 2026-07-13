@@ -78,7 +78,7 @@ class SubjectController {
             // Get total count
             $count_stmt = $this->conn->prepare($count_query);
             foreach ($params as $key => $value) {
-                if ($key === ':school_id_sub' || $key === ':school_id') continue;
+                if ($key === ':school_id_sub') continue;
                 $count_stmt->bindValue($key, $value);
             }
             $count_stmt->execute();

@@ -30,6 +30,10 @@ class SchemaMigration {
         self::addColumnIfMissing($conn, 'payments', 'reversed_from_payment_id', 'INT NULL', 'invoice_id');
         self::addColumnIfMissing($conn, 'payments', 'reversed_by', 'INT NULL', 'verified_by');
         self::addColumnIfMissing($conn, 'payments', 'reversed_date', 'DATETIME NULL', 'reversed_by');
+        self::addColumnIfMissing($conn, 'notifications', 'priority', "ENUM('Low','Medium','High','Urgent') DEFAULT 'Medium'", 'type');
+        self::addColumnIfMissing($conn, 'notifications', 'created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP', 'sent_date');
+        self::addColumnIfMissing($conn, 'notifications', 'status', "ENUM('active','archived') DEFAULT 'active'", 'type');
+        self::addColumnIfMissing($conn, 'students', 'admission_number', 'VARCHAR(50) NULL', 'first_name');
     }
 
     private static function addSchoolIdIfMissing($conn, $table, $afterCol = 'id') {

@@ -99,25 +99,30 @@ try {
         return $colStmt->fetch() !== false;
     }
 
-    // Helper: extract primary table name from query
+    // Helper: extract primary table name and alias from query
     function extractTableName($query, $queryType) {
         if ($queryType === 'INSERT') {
-            if (preg_match('/INSERT\s+INTO\s+`?(\w+)`?/i', $query, $m)) return $m[1];
+            if (preg_match('/INSERT\s+INTO\s+`?(\w+)`?/i', $query, $m)) return ['name' => $m[1], 'alias' => null];
         } elseif ($queryType === 'UPDATE') {
-            if (preg_match('/UPDATE\s+`?(\w+)`?/i', $query, $m)) return $m[1];
+            if (preg_match('/UPDATE\s+`?(\w+)`?/i', $query, $m)) return ['name' => $m[1], 'alias' => null];
         } elseif ($queryType === 'DELETE') {
-            if (preg_match('/DELETE\s+FROM\s+`?(\w+)`?/i', $query, $m)) return $m[1];
+            if (preg_match('/DELETE\s+FROM\s+`?(\w+)`?/i', $query, $m)) return ['name' => $m[1], 'alias' => null];
         } elseif ($queryType === 'SELECT') {
-            if (preg_match('/FROM\s+`?(\w+)`?/i', $query, $m)) return $m[1];
+            // Match "FROM tablename alias" where alias is optional
+            if (preg_match('/FROM\s+`?(\w+)`?\s+(?:AS\s+)?(\w+)?/i', $query, $m)) {
+                $alias = !empty($m[2]) && !in_array(strtoupper($m[2]), ['WHERE', 'JOIN', 'ON', 'LEFT', 'RIGHT', 'INNER', 'CROSS', 'GROUP', 'ORDER', 'LIMIT', 'UNION', 'HAVING', 'SET']) ? $m[2] : null;
+                return ['name' => $m[1], 'alias' => $alias];
+            }
         }
-        return null;
+        return ['name' => null, 'alias' => null];
     }
 
     $targetTable = extractTableName($query, $queryType);
-    $hasSchoolId = $targetTable ? tableHasSchoolId($pdo, $targetTable) : false;
+    $tableRef = $targetTable['alias'] ?: $targetTable['name'];
+    $hasSchoolId = $tableRef ? tableHasSchoolId($pdo, $targetTable['name']) : false;
 
-    if (!$hasSchoolId && $targetTable) {
-        error_log("SQL_QUERY_AUDIT_WARNING: Table '{$targetTable}' has no school_id column — skipping tenant injection for query type {$queryType}");
+    if (!$hasSchoolId && $targetTable['name']) {
+        error_log("SQL_QUERY_AUDIT_WARNING: Table '{$targetTable['name']}' has no school_id column — skipping tenant injection for query type {$queryType}");
     }
 
     $paramsArePositional = $params !== [] && array_keys($params) === range(0, count($params) - 1);
@@ -125,13 +130,15 @@ try {
     $queryAlreadyHasSchoolId = preg_match('/\bschool_id\b/i', $query);
 
     if ($hasSchoolId && !$queryAlreadyHasSchoolId) {
-        // Only inject school_id when query doesn't already reference it
-        if ($queryType === 'SELECT' && $targetTable) {
+        // Use alias when available (MySQL requires alias when table is aliased)
+        $schoolIdCol = $tableRef . '.school_id';
+
+        if ($queryType === 'SELECT' && $targetTable['name']) {
             $schoolIdValue = $paramsArePositional ? (int)$school_id : ':_school_id_';
             if (preg_match('/\bWHERE\b/i', $query)) {
-                $query = preg_replace('/\bWHERE\b/i', "WHERE {$targetTable}.school_id = {$schoolIdValue} AND ", $query, 1);
+                $query = preg_replace('/\bWHERE\b/i', "WHERE {$schoolIdCol} = {$schoolIdValue} AND ", $query, 1);
             } else {
-                $query = preg_replace('/(\s+ORDER\s+BY|\s+LIMIT|\s*$)/i', " WHERE {$targetTable}.school_id = {$schoolIdValue} $1", $query, 1);
+                $query = preg_replace('/(\s+ORDER\s+BY|\s+LIMIT|\s*$)/i', " WHERE {$schoolIdCol} = {$schoolIdValue} $1", $query, 1);
             }
             if (!$paramsArePositional) {
                 $params[':_school_id_'] = $school_id;
@@ -140,9 +147,9 @@ try {
             $quotedSchoolId = (int)$school_id;
             if (in_array($queryType, ['UPDATE', 'DELETE'], true)) {
                 if (preg_match('/\bWHERE\b/i', $query)) {
-                    $query .= " AND {$targetTable}.school_id = $quotedSchoolId";
+                    $query .= " AND {$schoolIdCol} = $quotedSchoolId";
                 } else {
-                    $query .= " WHERE {$targetTable}.school_id = $quotedSchoolId";
+                    $query .= " WHERE {$schoolIdCol} = $quotedSchoolId";
                 }
             } elseif ($queryType === 'INSERT' && preg_match('/^INSERT\s+INTO\s+`?(\w+)`?\s*\(/i', $query)) {
                 $query = preg_replace(
@@ -165,9 +172,9 @@ try {
             } elseif (in_array($queryType, ['UPDATE', 'DELETE'], true)) {
                 $hasWhere = (bool)preg_match('/\bWHERE\b/i', $query);
                 if ($hasWhere) {
-                    $query .= " AND {$targetTable}.school_id = :_school_id_";
+                    $query .= " AND {$schoolIdCol} = :_school_id_";
                 } else {
-                    $query .= " WHERE {$targetTable}.school_id = :_school_id_";
+                    $query .= " WHERE {$schoolIdCol} = :_school_id_";
                 }
                 $params[':_school_id_'] = $school_id;
             }
