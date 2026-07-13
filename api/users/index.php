@@ -57,24 +57,43 @@ try {
     }
     
     if ($search) {
-        $whereConditions[] = "(u.username LIKE ? OR u.email LIKE ? OR CONCAT_WS(' ', t.first_name, t.other_name, t.last_name) LIKE ? OR CONCAT_WS(' ', p.first_name, p.last_name) LIKE ? OR CONCAT_WS(' ', a.first_name, a.last_name) LIKE ?)";
+        $whereConditions[] = "(u.username LIKE ? OR u.email LIKE ? OR CONCAT_WS(' ', t.first_name, t.other_name, t.last_name) LIKE ? OR CONCAT_WS(' ', p.first_name, p.last_name) LIKE ?)";
         $searchParam = "%$search%";
-        $params = array_merge($params, [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam]);
+        $params = array_merge($params, [$searchParam, $searchParam, $searchParam, $searchParam]);
     }
     
     $whereClause = "WHERE " . implode(" AND ", $whereConditions);
     
+    // Check if accountants table exists (may not on all schools)
+    $hasAccountants = false;
+    try {
+        $checkStmt = $conn->prepare("SELECT 1 FROM accountants LIMIT 1");
+        $checkStmt->execute();
+        $hasAccountants = true;
+    } catch (Exception $e) {
+        $hasAccountants = false;
+    }
+    
     // Get total count
-    $countSql = "
-        SELECT COUNT(DISTINCT u.id) as total
-        FROM users u
-        $whereClause
-    ";
+    $countSql = "SELECT COUNT(DISTINCT u.id) as total FROM users u $whereClause";
     $stmt = $conn->prepare($countSql);
     $stmt->execute($params);
     $total = $stmt->fetch()['total'];
     
-    // Get users with linked data
+    // Build main query with conditional accountants JOIN
+    $joinClauses = [
+        "LEFT JOIN teachers t ON u.linked_id = t.id AND u.role = 'teacher' AND t.school_id = ?",
+        "LEFT JOIN parents p ON u.linked_id = p.id AND u.role = 'parent' AND p.school_id = ?"
+    ];
+    $joinParams = [$school_id, $school_id];
+    
+    if ($hasAccountants) {
+        $joinClauses[] = "LEFT JOIN accountants a ON u.linked_id = a.id AND u.role = 'accountant' AND a.school_id = ?";
+        $joinParams[] = $school_id;
+    }
+    
+    $joinSQL = implode("\n        ", $joinClauses);
+    
     $sql = "
         SELECT 
             u.id,
@@ -86,43 +105,37 @@ try {
             u.last_login,
             u.created_at,
             u.updated_at,
-            COALESCE(t.first_name, p.first_name, a.first_name, '') as first_name,
-            COALESCE(t.last_name, p.last_name, a.last_name, '') as last_name,
+            COALESCE(t.first_name, p.first_name, " . ($hasAccountants ? "a.first_name" : "''") . ", '') as first_name,
+            COALESCE(t.last_name, p.last_name, " . ($hasAccountants ? "a.last_name" : "''") . ", '') as last_name,
             t.other_name as other_name,
             CASE 
                 WHEN u.role = 'teacher' THEN CONCAT_WS(' ', t.first_name, t.other_name, t.last_name)
                 WHEN u.role = 'parent' THEN CONCAT_WS(' ', p.first_name, p.last_name)
-                WHEN u.role = 'accountant' THEN CONCAT_WS(' ', a.first_name, a.last_name)
+                WHEN u.role = 'accountant' AND " . ($hasAccountants ? "1=1" : "1=0") . " THEN CONCAT_WS(' ', a.first_name, a.last_name)
                 ELSE u.username
             END as display_name,
             CASE 
                 WHEN u.role = 'teacher' THEN t.phone
                 WHEN u.role = 'parent' THEN p.phone
-                WHEN u.role = 'accountant' THEN a.phone
+                WHEN u.role = 'accountant' AND " . ($hasAccountants ? "1=1" : "1=0") . " THEN a.phone
                 ELSE NULL
             END as phone,
             CASE 
                 WHEN u.role = 'teacher' THEN t.employee_id
-                WHEN u.role = 'accountant' THEN a.employee_id
+                WHEN u.role = 'accountant' AND " . ($hasAccountants ? "1=1" : "1=0") . " THEN a.employee_id
                 ELSE NULL
             END as employee_id
         FROM users u
-        LEFT JOIN teachers t ON u.linked_id = t.id AND u.role = 'teacher' AND t.school_id = ?
-        LEFT JOIN parents p ON u.linked_id = p.id AND u.role = 'parent' AND p.school_id = ?
-        LEFT JOIN accountants a ON u.linked_id = a.id AND u.role = 'accountant' AND a.school_id = ?
+        $joinSQL
         $whereClause
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?
     ";
     
-    $params[] = $school_id;
-    $params[] = $school_id;
-    $params[] = $school_id;
-    $params[] = $limit;
-    $params[] = $offset;
+    $mainParams = array_merge($params, $joinParams, [$limit, $offset]);
     
     $stmt = $conn->prepare($sql);
-    $stmt->execute($params);
+    $stmt->execute($mainParams);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Format dates
@@ -135,6 +148,7 @@ try {
     Response::paginated($users, $page, $limit, $total, 'Users retrieved successfully');
     
 } catch (Exception $e) {
-    Response::serverError('Database error');
+    error_log('users/index.php error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    Response::serverError('Error: ' . $e->getMessage());
 }
 ?>
