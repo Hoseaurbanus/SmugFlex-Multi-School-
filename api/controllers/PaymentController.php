@@ -207,6 +207,7 @@ class PaymentController {
             $stmt = $this->conn->prepare($query);
             
             foreach ($params as $key => $value) {
+                if ($key === ':school_id5') continue;
                 $stmt->bindValue($key, $value);
             }
             
@@ -1624,8 +1625,8 @@ class PaymentController {
                 $update_query = "UPDATE student_fee_balances 
                                 SET total_paid = :total_paid, 
                                     status = CASE 
-                                        WHEN total_fee_required <= :total_paid THEN 'Paid'
-                                        WHEN :total_paid > 0 THEN 'Partial'
+                                        WHEN total_fee_required <= :total_paid_cmp1 THEN 'Paid'
+                                        WHEN :total_paid_cmp2 > 0 THEN 'Partial'
                                         ELSE 'Unpaid'
                                     END,
                                     last_payment_date = NOW()
@@ -1633,6 +1634,8 @@ class PaymentController {
                 
                 $update_stmt = $this->conn->prepare($update_query);
                 $update_stmt->bindParam(':total_paid', $new_total_paid);
+                $update_stmt->bindParam(':total_paid_cmp1', $new_total_paid);
+                $update_stmt->bindParam(':total_paid_cmp2', $new_total_paid);
                 $update_stmt->bindParam(':id', $balance_record['id']);
                 $update_stmt->execute();
                 return;
@@ -1710,14 +1713,16 @@ class PaymentController {
                 $update_query = "UPDATE student_fee_balances 
                                 SET total_paid = :total_paid, 
                                     status = CASE 
-                                        WHEN total_fee_required <= :total_paid THEN 'Paid'
-                                        WHEN :total_paid > 0 THEN 'Partial'
+                                        WHEN total_fee_required <= :total_paid_cmp1 THEN 'Paid'
+                                        WHEN :total_paid_cmp2 > 0 THEN 'Partial'
                                         ELSE 'Unpaid'
                                     END
                                 WHERE id = :id";
                 
                 $update_stmt = $this->conn->prepare($update_query);
                 $update_stmt->bindParam(':total_paid', $new_total_paid);
+                $update_stmt->bindParam(':total_paid_cmp1', $new_total_paid);
+                $update_stmt->bindParam(':total_paid_cmp2', $new_total_paid);
                 $update_stmt->bindParam(':id', $balance_record['id']);
                 $update_stmt->execute();
             }
