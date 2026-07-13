@@ -691,17 +691,18 @@ class SuperAdminController {
 
         $this->conn->beginTransaction();
         try {
+            $this->conn->exec("SET FOREIGN_KEY_CHECKS = 0");
+
             $cascadeTables = [
-                'student_scores', 'exam_results', 'results', 'result_templates',
+                'student_parents', 'student_scores', 'exam_results',
+                'results', 'result_templates',
                 'payment_records', 'receipts', 'payments',
                 'attendance_records', 'attendance',
-                'student_parents', 'students',
-                'teachers',
-                'accountants',
-                'parents',
+                'students', 'teachers', 'accountants', 'parents',
                 'notifications', 'notification_templates',
                 'class_subjects', 'classes', 'terms',
                 'school_modules', 'school_settings',
+                'super_admin_activity_logs', 'platform_activity_logs',
             ];
             foreach ($cascadeTables as $table) {
                 try {
@@ -713,9 +714,12 @@ class SuperAdminController {
 
             $this->conn->prepare("DELETE FROM users WHERE school_id = :sid")->execute([':sid' => $id]);
             $this->conn->prepare("DELETE FROM schools WHERE id = :id")->execute([':id' => $id]);
+
+            $this->conn->exec("SET FOREIGN_KEY_CHECKS = 1");
             $this->conn->commit();
         } catch (PDOException $e) {
             error_log("PDO Error in SuperAdminController.deleteSchool: " . $e->getMessage());
+            try { $this->conn->exec("SET FOREIGN_KEY_CHECKS = 1"); } catch ($x) {}
             $this->conn->rollBack();
             Response::serverError('Failed to delete school');
         }
