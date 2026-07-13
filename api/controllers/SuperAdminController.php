@@ -350,12 +350,18 @@ class SuperAdminController {
         $data = json_decode(file_get_contents('php://input'), true);
 
         if (isset($data['days'])) {
-            $accessUntil = date('Y-m-d H:i:s', strtotime('+' . (int)$data['days'] . ' days'));
+            $days = (int)$data['days'];
+            if ($days < 1) {
+                Response::badRequest('Days must be at least 1.');
+            }
+            $accessUntil = date('Y-m-d H:i:s', strtotime("+{$days} days"));
         } elseif (isset($data['access_until'])) {
             $accessUntil = $data['access_until'];
+            if (strtotime($accessUntil) === false) {
+                Response::badRequest('Invalid access_until date format.');
+            }
         } else {
-            Middleware::validateRequired($data, ['days', 'access_until']);
-            return;
+            Response::badRequest('Either "days" or "access_until" is required.');
         }
 
         $stmt = $this->conn->prepare("SELECT name FROM schools WHERE id = :id LIMIT 1");
@@ -683,9 +689,38 @@ class SuperAdminController {
         $school = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$school) Response::notFound('School not found.');
 
-        $this->logAction('delete_school', $id, $school['name']);
+        $this->conn->beginTransaction();
+        try {
+            $cascadeTables = [
+                'student_scores', 'exam_results', 'results', 'result_templates',
+                'payment_records', 'receipts', 'payments',
+                'attendance_records', 'attendance',
+                'student_parents', 'students',
+                'teachers',
+                'accountants',
+                'parents',
+                'notifications', 'notification_templates',
+                'class_subjects', 'classes', 'terms',
+                'school_modules', 'school_settings',
+            ];
+            foreach ($cascadeTables as $table) {
+                try {
+                    $this->conn->prepare("DELETE FROM {$table} WHERE school_id = :sid")->execute([':sid' => $id]);
+                } catch (PDOException $e) {
+                    error_log("Cascade delete skip ({$table}): " . $e->getMessage());
+                }
+            }
 
-        $this->conn->prepare("DELETE FROM schools WHERE id = :id")->execute([':id' => $id]);
+            $this->conn->prepare("DELETE FROM users WHERE school_id = :sid")->execute([':sid' => $id]);
+            $this->conn->prepare("DELETE FROM schools WHERE id = :id")->execute([':id' => $id]);
+            $this->conn->commit();
+        } catch (PDOException $e) {
+            error_log("PDO Error in SuperAdminController.deleteSchool: " . $e->getMessage());
+            $this->conn->rollBack();
+            Response::serverError('Failed to delete school');
+        }
+
+        $this->logAction('delete_school', $id, $school['name']);
 
         Response::success(null, 'School deleted permanently.');
     }

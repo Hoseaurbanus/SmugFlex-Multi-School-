@@ -173,6 +173,7 @@ export function SuperAdminDashboard() {
 
   const searchRef = useRef(search);
   const statusFilterRef = useRef(statusFilter);
+  const isInitialMount = useRef(true);
   searchRef.current = search;
   statusFilterRef.current = statusFilter;
 
@@ -224,6 +225,7 @@ export function SuperAdminDashboard() {
   }, [activeTab, fetchStats, fetchSchools, fetchPending, fetchActivity]);
 
   useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
     const timer = setTimeout(() => { fetchSchools(); }, 300);
     return () => clearTimeout(timer);
   }, [search, statusFilter, fetchSchools]);
@@ -829,12 +831,12 @@ export function SuperAdminDashboard() {
                   <>
                     <Button size="sm" variant="outline" onClick={() => { setShowExtendAccess(true); }}><Clock className="w-3 h-3 mr-1" /> Extend Access</Button>
                     <Button size="sm" variant="outline" onClick={() => { setShowSuspend(true); }} className="text-amber-600 border-amber-200 hover:bg-amber-50"><Ban className="w-3 h-3 mr-1" /> Suspend</Button>
-                    <Button size="sm" variant="outline" onClick={() => { handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.DEACTIVATE(selectedSchool.id)); }}
+                    <Button size="sm" variant="outline" onClick={() => { if (window.confirm(`Deactivate ${selectedSchool?.name}? Users will not be able to log in.`)) handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.DEACTIVATE(selectedSchool.id)); }}
                       className="text-gray-600 border-gray-200 hover:bg-gray-50"><PowerOff className="w-3 h-3 mr-1" /> Deactivate</Button>
                   </>
                 )}
                 {(selectedSchool.status === 'inactive' || selectedSchool.status === 'suspended') && (
-                  <Button size="sm" onClick={() => handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.ACTIVATE(selectedSchool.id))}
+                  <Button size="sm" onClick={() => { if (window.confirm(`Activate ${selectedSchool?.name}? This will restore access with a 90-day trial.`)) handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.ACTIVATE(selectedSchool.id)); }}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white"><Power className="w-3 h-3 mr-1" /> Activate</Button>
                 )}
                 <Button size="sm" variant="outline" onClick={() => { openModules(selectedSchool); setShowSchoolDetail(false); }}>
@@ -919,7 +921,7 @@ export function SuperAdminDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <Input placeholder="Reason (optional)" value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
-            <Button onClick={() => { handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.REJECT(selectedSchool!.id), { reason: rejectReason }); setShowReject(false); setRejectReason(''); }}
+            <Button onClick={async () => { const ok = await handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.REJECT(selectedSchool!.id), { reason: rejectReason }); if (ok) { setShowReject(false); setRejectReason(''); } }}
               className="w-full bg-red-600 hover:bg-red-700 text-white" disabled={actionLoading}>
               {actionLoading ? 'Rejecting...' : 'Reject'}
             </Button>
@@ -936,7 +938,7 @@ export function SuperAdminDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <Input placeholder="Reason" value={suspendReason} onChange={e => setSuspendReason(e.target.value)} />
-            <Button onClick={() => { handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.SUSPEND(selectedSchool!.id), { reason: suspendReason }); setShowSuspend(false); setSuspendReason(''); }}
+            <Button onClick={async () => { const ok = await handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.SUSPEND(selectedSchool!.id), { reason: suspendReason }); if (ok) { setShowSuspend(false); setSuspendReason(''); } }}
               className="w-full bg-amber-600 hover:bg-amber-700 text-white" disabled={actionLoading}>
               {actionLoading ? 'Suspending...' : 'Suspend'}
             </Button>
@@ -956,7 +958,12 @@ export function SuperAdminDashboard() {
               <Label className="text-sm text-gray-600">Extend by (days)</Label>
               <Input type="number" value={extendDays} onChange={e => setExtendDays(e.target.value)} className="mt-1" />
             </div>
-            <Button onClick={() => { handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.EXTEND_ACCESS(selectedSchool!.id), { days: parseInt(extendDays) }); setShowExtendAccess(false); }}
+            <Button onClick={async () => {
+              const days = parseInt(extendDays);
+              if (isNaN(days) || days < 1) { toast.error('Enter at least 1 day'); return; }
+              const ok = await handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.EXTEND_ACCESS(selectedSchool!.id), { days });
+              if (ok) setShowExtendAccess(false);
+            }}
               className="w-full bg-[#0A2540] hover:bg-[#0d3558] text-white" disabled={actionLoading}>
               {actionLoading ? 'Extending...' : 'Extend Access'}
             </Button>
@@ -977,7 +984,7 @@ export function SuperAdminDashboard() {
                 You are about to permanently delete <strong>{selectedSchool?.name}</strong>. This will remove all students, teachers, results, and data associated with this school.
               </AlertDescription>
             </Alert>
-            <Button onClick={() => { handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.DELETE(selectedSchool!.id)); setShowDelete(false); }}
+            <Button onClick={async () => { const ok = await handleAction(API_CONFIG.ENDPOINTS.SUPER_ADMIN.DELETE(selectedSchool!.id)); if (ok) setShowDelete(false); }}
               className="w-full bg-red-600 hover:bg-red-700 text-white" disabled={actionLoading}>
               {actionLoading ? 'Deleting...' : 'Delete Permanently'}
             </Button>
@@ -996,11 +1003,23 @@ export function SuperAdminDashboard() {
             <div className="space-y-3 bg-gray-50 p-4 rounded-xl">
               <div>
                 <p className="text-[10px] text-gray-500 uppercase">Login Identity</p>
-                <p className="text-sm font-mono font-bold text-[#0A2540]">{credentials.admin_identity}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-mono font-bold text-[#0A2540] flex-1">{credentials.admin_identity}</p>
+                  <button onClick={() => { navigator.clipboard.writeText(credentials.admin_identity); toast.success('Copied'); }}
+                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors" title="Copy">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeWidth="2"/></svg>
+                  </button>
+                </div>
               </div>
               <div>
                 <p className="text-[10px] text-gray-500 uppercase">Password</p>
-                <p className="text-sm font-mono font-bold text-[#0A2540]">{credentials.admin_password}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-mono font-bold text-[#0A2540] flex-1">{credentials.admin_password}</p>
+                  <button onClick={() => { navigator.clipboard.writeText(credentials.admin_password); toast.success('Copied'); }}
+                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors" title="Copy">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeWidth="2"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
           )}
