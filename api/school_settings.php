@@ -11,33 +11,6 @@ try {
     $database = new Database();
     $conn = $database->getConnection();
     
-    // Ensure school_settings has school_id column
-    try {
-        $colCheck = $conn->prepare("SHOW COLUMNS FROM school_settings LIKE 'school_id'");
-        $colCheck->execute();
-        if (!$colCheck->fetch()) {
-            $conn->exec("ALTER TABLE school_settings ADD COLUMN school_id INT NOT NULL DEFAULT 0 AFTER id");
-            $conn->exec("CREATE INDEX idx_ss_school_id ON school_settings(school_id)");
-        }
-    } catch (PDOException $e) {
-        // Table may not exist — create it
-        try {
-            $conn->exec("CREATE TABLE IF NOT EXISTS school_settings (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                setting_key VARCHAR(100) NOT NULL,
-                setting_value TEXT NULL,
-                setting_type VARCHAR(50) DEFAULT 'string',
-                description TEXT NULL,
-                school_id INT NOT NULL DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY uk_ss_key_school (setting_key, school_id)
-            )");
-        } catch (PDOException $e2) {
-            error_log("Failed to create school_settings: " . $e2->getMessage());
-        }
-    }
-    
     $method = $_SERVER['REQUEST_METHOD'];
     
     switch ($method) {
@@ -199,6 +172,7 @@ try {
     }
     
 } catch (Exception $e) {
-    Response::serverError('Database error');
+    error_log('school_settings.php error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    Response::serverError('Database error: ' . $e->getMessage());
 }
 ?>
