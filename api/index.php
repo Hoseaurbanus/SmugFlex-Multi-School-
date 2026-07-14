@@ -554,7 +554,7 @@ try {
                 $notificationController->broadcastNotification();
             } elseif ($method === 'POST' && !$action) {
                 $notificationController->createNotification();
-            } elseif ($method === 'PUT' && $param === 'mark-all-read') {
+            } elseif ($method === 'PUT' && $action === 'mark-all-read') {
                 $notificationController->markAllAsRead();
             } elseif ($method === 'PUT' && $action) {
                 $notificationController->markAsRead((int)$action);

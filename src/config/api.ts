@@ -70,7 +70,7 @@ export const API_CONFIG = {
       UPDATE: (id: number) => `/students/${id}`,
       DELETE: (id: number) => `/students/${id}`,
       BY_CLASS: (classId: number) => `/students/by-class/${classId}`,
-      PROMOTE: '/students/promote'
+      PROMOTE: '/progression/promote-students'
     },
     
     // Teachers
@@ -151,8 +151,8 @@ export const API_CONFIG = {
       REGISTER: '/schools/register',
       PUBLIC_INFO: '/schools/public-info',
       PROFILE: '/schools/profile',
-      LOGO: '/schools/logo',
-      CHECK_SUFFIX: '/schools/check-suffix'
+      LOGO: '/schools/upload-logo',
+      CHECK_SUFFIX: '/super-admin/check-suffix'
     },
 
     // Super Admin

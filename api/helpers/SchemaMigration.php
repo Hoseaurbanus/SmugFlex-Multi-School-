@@ -79,6 +79,73 @@ class SchemaMigration {
 
         // Ensure token_blacklist has school_id column
         self::addColumnIfMissing($conn, 'token_blacklist', 'school_id', 'INT UNSIGNED NULL', 'expires_at');
+
+        // Add max_score column to assignments (replaces total_marks)
+        self::addColumnIfMissing($conn, 'assignments', 'max_score', 'DECIMAL(5,2) NOT NULL DEFAULT 100.00', 'due_date');
+
+        // Add content column to assignment_submissions (replaces submission_text)
+        self::addColumnIfMissing($conn, 'assignment_submissions', 'content', 'TEXT NULL', 'student_id');
+
+        // Add address and assigned_class_id to teachers
+        self::addColumnIfMissing($conn, 'teachers', 'address', 'TEXT NULL', 'department_id');
+        self::addColumnIfMissing($conn, 'teachers', 'assigned_class_id', 'INT NULL', 'address');
+
+        // Add school_id to user_notifications
+        self::addColumnIfMissing($conn, 'user_notifications', 'school_id', 'INT UNSIGNED NOT NULL DEFAULT 1', 'read_at');
+
+        // Ensure assignment_attachments table exists
+        self::createTableIfMissing($conn, 'assignment_attachments', "CREATE TABLE IF NOT EXISTS assignment_attachments (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            assignment_id INT NULL,
+            submission_id INT NULL,
+            file_name VARCHAR(255) NOT NULL,
+            file_path VARCHAR(500) NOT NULL,
+            file_size INT NULL,
+            file_type VARCHAR(100) NULL,
+            school_id INT UNSIGNED NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_assignment_id (assignment_id),
+            INDEX idx_submission_id (submission_id),
+            INDEX idx_school_id (school_id)
+        )");
+
+        // Ensure platform_activity_logs has ON DELETE SET NULL on school_id FK
+        self::ensureForeignKeySetNull($conn, 'platform_activity_logs', 'school_id', 'schools', 'id');
+
+        // Create placeholder school if none exists (prevents FK violations on school_id DEFAULT 1)
+        self::ensurePlaceholderSchool($conn);
+    }
+
+    private static function ensurePlaceholderSchool($conn) {
+        try {
+            $stmt = $conn->query("SELECT COUNT(*) FROM schools");
+            $count = (int)$stmt->fetchColumn();
+            if ($count === 0) {
+                $conn->exec("INSERT IGNORE INTO schools (id, name, suffix, email, status, plan, created_at) VALUES (1, 'System Default', 'sys', 'system@placeholder.local', 'inactive', 'trial', NOW())");
+                error_log("SchemaMigration: Created placeholder school id=1");
+            }
+        } catch (PDOException $e) {
+            error_log("SchemaMigration: Failed creating placeholder school: " . $e->getMessage());
+        }
+    }
+
+    private static function ensureForeignKeySetNull($conn, $table, $column, $refTable, $refColumn) {
+        try {
+            $check = $conn->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '$table' AND COLUMN_NAME = '$column' AND REFERENCED_TABLE_NAME = '$refTable'");
+            $fk = $check->fetch(PDO::FETCH_ASSOC);
+            if (!$fk) return;
+            $fkName = $fk['CONSTRAINT_NAME'];
+            // Check if it already has ON DELETE SET NULL
+            $opts = $conn->query("SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = '$fkName'");
+            $opt = $opts->fetch(PDO::FETCH_ASSOC);
+            if ($opt && $opt['DELETE_RULE'] === 'SET NULL') return;
+            // Alter to add ON DELETE SET NULL
+            $conn->exec("ALTER TABLE `$table` DROP FOREIGN KEY `$fkName`");
+            $conn->exec("ALTER TABLE `$table` ADD CONSTRAINT `$fkName` FOREIGN KEY (`$column`) REFERENCES `$refTable` (`$refColumn`) ON DELETE SET NULL");
+            error_log("SchemaMigration: Updated FK $fkName on $table to ON DELETE SET NULL");
+        } catch (PDOException $e) {
+            error_log("SchemaMigration: Failed updating FK on $table: " . $e->getMessage());
+        }
     }
 
     private static function createTableIfMissing($conn, $table, $sql) {

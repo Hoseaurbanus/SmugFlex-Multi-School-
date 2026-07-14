@@ -625,7 +625,7 @@ export function SuperAdminDashboard() {
                                         e.stopPropagation();
                                         setOpenMenuId(null);
                                         try {
-                                          const data = await apiCall(API_CONFIG.ENDPOINTS.SUPER_ADMIN.RESET_ADMIN_PASSWORD(school.id));
+                                          const data = await apiCall(API_CONFIG.ENDPOINTS.SUPER_ADMIN.RESET_ADMIN_PASSWORD(school.id), { method: 'POST' });
                                           setCredentials({ admin_identity: data.data?.admin_identity, admin_password: data.data?.temp_password });
                                           setShowCredentials(true);
                                         } catch (err: any) { toast.error(err.message); }
@@ -864,7 +864,7 @@ export function SuperAdminDashboard() {
                 </Button>
                 <Button size="sm" variant="outline" onClick={async () => {
                   try {
-                    const data = await apiCall(API_CONFIG.ENDPOINTS.SUPER_ADMIN.RESET_ADMIN_PASSWORD(selectedSchool.id));
+                    const data = await apiCall(API_CONFIG.ENDPOINTS.SUPER_ADMIN.RESET_ADMIN_PASSWORD(selectedSchool.id), { method: 'POST' });
                     setCredentials({ admin_identity: data.data?.admin_identity, admin_password: data.data?.temp_password });
                     setShowCredentials(true);
                   } catch (e: any) { toast.error(e.message); }
