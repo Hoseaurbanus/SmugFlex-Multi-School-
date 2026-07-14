@@ -3093,6 +3093,19 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   // ==================== API FUNCTIONS ====================
 
+  // Centralized auth failure handler — clears token and redirects to login
+  const handleAuthFailure = () => {
+    if (authFailureRedirected.current) return;
+    authFailureRedirected.current = true;
+    removeAuthToken();
+    setApiCurrentUser(null);
+    setCurrentUser(null);
+    localStorage.removeItem('api_token');
+    localStorage.removeItem('api_user');
+    window.location.href = '/login';
+  };
+  const authFailureRedirected = useRef(false);
+
   // Helper to load data for a user
   const loadDataForUser = async (user: User) => {
     // Prevent multiple simultaneous calls to loadDataForUser
@@ -3102,16 +3115,32 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     loadDataForUserInFlight.current = true;
     
     try {
+      // Track auth failures across essential loads
+      let authFailCount = 0;
+      const wrapAuth = (p: Promise<any>) => p.catch((e: any) => {
+        const msg = String(e?.message || '');
+        if (msg.includes('401') || msg.includes('Session expired') || msg.includes('Invalid or expired token')) {
+          authFailCount++;
+        }
+        return null;
+      });
+
       // Load essential data only (fast path)
       const essentialLoads = [
-        loadSchoolSettings().catch(() => null),
-        loadCurrentTermAndYear().catch(() => null),
-        loadStudentsFromAPI().catch(() => null),
-        loadClassesFromAPI().catch(() => null),
-        loadSubjectsFromAPI().catch(() => null),
+        wrapAuth(loadSchoolSettings()),
+        wrapAuth(loadCurrentTermAndYear()),
+        wrapAuth(loadStudentsFromAPI()),
+        wrapAuth(loadClassesFromAPI()),
+        wrapAuth(loadSubjectsFromAPI()),
       ];
 
       await Promise.allSettled(essentialLoads);
+
+      // If all essential loads failed with auth errors, token is stale — force logout
+      if (authFailCount >= 3) {
+        handleAuthFailure();
+        return false;
+      }
 
       // Load role-specific essentials in parallel (not heavy data)
       let roleLoads: Promise<any>[] = [];
@@ -3934,6 +3963,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         }
       });
+
+      if (resp.status === 401) {
+        handleAuthFailure();
+        return;
+      }
 
       if (!resp.ok) {
         const text = await resp.text();
