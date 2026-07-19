@@ -116,6 +116,7 @@ export function FaqSection({ id, setActiveSection }: FaqSectionProps) {
                     className="flex-shrink-0"
                   >
                     <ChevronDown
+                      aria-hidden="true"
                       className={`w-5 h-5 transition-colors ${
                         openIndex === i
                           ? "text-[#6366F1]"

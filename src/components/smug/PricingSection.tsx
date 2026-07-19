@@ -1,11 +1,11 @@
 import { motion, useInView } from "motion/react";
 import { useRef, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Check, Zap, Crown, Sparkles } from "lucide-react";
 
 interface PricingSectionProps {
   id: string;
   setActiveSection: (section: string) => void;
+  onRegisterClick?: () => void;
 }
 
 const plans = [
@@ -68,11 +68,10 @@ const plans = [
   },
 ];
 
-export function PricingSection({ id, setActiveSection }: PricingSectionProps) {
+export function PricingSection({ id, setActiveSection, onRegisterClick }: PricingSectionProps) {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.1 });
   const [studentCount, setStudentCount] = useState(200);
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (isInView) setActiveSection(id);
@@ -135,7 +134,7 @@ export function PricingSection({ id, setActiveSection }: PricingSectionProps) {
               step="50"
               value={studentCount}
               onChange={(e) => setStudentCount(Number(e.target.value))}
-              className="w-32 sm:w-64 accent-[#6366F1]"
+              className="w-40 sm:w-64 accent-[#6366F1]"
               aria-label="Number of students"
             />
             <button
@@ -230,7 +229,7 @@ export function PricingSection({ id, setActiveSection }: PricingSectionProps) {
                   </p>
 
                   <button
-                    onClick={() => navigate("/register")}
+                    onClick={onRegisterClick}
                     className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all mb-7 ${plan.buttonStyle}`}
                   >
                     Get Started

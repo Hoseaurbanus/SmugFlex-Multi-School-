@@ -343,13 +343,17 @@ export function PlatformShowcase({ id, setActiveSection }: PlatformShowcaseProps
           transition={{ duration: 0.5, delay: 0.2 }}
           className="flex justify-center mb-10"
         >
-          <div className="inline-flex bg-white/5 rounded-2xl p-1.5 border border-white/10 backdrop-blur-sm overflow-x-auto max-w-full scrollbar-none">
+          <div role="tablist" className="inline-flex bg-white/5 rounded-2xl p-1.5 border border-white/10 backdrop-blur-sm overflow-x-auto max-w-full scrollbar-none">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.key;
               return (
                 <button
                   key={tab.key}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`tabpanel-${tab.key}`}
+                  tabIndex={isActive ? 0 : -1}
                   onClick={() => setActiveTab(tab.key)}
                   className={`relative flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 whitespace-nowrap flex-shrink-0 ${
                     isActive ? "text-white" : "text-white/50 hover:text-white/70"
@@ -396,6 +400,9 @@ export function PlatformShowcase({ id, setActiveSection }: PlatformShowcaseProps
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
+                  id={`tabpanel-${activeTab}`}
+                  role="tabpanel"
+                  aria-label={`${tabs.find(t => t.key === activeTab)?.label} panel`}
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}

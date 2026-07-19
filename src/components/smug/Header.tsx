@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Menu, X } from "lucide-react";
 
@@ -22,6 +22,8 @@ export default function Header({
 }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -29,16 +31,30 @@ export default function Header({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
   useEffect(() => {
     if (mobileOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
       document.body.style.overflow = "hidden";
+      drawerRef.current?.focus();
     } else {
       document.body.style.overflow = "";
+      previousFocusRef.current?.focus();
     }
     return () => {
       document.body.style.overflow = "";
     };
   }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeMobile();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [mobileOpen, closeMobile]);
 
   return (
     <>
@@ -55,7 +71,7 @@ export default function Header({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
             {/* Logo */}
-            <a href="#" className="flex items-center gap-2 group">
+            <a href="#hero" aria-label="SmugFlex - Back to top" className="flex items-center gap-2 group" onClick={(e) => { e.preventDefault(); document.getElementById('hero')?.scrollIntoView({ behavior: 'smooth' }); }}>
               <span className="text-xl font-extrabold tracking-tight font-heading">
                 <span style={{ color: "#6366F1" }}>S</span>
                 <span style={{ color: "#8B5CF6" }}>m</span>
@@ -117,6 +133,9 @@ export default function Header({
             {/* Mobile hamburger */}
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-drawer"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
               className="md:hidden relative p-2 text-gray-400 hover:text-white transition-colors"
             >
               {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -140,11 +159,17 @@ export default function Header({
 
             {/* Panel */}
             <motion.div
+              id="mobile-drawer"
+              ref={drawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation"
               className="fixed top-0 right-0 bottom-0 z-50 w-[85vw] max-w-72 bg-[#09090B]/95 backdrop-blur-xl border-l border-white/5 md:hidden"
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              tabIndex={-1}
             >
               <div className="flex flex-col h-full p-6">
                 <div className="flex items-center justify-between mb-10">
@@ -160,6 +185,7 @@ export default function Header({
                   </span>
                   <button
                     onClick={() => setMobileOpen(false)}
+                    aria-label="Close menu"
                     className="p-2 text-gray-400 hover:text-white"
                   >
                     <X className="w-5 h-5" />

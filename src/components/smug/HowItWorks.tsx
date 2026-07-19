@@ -99,16 +99,16 @@ export function HowItWorks({ id, setActiveSection }: HowItWorksProps) {
                 initial={{ opacity: 0, y: 50 }}
                 animate={isInView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.6, delay: 0.2 + i * 0.2 }}
-                className={`relative flex items-center gap-6 sm:gap-8 mb-16 sm:mb-20 last:mb-0 md:gap-0 ${
-                  isEven ? "md:flex-row" : "md:flex-row-reverse"
-                }`}
-              >
-                {/* Content Card */}
-                <div
-                  className={`flex-1 md:w-1/2 ${
-                    isEven ? "md:pr-16 md:text-right" : "md:pl-16 md:text-left"
-                  } pl-20 md:pl-0`}
+                  className={`relative flex items-center gap-6 sm:gap-8 mb-16 sm:mb-20 last:mb-0 md:gap-0 ${
+                    isEven ? "md:flex-row" : "md:flex-row-reverse"
+                  }`}
                 >
+                  {/* Content Card */}
+                  <div
+                    className={`flex-1 md:w-1/2 ${
+                      isEven ? "md:pr-16 md:text-right" : "md:pl-16 md:text-left"
+                    } pl-20 sm:pl-24 md:pl-0`}
+                  >
                   <motion.div
                     whileHover={{ y: -4, scale: 1.01 }}
                     className="bg-white/[0.03] backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-white/[0.06] hover:border-white/[0.12] transition-all group"

@@ -186,7 +186,7 @@ export default function FeaturesSection({
 
               {/* Background pattern for large cards */}
               {feature.large && (
-                <div className="absolute top-0 right-0 w-48 h-48 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity">
+                <div className="absolute top-0 right-0 w-48 h-48 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity" aria-hidden="true">
                   <svg
                     viewBox="0 0 200 200"
                     className="w-full h-full"

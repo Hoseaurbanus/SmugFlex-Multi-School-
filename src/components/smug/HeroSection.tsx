@@ -213,7 +213,7 @@ export default function HeroSection({
             initial={{ opacity: 0, x: 60, rotateY: -10 }}
             animate={{ opacity: 1, x: 0, rotateY: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="relative hidden md:block lg:block"
+            className="relative mt-12 md:mt-0"
           >
             {/* Main dashboard card */}
             <div className="relative rounded-3xl border border-white/10 bg-[#111113]/80 backdrop-blur-xl p-6 shadow-2xl shadow-black/40">
@@ -314,9 +314,9 @@ export default function HeroSection({
               </div>
             </div>
 
-            {/* Floating stat cards */}
+            {/* Floating stat cards — hidden on mobile to prevent overflow */}
             <motion.div
-              className="absolute -top-6 -right-6 p-4 rounded-2xl bg-[#111113]/90 backdrop-blur-xl border border-white/10 shadow-xl"
+              className="hidden sm:block absolute -top-6 -right-6 p-4 rounded-2xl bg-[#111113]/90 backdrop-blur-xl border border-white/10 shadow-xl"
               animate={{ y: [0, -8, 0] }}
               transition={{
                 duration: 3,
@@ -338,7 +338,7 @@ export default function HeroSection({
             </motion.div>
 
             <motion.div
-              className="absolute -bottom-4 -left-4 p-4 rounded-2xl bg-[#111113]/90 backdrop-blur-xl border border-white/10 shadow-xl"
+              className="hidden sm:block absolute -bottom-4 -left-4 p-4 rounded-2xl bg-[#111113]/90 backdrop-blur-xl border border-white/10 shadow-xl"
               animate={{ y: [0, 8, 0] }}
               transition={{
                 duration: 4,

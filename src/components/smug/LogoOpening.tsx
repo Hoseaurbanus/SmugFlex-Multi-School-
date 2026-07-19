@@ -118,29 +118,34 @@ export default function LogoOpening({ onComplete }: LogoOpeningProps) {
       />
 
       {/* Sparkle particles */}
-      {[...Array(6)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-1 h-1 rounded-full bg-white"
-          initial={{
-            opacity: 0,
-            scale: 0,
-            x: 0,
-            y: 0,
-          }}
-          animate={{
-            opacity: [0, 1, 0],
-            scale: [0, 1.5, 0],
-            x: (Math.random() - 0.5) * 300,
-            y: (Math.random() - 0.5) * 200,
-          }}
-          transition={{
-            duration: 1,
-            delay: 0.8 + i * 0.1,
-            ease: "easeOut",
-          }}
-        />
-      ))}
+      {[...Array(6)].map((_, i) => {
+        const seed = i + 1;
+        const x = ((seed * 73 + 17) % 300) - 150;
+        const y = ((seed * 47 + 31) % 200) - 100;
+        return (
+          <motion.div
+            key={i}
+            className="absolute w-1 h-1 rounded-full bg-white"
+            initial={{
+              opacity: 0,
+              scale: 0,
+              x: 0,
+              y: 0,
+            }}
+            animate={{
+              opacity: [0, 1, 0],
+              scale: [0, 1.5, 0],
+              x,
+              y,
+            }}
+            transition={{
+              duration: 1,
+              delay: 0.8 + i * 0.1,
+              ease: "easeOut",
+            }}
+          />
+        );
+      })}
     </motion.div>
   );
 }

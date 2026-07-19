@@ -1,18 +1,17 @@
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { ArrowRight, Sparkles, Zap } from "lucide-react";
 
 interface CtaBannerProps {
   id: string;
   setActiveSection: (section: string) => void;
   onLoginClick?: () => void;
+  onRegisterClick?: () => void;
 }
 
-export function CtaBanner({ id, setActiveSection, onLoginClick }: CtaBannerProps) {
+export function CtaBanner({ id, setActiveSection, onLoginClick, onRegisterClick }: CtaBannerProps) {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.3 });
-  const navigate = useNavigate();
 
   return (
     <section id={id} ref={ref} className="py-20 md:py-28 bg-[#09090B] relative overflow-hidden">
@@ -111,7 +110,7 @@ export function CtaBanner({ id, setActiveSection, onLoginClick }: CtaBannerProps
               className="flex flex-col sm:flex-row gap-4 justify-center"
             >
               <motion.button
-                onClick={() => navigate("/register")}
+                onClick={onRegisterClick}
                 whileHover={{ scale: 1.05, boxShadow: "0 25px 50px rgba(0,0,0,0.3)" }}
                 whileTap={{ scale: 0.95 }}
                 className="group px-8 py-4 bg-white text-[#09090B] rounded-full font-bold text-base flex items-center justify-center gap-2 shadow-xl hover:bg-white/90 transition-colors"
