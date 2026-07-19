@@ -408,13 +408,13 @@ export function SuperAdminDashboard() {
   const fetchModules = async (schoolId: number) => {
     try {
       const data = await apiCall(API_CONFIG.ENDPOINTS.SUPER_ADMIN.MODULES(schoolId));
-      setSchoolModules(data.data);
+      setSchoolModules(Array.isArray(data.data) ? data.data : []);
     } catch { toast.error('Failed to load modules'); }
   };
 
   const handleToggleModule = async (moduleName: string, enabled: boolean) => {
     if (!selectedSchool) return;
-    const updated = schoolModules.map(m => m.module_name === moduleName ? { ...m, is_enabled: enabled ? 1 : 0 } : m);
+    const updated = (Array.isArray(schoolModules) ? schoolModules : []).map(m => m.module_name === moduleName ? { ...m, is_enabled: enabled ? 1 : 0 } : m);
     setSchoolModules(updated);
     try {
       await apiCall(API_CONFIG.ENDPOINTS.SUPER_ADMIN.MODULES(selectedSchool.id), {
@@ -900,7 +900,7 @@ export function SuperAdminDashboard() {
                         <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer h-full" onClick={() => openModules(school)}>
                           <CardContent className="p-5">
                             <div className="flex items-center gap-3 mb-3">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0A2540] to-[#1a4a7a] flex items-center justify-center text-white font-bold text-sm">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--sidebar)] to-[var(--primary)] flex items-center justify-center text-white font-bold text-sm">
                                 {school.name.slice(0, 2).toUpperCase()}
                               </div>
                               <div>
@@ -1083,7 +1083,7 @@ export function SuperAdminDashboard() {
           </DialogHeader>
           <div className="space-y-2">
             {MODULE_LIST.map(mod => {
-              const modData = schoolModules.find(m => m.module_name === mod.key);
+              const modData = (Array.isArray(schoolModules) ? schoolModules : []).find(m => m.module_name === mod.key);
               const isEnabled = modData?.is_enabled === 1 || modData?.is_enabled === true;
               return (
                 <div key={mod.key} className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--muted)]/30 transition-colors">
