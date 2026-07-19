@@ -28,7 +28,7 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('X-XSS-Protection: 1; mode=block');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
-header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, X-School-ID, Cache-Control, Pragma');
+header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, X-School-ID, Cache-Control, Pragma, X-CSRF-Token');
 header('Access-Control-Max-Age: 3600');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -43,6 +43,7 @@ require_once __DIR__ . '/helpers/JWT.php';
 require_once __DIR__ . '/helpers/RateLimiter.php';
 require_once __DIR__ . '/helpers/TenantMiddleware.php';
 require_once __DIR__ . '/helpers/SchemaMigration.php';
+require_once __DIR__ . '/helpers/CsrfProtection.php';
 
 // Run auto-migration once (adds missing school_id columns, etc.)
 try {
@@ -110,6 +111,16 @@ function loadController(string $className) {
 try {
     switch ($prefix) {
 
+        // ─── CSRF TOKEN ENDPOINT ───
+        case 'csrf':
+            if ($method === 'GET') {
+                $token = CsrfProtection::getToken();
+                Response::success(['csrf_token' => $token], 'CSRF token generated');
+            } else {
+                Response::notFound('CSRF endpoint not found');
+            }
+            break;
+
         // ─── SMUGFLEX PLATFORM ROUTES ───
 
         case 'super-admin':
@@ -119,6 +130,7 @@ try {
             } elseif ($action === 'schools' && $param === 'pending' && $method === 'GET') {
                 $superAdmin->getPendingRegistrations();
             } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'approve' && $method === 'POST') {
+                // CSRF not required — JWT Bearer tokens are not auto-attached by browsers
                 $superAdmin->approveSchool((int)$param);
             } elseif ($action === 'schools' && is_numeric($param) && $subparam === 'reject' && $method === 'POST') {
                 $superAdmin->rejectSchool((int)$param);

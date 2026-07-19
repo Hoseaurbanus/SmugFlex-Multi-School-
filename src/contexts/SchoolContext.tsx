@@ -4121,48 +4121,27 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const getUserPermissionsAPI = async (userId: number): Promise<string[]> => {
     try {
-      // For now, return all permissions for the user's role
       const user = users.find(u => u.id === userId);
       if (!user) return [];
       
-      const allPermissions = [
-        'create_users', 'read_users', 'update_users', 'delete_users',
-        'create_students', 'read_students', 'update_students', 'delete_students',
-        'create_teachers', 'read_teachers', 'update_teachers', 'delete_teachers',
-        'create_parents', 'read_parents', 'update_parents', 'delete_parents',
-        'manage_classes', 'manage_subjects', 'manage_fees', 'view_reports'
-      ];
-      
-      return user.role === 'admin' ? allPermissions : 
-             user.role === 'teacher' ? ['read_students', 'update_students', 'manage_classes', 'manage_subjects'] :
-             user.role === 'accountant' ? ['read_students', 'manage_fees', 'view_reports'] :
-             ['read_students'];
+      // Use the centralized permissions system
+      const { getRolePermissions } = await import('../utils/permissions');
+      return getRolePermissions(user.role);
     } catch (error) {
-      
+      console.error('Error fetching user permissions:', error);
       return [];
     }
   };
 
   const checkUserPermissionAPI = (role: string, permission: string): boolean => {
     try {
-      // For now, return true for all permissions
-      // In production, this would check against the database
-      const allPermissions = [
-        'create_users', 'read_users', 'update_users', 'delete_users',
-        'create_students', 'read_students', 'update_students', 'delete_students',
-        'create_teachers', 'read_teachers', 'update_teachers', 'delete_teachers',
-        'create_parents', 'read_parents', 'update_parents', 'delete_parents',
-        'manage_classes', 'manage_subjects', 'manage_fees', 'view_reports',
-        'link_students', 'assign_subjects', 'manage_exams', 'manage_timetable',
-        'manage_notifications', 'manage_settings', 'view_student_reports'
-      ];
-      
-      return role === 'admin' ? true : 
-             role === 'teacher' ? allPermissions.includes(permission) :
-             role === 'accountant' ? ['read_students', 'manage_fees', 'view_reports'].includes(permission) :
-             ['read_students'].includes(permission);
+      // Use the centralized permissions system
+      // This is synchronous, so we need to use the cached version
+      const { ROLE_DEFAULT_PERMISSIONS } = require('../utils/permissions');
+      const rolePermissions = ROLE_DEFAULT_PERMISSIONS[role] || [];
+      return rolePermissions.includes(permission);
     } catch (error) {
-      
+      console.error('Error checking permission:', error);
       return false;
     }
   };

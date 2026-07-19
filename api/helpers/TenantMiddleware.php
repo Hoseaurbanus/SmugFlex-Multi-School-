@@ -6,6 +6,85 @@ require_once __DIR__ . '/../config/database.php';
 
 class TenantMiddleware {
 
+    // Role-based permission mapping for school operations
+    private static $rolePermissions = [
+        'admin' => [
+            'students' => ['create', 'read', 'update', 'delete'],
+            'teachers' => ['create', 'read', 'update', 'delete'],
+            'parents' => ['create', 'read', 'update', 'delete'],
+            'classes' => ['create', 'read', 'update', 'delete'],
+            'subjects' => ['create', 'read', 'update', 'delete'],
+            'payments' => ['create', 'read', 'update', 'verify', 'delete'],
+            'results' => ['read', 'enter', 'compile', 'approve'],
+            'attendance' => ['read', 'mark', 'report'],
+            'assignments' => ['create', 'read', 'update', 'delete', 'grade'],
+            'notifications' => ['create', 'read', 'update', 'delete', 'send'],
+            'settings' => ['read', 'update'],
+            'reports' => ['read', 'export'],
+            'users' => ['create', 'read', 'update', 'delete', 'reset_password'],
+        ],
+        'teacher' => [
+            'students' => ['read', 'update'],
+            'teachers' => ['read'],
+            'parents' => ['read'],
+            'classes' => ['read', 'update'],
+            'subjects' => ['read', 'update'],
+            'payments' => ['read'],
+            'results' => ['read', 'enter', 'compile'],
+            'attendance' => ['read', 'mark'],
+            'assignments' => ['create', 'read', 'update', 'delete', 'grade'],
+            'notifications' => ['create', 'read'],
+            'settings' => ['read'],
+            'reports' => ['read'],
+            'users' => ['read'],
+        ],
+        'accountant' => [
+            'students' => ['read'],
+            'teachers' => ['read'],
+            'parents' => ['read'],
+            'classes' => ['read'],
+            'subjects' => ['read'],
+            'payments' => ['create', 'read', 'update', 'verify'],
+            'results' => ['read'],
+            'attendance' => ['read'],
+            'assignments' => ['read'],
+            'notifications' => ['read'],
+            'settings' => ['read'],
+            'reports' => ['read', 'export'],
+            'users' => ['read'],
+        ],
+        'parent' => [
+            'students' => ['read'],
+            'teachers' => ['read'],
+            'parents' => ['read'],
+            'classes' => ['read'],
+            'subjects' => ['read'],
+            'payments' => ['read'],
+            'results' => ['read'],
+            'attendance' => ['read'],
+            'assignments' => ['read'],
+            'notifications' => ['read'],
+            'settings' => ['read'],
+            'reports' => ['read'],
+            'users' => ['read'],
+        ],
+        'student' => [
+            'students' => ['read'],
+            'teachers' => ['read'],
+            'parents' => ['read'],
+            'classes' => ['read'],
+            'subjects' => ['read'],
+            'payments' => ['read'],
+            'results' => ['read'],
+            'attendance' => ['read'],
+            'assignments' => ['read'],
+            'notifications' => ['read'],
+            'settings' => ['read'],
+            'reports' => ['read'],
+            'users' => ['read'],
+        ],
+    ];
+
     public static function resolveSchoolId(PDO $conn): int {
         $headers = function_exists('getallheaders') ? getallheaders() : [];
         $tokenData = JWT::validateToken($headers, false);
@@ -51,6 +130,68 @@ class TenantMiddleware {
         }
 
         return $school_id;
+    }
+
+    /**
+     * Validate that the current user has the required role and permission
+     * @param string $resource Resource type (e.g., 'students', 'payments', 'results')
+     * @param string $action Action type (e.g., 'create', 'read', 'update', 'delete')
+     * @return array Token data with user info
+     */
+    public static function requireRolePermission(string $resource, string $action): array {
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        $tokenData = JWT::validateToken($headers, false);
+
+        if (!$tokenData) {
+            Response::unauthorized('Invalid or expired token.');
+        }
+
+        // Super admins have full access
+        if (isset($tokenData['is_super_admin']) && $tokenData['is_super_admin']) {
+            return $tokenData;
+        }
+
+        $role = $tokenData['role'] ?? '';
+        $schoolId = (int)($tokenData['school_id'] ?? 0);
+
+        if (empty($role) || $schoolId <= 0) {
+            Response::forbidden('Invalid token: missing role or school context.');
+        }
+
+        // Check if role has permission for this resource/action
+        $rolePerms = self::$rolePermissions[$role] ?? [];
+        $resourcePerms = $rolePerms[$resource] ?? [];
+
+        if (!in_array($action, $resourcePerms)) {
+            Response::forbidden("Insufficient permissions: {$role} cannot {$action} {$resource}.");
+        }
+
+        return $tokenData;
+    }
+
+    /**
+     * Check if current user has a specific permission (returns bool)
+     */
+    public static function hasPermission(string $resource, string $action): bool {
+        try {
+            $headers = function_exists('getallheaders') ? getallheaders() : [];
+            $tokenData = JWT::validateToken($headers, false);
+
+            if (!$tokenData) return false;
+
+            // Super admins have full access
+            if (isset($tokenData['is_super_admin']) && $tokenData['is_super_admin']) {
+                return true;
+            }
+
+            $role = $tokenData['role'] ?? '';
+            $rolePerms = self::$rolePermissions[$role] ?? [];
+            $resourcePerms = $rolePerms[$resource] ?? [];
+
+            return in_array($action, $resourcePerms);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public static function assertOwnership(PDO $conn, string $table, int $record_id, int $school_id): void {

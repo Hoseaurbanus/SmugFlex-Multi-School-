@@ -6,6 +6,7 @@ import { RegistrationPage } from './components/RegistrationPage';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TermsOfService } from './components/TermsOfService';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { SuperAdminProtectedRoute } from './components/SuperAdminProtectedRoute';
 import { NotificationServiceProvider } from './contexts/NotificationService';
 import { ConnectionProvider } from './contexts/ConnectionContext';
 import { SchoolProvider } from './contexts/SchoolContext';
@@ -117,7 +118,7 @@ function AppContent({ navigate }: { navigate: any }) {
       <Route path="/parent" element={<ProtectedRoute requiredRole="parent"><Suspense fallback={<LoadingSpinner />}><UniversalParentDashboardFixed onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
       <Route path="/student" element={<ProtectedRoute requiredRole="student"><Suspense fallback={<LoadingSpinner />}><StudentDashboard onLogout={handleLogout} /></Suspense></ProtectedRoute>} />
       <Route path="/super-admin/login" element={<Suspense fallback={<LoadingSpinner />}><SuperAdminLoginPage /></Suspense>} />
-      <Route path="/super-admin/dashboard" element={<ErrorBoundary><Suspense fallback={<LoadingSpinner />}><SuperAdminDashboard /></Suspense></ErrorBoundary>} />
+      <Route path="/super-admin/dashboard" element={<SuperAdminProtectedRoute><ErrorBoundary><Suspense fallback={<LoadingSpinner />}><SuperAdminDashboard /></Suspense></ErrorBoundary></SuperAdminProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

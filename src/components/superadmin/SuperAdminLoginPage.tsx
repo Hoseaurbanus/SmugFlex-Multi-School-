@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Shield, ArrowLeft, Eye, EyeOff, Loader2, Lock, User, CheckCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { superAdminAuth } from '../../services/superAdminAuthService';
+import smugLogo from '../../assets/images/smug-logo.png';
 
 export function SuperAdminLoginPage() {
   const [username, setUsername] = useState('');
@@ -19,7 +20,10 @@ export function SuperAdminLoginPage() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (superAdminAuth.isAuthenticated()) {
+      navigate('/super-admin/dashboard');
+    }
+  }, [navigate]);
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -47,7 +51,7 @@ export function SuperAdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A2540] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[var(--sidebar)] flex items-center justify-center p-4 relative overflow-hidden">
       {/* Animated background orbs */}
       <motion.div
         animate={{ y: [0, -20, 0], x: [0, 10, 0] }}
@@ -82,6 +86,7 @@ export function SuperAdminLoginPage() {
           transition={{ duration: 0.5 }}
           className="text-center mb-8"
         >
+          <img src={smugLogo} alt="SmugFlex" className="h-12 mx-auto mb-4" />
           <h1 className="text-2xl sm:text-3xl text-white font-heading font-bold tracking-tight">
             SmugFlex Admin
           </h1>
@@ -96,17 +101,17 @@ export function SuperAdminLoginPage() {
           animate={mounted ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5, delay: 0.15 }}
         >
-          <div className="bg-white rounded-3xl shadow-2xl shadow-black/20 overflow-hidden">
+          <div className="bg-[var(--card)] rounded-3xl shadow-2xl shadow-black/20 overflow-hidden">
             {/* Card header accent */}
             <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600" />
 
             <div className="p-6 sm:p-8 space-y-6" onKeyPress={handleKeyPress}>
               {/* Card title */}
               <div className="text-center">
-                <h2 className="text-lg font-heading font-bold text-[#0A2540]">
+                <h2 className="text-lg font-heading font-bold text-[var(--foreground)]">
                   Sign In
                 </h2>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-sm text-[var(--muted-foreground)]/60 mt-1">
                   Enter your credentials to continue
                 </p>
               </div>
@@ -114,11 +119,12 @@ export function SuperAdminLoginPage() {
               {/* Error */}
               {error && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: -10, x: 0 }}
+                  animate={{ opacity: 1, y: 0, x: [0, -6, 6, -4, 4, -2, 0] }}
+                  transition={{ duration: 0.4 }}
                 >
-                  <Alert className="border-red-200 bg-red-50 rounded-xl">
-                    <AlertDescription className="text-red-700 text-sm">
+                  <Alert className="border-[var(--destructive)]/20 bg-[var(--destructive)]/5 rounded-xl">
+                    <AlertDescription className="text-[var(--destructive)] text-sm">
                       {error}
                     </AlertDescription>
                   </Alert>
@@ -127,12 +133,12 @@ export function SuperAdminLoginPage() {
 
               {/* Username */}
               <div className="space-y-2">
-                <Label htmlFor="sa-username" className="text-sm font-semibold text-gray-700">
+                <Label htmlFor="sa-username" className="text-sm font-semibold text-[var(--foreground)]/80">
                   Username
                 </Label>
                 <div className="relative">
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <User className="w-4 h-4 text-gray-400" />
+                    <User className="w-4 h-4 text-[var(--muted-foreground)]/60" />
                   </div>
                   <Input
                     id="sa-username"
@@ -140,19 +146,19 @@ export function SuperAdminLoginPage() {
                     placeholder="Enter your username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="h-12 rounded-xl border-2 border-gray-100 pl-10 pr-4 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-gray-50 focus:bg-white text-[#1F2937] transition-all"
+                    className="h-12 rounded-xl border-2 border-[var(--border)] pl-10 pr-4 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20 bg-[var(--input)] focus:bg-[var(--card)] text-[var(--foreground)] transition-all"
                   />
                 </div>
               </div>
 
               {/* Password */}
               <div className="space-y-2">
-                <Label htmlFor="sa-password" className="text-sm font-semibold text-gray-700">
+                <Label htmlFor="sa-password" className="text-sm font-semibold text-[var(--foreground)]/80">
                   Password
                 </Label>
                 <div className="relative">
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <Lock className="w-4 h-4 text-gray-400" />
+                    <Lock className="w-4 h-4 text-[var(--muted-foreground)]/60" />
                   </div>
                   <Input
                     id="sa-password"
@@ -160,12 +166,12 @@ export function SuperAdminLoginPage() {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 rounded-xl border-2 border-gray-100 pl-10 pr-12 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-gray-50 focus:bg-white text-[#1F2937] transition-all"
+                    className="h-12 rounded-xl border-2 border-[var(--border)] pl-10 pr-12 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20 bg-[var(--input)] focus:bg-[var(--card)] text-[var(--foreground)] transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]/60 hover:text-[var(--foreground)]/80 transition-colors p-1"
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -180,7 +186,7 @@ export function SuperAdminLoginPage() {
               <Button
                 onClick={handleLogin}
                 disabled={!username || !password || isLoading}
-                className="w-full h-12 bg-gradient-to-r from-[#0A2540] to-[#0d3558] hover:from-[#0d3558] hover:to-[#0A2540] text-white rounded-xl font-heading font-semibold text-sm transition-all duration-300 disabled:opacity-50 shadow-lg shadow-[#0A2540]/20 hover:shadow-xl hover:shadow-[#0A2540]/30 hover:-translate-y-0.5 active:translate-y-0"
+                className="w-full h-12 bg-gradient-to-r from-[var(--sidebar)] to-[var(--primary)] hover:from-[var(--primary)] hover:to-[var(--sidebar)] text-white rounded-xl font-heading font-semibold text-sm transition-all duration-300 disabled:opacity-50 shadow-lg shadow-[var(--sidebar)]/20 hover:shadow-xl hover:shadow-[var(--primary)]/30 hover:-translate-y-0.5 active:translate-y-0"
               >
                 {isLoading ? (
                   <span className="flex items-center gap-2">
@@ -195,17 +201,17 @@ export function SuperAdminLoginPage() {
               {/* Divider */}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-100" />
+                  <div className="w-full border-t border-[var(--border)]" />
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-3 bg-white text-gray-400">or</span>
+                  <span className="px-3 bg-[var(--card)] text-[var(--muted-foreground)]/60">or</span>
                 </div>
               </div>
 
               {/* Back link */}
               <button
                 onClick={() => navigate('/login')}
-                className="w-full flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-[#0A2540] transition-colors py-2 rounded-xl hover:bg-gray-50"
+                className="w-full flex items-center justify-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors py-2 rounded-xl hover:bg-[var(--muted)]/30"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back to School Login
@@ -219,7 +225,7 @@ export function SuperAdminLoginPage() {
           initial={{ opacity: 0 }}
           animate={mounted ? { opacity: 1 } : {}}
           transition={{ delay: 0.5 }}
-          className="text-center text-white/20 text-xs mt-6"
+          className="text-center text-[var(--muted-foreground)]/30 text-xs mt-6"
         >
           SmugFlex v2.0 &middot; Secure Access Only
         </motion.p>
