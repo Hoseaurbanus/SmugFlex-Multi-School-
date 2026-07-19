@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { superAdminAuth } from '../../services/superAdminAuthService';
 import { API_CONFIG } from '../../config/api';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   School, Shield, LogOut, Users, Search, Check, X, Ban, Clock,
   Plus, RefreshCw, Activity, BarChart3, ChevronDown, Menu,

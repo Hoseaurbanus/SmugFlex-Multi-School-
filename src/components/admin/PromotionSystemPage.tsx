@@ -12,7 +12,7 @@ import { Progress } from "../ui/progress";
 import { Separator } from "../ui/separator";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
-import { GraduationCap, Users, TrendUp, Warning, Download, CheckCircle, XCircle, Clock, GearSix } from "@phosphor-icons/react";
+import { GraduationCap, Users, TrendingUp, AlertTriangle, Download, CheckCircle, XCircle, Clock, Settings } from "lucide-react";
 import { API_CONFIG } from "../../config/api";
 
 // Enhanced promotion status types matching database
@@ -741,17 +741,17 @@ export function PromotionSystemPage() {
       case "Repeated":
         return <Badge className={`bg-red-500 text-white border-0 ${badgeClass}`}><XCircle className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Repeated</Badge>;
       case "On Hold":
-        return <Badge className={`bg-orange-500 text-white border-0 ${badgeClass}`}><Warning className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}On Hold</Badge>;
+        return <Badge className={`bg-orange-500 text-white border-0 ${badgeClass}`}><AlertTriangle className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}On Hold</Badge>;
       case "Withdrawn":
         return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><XCircle className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Withdrawn</Badge>;
       case "Pending Approval":
         return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><Clock className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Pending Approval</Badge>;
       case "Manual":
-        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><GearSix className="w-3 h-3 mr-1" weight="bold" />Manual</Badge>;
+        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><Settings className="w-3 h-3 mr-1" weight="bold" />Manual</Badge>;
       case "Transferred":
-        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><TrendUp className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Transferred</Badge>;
+        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><TrendingUp className="w-3 h-3 mr-1" weight="bold" />{isManualOverride ? "Manual: " : ""}Transferred</Badge>;
       default:
-        return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><Warning className="w-3 h-3 mr-1" weight="bold" />Pending</Badge>;
+        return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><AlertTriangle className="w-3 h-3 mr-1" weight="bold" />Pending</Badge>;
     }
   };
 
@@ -815,7 +815,7 @@ export function PromotionSystemPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-heading font-bold text-gray-900 flex items-center gap-2">
-                <TrendUp className="w-5 h-5 text-[#0A2540]" weight="bold" />
+                <TrendingUp className="w-5 h-5 text-[#0A2540]" weight="bold" />
                 Recent Promotion Activity
               </h3>
               <Badge variant="outline" className="text-[#0A2540]">
@@ -907,7 +907,7 @@ export function PromotionSystemPage() {
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-orange-100 rounded-lg">
-                  <Warning className="w-5 h-5 text-orange-600" weight="bold" />
+                  <AlertTriangle className="w-5 h-5 text-orange-600" weight="bold" />
                 </div>
                 <p className="text-gray-600 text-sm font-medium">Other</p>
               </div>
@@ -1429,7 +1429,7 @@ export function PromotionSystemPage() {
           <AlertDialogHeader className="pb-4">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-orange-100 rounded-full">
-                <Warning className="w-6 h-6 text-orange-600" weight="bold" />
+                <AlertTriangle className="w-6 h-6 text-orange-600" weight="bold" />
               </div>
               <div>
                 <AlertDialogTitle className="text-gray-900 text-xl font-semibold">Manual Promotion Override</AlertDialogTitle>
@@ -1506,7 +1506,7 @@ export function PromotionSystemPage() {
                     onClick={() => confirmManualPromotion("On Hold")}
                     className="bg-orange-600 hover:bg-orange-700 text-white h-12 rounded-xl shadow-md transition-all hover:shadow-lg"
                   >
-                    <Warning className="w-4 h-4 mr-2" weight="bold" />
+                    <AlertTriangle className="w-4 h-4 mr-2" weight="bold" />
                     On Hold
                   </Button>
                   <Button
@@ -1561,7 +1561,7 @@ export function PromotionSystemPage() {
                       disabled={!demotionClassId}
                       className="bg-orange-600 hover:bg-orange-700 text-white h-12 px-4 rounded-xl shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                     >
-                      <Warning className="w-4 h-4 mr-2" weight="bold" />
+                      <AlertTriangle className="w-4 h-4 mr-2" weight="bold" />
                       Repeat
                     </Button>
                   </div>
@@ -1592,7 +1592,7 @@ export function PromotionSystemPage() {
           <AlertDialogHeader className="pb-4">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-gray-100 rounded-full">
-                <GearSix className="w-6 h-6 text-[#0A2540]" weight="bold" />
+                <Settings className="w-6 h-6 text-[#0A2540]" weight="bold" />
               </div>
               <div>
                 <AlertDialogTitle className="text-gray-900 text-xl font-semibold">Manual Class Change</AlertDialogTitle>

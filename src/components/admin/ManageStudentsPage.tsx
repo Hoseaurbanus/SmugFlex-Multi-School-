@@ -1,4 +1,4 @@
-import { BookOpen, Plus, Link, Key, Eye, PencilSimple, Trash, User, Camera, Lock, LockOpen, ArrowsClockwise, Users, Funnel, MagnifyingGlass, List, DotsThreeVertical, Warning, Power } from '@phosphor-icons/react';
+import { BookOpen, Plus, Link, Key, Eye, Pencil, Trash2, User, Camera, Lock, Unlock, RefreshCw, Users, Filter, Search, List, MoreVertical, AlertTriangle, Power } from 'lucide-react';
 import { useState, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "../ui/label";
 
 import { toast } from "sonner";
-import { useSchool, Student } from "../../contexts/SchoolContext";
+import { Student } from "../../types/school";
+import { useSchool } from "../../contexts/SchoolContext";
 import { API_CONFIG } from '../../config/api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 import { exportStudentsToCSV } from "../../utils/csvExporter";
@@ -392,7 +393,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 if (hasRecords && student.status === 'Active') {
                   return (
                     <div className="flex items-center gap-1 text-xs text-amber-600">
-                      <Warning className="w-3 h-3" weight="bold" />
+                      <AlertTriangle className="w-3 h-3" weight="bold" />
                       <span>Has Records</span>
                     </div>
                   );
@@ -448,7 +449,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               variant="outline"
               className="flex-1 min-w-[70px] text-xs px-2 py-1.5 h-7"
             >
-              <PencilSimple className="w-3 h-3 mr-1" weight="bold" />
+              <Pencil className="w-3 h-3 mr-1" weight="bold" />
               Edit
             </Button>
 
@@ -463,7 +464,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               {student.status === 'Active' ? (
                 <Lock className={`w-3 h-3 mr-1 ${hasRecords ? 'text-amber-500' : ''}`} weight="bold" />
               ) : (
-                <LockOpen className="w-3 h-3 mr-1" weight="bold" />
+                <Unlock className="w-3 h-3 mr-1" weight="bold" />
               )}
               {student.status === 'Active' ? 'Deactivate' : 'Activate'}
             </Button>
@@ -471,7 +472,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" className="px-2 py-1.5 h-7">
-                  <DotsThreeVertical className="w-3 h-3" weight="bold" />
+                  <MoreVertical className="w-3 h-3" weight="bold" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
@@ -508,7 +509,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                     </>
                   ) : (
                     <>
-                      <LockOpen className="w-3 h-3 mr-2" weight="bold" />
+                      <Unlock className="w-3 h-3 mr-2" weight="bold" />
                       Activate
                     </>
                   )}
@@ -536,7 +537,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   onClick={() => openDeleteDialog(student)}
                   className="text-red-600"
                 >
-                  <Trash className="w-3 h-3 mr-2" weight="bold" />
+                  <Trash2 className="w-3 h-3 mr-2" weight="bold" />
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -754,7 +755,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 variant="outline"
                 className="text-xs px-3 py-2 h-8"
               >
-                <Funnel className="w-3 h-3 mr-1" weight="bold" />
+                <Filter className="w-3 h-3 mr-1" weight="bold" />
                 Filters
               </Button>
               
@@ -768,7 +769,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 {isRefreshing ? (
                   <div className="w-3 h-3 animate-spin rounded-full border border-gray-300 border-t-emerald-600" />
                 ) : (
-                  <ArrowsClockwise className="w-3 h-3" weight="bold" />
+                  <RefreshCw className="w-3 h-3" weight="bold" />
                 )}
               </Button>
             </div>
@@ -790,7 +791,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               <Button onClick={() => {
                 setMobileFiltersOpen(!mobileFiltersOpen);
               }} variant="outline" className="text-sm px-4 py-2 h-9">
-                <Funnel className="w-4 h-4 mr-2" weight="bold" />
+                <Filter className="w-4 h-4 mr-2" weight="bold" />
                 Filters
               </Button>
               
@@ -798,7 +799,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 {isRefreshing ? (
                   <div className="w-4 h-4 animate-spin rounded-full border border-gray-300 border-t-emerald-600 mr-2" />
                 ) : (
-                  <ArrowsClockwise className="w-4 h-4 mr-2" weight="bold" />
+                  <RefreshCw className="w-4 h-4 mr-2" weight="bold" />
                 )}
                 Refresh
               </Button>
@@ -826,7 +827,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             <div>
               <Label className="text-sm font-medium">Search</Label>
               <div className="relative mt-1">
-                <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" weight="bold" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" weight="bold" />
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -973,7 +974,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   {actionLoading === 'bulk-delete' ? (
                     <div className="w-4 h-4 animate-spin rounded-full border border-white border-t-transparent mr-2" />
                   ) : (
-                    <Trash className="w-4 h-4 mr-2" weight="bold" />
+                    <Trash2 className="w-4 h-4 mr-2" weight="bold" />
                   )}
                   Delete Selected
                 </Button>
@@ -1145,7 +1146,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   handleEdit(student);
                                 }} className="h-8 w-8 p-0">
-                                  <PencilSimple className="w-3 h-3" weight="bold" />
+                                  <Pencil className="w-3 h-3" weight="bold" />
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1164,13 +1165,13 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                                   {student.status === 'Active' ? (
                                     <Lock className="w-3 h-3" weight="bold" />
                                   ) : (
-                                    <LockOpen className="w-3 h-3" weight="bold" />
+                                    <Unlock className="w-3 h-3" weight="bold" />
                                   )}
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   openDeleteDialog(student);
                                 }} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
-                                  <Trash className="w-3 h-3" weight="bold" />
+                                  <Trash2 className="w-3 h-3" weight="bold" />
                                 </Button>
                               </div>
                             </td>

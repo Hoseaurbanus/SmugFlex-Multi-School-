@@ -10,7 +10,7 @@ import {
   SubjectDatabaseImporter, 
   ParentDatabaseImporter 
 } from './databaseImporter';
-import { Student, Teacher, Class, Subject, Parent } from '../contexts/SchoolContext';
+import { Student, Teacher, Class, Subject, Parent } from '../types/school';
 
 /**
  * Enhanced CSV string parser that handles quoted fields and commas

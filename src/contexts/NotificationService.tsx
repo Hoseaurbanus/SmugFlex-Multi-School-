@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { useSchool } from './SchoolContext';
 import { toast } from 'sonner';
 import { Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 interface NotificationEvent {
@@ -63,7 +62,6 @@ export function useNotificationService() {
 // Hook to listen for notifications in dashboards
 export function useNotificationListener(userRole: string | undefined, userId: number | undefined) {
   const { subscribe } = useNotificationService();
-  const { markNotificationAsRead, currentUser } = useSchool();
 
   useEffect(() => {
     if (!userRole || !userId) return;
@@ -118,5 +116,5 @@ export function useNotificationListener(userRole: string | undefined, userId: nu
     });
 
     return unsubscribe;
-  }, [userRole, userId, subscribe, currentUser]);
+  }, [userRole, userId, subscribe]);
 }

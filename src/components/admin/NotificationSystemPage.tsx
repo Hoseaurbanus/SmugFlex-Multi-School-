@@ -1,4 +1,4 @@
-import { Calculator, GraduationCap, Users } from '@phosphor-icons/react';
+import { Calculator, GraduationCap, Users } from 'lucide-react';
 import { useState, type FormEvent } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";

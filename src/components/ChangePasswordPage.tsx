@@ -6,10 +6,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Alert, AlertDescription } from './ui/alert';
 import { toast } from 'sonner';
-import { useSchool } from '../contexts/SchoolContext';
+import { useAuth } from '../contexts/domains/AuthContext';
 
 export function ChangePasswordPage() {
-  const { currentUser, changePassword } = useSchool();
+  const { currentUser, changePassword } = useAuth();
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',

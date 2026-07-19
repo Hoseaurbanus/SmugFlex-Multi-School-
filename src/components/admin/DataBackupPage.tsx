@@ -1,4 +1,4 @@
-import { Database, GraduationCap, HardDrive } from '@phosphor-icons/react';
+import { Database, GraduationCap, HardDrive } from 'lucide-react';
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Button } from "../ui/button";

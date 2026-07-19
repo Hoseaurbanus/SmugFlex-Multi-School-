@@ -1,4 +1,4 @@
-const CPANEL_HOST = 'https://smug.site.gracelandroyalacademy.com.ng';
+const CPANEL_HOST = process.env.CPANEL_HOST || 'https://smug.site.gracelandroyalacademy.com.ng';
 
 export const config = {
   matcher: ['/api/:path*'],

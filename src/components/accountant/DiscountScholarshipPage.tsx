@@ -6,13 +6,16 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
-import { useSchool, Scholarship } from "../../contexts/SchoolContext";
+import { Scholarship } from "../../types/school";
+import { usePayments } from "../../contexts/domains/PaymentContext";
+import { useSettings } from "../../contexts/domains/SettingsContext";
 import { Percent } from "lucide-react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 
 export function DiscountScholarshipPage() {
-  const { students, scholarships, addScholarship, updateScholarship, deleteScholarship, currentAcademicYear } = useSchool();
+  const { scholarships, addScholarship, updateScholarship, deleteScholarship } = usePayments();
+  const { currentAcademicYear } = useSettings();
   
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Key, Gear, Link as LinkIcon } from '@phosphor-icons/react';
+import { Key, Settings, Link } from 'lucide-react';
 import { CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -26,11 +26,11 @@ export function ActivityLogsPage() {
   });
 
   const getActionIcon = (action: string) => {
-    if (action.includes('User') || action.includes('Create')) return <Gear weight="bold" className="w-4 h-4" />;
+    if (action.includes('User') || action.includes('Create')) return <Settings className="w-4 h-4" />;
     if (action.includes('Password')) return <Key weight="bold" className="w-4 h-4" />;
-    if (action.includes('Link') || action.includes('Unlink')) return <LinkIcon weight="bold" className="w-4 h-4" />;
+    if (action.includes('Link') || action.includes('Unlink')) return <Link className="w-4 h-4" />;
     if (action.includes('Deactivate') || action.includes('Activate')) return <span className="w-4 h-4" />;
-    return <Gear weight="bold" className="w-4 h-4" />;
+    return <Settings className="w-4 h-4" />;
   };
 
   const getActionBadgeColor = (action: string) => {

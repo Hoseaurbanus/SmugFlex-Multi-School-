@@ -5,7 +5,9 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Avatar } from "./ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { Notification, useSchool } from "../contexts/SchoolContext";
+import { Notification } from "../types/school";
+import { useAuth } from "../contexts/domains/AuthContext";
+import { useNotifications } from "../contexts/domains/NotificationContext";
 import { useNotificationListener } from "../contexts/NotificationService";
 import { toast } from "sonner";
 
@@ -22,7 +24,8 @@ interface DashboardTopBarProps {
 }
 
 export function DashboardTopBar({ userName, userRole, schoolName = '', notificationCount = 0, notifications = [], onLogout, onNotificationClick, onMarkAsRead, onChangePasswordClick }: DashboardTopBarProps) {
-  const { currentUser, getUnreadNotifications, deleteNotification } = useSchool();
+  const { currentUser } = useAuth();
+  const { getUnreadNotifications, deleteNotification } = useNotifications();
   useNotificationListener(currentUser?.role, currentUser?.id);
   const userUnreadNotifications = getUnreadNotifications();
   const [greeting, setGreeting] = useState('');

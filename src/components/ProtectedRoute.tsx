@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useSchool } from '../contexts/SchoolContext';
+import { useAuth } from '../contexts/domains/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { currentUser, isLoading } = useSchool();
+  const { currentUser, isLoading } = useAuth();
 
   if (isLoading) {
     return (

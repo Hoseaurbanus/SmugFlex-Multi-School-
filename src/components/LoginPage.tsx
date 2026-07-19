@@ -21,7 +21,7 @@ import {
   Lock,
   Loader2,
 } from "lucide-react";
-import { useSchool } from "../contexts/SchoolContext";
+import { useAuth } from "../contexts/domains/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 const ROLES = [
@@ -43,7 +43,7 @@ interface StudentLoginFormInputs {
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login, studentLogin } = useSchool();
+  const { login, studentLogin } = useAuth();
 
   const [role, setRole] = useState("admin");
   const [showPassword, setShowPassword] = useState(false);

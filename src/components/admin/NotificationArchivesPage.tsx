@@ -25,15 +25,15 @@ import { Label } from '../ui/label';
 import { useSchool } from '../../contexts/SchoolContext';
 import { toast } from 'sonner';
 import {
-  Trash,
-  PaperPlane,
+  Trash2,
+  Send,
   Megaphone,
-  Warning,
+  AlertTriangle,
   Users,
-  MagnifyingGlass,
+  Search,
   Eye,
-  ArrowBendUpLeft,
-} from '@phosphor-icons/react';
+  ArrowLeft,
+} from 'lucide-react';
 
 export function NotificationArchivesPage() {
   const { notifications, addNotification, currentUser, markNotificationAsRead } = useSchool();
@@ -212,7 +212,7 @@ export function NotificationArchivesPage() {
             variant="destructive"
             className="rounded-xl"
           >
-            <Trash className="w-4 h-4 mr-2" weight="bold" />
+            <Trash2 className="w-4 h-4 mr-2" weight="bold" />
             Delete {selectedIds.length} Selected
           </Button>
         )}
@@ -256,7 +256,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.type === 'alert').length}</p>
               </div>
               <div className="bg-red-100 p-3 rounded-xl">
-                <Warning className="w-6 h-6 text-red-600" weight="bold" />
+                <AlertTriangle className="w-6 h-6 text-red-600" weight="bold" />
               </div>
             </div>
           </CardContent>
@@ -283,7 +283,7 @@ export function NotificationArchivesPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
-              <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" weight="bold" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" weight="bold" />
               <Input
                 type="text"
                 placeholder="Search notifications..."

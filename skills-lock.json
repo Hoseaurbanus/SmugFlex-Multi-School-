@@ -11,7 +11,7 @@
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/vercel-cli-with-tokens/SKILL.md",
-      "computedHash": "d3ad6e1d6278a4df322ee5bf49211f921f4aaea1148fb127b4e928de04b39fef"
+      "computedHash": "d3ad6e1d6278a4df322ee5bf49211f921f4aaea1148fb127b4e292de04b39fef"
     },
     "vercel-composition-patterns": {
       "source": "vercel-labs/agent-skills",
@@ -54,6 +54,14 @@
       "sourceType": "github",
       "skillPath": "skills/writing-guidelines/SKILL.md",
       "computedHash": "9c221f46dca7bdf94af9c27ce54a7b4ea323c590333f8bc0a55c65254c646584"
+    },
+    "exhaustive-audit": {
+      "source": "local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/exhaustive-audit/SKILL.md",
+      "computedHash": "local"
     }
+  }
+}
   }
 }

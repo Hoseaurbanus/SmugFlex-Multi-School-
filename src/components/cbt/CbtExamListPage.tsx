@@ -1,4 +1,4 @@
-import { Plus, MagnifyingGlass, Clock, Users, ChartBar, DotsThree, Play, Archive, PencilSimple, Trash, EyeSlash } from '@phosphor-icons/react';
+import { Plus, Search, Clock, Users, BarChart3, MoreHorizontal, Play, Archive, Pencil, Trash2, EyeOff } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
@@ -158,7 +158,7 @@ export function CbtExamListPage() {
         <CardContent>
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="relative flex-1">
-              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" weight="bold" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" weight="bold" />
               <Input
                 placeholder="Search exams..."
                 value={searchQuery}
@@ -230,12 +230,12 @@ export function CbtExamListPage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm">
-                                <DotsThree className="w-4 h-4" weight="bold" />
+                                <MoreHorizontal className="w-4 h-4" weight="bold" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => handleManageQuestions(exam)}>
-                                <ChartBar className="w-4 h-4 mr-2" weight="bold" />
+                                <BarChart3 className="w-4 h-4 mr-2" weight="bold" />
                                 Questions
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleViewResults(exam)}>
@@ -246,7 +246,7 @@ export function CbtExamListPage() {
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleEdit(exam)}>
-                                    <PencilSimple className="w-4 h-4 mr-2" weight="bold" />
+                                    <Pencil className="w-4 h-4 mr-2" weight="bold" />
                                     Edit
                                   </DropdownMenuItem>
                                   {!exam.published ? (
@@ -256,7 +256,7 @@ export function CbtExamListPage() {
                                     </DropdownMenuItem>
                                   ) : (
                                     <DropdownMenuItem onClick={() => handleUnpublish(exam.id)} disabled={actionLoading === `unpublish-${exam.id}`}>
-                                      <EyeSlash className="w-4 h-4 mr-2" weight="bold" />
+                                      <EyeOff className="w-4 h-4 mr-2" weight="bold" />
                                       Unpublish
                                     </DropdownMenuItem>
                                   )}
@@ -267,7 +267,7 @@ export function CbtExamListPage() {
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem onClick={() => { setExamToDelete(exam.id); setDeleteDialogOpen(true); }} className="text-red-600">
-                                    <Trash className="w-4 h-4 mr-2" weight="bold" />
+                                    <Trash2 className="w-4 h-4 mr-2" weight="bold" />
                                     Delete
                                   </DropdownMenuItem>
                                 </>
@@ -311,7 +311,7 @@ export function CbtExamListPage() {
                     </div>
                     <div className="flex items-center gap-2 pt-1">
                       <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleManageQuestions(exam)}>
-                        <ChartBar className="w-3 h-3 mr-1" weight="bold" /> Questions
+                        <BarChart3 className="w-3 h-3 mr-1" weight="bold" /> Questions
                       </Button>
                       <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleViewResults(exam)}>
                         <Users className="w-3 h-3 mr-1" weight="bold" /> Results
@@ -319,7 +319,7 @@ export function CbtExamListPage() {
                       {canManage && (
                         <>
                           <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleEdit(exam)}>
-                            <PencilSimple className="w-3 h-3" weight="bold" />
+                            <Pencil className="w-3 h-3" weight="bold" />
                           </Button>
                           {!exam.published ? (
                             <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handlePublish(exam.id)} disabled={actionLoading === `publish-${exam.id}`}>
@@ -327,7 +327,7 @@ export function CbtExamListPage() {
                             </Button>
                           ) : (
                             <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => handleUnpublish(exam.id)} disabled={actionLoading === `unpublish-${exam.id}`}>
-                              <EyeSlash className="w-3 h-3" weight="bold" />
+                              <EyeOff className="w-3 h-3" weight="bold" />
                             </Button>
                           )}
                           {exam.status !== 'Archived' && (
@@ -336,7 +336,7 @@ export function CbtExamListPage() {
                             </Button>
                           )}
                           <Button variant="outline" size="sm" className="text-xs h-8 text-red-600" onClick={() => { setExamToDelete(exam.id); setDeleteDialogOpen(true); }}>
-                            <Trash className="w-3 h-3" weight="bold" />
+                            <Trash2 className="w-3 h-3" weight="bold" />
                           </Button>
                         </>
                       )}

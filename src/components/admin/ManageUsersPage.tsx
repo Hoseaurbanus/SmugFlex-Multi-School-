@@ -1,4 +1,4 @@
-import { GearSix, Calculator, GraduationCap, User, CheckCircle, PencilSimple, Trash, Eye, Plus, Download, FileText, MagnifyingGlass, Key, UserMinus, UserCheck } from '@phosphor-icons/react';
+import { Settings, Calculator, GraduationCap, User, CheckCircle2, Pencil, Trash2, Eye, Plus, Download, FileText, Search, Key, UserMinus, UserCheck } from 'lucide-react';
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
@@ -29,8 +29,9 @@ import {
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
-import { useSchool, Teacher, Parent, Accountant, User as UserType } from "../../contexts/SchoolContext";
-import { User as UserIcon } from "@phosphor-icons/react";
+import { Teacher, Parent, Accountant, User as UserType } from "../../types/school";
+import { useSchool } from "../../contexts/SchoolContext";
+import { User as UserIcon } from "lucide-react";
 import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -821,7 +822,7 @@ export function ManageUsersPage() {
                 <p className="text-orange-600 text-xs font-medium">Inactive Users</p>
                 <p className="text-lg font-bold text-orange-900">{stats.users.inactive}</p>
               </div>
-              <GearSix className="w-6 h-6 text-orange-500" weight="bold" />
+              <Settings className="w-6 h-6 text-orange-500" weight="bold" />
             </div>
           </CardContent>
         </div>
@@ -833,7 +834,7 @@ export function ManageUsersPage() {
                 <p className="text-[#0A2540] text-xs font-medium">Admin Users</p>
                 <p className="text-lg font-bold text-[#0A2540]">{stats.users.admin}</p>
               </div>
-              <GearSix className="w-6 h-6 text-[#0A2540]" weight="bold" />
+              <Settings className="w-6 h-6 text-[#0A2540]" weight="bold" />
             </div>
           </CardContent>
         </div>
@@ -884,7 +885,7 @@ export function ManageUsersPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <div className="relative">
-                  <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" weight="bold" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" weight="bold" />
                   <Input
                     placeholder="Search by name, email, or phone..."
                     value={searchTerm}
@@ -970,7 +971,7 @@ export function ManageUsersPage() {
                                 title="Edit User"
                                 type="button"
                               >
-                                <PencilSimple className="w-3 h-3" weight="bold" />
+                                <Pencil className="w-3 h-3" weight="bold" />
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleResetPassword(user); }}
@@ -1000,7 +1001,7 @@ export function ManageUsersPage() {
                                 title="Delete User"
                                 type="button"
                               >
-                                <Trash className="w-3 h-3" weight="bold" />
+                                <Trash2 className="w-3 h-3" weight="bold" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1108,7 +1109,7 @@ export function ManageUsersPage() {
                           title="Edit User"
                           type="button"
                         >
-                          <PencilSimple className="w-3 h-3" weight="bold" />
+                          <Pencil className="w-3 h-3" weight="bold" />
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleResetPassword(user); }}
@@ -1138,7 +1139,7 @@ export function ManageUsersPage() {
                           title="Delete User"
                           type="button"
                         >
-                          <Trash className="w-3 h-3" weight="bold" />
+                          <Trash2 className="w-3 h-3" weight="bold" />
                         </Button>
                       </div>
                     </CardContent>

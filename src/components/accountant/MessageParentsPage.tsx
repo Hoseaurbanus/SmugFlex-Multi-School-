@@ -7,11 +7,15 @@ import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Badge } from "../ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { useSchool } from "../../contexts/SchoolContext";
+import { useAuth } from "../../contexts/domains/AuthContext";
+import { useStudents } from "../../contexts/domains/StudentContext";
+import { useNotifications } from "../../contexts/domains/NotificationContext";
 import { toast } from "sonner";
 
 export function MessageParentsPage() {
-  const { currentUser, students, parents, notifications, addNotification, markNotificationAsRead } = useSchool();
+  const { currentUser } = useAuth();
+  const { parents } = useStudents();
+  const { notifications, addNotification, markNotificationAsRead } = useNotifications();
   const [messageData, setMessageData] = useState({
     recipientType: "all_parents", // all_parents, specific_parent
     parentId: "",

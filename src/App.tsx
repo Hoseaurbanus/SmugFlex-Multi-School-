@@ -8,7 +8,8 @@ import { TermsOfService } from './components/TermsOfService';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { NotificationServiceProvider } from './contexts/NotificationService';
 import { ConnectionProvider } from './contexts/ConnectionContext';
-import { SchoolProvider, useSchool } from './contexts/SchoolContext';
+import { SchoolProvider } from './contexts/SchoolContext';
+import { AuthProvider, useAuth } from './contexts/domains/AuthContext';
 import { Toaster } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { getAuthToken } from './config/api';
@@ -60,18 +61,20 @@ function App() {
 
   return (
     <SchoolProvider>
-      <ConnectionProvider>
-        <NotificationServiceProvider>
-          <Toaster position="top-right" richColors />
-          <AppContent navigate={navigate} />
-        </NotificationServiceProvider>
-      </ConnectionProvider>
+      <AuthProvider>
+        <ConnectionProvider>
+          <NotificationServiceProvider>
+            <Toaster position="top-right" richColors />
+            <AppContent navigate={navigate} />
+          </NotificationServiceProvider>
+        </ConnectionProvider>
+      </AuthProvider>
     </SchoolProvider>
   );
 }
 
 function AppContent({ navigate }: { navigate: any }) {
-  const { logout, currentUser } = useSchool();
+  const { logout } = useAuth();
 
   // Proactive token expiry check — every 60 seconds
   useEffect(() => {

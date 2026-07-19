@@ -6,7 +6,7 @@
 
 import { toast } from 'sonner';
 import { API_CONFIG } from '../config/api';
-import { Student, Teacher, Class, Subject, Parent } from '../contexts/SchoolContext';
+import { Student, Teacher, Class, Subject, Parent } from '../types/school';
 import sqlDatabase from '../services/sqlDatabase';
 
 // Batch processing configuration

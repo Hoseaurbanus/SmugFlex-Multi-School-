@@ -3,22 +3,20 @@ import { motion, useInView } from "motion/react";
 import {
   Users,
   GraduationCap,
-  ClipboardText,
+  ClipboardList,
   Bell,
   UserPlus,
   BookOpen,
-  ChartBar,
-  Gear,
-  CalendarBlank,
-  CaretRight,
+  BarChart3,
+  Settings,
+  Calendar,
+  ChevronRight,
   Clock,
-  Lightning,
-  ArrowsClockwise,
-  Student,
-  ChalkboardTeacher,
-  EnvelopeSimpleOpen,
+  Zap,
+  RefreshCw,
+  Mail,
   FileText,
-} from "@phosphor-icons/react";
+} from "lucide-react";
 
 interface DashboardWelcomeProps {
   adminName: string;
@@ -235,7 +233,7 @@ export default function DashboardWelcome({
               whileTap={{ scale: 0.95 }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm transition-colors cursor-pointer"
             >
-              <ArrowsClockwise className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
               Refresh
             </motion.button>
           </div>
@@ -268,11 +266,11 @@ export default function DashboardWelcome({
             className="flex flex-wrap items-center gap-2 mt-4"
           >
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/90 text-xs font-semibold">
-              <Lightning className="w-3 h-3 text-amber-300" />
+              <Zap className="w-3 h-3 text-amber-300" />
               {schoolName}
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/70 text-xs font-semibold">
-              <CalendarBlank className="w-3 h-3" />
+              <Calendar className="w-3 h-3" />
               {currentAcademicYear} &middot; {currentTerm}
             </span>
           </motion.div>
@@ -373,7 +371,7 @@ export default function DashboardWelcome({
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                  <CalendarBlank weight="bold" className="w-6 h-6 text-white" />
+                  <Calendar weight="bold" className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <p className="text-lg font-heading font-bold text-gray-900">
@@ -447,7 +445,7 @@ export default function DashboardWelcome({
                             {new Date(n.sentDate).toLocaleDateString()}
                           </p>
                         </div>
-                        <CaretRight
+                        <ChevronRight
                           weight="bold"
                           className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-900 opacity-0 group-hover:opacity-100 transition-all mt-1 flex-shrink-0"
                         />

@@ -18,7 +18,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
-import { useSchool, Student as SchoolStudent } from '../../contexts/SchoolContext';
+import { Student as SchoolStudent } from '../../types/school';
+import { useSchool } from '../../contexts/SchoolContext';
 import { API_CONFIG } from '../../config/api';
 import {
   Users, User, Phone, Mail, Download, Search, Trophy, Target, Eye,

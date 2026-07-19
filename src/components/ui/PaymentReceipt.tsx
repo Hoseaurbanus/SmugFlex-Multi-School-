@@ -1,4 +1,4 @@
-import { Payment } from '../../contexts/SchoolContext';
+import { Payment } from '../../types/school';
 import { Button } from "./button";
 import { Printer, Download } from "lucide-react";
 

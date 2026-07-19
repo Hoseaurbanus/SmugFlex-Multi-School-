@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PencilSimple, Trash } from '@phosphor-icons/react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -389,13 +389,13 @@ export function ExamTimetablePage() {
                           onClick={() => handleEdit(timetable)}
                           className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600"
                         >
-                          <PencilSimple weight="bold" className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
                         </Button>
                         <Button
                           onClick={() => handleDelete(timetable.id)}
                           className="p-2 bg-red-50 hover:bg-red-100 text-red-600"
                         >
-                          <Trash weight="bold" className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>

@@ -63,7 +63,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'https://smug.site.gracelandroyalacademy.com.ng',
+        target: process.env.CPANEL_HOST || 'https://smug.site.gracelandroyalacademy.com.ng',
         changeOrigin: true,
         secure: true,
       },

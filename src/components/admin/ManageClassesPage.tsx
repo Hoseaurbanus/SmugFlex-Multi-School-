@@ -1,4 +1,4 @@
-import { Book, BookOpenText, GraduationCap, ArrowLeft, Plus, FileText, MagnifyingGlass, CircleNotch, Upload, Warning, Trash } from '@phosphor-icons/react';
+import { Book, BookOpen, GraduationCap, ArrowLeft, Plus, FileText, Search, Loader2, Upload, AlertTriangle, Trash2 } from 'lucide-react';
 import { useState, useRef, useMemo, useEffect } from "react";
 /* Card removed - using flat design */
 import { Button } from "../ui/button";
@@ -13,7 +13,8 @@ import { Checkbox } from "../ui/checkbox";
 import { toast } from "sonner";
 import { exportClassesToCSV } from "../../utils/csvExporter";
 import { importClassesFromCSV, generateClassTemplate } from "../../utils/csvImporter";
-import { useSchool, Class, Subject, SubjectRegistration, Teacher, Student } from "../../contexts/SchoolContext";
+import { Class, Subject, SubjectRegistration, Teacher, Student } from "../../types/school";
+import { useSchool } from "../../contexts/SchoolContext";
 import { ClassCreationForm } from "./forms/ClassCreationForm";
 
 const CLASS_LEVELS = ["Creche", "Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "JSS 1", "JSS 2", "JSS 3", "SSS 1", "SSS 2", "SSS 3"];
@@ -508,7 +509,7 @@ function ManageClassesPageDesktop() {
                     <p className="text-2xl font-bold text-[#0A2540]">{stats.totalClasses}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#FFD700]/10 rounded-full flex items-center justify-center">
-                    <BookOpenText className="w-6 h-6 text-[#0A2540]" weight="bold" />
+                    <BookOpen className="w-6 h-6 text-[#0A2540]" weight="bold" />
                   </div>
                 </div>
               </div>
@@ -550,7 +551,7 @@ function ManageClassesPageDesktop() {
                     <p className="text-2xl font-bold text-orange-600">{stats.averageCapacity}%</p>
                   </div>
                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <BookOpenText className="w-6 h-6 text-orange-600" weight="bold" />
+                    <BookOpen className="w-6 h-6 text-orange-600" weight="bold" />
                   </div>
                 </div>
               </div>
@@ -564,7 +565,7 @@ function ManageClassesPageDesktop() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">Search</Label>
                   <div className="relative">
-                    <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" weight="bold" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" weight="bold" />
                     <Input
                       type="text"
                       placeholder="Search classes..."
@@ -622,7 +623,7 @@ function ManageClassesPageDesktop() {
           {isLoading && (
             <div className="flex items-center justify-center py-12">
               <div className="flex items-center gap-2 text-gray-500">
-                <CircleNotch className="w-5 h-5 animate-spin" weight="bold" />
+                <Loader2 className="w-5 h-5 animate-spin" weight="bold" />
                 Loading classes...
               </div>
             </div>
@@ -707,7 +708,7 @@ function ManageClassesPageDesktop() {
             <div className="section-band">
               <div className="p-12 text-center">
                 <div className="text-gray-500">
-                  <BookOpenText className="w-16 h-16 mx-auto mb-4 text-gray-300" weight="bold" />
+                  <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" weight="bold" />
                   <h3 className="text-lg font-medium mb-2">No Classes Found</h3>
                   <p>Try adjusting your filters or create a new class.</p>
                 </div>
@@ -755,7 +756,7 @@ function ManageClassesPageDesktop() {
                           Deleting...
                         </>
                       ) : (
-                        <Trash className="w-4 h-4" weight="bold" />
+                        <Trash2 className="w-4 h-4" weight="bold" />
                       )}
                     </Button>
                   </div>
@@ -863,9 +864,9 @@ function ManageClassesPageDesktop() {
                                     disabled={actionLoading === `remove-${reg.subject_id}`}
                                   >
                                     {actionLoading === `remove-${reg.subject_id}` ? (
-                                      <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
+                                      <Loader2 className="w-4 h-4 animate-spin" weight="bold" />
                                     ) : (
-                                      <Trash className="w-4 h-4" weight="bold" />
+                                      <Trash2 className="w-4 h-4" weight="bold" />
                                     )}
                                   </Button>
                                 </TableCell>
@@ -897,9 +898,9 @@ function ManageClassesPageDesktop() {
                               className="shrink-0 ml-2"
                             >
                               {actionLoading === `remove-${reg.subject_id}` ? (
-                                <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
+                                <Loader2 className="w-4 h-4 animate-spin" weight="bold" />
                               ) : (
-                                <Trash className="w-4 h-4" weight="bold" />
+                                <Trash2 className="w-4 h-4" weight="bold" />
                               )}
                             </Button>
                           </div>
@@ -936,7 +937,7 @@ function ManageClassesPageDesktop() {
                         >
                           {actionLoading === 'register-subjects' ? (
                             <>
-                              <CircleNotch className="w-4 h-4 animate-spin mr-2" weight="bold" />
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" weight="bold" />
                               Registering...
                             </>
                           ) : (
@@ -1079,7 +1080,7 @@ function ManageClassesPageDesktop() {
                 <Button onClick={handleEditClass} disabled={actionLoading === "edit"}>
                   {actionLoading === "edit" ? (
                     <>
-                      <CircleNotch className="w-4 h-4 animate-spin mr-2" weight="bold" />
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" weight="bold" />
                       Saving...
                     </>
                   ) : (
@@ -1095,7 +1096,7 @@ function ManageClassesPageDesktop() {
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
-                  <Warning className="w-5 h-5 text-red-600" weight="bold" />
+                  <AlertTriangle className="w-5 h-5 text-red-600" weight="bold" />
                   Delete Class
                 </AlertDialogTitle>
                 <AlertDialogDescription>

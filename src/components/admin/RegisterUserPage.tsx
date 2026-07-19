@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from '@phosphor-icons/react';
+import { Plus } from 'lucide-react';
 
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';

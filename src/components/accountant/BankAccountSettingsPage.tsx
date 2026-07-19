@@ -6,11 +6,13 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Checkbox } from "../ui/checkbox";
 import { Alert, AlertDescription } from "../ui/alert";
-import { useSchool } from "../../contexts/SchoolContext";
+import { useSettings } from "../../contexts/domains/SettingsContext";
+import { useAuth } from "../../contexts/domains/AuthContext";
 import { toast } from "sonner";
 
 export function BankAccountSettingsPage() {
-  const { bankAccountSettings, updateBankAccountSettings, currentUser } = useSchool();
+  const { bankAccountSettings, updateBankAccountSettings } = useSettings();
+  const { currentUser } = useAuth();
 
   const [formData, setFormData] = useState<{
     bank_name: string;

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { api } from '../../services/api';
 import { API_CONFIG } from '../../config/api';
-import { Plus, MagnifyingGlass, PencilSimple, Trash, BookOpen, Users, X, Check, Warning, Trophy, Clock, Lightning, UserCheck, Calendar, Funnel, CaretDown, CaretUp, SquaresFour, List, User, CircleNotch, FloppyDisk, FileText } from '@phosphor-icons/react';
+import { Plus, Search, Pencil, Trash2, BookOpen, Users, X, Check, AlertTriangle, Trophy, Clock, Zap, UserCheck, Calendar, Filter, ChevronDown, ChevronUp, LayoutGrid, List, User, Loader2, Save, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -610,7 +610,7 @@ export function ManageTeacherAssignmentsPage() {
         {/* Loading State */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24">
-            <CircleNotch weight="bold" className="w-10 h-10 text-[#0A2540] animate-spin mb-4" />
+            <Loader2 weight="bold" className="w-10 h-10 text-[#0A2540] animate-spin mb-4" />
             <p className="text-gray-600 font-medium">Loading teacher assignments...</p>
           </div>
         ) : (<>
@@ -624,7 +624,7 @@ export function ManageTeacherAssignmentsPage() {
                   <p className="text-gray-600 text-xs sm:text-sm font-medium">Total Assignments</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.totalAssignments}</p>
                   <p className="text-[10px] sm:text-xs text-emerald-600 mt-1 sm:mt-2 flex items-center">
-                    <Lightning weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
+                    <Zap weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     Active this term
                   </p>
                 </div>
@@ -696,7 +696,7 @@ export function ManageTeacherAssignmentsPage() {
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
-                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <Input
                     placeholder="Search by teacher, subject, or class..."
                     value={searchQuery}
@@ -731,7 +731,7 @@ export function ManageTeacherAssignmentsPage() {
                 <Select value={filterClass} onValueChange={setFilterClass}>
                   <SelectTrigger className="w-full lg:w-48 h-10 rounded-xl border-gray-200">
                     <div className="flex items-center gap-2">
-                      <SquaresFour weight="bold" className="w-4 h-4 text-gray-400" />
+                      <LayoutGrid weight="bold" className="w-4 h-4 text-gray-400" />
                       <SelectValue placeholder="All Classes" />
                     </div>
                   </SelectTrigger>
@@ -760,7 +760,7 @@ export function ManageTeacherAssignmentsPage() {
                     onClick={() => setViewMode('grid')}
                     className={`rounded-lg ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'} p-2`}
                   >
-                    <SquaresFour weight="bold" className="w-4 h-4" />
+                    <LayoutGrid weight="bold" className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -882,7 +882,7 @@ export function ManageTeacherAssignmentsPage() {
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
                               aria-label="Delete assignment"
                             >
-                              <Trash weight="bold" className="w-4 h-4" />
+                              <Trash2 weight="bold" className="w-4 h-4" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -930,7 +930,7 @@ export function ManageTeacherAssignmentsPage() {
                                 }}
                                 className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-8 w-8 flex-shrink-0"
                               >
-                                <Trash weight="bold" className="w-3.5 h-3.5" />
+                                <Trash2 weight="bold" className="w-3.5 h-3.5" />
                               </Button>
                             </div>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -999,7 +999,7 @@ export function ManageTeacherAssignmentsPage() {
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
                                 aria-label="Delete assignment"
                               >
-                                <Trash weight="bold" className="w-4 h-4" />
+                                <Trash2 weight="bold" className="w-4 h-4" />
                               </Button>
                             </div>
                             <div className="space-y-3">
@@ -1149,7 +1149,7 @@ export function ManageTeacherAssignmentsPage() {
                                 disabled={removingAssignmentId === String(assignment.id)}
                                 className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-8 w-8"
                               >
-                                <Trash weight="bold" className="w-3.5 h-3.5" />
+                                <Trash2 weight="bold" className="w-3.5 h-3.5" />
                               </Button>
                             </div>
                           </div>
@@ -1217,7 +1217,7 @@ export function ManageTeacherAssignmentsPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
-                <Warning weight="bold" className="w-5 h-5 text-red-600" />
+                <AlertTriangle weight="bold" className="w-5 h-5 text-red-600" />
                 Confirm Deletion
               </AlertDialogTitle>
               <AlertDialogDescription>
@@ -1235,7 +1235,7 @@ export function ManageTeacherAssignmentsPage() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
-                <Trash weight="bold" className="w-4 h-4 mr-2" />
+                <Trash2 weight="bold" className="w-4 h-4 mr-2" />
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1258,7 +1258,7 @@ export function ManageTeacherAssignmentsPage() {
                   <div className="flex items-center gap-2">
                     {saveStatus === 'saving' && (
                       <div className="flex items-center gap-1 text-[#0A2540]">
-                        <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
+                        <Loader2 weight="bold" className="w-4 h-4 animate-spin" />
                         <span className="text-sm">Saving...</span>
                       </div>
                     )}
@@ -1270,7 +1270,7 @@ export function ManageTeacherAssignmentsPage() {
                     )}
                     {saveStatus === 'error' && (
                       <div className="flex items-center gap-1 text-red-600">
-                        <Warning weight="bold" className="w-4 h-4" />
+                        <AlertTriangle weight="bold" className="w-4 h-4" />
                         <span className="text-sm">Error</span>
                       </div>
                     )}
@@ -1284,7 +1284,7 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Teacher</Label>
                 <div className="relative">
-                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search teachers..."
@@ -1334,7 +1334,7 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Class</Label>
                 <div className="relative">
-                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search classes..."
@@ -1492,12 +1492,12 @@ export function ManageTeacherAssignmentsPage() {
               >
                 {isSaving ? (
                   <>
-                    <CircleNotch weight="bold" className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 weight="bold" className="w-4 h-4 mr-2 animate-spin" />
                     Saving...
                   </>
                 ) : (
                   <>
-                    <FloppyDisk weight="bold" className="w-4 h-4 mr-2" />
+                    <Save weight="bold" className="w-4 h-4 mr-2" />
                     Save Assignments ({selectedAssignments.length})
                   </>
                 )}
@@ -1519,7 +1519,7 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Teacher</Label>
                 <div className="relative">
-                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search teachers..."
@@ -1569,7 +1569,7 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Class</Label>
                 <div className="relative">
-                  <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search classes..."

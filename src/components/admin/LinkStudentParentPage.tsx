@@ -7,12 +7,12 @@ import {
   UserMinus,
   Users,
   Link,
-  LinkBreak,
-  CheckCircle,
-  MagnifyingGlass,
+  Unlink,
+  CheckCircle2,
+  Search,
   X,
-  Warning
-} from "@phosphor-icons/react";
+  AlertTriangle
+} from "lucide-react";
 
 interface Student {
   id: number;
@@ -262,7 +262,7 @@ const LinkStudentParentPage: React.FC = () => {
               {isRefreshing ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <CheckCircle weight="bold" className="w-4 h-4" style={{ color: 'white' }} />
+                <CheckCircle2 weight="bold" className="w-4 h-4" style={{ color: 'white' }} />
               )}
             </button>
           </div>
@@ -336,7 +336,7 @@ const LinkStudentParentPage: React.FC = () => {
           <div className="p-6 space-y-4">
             {/* Search Input */}
             <div className="relative">
-              <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Search students by name or email..."
@@ -447,7 +447,7 @@ const LinkStudentParentPage: React.FC = () => {
           <div className="p-6 space-y-4">
             {/* Search Input */}
             <div className="relative">
-              <MagnifyingGlass weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Search parents by name or email..."
@@ -550,7 +550,7 @@ const LinkStudentParentPage: React.FC = () => {
       {/* Current Links Display */}
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <h3 className="text-lg font-heading font-bold text-gray-900 mb-6 flex items-center gap-2">
-          <CheckCircle weight="bold" className="w-5 h-5 text-emerald-600" />
+          <CheckCircle2 weight="bold" className="w-5 h-5 text-emerald-600" />
           Current Student-Parent Links
         </h3>
         
@@ -674,7 +674,7 @@ const LinkStudentParentPage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <LinkBreak weight="bold" className="w-5 h-5" />
+                    <Unlink weight="bold" className="w-5 h-5" />
                     Unlink Student
                   </>
                 )}
@@ -689,7 +689,7 @@ const LinkStudentParentPage: React.FC = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-sm sm:max-w-md w-full p-5 sm:p-6">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center shrink-0">
-                <Warning weight="bold" className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
+                <AlertTriangle weight="bold" className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-heading font-bold text-gray-900">Confirm Unlink</h3>

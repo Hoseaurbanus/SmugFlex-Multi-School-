@@ -1,4 +1,4 @@
-import { ChartBar, ArrowLeft, Download, Eye, CheckSquare } from '@phosphor-icons/react';
+import { BarChart3, ArrowLeft, Download, Eye, CheckSquare } from 'lucide-react';
 import React, { useState, useMemo, useRef, useEffect } from "react";
 
 import { Button } from "../ui/button";

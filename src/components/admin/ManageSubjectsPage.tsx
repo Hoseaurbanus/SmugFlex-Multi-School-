@@ -1,4 +1,4 @@
-import { Books, BookOpen, FileText, Plus } from '@phosphor-icons/react';
+import { Library, BookOpen, FileText, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -427,7 +427,7 @@ export function ManageSubjectsPageFixed() {
                 <p className="text-2xl font-bold text-[#0A2540]">{stats.totalSubjects}</p>
               </div>
               <div className="w-12 h-12 bg-[#FFD700]/10 rounded-full flex items-center justify-center">
-                <Books weight="bold" className="w-6 h-6 text-[#0A2540]" />
+                <Library className="w-6 h-6 text-[#0A2540]" />
               </div>
             </div>
         </div>
@@ -451,7 +451,7 @@ export function ManageSubjectsPageFixed() {
                 <p className="text-2xl font-bold text-[#0A2540]">{stats.coreSubjects}</p>
               </div>
               <div className="w-12 h-12 bg-[#0A2540]/5 rounded-full flex items-center justify-center">
-                <Books weight="bold" className="w-6 h-6 text-[#0A2540]" />
+                <Library className="w-6 h-6 text-[#0A2540]" />
               </div>
             </div>
         </div>
@@ -649,7 +649,7 @@ export function ManageSubjectsPageFixed() {
             </>
           ) : (
             <div className="text-center py-12">
-              <Books weight="light" className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <Library className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <h3 className="text-lg font-medium mb-2">No Subjects Found</h3>
               <p className="text-gray-500">Try adjusting your filters or create a new subject.</p>
             </div>
