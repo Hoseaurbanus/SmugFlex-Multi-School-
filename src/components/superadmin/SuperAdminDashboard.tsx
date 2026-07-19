@@ -17,10 +17,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   School, Shield, LogOut, Users, Search, Check, X, Ban, Clock,
   Plus, RefreshCw, Activity, BarChart3, ChevronDown, Menu,
-  Settings, Bell, BookOpen, FileText, Calculator, ClipboardList,
-  GraduationCap, Trash2, Edit, Eye, Power, PowerOff, Key,
+  Bell, BookOpen, FileText, Calculator, ClipboardList,
+  GraduationCap, Trash2, Power, PowerOff, Key,
   ChevronRight, ChevronLeft, AlertTriangle, Globe, Mail, Phone, MapPin,
-  Calendar, Hash, Layers, UserCog, Download, MoreVertical
+  Calendar, Hash, Layers, MoreVertical, Loader2
 } from 'lucide-react';
 
 const MODULE_LIST = [
@@ -342,6 +342,9 @@ export function SuperAdminDashboard() {
     const timer = setTimeout(() => { fetchSchools(); }, 300);
     return () => clearTimeout(timer);
   }, [search, statusFilter, fetchSchools]);
+
+  useEffect(() => { setSchoolsPage(1); }, [search, statusFilter]);
+  useEffect(() => { setActivityPage(1); }, [activeTab]);
 
   // Auto-refresh stats every 30 seconds while on dashboard tab
   useEffect(() => {
@@ -717,7 +720,7 @@ export function SuperAdminDashboard() {
                           className="pl-9 h-10 rounded-lg" />
                       </div>
                       <Select value={statusFilter} onValueChange={val => setStatusFilter(val)}>
-                        <SelectTrigger className="w-[140px] h-10">
+                        <SelectTrigger className="w-[150px] h-10">
                           <SelectValue placeholder="All Status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -726,6 +729,7 @@ export function SuperAdminDashboard() {
                           <SelectItem value="pending">Pending</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
                           <SelectItem value="suspended">Suspended</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1136,7 +1140,7 @@ export function SuperAdminDashboard() {
       </Dialog>
 
       {/* Disable Reason Dialog */}
-      <Dialog open={showReasonDialog} onOpenChange={setShowReasonDialog}>
+      <Dialog open={showReasonDialog} onOpenChange={(open) => { setShowReasonDialog(open); if (!open) { setPendingDisable(null); setDisabledReasonInput(''); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-amber-600">Disable {pendingDisable?.label}?</DialogTitle>
@@ -1192,7 +1196,7 @@ export function SuperAdminDashboard() {
       </Dialog>
 
       {/* Reject Dialog */}
-      <Dialog open={showReject} onOpenChange={setShowReject}>
+      <Dialog open={showReject} onOpenChange={(open) => { setShowReject(open); if (!open) setRejectReason(''); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-red-600">Reject Registration</DialogTitle>
@@ -1210,7 +1214,7 @@ export function SuperAdminDashboard() {
       </Dialog>
 
       {/* Suspend Dialog */}
-      <Dialog open={showSuspend} onOpenChange={setShowSuspend}>
+      <Dialog open={showSuspend} onOpenChange={(open) => { setShowSuspend(open); if (!open) setSuspendReason(''); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-amber-600">Suspend School</DialogTitle>
@@ -1268,7 +1272,7 @@ export function SuperAdminDashboard() {
       </Dialog>
 
       {/* Delete Dialog */}
-      <Dialog open={showDelete} onOpenChange={setShowDelete}>
+      <Dialog open={showDelete} onOpenChange={(open) => { setShowDelete(open); if (!open) setDeleteConfirmName(''); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-red-600 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Delete School</DialogTitle>

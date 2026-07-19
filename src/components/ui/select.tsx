@@ -80,15 +80,26 @@ export interface SelectValueProps extends React.HTMLAttributes<HTMLSpanElement> 
 }
 
 export const SelectValue = React.forwardRef<HTMLSpanElement, SelectValueProps>(
-  ({ className, placeholder, ...props }, ref) => {
+  ({ className, placeholder, children, ...props }, ref) => {
     const context = React.useContext(SelectContext)
     if (!context) throw new Error("SelectValue must be used within a Select")
     
     const { value } = context
-    
+    const [labelMap, setLabelMap] = React.useState<Record<string, string>>({})
+
+    React.useEffect(() => {
+      const map: Record<string, string> = {}
+      React.Children.forEach(children, (child) => {
+        if (React.isValidElement(child) && child.props.value !== undefined) {
+          map[child.props.value] = String(child.props.children ?? '');
+        }
+      })
+      setLabelMap(map)
+    }, [children])
+
     return (
       <span ref={ref} className={cn("block truncate", className)} {...props}>
-        {value || placeholder}
+        {(value && labelMap[value]) || placeholder}
       </span>
     )
   }

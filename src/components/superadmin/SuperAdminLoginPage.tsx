@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Shield, ArrowLeft, Eye, EyeOff, Loader2, Lock, User, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import { superAdminAuth } from '../../services/superAdminAuthService';
 import smugLogo from '../../assets/images/smug-logo.png';
