@@ -8,6 +8,7 @@ import { Badge } from '../ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
+import { Switch } from '../ui/switch';
 import { Alert, AlertDescription } from '../ui/alert';
 import { superAdminAuth } from '../../services/superAdminAuthService';
 import { API_CONFIG } from '../../config/api';
@@ -212,6 +213,10 @@ export function SuperAdminDashboard() {
   const [approveSuffix, setApproveSuffix] = useState('');
   const [newSchool, setNewSchool] = useState({ name: '', email: '', phone: '', address: '', city: '', state: '', suffix: '', plan: 'trial' });
   const [actionLoading, setActionLoading] = useState(false);
+  const [togglingModule, setTogglingModule] = useState<string | null>(null);
+  const [disabledReasonInput, setDisabledReasonInput] = useState('');
+  const [showReasonDialog, setShowReasonDialog] = useState(false);
+  const [pendingDisable, setPendingDisable] = useState<{ moduleName: string; label: string } | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -412,16 +417,18 @@ export function SuperAdminDashboard() {
     } catch { toast.error('Failed to load modules'); }
   };
 
-  const handleToggleModule = async (moduleName: string, enabled: boolean) => {
+  const handleToggleModule = async (moduleName: string, enabled: boolean, reason?: string) => {
     if (!selectedSchool) return;
-    const updated = (Array.isArray(schoolModules) ? schoolModules : []).map(m => m.module_name === moduleName ? { ...m, is_enabled: enabled ? 1 : 0 } : m);
+    setTogglingModule(moduleName);
+    const updated = (Array.isArray(schoolModules) ? schoolModules : []).map(m => m.module_name === moduleName ? { ...m, is_enabled: enabled ? 1 : 0, disabled_reason: enabled ? null : (reason || m.disabled_reason) } : m);
     setSchoolModules(updated);
     try {
       await apiCall(API_CONFIG.ENDPOINTS.SUPER_ADMIN.MODULES(selectedSchool.id), {
-        method: 'PUT', body: JSON.stringify({ modules: [{ module_name: moduleName, is_enabled: enabled ? 1 : 0 }] })
+        method: 'PUT', body: JSON.stringify({ modules: [{ module_name: moduleName, is_enabled: enabled ? 1 : 0, disabled_reason: enabled ? null : (reason || null) }] })
       });
       toast.success(`${moduleName} ${enabled ? 'enabled' : 'disabled'}`);
     } catch (e: any) { toast.error(e.message); fetchModules(selectedSchool.id); }
+    finally { setTogglingModule(null); }
   };
 
   const openSchoolDetail = async (school: SchoolRecord) => {
@@ -910,7 +917,7 @@ export function SuperAdminDashboard() {
                             </div>
                             <div className="flex flex-wrap gap-1">
                               {MODULE_LIST.slice(0, 5).map(m => (
-                                <span key={m.key} className="px-1.5 py-0.5 text-[9px] rounded bg-emerald-100 text-emerald-700">{m.label}</span>
+                                <span key={m.key} className="px-1.5 py-0.5 text-[9px] rounded bg-[var(--muted)]/40 text-[var(--muted-foreground)]">{m.label}</span>
                               ))}
                               {MODULE_LIST.length > 5 && (
                                 <span className="px-1.5 py-0.5 text-[9px] rounded bg-[var(--muted)]/30 text-[var(--muted-foreground)]">+{MODULE_LIST.length - 5} more</span>
@@ -1081,28 +1088,81 @@ export function SuperAdminDashboard() {
             <DialogTitle className="text-[var(--foreground)]">Modules — {selectedSchool?.name}</DialogTitle>
             <DialogDescription>Enable or disable features for this school</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {MODULE_LIST.map(mod => {
               const modData = (Array.isArray(schoolModules) ? schoolModules : []).find(m => m.module_name === mod.key);
               const isEnabled = modData?.is_enabled === 1 || modData?.is_enabled === true;
+              const isToggling = togglingModule === mod.key;
               return (
-                <div key={mod.key} className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--muted)]/30 transition-colors">
+                <motion.div key={mod.key}
+                  layout
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${isEnabled ? 'border-emerald-200 bg-emerald-50/50' : 'border-[var(--border)] bg-[var(--background)]'} ${isToggling ? 'opacity-60 pointer-events-none' : ''}`}
+                >
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isEnabled ? 'bg-emerald-100' : 'bg-[var(--muted)]/30'}`}>
-                      <mod.icon className={`w-4 h-4 ${isEnabled ? 'text-emerald-600' : 'text-[var(--muted-foreground)]/60'}`} />
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-200 ${isEnabled ? 'bg-emerald-100' : 'bg-[var(--muted)]/40'}`}>
+                      <mod.icon className={`w-4 h-4 transition-colors duration-200 ${isEnabled ? 'text-emerald-600' : 'text-[var(--muted-foreground)]/60'}`} />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[var(--foreground)]">{mod.label}</p>
-                      {modData?.disabled_reason && <p className="text-[10px] text-red-500">{modData.disabled_reason}</p>}
+                      {modData?.disabled_reason && !isEnabled && (
+                        <p className="text-[10px] text-amber-600 mt-0.5 truncate">{modData.disabled_reason}</p>
+                      )}
                     </div>
                   </div>
-                  <button onClick={() => handleToggleModule(mod.key, !isEnabled)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${isEnabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${isEnabled ? 'left-6' : 'left-1'}`} />
-                  </button>
-                </div>
+                  <div className="flex items-center gap-2">
+                    {isToggling && <Loader2 className="w-3 h-3 animate-spin text-[var(--muted-foreground)]" />}
+                    <Switch
+                      checked={isEnabled}
+                      disabled={isToggling}
+                      onCheckedChange={(checked) => {
+                        if (!checked) {
+                          setPendingDisable({ moduleName: mod.key, label: mod.label });
+                          setDisabledReasonInput('');
+                          setShowReasonDialog(true);
+                        } else {
+                          handleToggleModule(mod.key, true);
+                        }
+                      }}
+                      aria-label={`Toggle ${mod.label}`}
+                    />
+                  </div>
+                </motion.div>
               );
             })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Disable Reason Dialog */}
+      <Dialog open={showReasonDialog} onOpenChange={setShowReasonDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-amber-600">Disable {pendingDisable?.label}?</DialogTitle>
+            <DialogDescription>Optionally provide a reason for disabling this module.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <textarea
+              placeholder="Reason (optional)"
+              value={disabledReasonInput}
+              onChange={e => setDisabledReasonInput(e.target.value)}
+              className="w-full min-h-[80px] px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+            />
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setShowReasonDialog(false); setPendingDisable(null); }} className="flex-1">
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                if (pendingDisable) {
+                  handleToggleModule(pendingDisable.moduleName, false, disabledReasonInput || undefined);
+                }
+                setShowReasonDialog(false);
+                setPendingDisable(null);
+              }} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white">
+                Disable
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
