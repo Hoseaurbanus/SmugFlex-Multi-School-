@@ -21,11 +21,11 @@ const buttonVariants = {
 };
 
 const buttonSizes = {
-  default: "h-9 px-4 py-2 text-sm",
-  sm: "h-8 rounded-md px-3 text-xs",
-  lg: "h-11 rounded-lg px-6 text-base",
-  xl: "h-12 rounded-lg px-8 text-base",
-  icon: "size-9 rounded-md",
+  default: "h-11 px-4 py-2 text-sm min-h-[44px]",
+  sm: "h-9 rounded-md px-3 text-xs min-h-[36px]",
+  lg: "h-12 rounded-lg px-6 text-base min-h-[48px]",
+  xl: "h-14 rounded-lg px-8 text-base min-h-[56px]",
+  icon: "size-11 rounded-md min-h-[44px] min-w-[44px]",
 };
 
 const Spinner = ({ className }: { className?: string }) => (

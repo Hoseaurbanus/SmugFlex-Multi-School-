@@ -1,191 +1,100 @@
 import * as React from "react"
+import * as SelectPrimitive from "@radix-ui/react-select"
+import { Check, ChevronDown } from "lucide-react"
 import { cn } from "../../lib/utils"
 
-export interface SelectProps {
-  value?: string
-  onValueChange?: (value: any) => void
-  children: React.ReactNode
-  className?: string
-  required?: boolean
-}
+const Select = SelectPrimitive.Root
+const SelectGroup = SelectPrimitive.Group
+const SelectValue = SelectPrimitive.Value
 
-export interface SelectContextValue {
-  value?: string
-  onValueChange?: (value: string) => void
-  open: boolean
-  setOpen: (open: boolean) => void
-}
+const SelectTrigger = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
+>(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      "flex h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px]",
+      className
+    )}
+    {...props}
+  >
+    {children}
+    <SelectPrimitive.Icon asChild>
+      <ChevronDown className="h-4 w-4 opacity-50" />
+    </SelectPrimitive.Icon>
+  </SelectPrimitive.Trigger>
+))
+SelectTrigger.displayName = SelectPrimitive.Trigger.displayName
 
-const SelectContext = React.createContext<SelectContextValue | undefined>(undefined)
-
-export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
-  ({ value, onValueChange, children, className }, ref) => {
-    const [open, setOpen] = React.useState(false)
-    
-    const contextValue = React.useMemo(() => ({
-      value,
-      onValueChange,
-      open,
-      setOpen
-    }), [value, onValueChange, open])
-    
-    return (
-      <SelectContext.Provider value={contextValue}>
-        <div ref={ref} className={cn("relative w-full", className)} data-select-root>
-          {children}
-        </div>
-      </SelectContext.Provider>
-    )
-  }
-)
-Select.displayName = "Select"
-
-export const SelectTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-  ({ className, children, ...props }, ref) => {
-    const context = React.useContext(SelectContext)
-    if (!context) throw new Error("SelectTrigger must be used within a Select")
-    
-    const { open, setOpen } = context
-    
-    return (
-      <button
-        ref={ref}
-        type="button"
-        role="combobox"
-        aria-expanded={open}
+const SelectContent = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
+>(({ className, children, position = "popper", ...props }, ref) => (
+  <SelectPrimitive.Portal>
+    <SelectPrimitive.Content
+      ref={ref}
+      className={cn(
+        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+        position === "popper" && "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+        className
+      )}
+      position={position}
+      {...props}
+    >
+      <SelectPrimitive.Viewport
         className={cn(
-          "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-          className
+          "p-1",
+          position === "popper" && "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
         )}
-        onClick={() => setOpen(!open)}
-        {...props}
       >
         {children}
-        <svg
-          className={cn("h-4 w-4 opacity-50", open && "rotate-180")}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-        </svg>
-      </button>
-    )
-  }
-)
-SelectTrigger.displayName = "SelectTrigger"
+      </SelectPrimitive.Viewport>
+    </SelectPrimitive.Content>
+  </SelectPrimitive.Portal>
+))
+SelectContent.displayName = SelectPrimitive.Content.displayName
 
-export interface SelectValueProps extends React.HTMLAttributes<HTMLSpanElement> {
-  placeholder?: string
+const SelectItem = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
+>(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Item
+    ref={ref}
+    className={cn(
+      "relative flex w-full cursor-pointer select-none items-center rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 min-h-[44px]",
+      className
+    )}
+    {...props}
+  >
+    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+      <SelectPrimitive.ItemIndicator>
+        <Check className="h-4 w-4" />
+      </SelectPrimitive.ItemIndicator>
+    </span>
+    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+  </SelectPrimitive.Item>
+))
+SelectItem.displayName = SelectPrimitive.Item.displayName
+
+const SelectSeparator = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Separator>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
+>(({ className, ...props }, ref) => (
+  <SelectPrimitive.Separator
+    ref={ref}
+    className={cn("-mx-1 my-1 h-px bg-muted", className)}
+    {...props}
+  />
+))
+SelectSeparator.displayName = SelectPrimitive.Separator.displayName
+
+export {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
 }
-
-export const SelectValue = React.forwardRef<HTMLSpanElement, SelectValueProps>(
-  ({ className, placeholder, children, ...props }, ref) => {
-    const context = React.useContext(SelectContext)
-    if (!context) throw new Error("SelectValue must be used within a Select")
-    
-    const { value } = context
-    const [labelMap, setLabelMap] = React.useState<Record<string, string>>({})
-
-    React.useEffect(() => {
-      const map: Record<string, string> = {}
-      React.Children.forEach(children, (child) => {
-        if (React.isValidElement(child) && (child.props as any).value !== undefined) {
-          map[(child.props as any).value] = String((child.props as any).children ?? '');
-        }
-      })
-      setLabelMap(map)
-    }, [children])
-
-    return (
-      <span ref={ref} className={cn("block truncate", className)} {...props}>
-        {(value && labelMap[value]) || placeholder}
-      </span>
-    )
-  }
-)
-SelectValue.displayName = "SelectValue"
-
-export const SelectContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, children, ...props }, ref) => {
-    const context = React.useContext(SelectContext)
-    if (!context) throw new Error("SelectContent must be used within a Select")
-    
-    const { open, setOpen } = context
-    
-    React.useEffect(() => {
-      const handleClickOutside = (e: MouseEvent) => {
-        const target = e.target as Element
-        if (!target.closest('[data-select-root]')) {
-          setOpen(false)
-        }
-      }
-      
-      if (open) {
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }, [open, setOpen])
-    
-    if (!open) return null
-    
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "absolute top-full left-0 right-0 z-[9999] min-w-[8rem] max-h-[200px] overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md mt-1",
-          className
-        )}
-        style={{ position: 'absolute', zIndex: 9999 }}
-        {...props}
-      >
-        {children}
-      </div>
-    )
-  }
-)
-SelectContent.displayName = "SelectContent"
-
-export interface SelectItemProps extends React.HTMLAttributes<HTMLDivElement> {
-  value: string
-}
-
-export const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
-  ({ className, children, value, ...props }, ref) => {
-    const context = React.useContext(SelectContext)
-    if (!context) throw new Error("SelectItem must be used within a Select")
-    
-    const { onValueChange, setOpen, value: selectedValue } = context
-    
-    const handleClick = () => {
-      onValueChange?.(value)
-      setOpen(false)
-    }
-    
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-          selectedValue === value && "bg-accent text-accent-foreground",
-          className
-        )}
-        onClick={handleClick}
-        {...props}
-      >
-        {children}
-        {selectedValue === value && (
-          <svg
-            className="absolute left-2 h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-          </svg>
-        )}
-      </div>
-    )
-  }
-)
-SelectItem.displayName = "SelectItem"
