@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { api } from '../../services/api';
 import { API_CONFIG } from '../../config/api';
-import { Plus, Search, Trash2, BookOpen, Users, Check, AlertTriangle, Trophy, Zap, UserCheck, Calendar, LayoutGrid, List, User, Loader2, Save } from 'lucide-react';
+import { Plus, Search, Trash2, BookOpen, Users, Check, AlertTriangle, Trophy, Zap, UserCheck, Calendar, LayoutGrid, List, User, Loader2, Save, Pencil } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -45,29 +45,72 @@ export function ManageTeacherAssignmentsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isClassTeacherDialogOpen, setIsClassTeacherDialogOpen] = useState(false);
-  const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
+  // Subject Assignment dialog state
+  const [subjectDialogTeacherId, setSubjectDialogTeacherId] = useState<number | null>(null);
   const [selectedAssignments, setSelectedAssignments] = useState<{ subject_id: number; class_id: number }[]>([]);
-  const [selectedClassForTeacher, setSelectedClassForTeacher] = useState<string>('');
   const [selectedClassIdForAssignments, setSelectedClassIdForAssignments] = useState<number | null>(null);
-  const [_activityLogs, setActivityLogs] = useState<Array<{
+  const [subjectDialogTeacherSearch, setSubjectDialogTeacherSearch] = useState('');
+  const [subjectDialogClassSearch, setSubjectDialogClassSearch] = useState('');
+
+  // Class Teacher dialog state
+  const [classDialogTeacherId, setClassDialogTeacherId] = useState<number | null>(null);
+  const [classDialogClassId, setClassDialogClassId] = useState<number | null>(null);
+  const [classDialogTeacherSearch, setClassDialogTeacherSearch] = useState('');
+  const [classDialogClassSearch, setClassDialogClassSearch] = useState('');
+
+  // Shared dialog state
+  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
+
+  // Bulk assignment mode state
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkSubjectId, setBulkSubjectId] = useState<number | null>(null);
+  const [bulkClassId, setBulkClassId] = useState<number | null>(null);
+  const [bulkSelectedTeacherIds, setBulkSelectedTeacherIds] = useState<number[]>([]);
+
+  const [activityLogs, setActivityLogs] = useState<Array<{
     id: string;
     action: string;
     teacherName: string;
     details: string;
     timestamp: Date;
     type: 'assignment' | 'class_teacher' | 'removal';
-  }>>([]);
+  }>>(() => {
+    try {
+      const saved = localStorage.getItem('teacher_assignment_logs');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  // Persist activity logs to localStorage
+  useEffect(() => {
+    localStorage.setItem('teacher_assignment_logs', JSON.stringify(activityLogs));
+  }, [activityLogs]);
+
+  // Cleanup saveStatus timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveStatusTimerRef.current) {
+        clearTimeout(saveStatusTimerRef.current);
+      }
+    };
+  }, []);
 
   const [isLoading, setIsLoading] = useState(false);
   const [removingAssignmentId, setRemovingAssignmentId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteType, setConfirmDeleteType] = useState<'subject' | 'class-teacher' | null>(null);
   const [confirmDeleteDetails, setConfirmDeleteDetails] = useState<string>('');
-  const [_showFilters, _setShowFilters] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
-  const [classSearchTerm, setClassSearchTerm] = useState('');
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Multi-class warning dialog state (replaces window.confirm)
+  const [isMultiClassWarningOpen, setIsMultiClassWarningOpen] = useState(false);
+  const [multiClassWarningData, setMultiClassWarningData] = useState<{
+    teacher: any;
+    cls: any;
+    otherClassAssignment: any;
+  } | null>(null);
 
   // Map of valid subject/class combinations (filtered by current term and academic year)
   // Key format: `${class_id}-${subject_id}`
@@ -89,99 +132,84 @@ export function ManageTeacherAssignmentsPage() {
     return map;
   }, [subjectRegistrations, currentAcademicYear, currentTerm]);
 
-  // Subjects available for the currently selected class (based on database structure)
+  // Subjects available for the currently selected class (based on subject_registrations table)
   const availableSubjectsForSelectedClass = useMemo(() => {
-    if (!subjects) return [];
+    if (!subjects || !selectedClassIdForAssignments) return [];
     
-    // Get selected class to determine level
-    const selectedClass = classes?.find(c => c.id === selectedClassIdForAssignments);
-    if (!selectedClass) return [];
-    
-    // Filter subjects based on actual database class levels
-    const classLevelSubjects = subjects.filter((subject: any) => {
-      const classLevel = selectedClass.level?.toLowerCase();
-      const subjectCategory = subject.category?.toLowerCase();
-      
-      // Only show subjects registered for this class in the current term
-      if (!subjectRegistrationMap.has(`${selectedClass.id}-${subject.id}`)) return false;
-      
-      // Handle empty subject categories - include them for appropriate classes
-      if (!subjectCategory || subjectCategory === '') {
-        return classLevel.includes('kg') || classLevel.includes('kindergarten') || classLevel.includes('grade k');
-      }
-      
-      // Exact category match
-      if (subjectCategory === classLevel) return true;
-      
-      // Creche classes
-      if (classLevel === 'creche' && subjectCategory === 'creche') return true;
-      
-      // KG/Kindergarten classes
-      if ((classLevel.includes('kg') || classLevel.includes('kindergarten')) && subjectCategory === 'nursery') return true;
-      
-      // Primary classes (Grade 1, Grade 2, etc.)
-      if (classLevel.includes('grade') && subjectCategory === 'primary') return true;
-      
-      // JSS classes (JSS 1, JSS 2, etc.)
-      if (classLevel.includes('jss') && subjectCategory === 'jss') return true;
-      
-      // SS classes (if any exist)
-      if (classLevel.includes('ss') && subjectCategory === 'ss') return true;
-      
-      // General subjects for all classes
-      if (subjectCategory === 'general') return true;
-      
-      return false;
-    });
-    
-    return classLevelSubjects.map((subject: any) => ({
-      ...subject,
-      canAssign: true
-    }));
-  }, [selectedClassIdForAssignments, subjects, classes, subjectRegistrationMap]);
+    return subjects.filter((subject: any) => 
+      subjectRegistrationMap.has(`${selectedClassIdForAssignments}-${subject.id}`)
+    ).map((subject: any) => ({ ...subject, canAssign: true }));
+  }, [selectedClassIdForAssignments, subjects, subjectRegistrationMap]);
 
-  // Filtered teachers for search
-  const filteredTeachers = useMemo(() => {
+  // All active teachers (used by both dialogs with their own search)
+  const allActiveTeachers = useMemo(() => {
     if (!teachers || !Array.isArray(teachers)) return [];
-    
-    const activeTeachers = teachers.filter((t: any) => t.status === 'Active');
-    
-    if (!teacherSearchTerm.trim()) return activeTeachers;
-    
-    const searchTerm = teacherSearchTerm.toLowerCase();
-    return activeTeachers.filter((teacher: any) => 
+    return teachers.filter((t: any) => t.status === 'Active');
+  }, [teachers]);
+
+  // Filtered teachers for Subject Assignment dialog
+  const subjectDialogFilteredTeachers = useMemo(() => {
+    if (!subjectDialogTeacherSearch.trim()) return allActiveTeachers;
+    const searchTerm = subjectDialogTeacherSearch.toLowerCase();
+    return allActiveTeachers.filter((teacher: any) => 
       teacher.firstName?.toLowerCase().includes(searchTerm) ||
       teacher.lastName?.toLowerCase().includes(searchTerm) ||
       `${teacher.firstName} ${teacher.lastName}`.toLowerCase().includes(searchTerm) ||
       teacher.id?.toString().includes(searchTerm)
     );
-  }, [teachers, teacherSearchTerm]);
+  }, [allActiveTeachers, subjectDialogTeacherSearch]);
 
-  // Filtered classes for search
-  const filteredClasses = useMemo(() => {
+  // Filtered teachers for Class Teacher dialog
+  const classDialogFilteredTeachers = useMemo(() => {
+    if (!classDialogTeacherSearch.trim()) return allActiveTeachers;
+    const searchTerm = classDialogTeacherSearch.toLowerCase();
+    return allActiveTeachers.filter((teacher: any) => 
+      teacher.firstName?.toLowerCase().includes(searchTerm) ||
+      teacher.lastName?.toLowerCase().includes(searchTerm) ||
+      `${teacher.firstName} ${teacher.lastName}`.toLowerCase().includes(searchTerm) ||
+      teacher.id?.toString().includes(searchTerm)
+    );
+  }, [allActiveTeachers, classDialogTeacherSearch]);
+
+  // All classes (used by both dialogs with their own search)
+  const allClasses = useMemo(() => {
     if (!classes || !Array.isArray(classes)) return [];
-    
-    if (!classSearchTerm.trim()) return classes;
-    
-    const searchTerm = classSearchTerm.toLowerCase();
-    return classes.filter((cls: any) => 
+    return classes;
+  }, [classes]);
+
+  // Filtered classes for Subject Assignment dialog
+  const subjectDialogFilteredClasses = useMemo(() => {
+    if (!subjectDialogClassSearch.trim()) return allClasses;
+    const searchTerm = subjectDialogClassSearch.toLowerCase();
+    return allClasses.filter((cls: any) => 
       cls.name?.toLowerCase().includes(searchTerm) ||
       cls.level?.toLowerCase().includes(searchTerm) ||
       cls.id?.toString().includes(searchTerm)
     );
-  }, [classes, classSearchTerm]);
+  }, [allClasses, subjectDialogClassSearch]);
+
+  // Filtered classes for Class Teacher dialog
+  const classDialogFilteredClasses = useMemo(() => {
+    if (!classDialogClassSearch.trim()) return allClasses;
+    const searchTerm = classDialogClassSearch.toLowerCase();
+    return allClasses.filter((cls: any) => 
+      cls.name?.toLowerCase().includes(searchTerm) ||
+      cls.level?.toLowerCase().includes(searchTerm) ||
+      cls.id?.toString().includes(searchTerm)
+    );
+  }, [allClasses, classDialogClassSearch]);
 
   // Statistics
-  const stats = {
+  const stats = useMemo(() => ({
     totalAssignments: subjectAssignments ? subjectAssignments.filter(a => a.status === 'Active').length : 0,
     uniqueTeachers: subjectAssignments ? new Set(subjectAssignments.map(a => a.teacher_id)).size : 0,
     uniqueSubjects: subjectAssignments ? new Set(subjectAssignments.map(a => a.subject_id)).size : 0,
     uniqueClasses: subjectAssignments ? new Set(subjectAssignments.map(a => a.class_id)).size : 0,
     classTeachersWithAssignments: classes ? classes.filter(c => c.classTeacherId).length : 0,
-  };
+  }), [subjectAssignments, classes]);
 
   // Filter assignments
-  const filteredAssignments = subjectAssignments ? subjectAssignments.filter(assignment => {
+  const filteredAssignments = useMemo(() => subjectAssignments ? subjectAssignments.filter(assignment => {
     const matchesSearch = searchQuery === '' || 
       assignment.teacher_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       assignment.subject_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -191,17 +219,28 @@ export function ManageTeacherAssignmentsPage() {
     const matchesClass = filterClass === 'All' || assignment.class_id === parseInt(filterClass);
     
     return matchesSearch && matchesTeacher && matchesClass && assignment.status === 'Active';
-  }) : [];
+  }) : [], [subjectAssignments, searchQuery, filterTeacher, filterClass]);
+
+  const filteredClassTeacherAssignments = useMemo(() => {
+    return classTeacherAssignments.filter((a: any) => {
+      const matchesSearch = searchQuery === '' || 
+        a.teacher_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.class_name?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTeacher = filterTeacher === 'All' || a.teacher_id === parseInt(filterTeacher);
+      const matchesClass = filterClass === 'All' || a.class_id === parseInt(filterClass);
+      return matchesSearch && matchesTeacher && matchesClass;
+    });
+  }, [classTeacherAssignments, searchQuery, filterTeacher, filterClass]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterTeacher, filterClass, activeTab]);
 
   const paginatedCounts = useMemo(() => {
-    const total = activeTab === 'subjects' ? filteredAssignments.length : classTeacherAssignments.length;
+    const total = activeTab === 'subjects' ? filteredAssignments.length : filteredClassTeacherAssignments.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     return { total, totalPages };
-  }, [activeTab, filteredAssignments.length, classTeacherAssignments.length, pageSize]);
+  }, [activeTab, filteredAssignments.length, filteredClassTeacherAssignments.length, pageSize]);
 
   useEffect(() => {
     if (currentPage > paginatedCounts.totalPages) setCurrentPage(paginatedCounts.totalPages);
@@ -214,8 +253,8 @@ export function ManageTeacherAssignmentsPage() {
 
   const paginatedClassTeacherAssignments = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return classTeacherAssignments.slice(start, start + pageSize);
-  }, [classTeacherAssignments, currentPage, pageSize]);
+    return filteredClassTeacherAssignments.slice(start, start + pageSize);
+  }, [filteredClassTeacherAssignments, currentPage, pageSize]);
 
   // Execute deletion after confirmation
   const handleConfirmDelete = async () => {
@@ -225,9 +264,15 @@ export function ManageTeacherAssignmentsPage() {
 
     try {
       if (confirmDeleteType === 'subject') {
-        const assignment = subjectAssignments?.find(a => String(a.id) === confirmDeleteId);
+        let assignment = subjectAssignments?.find(a => String(a.id) === confirmDeleteId);
+        
         if (!assignment) {
-          toast.error('Assignment not found');
+          await loadSubjectAssignmentsFromAPI(true, currentTerm, currentAcademicYear);
+          assignment = subjectAssignments?.find(a => String(a.id) === confirmDeleteId);
+        }
+        
+        if (!assignment) {
+          toast.error('Assignment not found. It may have been already deleted.');
           return;
         }
         const success = await removeSubjectAssignmentAPI(
@@ -243,9 +288,15 @@ export function ManageTeacherAssignmentsPage() {
           toast.error('Failed to remove assignment');
         }
       } else {
-        const assignment = classTeacherAssignments?.find((a: any) => String(a.id) === confirmDeleteId);
+        let assignment = classTeacherAssignments?.find((a: any) => String(a.id) === confirmDeleteId);
+        
         if (!assignment) {
-          toast.error('Assignment not found');
+          await loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear);
+          assignment = classTeacherAssignments?.find((a: any) => String(a.id) === confirmDeleteId);
+        }
+        
+        if (!assignment) {
+          toast.error('Assignment not found. It may have been already deleted.');
           return;
         }
         await handleRemoveClassTeacher(assignment);
@@ -270,16 +321,31 @@ export function ManageTeacherAssignmentsPage() {
       timestamp: new Date(),
       type
     };
-    setActivityLogs(prev => [newLog, ...prev].slice(0, 10)); // Keep only last 10 logs
+    setActivityLogs(prev => [newLog, ...prev].slice(0, 50));
   };
 
   // Handle assignment dialog
   const handleOpenAssignDialog = () => {
     setSelectedAssignments([]);
-    setSelectedTeacherId(null);
+    setSubjectDialogTeacherId(null);
     setSelectedClassIdForAssignments(null);
-    setTeacherSearchTerm('');
-    setClassSearchTerm('');
+    setSubjectDialogTeacherSearch('');
+    setSubjectDialogClassSearch('');
+    setEditingAssignment(null);
+    setBulkMode(false);
+    setBulkSubjectId(null);
+    setBulkClassId(null);
+    setBulkSelectedTeacherIds([]);
+    setIsAssignDialogOpen(true);
+  };
+
+  const handleEditAssignment = (assignment: any) => {
+    setEditingAssignment(assignment);
+    setSubjectDialogTeacherId(assignment.teacher_id);
+    setSubjectDialogTeacherSearch(assignment.teacher_name || '');
+    setSelectedClassIdForAssignments(assignment.class_id);
+    setSubjectDialogClassSearch(assignment.class_name || '');
+    setSelectedAssignments([{ subject_id: assignment.subject_id, class_id: assignment.class_id }]);
     setIsAssignDialogOpen(true);
   };
 
@@ -294,7 +360,7 @@ export function ManageTeacherAssignmentsPage() {
   };
 
   const handleSaveAssignments = async () => {
-    if (!selectedTeacherId || selectedAssignments.length === 0) {
+    if (!subjectDialogTeacherId || selectedAssignments.length === 0) {
       toast.error('Please select a teacher and at least one assignment');
       return;
     }
@@ -309,48 +375,86 @@ export function ManageTeacherAssignmentsPage() {
     setSaveStatus('saving');
 
     try {
-      let successCount = 0;
-      let failureCount = 0;
-      let skippedCount = 0;
+      // Handle edit mode - update existing assignment
+      if (editingAssignment) {
+        const assignment = selectedAssignments[0];
+        const response = await api.put(
+          API_CONFIG.ENDPOINTS.SUBJECTS.UPDATE_ASSIGNMENT(editingAssignment.id),
+          { 
+            teacher_id: subjectDialogTeacherId, 
+            subject_id: assignment.subject_id, 
+            class_id: assignment.class_id 
+          }
+        );
+        
+        if (response?.success) {
+          toast.success('Assignment updated successfully');
+          setSaveStatus('saved');
+          if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+          saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+          setSelectedAssignments([]);
+          setSubjectDialogTeacherId(null);
+          setEditingAssignment(null);
+          setIsAssignDialogOpen(false);
+          
+          await Promise.all([
+            loadSubjectAssignmentsFromAPI(),
+            loadTeachersFromAPI(),
+            loadClassesFromAPI()
+          ]);
+        } else {
+          toast.error(response?.message || 'Failed to update assignment');
+          setSaveStatus('error');
+        }
+        return;
+      }
 
-      for (const assignment of selectedAssignments) {
-        // Check if assignment already exists
-        const exists = subjectAssignments?.some(
+      // Handle create mode
+      // Filter to only new assignments (not already existing)
+      const newAssignments = selectedAssignments.filter(assignment => 
+        !subjectAssignments?.some(
           (a) =>
-            a.teacher_id === selectedTeacherId &&
+            a.teacher_id === subjectDialogTeacherId &&
             a.subject_id === assignment.subject_id &&
             a.class_id === assignment.class_id &&
             a.term === currentTerm &&
             a.academic_year === currentAcademicYear
-        );
+        )
+      );
 
-        if (!exists) {
-          const success = await assignSubjectToTeacherAPI(
-            selectedTeacherId!,
+      const skippedCount = selectedAssignments.length - newAssignments.length;
+
+      // Save all new assignments in parallel
+      const results = await Promise.allSettled(
+        newAssignments.map(assignment =>
+          assignSubjectToTeacherAPI(
+            subjectDialogTeacherId!,
             assignment.subject_id,
             assignment.class_id,
             currentAcademicYear!,
             currentTerm!
-          );
+          )
+        )
+      );
 
-          if (success) {
-            successCount++;
-            const teacher = teachers?.find(t => t.id === selectedTeacherId);
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
+      const failureCount = results.length - successCount;
+
+      // Log successful assignments
+      if (successCount > 0) {
+        const teacher = teachers?.find(t => t.id === subjectDialogTeacherId);
+        newAssignments.forEach((assignment, index) => {
+          if (results[index]?.status === 'fulfilled' && (results[index] as any)?.value === true) {
             const subject = subjects?.find(s => s.id === assignment.subject_id);
             const cls = classes?.find(c => c.id === assignment.class_id);
-            
             addActivityLog(
               'Subject Assigned',
               `${teacher?.firstName} ${teacher?.lastName}`,
               `${subject?.name} assigned to ${cls?.name}`,
               'assignment'
             );
-          } else {
-            failureCount++;
           }
-        } else {
-          skippedCount++;
-        }
+        });
       }
 
       if (successCount > 0) {
@@ -358,16 +462,17 @@ export function ManageTeacherAssignmentsPage() {
         if (skippedCount > 0) message += ` (${skippedCount} already exist${skippedCount > 1 ? 'ed' : 'ed'} and ${skippedCount > 1 ? 'were' : 'was'} skipped)`;
         toast.success(message);
         setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
+        if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+        saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
         setSelectedAssignments([]);
-        setSelectedTeacherId(null);
+        setSubjectDialogTeacherId(null);
         setIsAssignDialogOpen(false);
         
         // Refresh data to show new assignments and update counts
         await Promise.all([
           loadSubjectAssignmentsFromAPI(),
-          loadTeachersFromAPI(), // Refresh to update assignment counts
-          loadClassesFromAPI()    // Refresh to update teacher counts
+          loadTeachersFromAPI(),
+          loadClassesFromAPI()
         ]);
       } else if (failureCount === 0 && skippedCount > 0) {
         toast.info(`All ${skippedCount} selected assignment${skippedCount > 1 ? 's' : ''} already exist`);
@@ -385,18 +490,91 @@ export function ManageTeacherAssignmentsPage() {
     }
   };
 
+  const handleBulkSave = async () => {
+    if (!bulkSubjectId || !bulkClassId || bulkSelectedTeacherIds.length === 0) {
+      toast.error('Please select a subject, class, and at least one teacher');
+      return;
+    }
+
+    if (!currentAcademicYear || !currentTerm) {
+      toast.error('Current academic year or term is not set. Please refresh the page.');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveStatus('saving');
+
+    try {
+      // Save all assignments in parallel
+      const results = await Promise.allSettled(
+        bulkSelectedTeacherIds.map(teacherId =>
+          assignSubjectToTeacherAPI(
+            teacherId,
+            bulkSubjectId,
+            bulkClassId,
+            currentAcademicYear!,
+            currentTerm!
+          )
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
+      const failureCount = results.length - successCount;
+
+      if (successCount > 0) {
+        const subject = subjects?.find(s => s.id === bulkSubjectId);
+        const cls = classes?.find(c => c.id === bulkClassId);
+        
+        bulkSelectedTeacherIds.forEach((teacherId, index) => {
+          if (results[index]?.status === 'fulfilled' && (results[index] as any)?.value === true) {
+            const teacher = teachers?.find(t => t.id === teacherId);
+            addActivityLog(
+              'Subject Assigned',
+              `${teacher?.firstName} ${teacher?.lastName}`,
+              `${subject?.name} assigned to ${cls?.name}`,
+              'assignment'
+            );
+          }
+        });
+
+        toast.success(`${successCount} teacher${successCount > 1 ? 's' : ''} assigned to ${subject?.name} - ${cls?.name}`);
+        setSaveStatus('saved');
+        if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+        saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+        setBulkSubjectId(null);
+        setBulkClassId(null);
+        setBulkSelectedTeacherIds([]);
+        setIsAssignDialogOpen(false);
+        
+        await Promise.all([
+          loadSubjectAssignmentsFromAPI(),
+          loadTeachersFromAPI(),
+          loadClassesFromAPI()
+        ]);
+      }
+
+      if (failureCount > 0) {
+        toast.error(`Failed to assign ${failureCount} teacher${failureCount > 1 ? 's' : ''}`);
+      }
+    } catch (error) {
+      toast.error('Failed to save bulk assignments. Please try again.');
+      setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Handle class teacher dialog
   const handleOpenClassTeacherDialog = () => {
-    setSelectedTeacherId(null);
-    setSelectedClassForTeacher('');
-    setTeacherSearchTerm('');
-    setClassSearchTerm('');
+    setClassDialogTeacherId(null);
+    setClassDialogClassId(null);
+    setClassDialogTeacherSearch('');
+    setClassDialogClassSearch('');
     setIsClassTeacherDialogOpen(true);
   };
 
   const handleAssignClassTeacher = async () => {
-    
-    if (!selectedTeacherId || !selectedClassForTeacher) {
+    if (!classDialogTeacherId || !classDialogClassId) {
       toast.error('Please select both teacher and class');
       return;
     }
@@ -407,21 +585,20 @@ export function ManageTeacherAssignmentsPage() {
       return;
     }
 
-    const teacher = teachers?.find(t => t.id.toString() === selectedTeacherId.toString());
-    const cls = classes?.find(c => c.id.toString() === selectedClassForTeacher.toString());
+    const teacher = teachers?.find(t => t.id === classDialogTeacherId);
+    const cls = classes?.find(c => c.id === classDialogClassId);
 
     if (!teacher || !cls) {
       toast.error('Invalid teacher or class selection');
       return;
     }
 
-    const classIdNumber = parseInt(selectedClassForTeacher);
     const alreadyAssigned = (classTeacherAssignments || []).some((a: any) =>
-      String(a.teacher_id) === String(selectedTeacherId) &&
-      String(a.class_id) === String(classIdNumber) &&
-      String(a.term) === String(currentTerm) &&
-      String(a.academic_year) === String(currentAcademicYear) &&
-      String(a.status || 'Active') === 'Active'
+      a.teacher_id === classDialogTeacherId &&
+      a.class_id === classDialogClassId &&
+      a.term === currentTerm &&
+      a.academic_year === currentAcademicYear &&
+      a.status === 'Active'
     );
 
     if (alreadyAssigned) {
@@ -429,11 +606,30 @@ export function ManageTeacherAssignmentsPage() {
       return;
     }
 
+    // Check if teacher is already class teacher of ANOTHER class this term
+    const otherClassAssignment = (classTeacherAssignments || []).find((a: any) =>
+      a.teacher_id === classDialogTeacherId &&
+      a.class_id !== classDialogClassId &&
+      a.term === currentTerm &&
+      a.academic_year === currentAcademicYear &&
+      a.status === 'Active'
+    );
+
+    if (otherClassAssignment) {
+      setMultiClassWarningData({ teacher, cls, otherClassAssignment });
+      setIsMultiClassWarningOpen(true);
+      return;
+    }
+
+    await executeClassTeacherAssignment(classDialogTeacherId, classDialogClassId, teacher, cls);
+  };
+
+  const executeClassTeacherAssignment = async (teacherId: number | null, classId: number | null, teacher: any, cls: any) => {
+    setIsSaving(true);
     try {
-      // Create term-specific class teacher assignment
       const response = await api.post(API_CONFIG.ENDPOINTS.CLASS_TEACHER_ASSIGNMENTS.CREATE, {
-        teacher_id: selectedTeacherId,
-        class_id: classIdNumber,
+        teacher_id: teacherId,
+        class_id: classId,
         academic_year: currentAcademicYear,
         term: currentTerm
       });
@@ -441,7 +637,6 @@ export function ManageTeacherAssignmentsPage() {
       if (response && response.success) {
         toast.success(`${teacher.firstName} ${teacher.lastName} assigned as class teacher of ${cls.name} for ${currentTerm} ${currentAcademicYear}`);
         
-        // Add activity log
         addActivityLog(
           'Class Teacher Assigned',
           `${teacher.firstName} ${teacher.lastName}`,
@@ -449,15 +644,14 @@ export function ManageTeacherAssignmentsPage() {
           'class_teacher'
         );
 
-        // Refresh data to show new assignments and update counts
         await Promise.all([
           loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
-          loadTeachersFromAPI(), // Refresh to update assignment counts
-          loadClassesFromAPI()    // Refresh to update teacher counts
+          loadTeachersFromAPI(),
+          loadClassesFromAPI()
         ]);
 
-        setSelectedTeacherId(null);
-        setSelectedClassForTeacher('');
+        setClassDialogTeacherId(null);
+        setClassDialogClassId(null);
         setIsClassTeacherDialogOpen(false);
       } else {
         toast.error(response?.message || 'Failed to assign class teacher');
@@ -469,6 +663,8 @@ export function ManageTeacherAssignmentsPage() {
         return;
       }
       toast.error('An error occurred while assigning class teacher');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -537,30 +733,6 @@ export function ManageTeacherAssignmentsPage() {
 
     loadData();
   }, []);
-
-  useEffect(() => {
-    const reloadForTermYear = async () => {
-      if (!currentAcademicYear || !currentTerm) return;
-      try {
-        await Promise.all([
-          loadSubjectAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
-          loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
-          loadSubjectRegistrationsFromAPI(),
-        ]);
-      } catch (error) {
-        // Silent fail for security
-      }
-    };
-
-    reloadForTermYear();
-  }, [currentAcademicYear, currentTerm]);
-
-  // Reload class teacher assignments when tab changes to refresh data
-  useEffect(() => {
-    if (activeTab === 'class-teachers' && currentAcademicYear && currentTerm) {
-      loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear).catch(() => {});
-    }
-  }, [activeTab, currentAcademicYear, currentTerm]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-[#0A2540]/5">
@@ -870,6 +1042,15 @@ export function ManageTeacherAssignmentsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => handleEditAssignment(assignment)}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2 min-w-[44px] min-h-[44px] mr-1"
+                              aria-label="Edit assignment"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => {
                                 setConfirmDeleteId(String(assignment.id));
                                 setConfirmDeleteType('subject');
@@ -924,7 +1105,8 @@ export function ManageTeacherAssignmentsPage() {
                                   setConfirmDeleteType('subject');
                                   setConfirmDeleteDetails(`${assignment.subject_name} - ${assignment.class_name} (${assignment.teacher_name})`);
                                 }}
-                                className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-8 w-8 flex-shrink-0"
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 min-h-[44px] min-w-[44px] flex-shrink-0"
+                                aria-label="Delete assignment"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
@@ -1143,7 +1325,8 @@ export function ManageTeacherAssignmentsPage() {
                                   setConfirmDeleteDetails(`${assignment.teacher_name} - ${assignment.class_name}`);
                                 }}
                                 disabled={removingAssignmentId === String(assignment.id)}
-                                className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-8 w-8"
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 min-h-[44px] min-w-[44px]"
+                                aria-label="Remove class teacher"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
@@ -1237,6 +1420,44 @@ export function ManageTeacherAssignmentsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Multi-Class Warning Dialog */}
+        <AlertDialog open={isMultiClassWarningOpen} onOpenChange={setIsMultiClassWarningOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                Teacher Already Assigned
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                <span className="font-semibold text-gray-900">{multiClassWarningData?.teacher?.firstName} {multiClassWarningData?.teacher?.lastName}</span>
+                {' '}is already class teacher of{' '}
+                <span className="font-semibold text-gray-900">{multiClassWarningData?.otherClassAssignment?.class_name}</span>
+                {' '}for {currentTerm}. Do you want to also assign them to{' '}
+                <span className="font-semibold text-gray-900">{multiClassWarningData?.cls?.name}</span>?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setIsMultiClassWarningOpen(false); setMultiClassWarningData(null); }}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={async () => {
+                if (multiClassWarningData) {
+                  await executeClassTeacherAssignment(
+                    classDialogTeacherId,
+                    classDialogClassId,
+                    multiClassWarningData.teacher,
+                    multiClassWarningData.cls
+                  );
+                }
+                setIsMultiClassWarningOpen(false);
+                setMultiClassWarningData(null);
+              }} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <UserCheck className="w-4 h-4 mr-2" />
+                Assign Anyway
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         </>)}
         
         {/* Assignment Dialog */}
@@ -1245,13 +1466,13 @@ export function ManageTeacherAssignmentsPage() {
             <DialogHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <DialogTitle className="text-xl font-bold text-gray-900">Create Subject Assignments</DialogTitle>
+                  <DialogTitle className="text-xl font-bold text-gray-900">{editingAssignment ? 'Edit Subject Assignment' : 'Create Subject Assignments'}</DialogTitle>
                   <DialogDescription>
                     Assign subjects to teachers for specific classes
                   </DialogDescription>
                 </div>
                 {saveStatus !== 'idle' && (
-                  <div className="flex items-center gap-2">
+                  <div className="relative z-10 flex items-center gap-2 mr-10">
                     {saveStatus === 'saving' && (
                       <div className="flex items-center gap-1 text-[#0A2540]">
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -1275,6 +1496,33 @@ export function ManageTeacherAssignmentsPage() {
               </div>
             </DialogHeader>
             
+            {/* Bulk Mode Toggle */}
+            {!editingAssignment && (
+              <div className="flex items-center gap-2 mt-2">
+                <Button
+                  variant={bulkMode ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    if (bulkMode) {
+                      setBulkMode(false);
+                      setBulkSubjectId(null);
+                      setBulkClassId(null);
+                      setBulkSelectedTeacherIds([]);
+                    } else {
+                      setBulkMode(true);
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  <Users className="w-3 h-3 mr-1" />
+                  {bulkMode ? 'Bulk Mode ON' : 'Bulk Mode'}
+                </Button>
+                <span className="text-xs text-gray-500">
+                  {bulkMode ? 'Select subject + class, then check multiple teachers' : 'Assign to one teacher at a time'}
+                </span>
+              </div>
+            )}
+            
             <div className="space-y-6 mt-6">
               {/* Teacher Selection with Search */}
               <div>
@@ -1284,26 +1532,26 @@ export function ManageTeacherAssignmentsPage() {
                   <Input
                     type="text"
                     placeholder="Search teachers..."
-                    value={teacherSearchTerm}
-                    onChange={(e) => setTeacherSearchTerm(e.target.value)}
+                    value={subjectDialogTeacherSearch}
+                    onChange={(e) => setSubjectDialogTeacherSearch(e.target.value)}
                     className="pl-10 h-12 rounded-xl border-gray-300 focus:border-[#0A2540] focus:ring-[#0A2540]"
                   />
                 </div>
                 <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
-                  {filteredTeachers.length === 0 ? (
+                  {subjectDialogFilteredTeachers.length === 0 ? (
                     <div className="p-4 text-center text-sm text-gray-500">
                       No teachers found
                     </div>
                   ) : (
-                    filteredTeachers.map((teacher) => (
+                    subjectDialogFilteredTeachers.map((teacher) => (
                       <div
                         key={teacher.id}
                         onClick={() => {
-                          setSelectedTeacherId(Number(teacher.id));
-                          setTeacherSearchTerm(`${teacher.firstName} ${teacher.lastName}`);
+                          setSubjectDialogTeacherId(Number(teacher.id));
+                          setSubjectDialogTeacherSearch(`${teacher.firstName} ${teacher.lastName}`);
                         }}
                         className={`p-3 cursor-pointer hover:bg-[#0A2540]/5 border-b border-gray-100 last:border-b-0 ${
-                          selectedTeacherId === Number(teacher.id) ? 'bg-[#0A2540]/5 border-l-4 border-l-[#0A2540]' : ''
+                          subjectDialogTeacherId === Number(teacher.id) ? 'bg-[#0A2540]/5 border-l-4 border-l-[#0A2540]' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -1316,7 +1564,7 @@ export function ManageTeacherAssignmentsPage() {
                             </p>
                             <p className="text-xs text-gray-500">ID: {teacher.id}</p>
                           </div>
-                          {selectedTeacherId === teacher.id && (
+                          {subjectDialogTeacherId === teacher.id && (
                             <Check className="w-4 h-4 text-[#0A2540]" />
                           )}
                         </div>
@@ -1334,23 +1582,23 @@ export function ManageTeacherAssignmentsPage() {
                   <Input
                     type="text"
                     placeholder="Search classes..."
-                    value={classSearchTerm}
-                    onChange={(e) => setClassSearchTerm(e.target.value)}
+                    value={subjectDialogClassSearch}
+                    onChange={(e) => setSubjectDialogClassSearch(e.target.value)}
                     className="pl-10 h-12 rounded-xl border-gray-300 focus:border-[#0A2540] focus:ring-[#0A2540]"
                   />
                 </div>
                 <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
-                  {filteredClasses.length === 0 ? (
+                  {subjectDialogFilteredClasses.length === 0 ? (
                     <div className="p-4 text-center text-sm text-gray-500">
                       No classes found
                     </div>
                   ) : (
-                    filteredClasses.map((cls) => (
+                    subjectDialogFilteredClasses.map((cls) => (
                       <div
                         key={cls.id}
                         onClick={() => {
                           setSelectedClassIdForAssignments(cls.id);
-                          setClassSearchTerm(cls.name);
+                          setSubjectDialogClassSearch(cls.name);
                         }}
                         className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
                           selectedClassIdForAssignments === cls.id ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
@@ -1375,7 +1623,7 @@ export function ManageTeacherAssignmentsPage() {
               </div>
 
               {/* Subject-Class Matrix */}
-              {selectedTeacherId && selectedClassIdForAssignments && (
+              {subjectDialogTeacherId && selectedClassIdForAssignments && (
                 <div>
                   <Label className="text-sm font-medium text-gray-700 mb-4 block">
                     Select Subjects for {
@@ -1441,7 +1689,7 @@ export function ManageTeacherAssignmentsPage() {
                             <div className="flex items-center gap-2">
                               <Checkbox
                                 checked={isSelected}
-                                className="w-3 h-3"
+                                className="w-4 h-4"
                               />
                             </div>
                           </div>
@@ -1449,6 +1697,60 @@ export function ManageTeacherAssignmentsPage() {
                       })}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Bulk Mode UI */}
+              {bulkMode && !editingAssignment && (
+                <div className="space-y-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                  <p className="text-sm font-medium text-blue-800">Bulk Mode: Select a subject + class, then check multiple teachers</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">Subject</Label>
+                      <Select value={bulkSubjectId?.toString() || ''} onValueChange={(v) => setBulkSubjectId(Number(v))}>
+                        <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select subject" /></SelectTrigger>
+                        <SelectContent>
+                          {subjects?.map((s: any) => (
+                            <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">Class</Label>
+                      <Select value={bulkClassId?.toString() || ''} onValueChange={(v) => setBulkClassId(Number(v))}>
+                        <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select class" /></SelectTrigger>
+                        <SelectContent>
+                          {allClasses?.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  {bulkSubjectId && bulkClassId && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Select Teachers ({bulkSelectedTeacherIds.length} selected)
+                      </Label>
+                      <div className="border rounded-xl max-h-48 overflow-y-auto bg-white">
+                        {allActiveTeachers.map(teacher => (
+                          <div key={teacher.id} className="flex items-center gap-3 p-3 border-b last:border-b-0">
+                            <Checkbox
+                              checked={bulkSelectedTeacherIds.includes(teacher.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) setBulkSelectedTeacherIds(prev => [...prev, teacher.id]);
+                                else setBulkSelectedTeacherIds(prev => prev.filter(id => id !== teacher.id));
+                              }}
+                            />
+                            <span className="text-sm">{teacher.firstName} {teacher.lastName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1482,8 +1784,11 @@ export function ManageTeacherAssignmentsPage() {
                 Cancel
               </Button>
               <Button
-                onClick={handleSaveAssignments}
-                disabled={!selectedTeacherId || selectedAssignments.length === 0 || isSaving}
+                onClick={bulkMode ? handleBulkSave : handleSaveAssignments}
+                disabled={bulkMode 
+                  ? (!bulkSubjectId || !bulkClassId || bulkSelectedTeacherIds.length === 0 || isSaving)
+                  : (!subjectDialogTeacherId || selectedAssignments.length === 0 || isSaving)
+                }
                 className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white px-6"
               >
                 {isSaving ? (
@@ -1494,7 +1799,10 @@ export function ManageTeacherAssignmentsPage() {
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    Save Assignments ({selectedAssignments.length})
+                    {bulkMode 
+                      ? `Assign to ${bulkSelectedTeacherIds.length} Teacher${bulkSelectedTeacherIds.length !== 1 ? 's' : ''}`
+                      : editingAssignment ? 'Update Assignment' : `Save Assignments (${selectedAssignments.length})`
+                    }
                   </>
                 )}
               </Button>
@@ -1505,7 +1813,7 @@ export function ManageTeacherAssignmentsPage() {
         {/* Class Teacher Dialog */}
         <Dialog open={isClassTeacherDialogOpen} onOpenChange={setIsClassTeacherDialogOpen}>
           <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
-<DialogHeader>
+            <DialogHeader>
               <DialogTitle className="text-xl font-bold text-gray-900">Assign Class Teacher</DialogTitle>
               <DialogDescription>Assign a class teacher to manage this class. This will update the class teacher information.</DialogDescription>
             </DialogHeader>
@@ -1519,26 +1827,26 @@ export function ManageTeacherAssignmentsPage() {
                   <Input
                     type="text"
                     placeholder="Search teachers..."
-                    value={teacherSearchTerm}
-                    onChange={(e) => setTeacherSearchTerm(e.target.value)}
+                    value={classDialogTeacherSearch}
+                    onChange={(e) => setClassDialogTeacherSearch(e.target.value)}
                     className="pl-10 h-12 rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
                 </div>
                 <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
-                  {filteredTeachers.length === 0 ? (
+                  {classDialogFilteredTeachers.length === 0 ? (
                     <div className="p-4 text-center text-sm text-gray-500">
                       No teachers found
                     </div>
                   ) : (
-                    filteredTeachers.map((teacher) => (
+                    classDialogFilteredTeachers.map((teacher) => (
                       <div
                         key={teacher.id}
                         onClick={() => {
-                          setSelectedTeacherId(Number(teacher.id));
-                          setTeacherSearchTerm(`${teacher.firstName} ${teacher.lastName}`);
+                          setClassDialogTeacherId(Number(teacher.id));
+                          setClassDialogTeacherSearch(`${teacher.firstName} ${teacher.lastName}`);
                         }}
                         className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
-                          selectedTeacherId === Number(teacher.id) ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
+                          classDialogTeacherId === Number(teacher.id) ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -1551,7 +1859,7 @@ export function ManageTeacherAssignmentsPage() {
                             </p>
                             <p className="text-xs text-gray-500">ID: {teacher.id}</p>
                           </div>
-                          {selectedTeacherId === teacher.id && (
+                          {classDialogTeacherId === teacher.id && (
                             <Check className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
@@ -1569,26 +1877,26 @@ export function ManageTeacherAssignmentsPage() {
                   <Input
                     type="text"
                     placeholder="Search classes..."
-                    value={classSearchTerm}
-                    onChange={(e) => setClassSearchTerm(e.target.value)}
+                    value={classDialogClassSearch}
+                    onChange={(e) => setClassDialogClassSearch(e.target.value)}
                     className="pl-10 h-12 rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
                 </div>
                 <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
-                  {filteredClasses.length === 0 ? (
+                  {classDialogFilteredClasses.length === 0 ? (
                     <div className="p-4 text-center text-sm text-gray-500">
                       No classes found
                     </div>
                   ) : (
-                    filteredClasses.map((cls) => (
+                    classDialogFilteredClasses.map((cls) => (
                       <div
                         key={cls.id}
                         onClick={() => {
-                          setSelectedClassForTeacher(cls.id.toString());
-                          setClassSearchTerm(cls.name);
+                          setClassDialogClassId(cls.id);
+                          setClassDialogClassSearch(cls.name);
                         }}
                         className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
-                          selectedClassForTeacher === cls.id.toString() ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
+                          classDialogClassId === cls.id ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -1599,7 +1907,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="font-medium text-gray-900 text-sm">{cls.name}</p>
                             <p className="text-xs text-gray-500">{cls.level}</p>
                           </div>
-                          {selectedClassForTeacher === cls.id.toString() && (
+                          {classDialogClassId === cls.id && (
                             <Check className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
@@ -1620,10 +1928,17 @@ export function ManageTeacherAssignmentsPage() {
               </Button>
               <Button
                 onClick={handleAssignClassTeacher}
-                disabled={!selectedTeacherId || !selectedClassForTeacher}
+                disabled={!classDialogTeacherId || !classDialogClassId || isSaving}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6"
               >
-                Assign Class Teacher
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Assigning...
+                  </>
+                ) : (
+                  'Assign Class Teacher'
+                )}
               </Button>
             </div>
           </DialogContent>

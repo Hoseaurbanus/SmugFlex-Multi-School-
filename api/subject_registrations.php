@@ -17,8 +17,8 @@ try {
     // Get all subject registrations
     $sql = "SELECT sr.*, s.name as subject_name, c.name as class_name 
             FROM subject_registrations sr 
-            LEFT JOIN subjects s ON sr.subject_id = s.id 
-            LEFT JOIN classes c ON sr.class_id = c.id 
+            LEFT JOIN subjects s ON sr.subject_id = s.id AND s.school_id = :school_id
+            LEFT JOIN classes c ON sr.class_id = c.id AND c.school_id = :school_id
             WHERE sr.status = 'Active' AND sr.school_id = :school_id 
             ORDER BY sr.created_at DESC";
 

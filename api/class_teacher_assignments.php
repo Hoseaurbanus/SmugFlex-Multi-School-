@@ -68,8 +68,8 @@ try {
                              c.name as class_name,
                              c.level as class_level
                       FROM class_teacher_assignments cta
-                      JOIN teachers t ON cta.teacher_id = t.id
-                      JOIN classes c ON cta.class_id = c.id
+                      JOIN teachers t ON cta.teacher_id = t.id AND t.school_id = :school_id
+                      JOIN classes c ON cta.class_id = c.id AND c.school_id = :school_id
                       WHERE cta.academic_year = :academic_year AND cta.term = :term AND cta.status = 'Active' AND cta.school_id = :school_id";
             
             $params = [
@@ -287,7 +287,7 @@ try {
 } catch (PDOException $e) {
     echo json_encode([
         'success' => false,
-        'message' => 'Database error: ' . $e->getMessage(),
+        'message' => 'A database error occurred. Please try again.',
         'timestamp' => date('Y-m-d H:i:s')
     ]);
 }

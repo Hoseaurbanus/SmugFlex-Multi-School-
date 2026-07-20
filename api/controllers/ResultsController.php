@@ -699,7 +699,7 @@ class ResultsController
             $remark = $this->getRemark($grade, $is_creche);
 
             // Calculate class statistics
-            $class_stats = $this->calculateClassStatistics($assignment_id, $total);
+            $class_stats = $this->calculateClassStatistics($assignment_id, $school_id, $total);
 
             // Check if score exists
             $existing_query = "SELECT id FROM scores WHERE subject_assignment_id = :assignment_id AND student_id = :student_id AND school_id = :school_id";
@@ -1381,11 +1381,11 @@ class ResultsController
     /**
      * Calculate Class Statistics
      */
-    private function calculateClassStatistics($assignment_id, $new_score = null)
+    private function calculateClassStatistics($assignment_id, $school_id, $new_score = null)
     {
         try {
             $query = "SELECT total FROM scores WHERE subject_assignment_id = :assignment_id AND school_id = :school_id";
-            $params = [':assignment_id' => $assignment_id, ':school_id' => $this->school_id ?? 0];
+            $params = [':assignment_id' => $assignment_id, ':school_id' => $school_id];
             if ($new_score !== null) {
                 // Include the new score in calculation
                 $query .= " UNION ALL SELECT :new_score as total";
