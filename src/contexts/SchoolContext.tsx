@@ -6278,7 +6278,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const response = await api.get(`/cbt/questions/${examId}`);
       if (response && response.success) {
         const items = response.data || [];
-        setCbtQuestions(Array.isArray(items) ? items : []);
+        // Strip correct_answer for non-admin roles to prevent answer leakage
+        const isAdmin = currentUser?.role === 'admin';
+        const sanitized = Array.isArray(items)
+          ? items.map((q: any) => isAdmin ? q : { ...q, correct_answer: undefined })
+          : [];
+        setCbtQuestions(sanitized);
         return true;
       }
       return false;

@@ -163,8 +163,8 @@ class SubjectController {
         
         try {
             // Check if code already exists
-            $code = Middleware::sanitizeString($data['code']);
-            $name = Middleware::sanitizeString($data['name']);
+            $code = Middleware::sanitizeInput($data['code']);
+            $name = Middleware::sanitizeInput($data['name']);
             
             $check_query = "SELECT id FROM subjects WHERE code = :code AND school_id = :school_id";
             $check_stmt = $this->conn->prepare($check_query);
@@ -178,8 +178,8 @@ class SubjectController {
             
             // Validate and prepare data
             $category = Middleware::validateEnum($data['category'], ['Creche', 'Nursery', 'Primary', 'JSS', 'SS', 'General'], 'category');
-            $department = isset($data['department']) ? Middleware::sanitizeString($data['department']) : null;
-            $description = isset($data['description']) ? Middleware::sanitizeString($data['description']) : null;
+            $department = isset($data['department']) ? Middleware::sanitizeInput($data['department']) : null;
+            $description = isset($data['description']) ? Middleware::sanitizeInput($data['description']) : null;
             $is_core = isset($data['is_core']) ? (bool)$data['is_core'] : false;
             
             // Insert subject
@@ -268,7 +268,7 @@ class SubjectController {
                         }
                     } else {
                         $update_fields[] = "$field = :$field";
-                        $params[':' . $field] = Middleware::sanitizeString($data[$field]);
+                        $params[':' . $field] = Middleware::sanitizeInput($data[$field]);
                     }
                 }
             }
@@ -429,7 +429,7 @@ class SubjectController {
             $subject_id = Middleware::validateInteger($data['subject_id'], 'subject_id');
             $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
             $teacher_id = Middleware::validateInteger($data['teacher_id'], 'teacher_id');
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
             
             // Check if this subject is already assigned to ANY teacher in the same class for this academic year and term

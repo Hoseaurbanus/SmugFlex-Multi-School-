@@ -30,7 +30,7 @@ class ReportController {
         try {
             $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             
             // Check access permissions
             if ($token_data['role'] === 'parent') {
@@ -209,7 +209,7 @@ class ReportController {
         try {
             $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             
             // Teacher can only generate reports for their classes
             if ($token_data['role'] === 'teacher') {

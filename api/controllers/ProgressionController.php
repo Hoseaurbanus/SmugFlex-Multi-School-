@@ -66,7 +66,7 @@ class ProgressionController {
         
         $from_class_id = Middleware::validateInteger($data['from_class_id'], 'from_class_id');
         $to_class_id = Middleware::validateInteger($data['to_class_id'], 'to_class_id');
-        $academic_year = Middleware::sanitizeString($data['academic_year']);
+        $academic_year = Middleware::sanitizeInput($data['academic_year']);
         $is_active = $data['is_active'] ?? true;
         
         try {

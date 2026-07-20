@@ -191,7 +191,7 @@ class AuthController {
         $data = json_decode(file_get_contents('php://input'), true);
         Middleware::validateRequired($data, ['admission_number', 'class_name']);
 
-        $admission_number = Middleware::sanitizeString($data['admission_number']);
+        $admission_number = Middleware::sanitizeInput($data['admission_number']);
         $rateLimitKey = "{$admission_number}:student_login";
         if (RateLimiter::isLimited($rateLimitKey, 'student_login')) {
             error_log("SECURITY: Student login rate limit exceeded for {$admission_number} from IP: {$_SERVER['REMOTE_ADDR']}");
@@ -199,8 +199,8 @@ class AuthController {
         }
 
         try {
-            $admission_number = Middleware::sanitizeString($data['admission_number']);
-            $class_name = Middleware::sanitizeString($data['class_name']);
+            $admission_number = Middleware::sanitizeInput($data['admission_number']);
+            $class_name = Middleware::sanitizeInput($data['class_name']);
 
             // Resolve school_id from admission number suffix (e.g. "SMF/001/000" → suffix "SMF")
             $suffixParts = explode('/', $admission_number);

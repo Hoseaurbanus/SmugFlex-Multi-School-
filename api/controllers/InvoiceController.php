@@ -251,7 +251,7 @@ class InvoiceController {
 
         $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
         $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
-        $academic_year = Middleware::sanitizeString($data['academic_year']);
+        $academic_year = Middleware::sanitizeInput($data['academic_year']);
 
         // Validate academic year format (YYYY/YYYY)
         if (!preg_match('/^\d{4}\/\d{4}$/', $academic_year)) {
@@ -333,7 +333,7 @@ class InvoiceController {
         $student_id = Middleware::validateInteger($student_id, 'student_id');
 
         $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : null;
-        $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
+        $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : null;
 
         if (empty($term) || empty($academic_year)) {
             Response::badRequest('term and academic_year are required');
@@ -386,7 +386,7 @@ class InvoiceController {
         $class_id = Middleware::validateInteger($class_id, 'class_id');
 
         $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : null;
-        $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
+        $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : null;
 
         if (empty($term) || empty($academic_year)) {
             Response::badRequest('term and academic_year are required');

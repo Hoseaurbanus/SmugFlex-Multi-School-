@@ -142,7 +142,7 @@ class CbtController {
                        0, :allow_review, :starts_at, :ends_at, 'Active', :questions_per_student, :school_id)";
 
             $stmt = $this->conn->prepare($query);
-            $stmt->bindValue(':title', Middleware::sanitizeString($data['title']));
+            $stmt->bindValue(':title', Middleware::sanitizeInput($data['title']));
             $stmt->bindValue(':instructions', $data['instructions'] ?? '');
             $stmt->bindValue(':class_id', (int)$data['class_id']);
             $stmt->bindValue(':subject_id', (int)$data['subject_id']);

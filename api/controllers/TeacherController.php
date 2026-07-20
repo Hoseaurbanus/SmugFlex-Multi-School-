@@ -175,7 +175,7 @@ class TeacherController {
         
         try {
             // Check if email already exists
-            $email = Middleware::sanitizeString($data['email']);
+            $email = Middleware::sanitizeInput($data['email']);
             Middleware::validateEmail($email);
             
             $check_query = "SELECT id FROM teachers WHERE email = :email AND school_id = :school_id_em";
@@ -189,7 +189,7 @@ class TeacherController {
             }
             
             // Generate employee ID if not provided
-            $employee_id = isset($data['employee_id']) ? Middleware::sanitizeString($data['employee_id']) : '';
+            $employee_id = isset($data['employee_id']) ? Middleware::sanitizeInput($data['employee_id']) : '';
             if (empty($employee_id)) {
                 $school_id = TenantMiddleware::resolveSchoolId($this->conn);
                 $suffix_query = "SELECT suffix FROM schools WHERE id = :sid LIMIT 1";
@@ -220,12 +220,12 @@ class TeacherController {
             }
             
             // Validate and prepare data
-            $first_name = Middleware::sanitizeString($data['first_name']);
-            $last_name = Middleware::sanitizeString($data['last_name']);
-            $other_name = isset($data['other_name']) ? Middleware::sanitizeString($data['other_name']) : null;
+            $first_name = Middleware::sanitizeInput($data['first_name']);
+            $last_name = Middleware::sanitizeInput($data['last_name']);
+            $other_name = isset($data['other_name']) ? Middleware::sanitizeInput($data['other_name']) : null;
             $phone = Middleware::validatePhone($data['phone']);
             $gender = isset($data['gender']) ? Middleware::validateEnum($data['gender'], ['Male', 'Female'], 'gender') : null;
-            $qualification = Middleware::sanitizeString($data['qualification']);
+            $qualification = Middleware::sanitizeInput($data['qualification']);
             $specialization = isset($data['specialization']) ? json_encode($data['specialization']) : null;
             $department_id = isset($data['department_id']) ? Middleware::validateInteger($data['department_id'], 'department_id') : null;
             $is_class_teacher = isset($data['is_class_teacher']) ? (bool)$data['is_class_teacher'] : false;
@@ -327,7 +327,7 @@ class TeacherController {
                         $params[':' . $field] = (bool)$data[$field];
                     } else {
                         $update_fields[] = "$field = :$field";
-                        $params[':' . $field] = Middleware::sanitizeString($data[$field]);
+                        $params[':' . $field] = Middleware::sanitizeInput($data[$field]);
                     }
                 }
             }
@@ -459,7 +459,7 @@ class TeacherController {
             
             // Optional query parameters to override defaults (admin only)
             if ($token_data['role'] === 'admin' && isset($_GET['academic_year'])) {
-                $academic_year = Middleware::sanitizeString($_GET['academic_year']);
+                $academic_year = Middleware::sanitizeInput($_GET['academic_year']);
             }
             if ($token_data['role'] === 'admin' && isset($_GET['term'])) {
                 $term = Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term');

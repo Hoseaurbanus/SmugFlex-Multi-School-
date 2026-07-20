@@ -284,7 +284,7 @@ class StudentController {
             if (!empty($data['admission_number'])) {
                 $check_query = "SELECT id FROM students WHERE admission_number = :admission_number AND school_id = :school_id_chk";
                 $check_stmt = $this->conn->prepare($check_query);
-                $admission_number = Middleware::sanitizeString($data['admission_number']);
+                $admission_number = Middleware::sanitizeInput($data['admission_number']);
                 $check_stmt->bindParam(':admission_number', $admission_number);
                 $check_stmt->bindParam(':school_id_chk', $school_id, PDO::PARAM_INT);
                 $check_stmt->execute();
@@ -311,14 +311,14 @@ class StudentController {
             }
             
             // Validate and prepare data
-            $first_name = Middleware::sanitizeString($data['first_name']);
-            $last_name = Middleware::sanitizeString($data['last_name']);
-            $other_name = isset($data['other_name']) ? Middleware::sanitizeString($data['other_name']) : null;
+            $first_name = Middleware::sanitizeInput($data['first_name']);
+            $last_name = Middleware::sanitizeInput($data['last_name']);
+            $other_name = isset($data['other_name']) ? Middleware::sanitizeInput($data['other_name']) : null;
             $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
             $date_of_birth = Middleware::validateDate($data['date_of_birth']);
             $gender = Middleware::validateEnum($data['gender'], ['Male', 'Female'], 'gender');
             $parent_id = isset($data['parent_id']) ? Middleware::validateInteger($data['parent_id'], 'parent_id') : null;
-            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeString($data['academic_year']) : '2024/2025';
+            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeInput($data['academic_year']) : '2024/2025';
             $admission_date = isset($data['admission_date']) ? Middleware::validateDate($data['admission_date']) : date('Y-m-d');
             
             // Get class info
@@ -440,7 +440,7 @@ class StudentController {
                     } elseif ($field === 'status') {
                         $params[':' . $field] = Middleware::validateEnum($data[$field], ['Active', 'Inactive', 'Graduated', 'Transferred'], $field);
                     } else {
-                        $params[':' . $field] = Middleware::sanitizeString($data[$field]);
+                        $params[':' . $field] = Middleware::sanitizeInput($data[$field]);
                     }
                 }
             }
@@ -639,7 +639,7 @@ class StudentController {
             }
 
             $promotions = $data['promotions'];
-            $to_academic_year = Middleware::sanitizeString($data['to_academic_year']);
+            $to_academic_year = Middleware::sanitizeInput($data['to_academic_year']);
             $promotion_date = date('Y-m-d');
 
             // Validate batch size (max 50 students per call)
@@ -926,7 +926,7 @@ class StudentController {
             $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
             $from_class_id = Middleware::validateInteger($data['from_class_id'], 'from_class_id');
             $to_class_id = Middleware::validateInteger($data['to_class_id'], 'to_class_id');
-            $reason = Middleware::sanitizeString($data['reason']);
+            $reason = Middleware::sanitizeInput($data['reason']);
             $academic_year = $data['academic_year'] ?? '2024/2025';
             
             $this->conn->beginTransaction();
@@ -1201,7 +1201,7 @@ class StudentController {
             $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
             $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             $domains = $data['domains'];
             
             // Verify student exists and is in the class
@@ -1273,7 +1273,7 @@ class StudentController {
                 foreach ($remark_fields as $field) {
                     if (isset($domains[$field])) {
                         $update_fields[] = "$field = :$field";
-                        $params[":$field"] = Middleware::sanitizeString($domains[$field]);
+                        $params[":$field"] = Middleware::sanitizeInput($domains[$field]);
                     }
                 }
                 
@@ -1313,7 +1313,7 @@ class StudentController {
                     if (isset($domains[$field])) {
                         $insert_fields[] = $field;
                         $insert_values[] = ":$field";
-                        $params[":$field"] = Middleware::sanitizeString($domains[$field]);
+                        $params[":$field"] = Middleware::sanitizeInput($domains[$field]);
                     }
                 }
                 
@@ -1355,7 +1355,7 @@ class StudentController {
             $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
             $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             $domains = $data['domains'];
             
             // Verify student exists and is in the class
@@ -1427,7 +1427,7 @@ class StudentController {
                 foreach ($remark_fields as $field) {
                     if (isset($domains[$field])) {
                         $update_fields[] = "$field = :$field";
-                        $params[":$field"] = Middleware::sanitizeString($domains[$field]);
+                        $params[":$field"] = Middleware::sanitizeInput($domains[$field]);
                     }
                 }
                 
@@ -1467,7 +1467,7 @@ class StudentController {
                     if (isset($domains[$field])) {
                         $insert_fields[] = $field;
                         $insert_values[] = ":$field";
-                        $params[":$field"] = Middleware::sanitizeString($domains[$field]);
+                        $params[":$field"] = Middleware::sanitizeInput($domains[$field]);
                     }
                 }
                 

@@ -19,12 +19,12 @@ class TenantController {
 
         Middleware::validateRequired($data, ['name', 'email', 'phone', 'address', 'city', 'state']);
 
-        $name  = Middleware::sanitizeString($data['name']);
+        $name  = Middleware::sanitizeInput($data['name']);
         $email = strtolower(trim($data['email']));
-        $phone = Middleware::sanitizeString($data['phone']);
-        $address = Middleware::sanitizeString($data['address']);
-        $city    = Middleware::sanitizeString($data['city']);
-        $state   = Middleware::sanitizeString($data['state']);
+        $phone = Middleware::sanitizeInput($data['phone']);
+        $address = Middleware::sanitizeInput($data['address']);
+        $city    = Middleware::sanitizeInput($data['city']);
+        $state   = Middleware::sanitizeInput($data['state']);
 
         $stmt = $this->conn->prepare("SELECT 1 FROM schools WHERE email = :email LIMIT 1");
         $stmt->execute([':email' => $email]);

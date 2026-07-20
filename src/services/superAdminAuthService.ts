@@ -60,7 +60,25 @@ export class SuperAdminAuthService {
   }
 
   public isAuthenticated(): boolean {
-    return !!localStorage.getItem(SUPER_ADMIN_TOKEN_KEY) && !!localStorage.getItem(SUPER_ADMIN_USER_KEY);
+    const token = localStorage.getItem(SUPER_ADMIN_TOKEN_KEY);
+    const user = localStorage.getItem(SUPER_ADMIN_USER_KEY);
+    if (!token || !user) return false;
+
+    // Validate JWT expiry client-side
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        // Token expired — clear storage
+        this.logout();
+        return false;
+      }
+    } catch {
+      // Malformed token — treat as unauthenticated
+      this.logout();
+      return false;
+    }
+
+    return true;
   }
 
   public getAuthHeader(): { Authorization?: string } {

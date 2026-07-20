@@ -222,8 +222,8 @@ class NotificationController {
         
         try {
             // Validate and prepare data
-            $title = Middleware::sanitizeString($data['title']);
-            $message = Middleware::sanitizeString($data['message']);
+            $title = Middleware::sanitizeInput($data['title']);
+            $message = Middleware::sanitizeInput($data['message']);
             $target_audience = Middleware::validateEnum($data['target_audience'], ['All', 'Admin', 'Teacher', 'Accountant', 'Parent', 'Students'], 'target_audience');
             $type = isset($data['type']) ? Middleware::validateEnum($data['type'], ['Info', 'Warning', 'Success', 'Error'], 'type') : 'Info';
             $priority = isset($data['priority']) ? Middleware::validateEnum($data['priority'], ['Low', 'Medium', 'High', 'Urgent'], 'priority') : 'Medium';
@@ -714,8 +714,8 @@ class NotificationController {
         
         try {
             // Create notification
-            $title = Middleware::sanitizeString($data['title']);
-            $message = Middleware::sanitizeString($data['message']);
+            $title = Middleware::sanitizeInput($data['title']);
+            $message = Middleware::sanitizeInput($data['message']);
             $target_audience = Middleware::validateEnum($data['target_audience'], ['All', 'Admin', 'Teacher', 'Accountant', 'Parent', 'Students'], 'target_audience');
             $type = isset($data['type']) ? Middleware::validateEnum($data['type'], ['Info', 'Warning', 'Success', 'Error'], 'type') : 'Info';
             $priority = isset($data['priority']) ? Middleware::validateEnum($data['priority'], ['Low', 'Medium', 'High', 'Urgent'], 'priority') : 'Medium';

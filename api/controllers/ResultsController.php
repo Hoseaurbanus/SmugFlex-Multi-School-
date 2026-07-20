@@ -357,7 +357,7 @@ class ResultsController
         $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
-        $reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : '';
+        $reason = isset($data['rejection_reason']) ? Middleware::sanitizeInput($data['rejection_reason']) : '';
 
         if (!$reason) {
             Response::badRequest('Rejection reason is required');
@@ -418,8 +418,8 @@ class ResultsController
             }
             $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
-            $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : null;
-            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
+            $term = isset($_GET['term']) ? Middleware::sanitizeInput($_GET['term']) : null;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : null;
             $class_id = null;
             if (isset($_GET['class_id']) && $_GET['class_id'] !== '') {
                 $class_id = Middleware::validateInteger($_GET['class_id'], 'class_id');
@@ -916,8 +916,8 @@ class ResultsController
             $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             $role = strtolower(trim((string)($token_data['role'] ?? '')));
 
-            $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : 'First Term';
-            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : '2025/2026';
+            $term = isset($_GET['term']) ? Middleware::sanitizeInput($_GET['term']) : 'First Term';
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : '2025/2026';
 
             // Base query filtered by term and academic year from SCORE rows.
             // Using sa.term/sa.academic_year alone can hide valid score rows if assignments metadata
@@ -1041,13 +1041,13 @@ class ResultsController
             $school_id = TenantMiddleware::resolveSchoolId($this->conn);
             $role = strtolower(trim((string)$token_data['role']));
 
-            $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : null;
-            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
+            $term = isset($_GET['term']) ? Middleware::sanitizeInput($_GET['term']) : null;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : null;
             $class_id = null;
             if (isset($_GET['class_id']) && $_GET['class_id'] !== '') {
                 $class_id = Middleware::validateInteger($_GET['class_id'], 'class_id');
             }
-            $status = isset($_GET['status']) ? Middleware::sanitizeString($_GET['status']) : null;
+            $status = isset($_GET['status']) ? Middleware::sanitizeInput($_GET['status']) : null;
 
             // For parents, always enforce Approved status at the backend level
             // so unapproved or draft results are never exposed regardless of caller params
@@ -1805,7 +1805,7 @@ class ResultsController
         try {
             $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             $student_results = $data['student_results'];
 
             if (!is_array($student_results)) {
@@ -1890,7 +1890,7 @@ class ResultsController
 
                 // Teachers always submit for admin approval.
                 // Admins may create/update Drafts manually.
-                $status = Middleware::sanitizeString($row['status'] ?? 'Draft');
+                $status = Middleware::sanitizeInput($row['status'] ?? 'Draft');
                 if ($role === 'teacher') {
                     $status = 'Submitted';
                 }
@@ -1907,9 +1907,9 @@ class ResultsController
                     'term_begin' => $row['term_begin'] ?? null,
                     'term_end' => $row['term_end'] ?? null,
                     'next_term_begin' => $row['next_term_begin'] ?? null,
-                    'class_teacher_name' => Middleware::sanitizeString($row['class_teacher_name'] ?? ''),
+                    'class_teacher_name' => Middleware::sanitizeInput($row['class_teacher_name'] ?? ''),
                     'class_teacher_comment' => $row['class_teacher_comment'] ?? null,
-                    'principal_name' => Middleware::sanitizeString($row['principal_name'] ?? ''),
+                    'principal_name' => Middleware::sanitizeInput($row['principal_name'] ?? ''),
                     'principal_comment' => $row['principal_comment'] ?? null,
                     'principal_signature' => $row['principal_signature'] ?? null,
                     'compiled_by' => $compiled_by,
@@ -2156,7 +2156,7 @@ class ResultsController
         $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         $data = json_decode(file_get_contents('php://input'), true);
-        $reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : '';
+        $reason = isset($data['rejection_reason']) ? Middleware::sanitizeInput($data['rejection_reason']) : '';
         if (!$reason) {
             Response::badRequest('Rejection reason is required');
         }
@@ -2257,7 +2257,7 @@ class ResultsController
         try {
             $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             $school_id = (int)($token_data['school_id'] ?? 0);
 
             // Get student info and class
@@ -2517,7 +2517,7 @@ class ResultsController
         try {
             $class_id = Middleware::validateInteger($data['class_id'], 'class_id');
             $term = Middleware::validateEnum($data['term'], ['First Term', 'Second Term', 'Third Term'], 'term');
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             $school_id = (int)($token_data['school_id'] ?? 0);
 
             // Verify teacher is class teacher for this class
@@ -2801,8 +2801,8 @@ class ResultsController
             // Validate student_id parameter
             $student_id = Middleware::validateInteger($student_id, 'student_id');
 
-            $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : null;
-            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : null;
+            $term = isset($_GET['term']) ? Middleware::sanitizeInput($_GET['term']) : null;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : null;
 
             // For parents, always enforce Approved status at the backend level
             $status_filter = '';
@@ -2981,7 +2981,7 @@ class ResultsController
             }
 
             $class_id = (int)$data['class_id'];
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
 
             // Check current term is Third Term
             $__school_id_for_term = (int)($token_data['school_id'] ?? 0);

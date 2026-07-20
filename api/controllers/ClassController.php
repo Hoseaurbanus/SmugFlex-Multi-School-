@@ -170,11 +170,11 @@ class ClassController {
         
         try {
             // Check if class name already exists for this academic year
-            $name = Middleware::sanitizeString($data['name']);
-            $level = Middleware::sanitizeString($data['level']);
-            $category = Middleware::sanitizeString($data['category']);
-            $section = isset($data['section']) ? Middleware::sanitizeString($data['section']) : '';
-            $academic_year = Middleware::sanitizeString($data['academic_year']);
+            $name = Middleware::sanitizeInput($data['name']);
+            $level = Middleware::sanitizeInput($data['level']);
+            $category = Middleware::sanitizeInput($data['category']);
+            $section = isset($data['section']) ? Middleware::sanitizeInput($data['section']) : '';
+            $academic_year = Middleware::sanitizeInput($data['academic_year']);
             
             // Validate category
             if (!in_array($category, ['Primary', 'Secondary'])) {
@@ -333,14 +333,14 @@ class ClassController {
                         $params[':' . $field] = Middleware::validateEnum($data[$field], ['Active', 'Inactive'], $field);
                     } elseif ($field === 'category') {
                         $update_fields[] = "$field = :$field";
-                        $category_value = Middleware::sanitizeString($data[$field]);
+                        $category_value = Middleware::sanitizeInput($data[$field]);
                         if (!in_array($category_value, ['Primary', 'Secondary'])) {
                             Response::badRequest('Invalid category. Must be Primary or Secondary');
                         }
                         $params[':' . $field] = $category_value;
                     } else {
                         $update_fields[] = "$field = :$field";
-                        $params[':' . $field] = Middleware::sanitizeString($data[$field]);
+                        $params[':' . $field] = Middleware::sanitizeInput($data[$field]);
                     }
                 }
             }
@@ -668,7 +668,7 @@ class ClassController {
     public function getClassesByLevel($level) {
         Middleware::requireAnyRole(['admin', 'teacher', 'accountant', 'parent']);
         
-        $level = Middleware::sanitizeString($level);
+        $level = Middleware::sanitizeInput($level);
         $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         try {

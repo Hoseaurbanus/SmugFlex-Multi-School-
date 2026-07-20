@@ -223,10 +223,20 @@ class Middleware {
     }
     
     /**
-     * Sanitize String Input
+     * Sanitize String Input for HTML output (XSS prevention)
+     * USE ONLY when outputting values as HTML. Do NOT use on SQL-bound values.
      */
     public static function sanitizeString($value) {
         return htmlspecialchars(strip_tags(trim($value)), ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Sanitize Input for SQL-bound values
+     * Use this when preparing user input for PDO prepared statements.
+     * PDO handles SQL injection — this only trims whitespace.
+     */
+    public static function sanitizeInput($value) {
+        return trim($value);
     }
     
     /**

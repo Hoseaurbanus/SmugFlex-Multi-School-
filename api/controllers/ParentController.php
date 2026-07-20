@@ -197,7 +197,7 @@ class ParentController {
         
         try {
             // Check if email already exists
-            $email = Middleware::sanitizeString($data['email']);
+            $email = Middleware::sanitizeInput($data['email']);
             Middleware::validateEmail($email);
             
             $check_query = "SELECT id FROM parents WHERE email = :email AND school_id = :school_id";
@@ -211,12 +211,12 @@ class ParentController {
             }
             
             // Validate and prepare data
-            $first_name = Middleware::sanitizeString($data['first_name']);
-            $last_name = Middleware::sanitizeString($data['last_name']);
+            $first_name = Middleware::sanitizeInput($data['first_name']);
+            $last_name = Middleware::sanitizeInput($data['last_name']);
             $phone = Middleware::validatePhone($data['phone']);
             $alternate_phone = isset($data['alternate_phone']) ? Middleware::validatePhone($data['alternate_phone']) : null;
-            $address = isset($data['address']) ? Middleware::sanitizeString($data['address']) : null;
-            $occupation = isset($data['occupation']) ? Middleware::sanitizeString($data['occupation']) : null;
+            $address = isset($data['address']) ? Middleware::sanitizeInput($data['address']) : null;
+            $occupation = isset($data['occupation']) ? Middleware::sanitizeInput($data['occupation']) : null;
             
             // Insert parent
             $query = "INSERT INTO parents (first_name, last_name, email, phone, alternate_phone, address, occupation, status, school_id)
@@ -327,7 +327,7 @@ class ParentController {
                         $params[':' . $field] = Middleware::validateEnum($data[$field], ['Active', 'Inactive'], $field);
                     } else {
                         $update_fields[] = "$field = :$field";
-                        $params[':' . $field] = Middleware::sanitizeString($data[$field]);
+                        $params[':' . $field] = Middleware::sanitizeInput($data[$field]);
                     }
                 }
             }

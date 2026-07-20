@@ -186,7 +186,7 @@ class PaymentController {
             // ============ UPDATED: TERM AND ACADEMIC YEAR FILTERING ============
             // Allow full history when requested, otherwise default to current term/year
             $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : $default_term;
-            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : $default_academic_year;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : $default_academic_year;
             
             if (!$return_all) {
                 $conditions[] = "p.academic_year = :academic_year";
@@ -296,12 +296,12 @@ class PaymentController {
             $payment_type = Middleware::validateEnum($data['payment_type'], ['School Fees', 'Examination Fees', 'Books', 'Uniform', 'Transport', 'Others'], 'payment_type');
             $payment_method = Middleware::validateEnum($data['payment_method'], ['Bank Transfer', 'Cash', 'POS', 'Online Payment', 'Cheque'], 'payment_method');
             
-            $term = isset($data['term']) ? Middleware::sanitizeString($data['term']) : 'First Term';
-            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeString($data['academic_year']) : '2024/2025';
+            $term = isset($data['term']) ? Middleware::sanitizeInput($data['term']) : 'First Term';
+            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeInput($data['academic_year']) : '2024/2025';
             $invoice_id = isset($data['invoice_id']) ? Middleware::validateInteger($data['invoice_id'], 'invoice_id') : null;
-            $transaction_reference = isset($data['transaction_reference']) ? Middleware::sanitizeString($data['transaction_reference']) : null;
-            $notes = isset($data['notes']) ? Middleware::sanitizeString($data['notes']) : null;
-            $recorded_date = isset($data['recorded_date']) ? Middleware::sanitizeString($data['recorded_date']) : null;
+            $transaction_reference = isset($data['transaction_reference']) ? Middleware::sanitizeInput($data['transaction_reference']) : null;
+            $notes = isset($data['notes']) ? Middleware::sanitizeInput($data['notes']) : null;
+            $recorded_date = isset($data['recorded_date']) ? Middleware::sanitizeInput($data['recorded_date']) : null;
 
             // Idempotency: prevent duplicate references (returns the original payment)
             if (!empty($transaction_reference)) {
@@ -468,7 +468,7 @@ class PaymentController {
                     }
 
                     $adjusted_amount = Middleware::validatePositive($data['adjusted_amount'], 'adjusted_amount');
-                    $adjustment_reason = isset($data['adjustment_reason']) ? Middleware::sanitizeString($data['adjustment_reason']) : '';
+                    $adjustment_reason = isset($data['adjustment_reason']) ? Middleware::sanitizeInput($data['adjustment_reason']) : '';
                     if (empty($adjustment_reason)) {
                         Response::badRequest('Adjustment reason is required when changing the amount');
                     }
@@ -483,7 +483,7 @@ class PaymentController {
                 $this->updateStudentFeeBalance($payment['student_id'], $amount_to_apply, $payment['term'], $payment['academic_year']);
             } else {
                 $status = 'Rejected';
-                $rejection_reason = isset($data['rejection_reason']) ? Middleware::sanitizeString($data['rejection_reason']) : 'Payment rejected';
+                $rejection_reason = isset($data['rejection_reason']) ? Middleware::sanitizeInput($data['rejection_reason']) : 'Payment rejected';
                 $message = 'Payment rejected';
                 
                 // IMPORTANT: Do NOT reverse balances for rejected Pending payments.
@@ -572,7 +572,7 @@ class PaymentController {
         $data = json_decode(file_get_contents('php://input'), true);
 
         try {
-            $reason = isset($data['reason']) ? Middleware::sanitizeString($data['reason']) : '';
+            $reason = isset($data['reason']) ? Middleware::sanitizeInput($data['reason']) : '';
             if (empty($reason)) {
                 Response::badRequest('Reversal reason is required');
             }
@@ -726,7 +726,7 @@ class PaymentController {
             // ============ NEW: ALLOW OPTIONAL FILTERING BY TERM/YEAR ============
             // If not specified, default to current academic year and term
             $term = isset($_GET['term']) ? Middleware::validateEnum($_GET['term'], ['First Term', 'Second Term', 'Third Term'], 'term') : $default_term;
-            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : $default_academic_year;
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : $default_academic_year;
             
             $return_all = isset($_GET['all_history']) && $_GET['all_history'] === 'true' && $token_data['role'] === 'admin';
             // ============ END: ALLOW OPTIONAL FILTERING ============
@@ -792,12 +792,12 @@ class PaymentController {
             $student_id = Middleware::validateInteger($data['student_id'], 'student_id');
             $amount = Middleware::validatePositive($data['amount'], 'amount');
             $payment_type = Middleware::validateEnum($data['payment_type'], ['School Fees', 'Examination Fees', 'Books', 'Uniform', 'Transport', 'Others'], 'payment_type');
-            $term = isset($data['term']) ? Middleware::sanitizeString($data['term']) : 'First Term';
-            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeString($data['academic_year']) : '2024/2025';
+            $term = isset($data['term']) ? Middleware::sanitizeInput($data['term']) : 'First Term';
+            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeInput($data['academic_year']) : '2024/2025';
             $invoice_id = isset($data['invoice_id']) ? Middleware::validateInteger($data['invoice_id'], 'invoice_id') : null;
-            $notes = isset($data['notes']) ? Middleware::sanitizeString($data['notes']) : null;
-            $proof_url = Middleware::sanitizeString($data['proof_url']);
-            $transaction_reference = isset($data['transaction_reference']) ? Middleware::sanitizeString($data['transaction_reference']) : null;
+            $notes = isset($data['notes']) ? Middleware::sanitizeInput($data['notes']) : null;
+            $proof_url = Middleware::sanitizeInput($data['proof_url']);
+            $transaction_reference = isset($data['transaction_reference']) ? Middleware::sanitizeInput($data['transaction_reference']) : null;
 
             // Idempotency: prevent duplicate references (returns the original payment)
             if (!empty($transaction_reference)) {
@@ -957,8 +957,8 @@ class PaymentController {
         }
         
         try {
-            $term = isset($_GET['term']) ? Middleware::sanitizeString($_GET['term']) : 'First Term';
-            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeString($_GET['academic_year']) : '2024/2025';
+            $term = isset($_GET['term']) ? Middleware::sanitizeInput($_GET['term']) : 'First Term';
+            $academic_year = isset($_GET['academic_year']) ? Middleware::sanitizeInput($_GET['academic_year']) : '2024/2025';
             
             $query = "SELECT sfb.*, fs.*
                       FROM student_fee_balances sfb
@@ -1181,10 +1181,10 @@ class PaymentController {
             $amount = Middleware::validatePositive($data['amount'], 'amount');
             $payment_type = Middleware::validateEnum($data['payment_type'], ['School Fees', 'Examination Fees', 'Books', 'Uniform', 'Transport', 'Others'], 'payment_type');
             
-            $term = isset($data['term']) ? Middleware::sanitizeString($data['term']) : 'First Term';
-            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeString($data['academic_year']) : '2024/2025';
+            $term = isset($data['term']) ? Middleware::sanitizeInput($data['term']) : 'First Term';
+            $academic_year = isset($data['academic_year']) ? Middleware::sanitizeInput($data['academic_year']) : '2024/2025';
             $invoice_id = isset($data['invoice_id']) ? Middleware::validateInteger($data['invoice_id'], 'invoice_id') : null;
-            $notes = isset($data['notes']) ? Middleware::sanitizeString($data['notes']) : null;
+            $notes = isset($data['notes']) ? Middleware::sanitizeInput($data['notes']) : null;
             
             // Get parent ID from token
             $parent_id = $token_data['linked_id'] ?? null;
@@ -1402,7 +1402,7 @@ class PaymentController {
         $token_data2 = Middleware::requireAnyRole(['parent', 'admin', 'accountant']);
         $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
-        $reference = isset($_GET['reference']) ? Middleware::sanitizeString($_GET['reference']) : null;
+        $reference = isset($_GET['reference']) ? Middleware::sanitizeInput($_GET['reference']) : null;
         
         if (empty($reference)) {
             Response::badRequest('Reference is required');
