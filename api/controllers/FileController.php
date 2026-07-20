@@ -85,11 +85,26 @@ class FileController {
             // CRITICAL SECURITY FIX: Require admin authentication
             $token_data = Middleware::requireRole('admin');
             $school_id = TenantMiddleware::resolveSchoolId($this->db);
-            
+
+            // Sanitize filename — prevent path traversal
+            $filename = basename($filename);
+            if ($filename === '.' || $filename === '..' || $filename === '') {
+                Response::error('Invalid filename', 400);
+                return;
+            }
+
+            // Verify file exists within the upload directory (realpath check)
             $filepath = $this->uploadDir . $filename;
-            
-            if (file_exists($filepath)) {
-                if (unlink($filepath)) {
+            $realUploadDir = realpath($this->uploadDir);
+            $realFilepath = realpath($filepath);
+
+            if ($realFilepath === false || $realUploadDir === false || strpos($realFilepath, $realUploadDir) !== 0) {
+                Response::error('File not found', 404);
+                return;
+            }
+
+            if (file_exists($realFilepath)) {
+                if (unlink($realFilepath)) {
                     Response::success(null, 'File deleted successfully');
                 } else {
                     Response::error('Failed to delete file', 500);

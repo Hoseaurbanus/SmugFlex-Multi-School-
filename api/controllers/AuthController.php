@@ -183,7 +183,7 @@ class AuthController {
 
         } catch (Throwable $e) {
             error_log("Error in AuthController.login [{$identity}]: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
-            Response::serverError('Login failed: ' . $e->getMessage());
+            Response::serverError('Login failed. Please try again later.');
         }
     }
 

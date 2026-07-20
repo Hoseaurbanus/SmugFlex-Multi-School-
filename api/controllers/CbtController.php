@@ -1689,29 +1689,42 @@ class CbtController {
 
     public function uploadQuestionImage() {
         $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
+        $school_id = TenantMiddleware::resolveSchoolId($this->conn);
 
         if (!isset($_FILES['image'])) {
             Response::badRequest('No image file provided');
         }
 
         $file = $_FILES['image'];
-        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         $maxSize = 5 * 1024 * 1024; // 5MB
-
-        if (!in_array($file['type'], $allowedTypes)) {
-            Response::badRequest('Invalid file type. Allowed: JPG, PNG, GIF, WebP');
-        }
 
         if ($file['size'] > $maxSize) {
             Response::badRequest('File too large. Maximum 5MB');
         }
 
-        $uploadDir = __DIR__ . '/../uploads/questions/';
+        // Server-side MIME validation (never trust client-reported type)
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        if (!in_array($mimeType, $allowedTypes)) {
+            Response::badRequest('Invalid file type. Allowed: JPG, PNG, GIF, WebP');
+        }
+
+        // Validate extension against allowlist
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowedExtensions, true)) {
+            Response::badRequest('Invalid file extension. Allowed: jpg, jpeg, png, gif, webp');
+        }
+
+        // School-isolated upload directory
+        $uploadDir = __DIR__ . "/../uploads/schools/{$school_id}/questions/";
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
 
-        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
         $filename = 'q_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
         $destPath = $uploadDir . $filename;
 
@@ -1719,7 +1732,7 @@ class CbtController {
             Response::serverError('Failed to upload image');
         }
 
-        $url = '/api/uploads/questions/' . $filename;
+        $url = "/api/uploads/schools/{$school_id}/questions/" . $filename;
         Response::success(['url' => $url, 'filename' => $filename], 'Image uploaded successfully');
     }
 

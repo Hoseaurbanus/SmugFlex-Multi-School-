@@ -726,5 +726,5 @@ try {
     }
 } catch (Throwable $e) {
     error_log("API Error [" . ($_SERVER['REQUEST_URI'] ?? '') . "]: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
-    Response::serverError('An internal error occurred: ' . $e->getMessage());
+    Response::serverError('An internal error occurred. Please try again later.');
 }

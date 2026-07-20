@@ -187,7 +187,12 @@ class TenantController {
         $file = $_FILES['logo'];
         $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-        if (!in_array($file['type'], $allowedTypes, true)) {
+        // Server-side MIME validation (never trust client-reported type)
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        if (!in_array($mimeType, $allowedTypes, true)) {
             Response::badRequest('Invalid file type. Allowed: JPEG, PNG, GIF, WebP.');
         }
 
@@ -195,12 +200,18 @@ class TenantController {
             Response::badRequest('File too large. Maximum 5MB.');
         }
 
+        // Validate extension against allowlist
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowedExtensions, true)) {
+            Response::badRequest('Invalid file extension. Allowed: jpg, jpeg, png, gif, webp.');
+        }
+
         $uploadDir = dirname(__DIR__) . "/uploads/schools/{$school_id}/logo/";
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
 
-        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
         $filename = "logo.{$ext}";
         $destPath = $uploadDir . $filename;
 

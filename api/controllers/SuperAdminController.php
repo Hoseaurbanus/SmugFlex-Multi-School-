@@ -739,7 +739,7 @@ class SuperAdminController {
             error_log("Error in SuperAdminController.deleteSchool: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
             try { $this->conn->exec("SET FOREIGN_KEY_CHECKS = 1"); } catch (Throwable $x) {}
             try { $this->conn->rollBack(); } catch (Throwable $x) {}
-            Response::serverError('Failed to delete school: ' . $e->getMessage());
+            Response::serverError('Failed to delete school. Please try again later.');
         }
 
         $this->logAction('delete_school', $id, $school['name']);

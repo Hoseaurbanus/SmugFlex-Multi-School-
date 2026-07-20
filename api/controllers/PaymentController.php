@@ -230,7 +230,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
 
@@ -274,7 +274,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
     
@@ -424,7 +424,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
     
@@ -555,7 +555,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
 
@@ -680,7 +680,7 @@ class PaymentController {
             ], 'Payment reversed successfully');
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
     
@@ -775,7 +775,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
 
@@ -911,7 +911,7 @@ class PaymentController {
             ], 'Bank transfer submitted successfully');
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
     
@@ -983,7 +983,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
     
@@ -1063,7 +1063,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
 
@@ -1102,7 +1102,7 @@ class PaymentController {
             ], 'Reconciliation summary retrieved successfully');
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
 
@@ -1159,7 +1159,7 @@ class PaymentController {
             ], 'Payment exceptions retrieved successfully');
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
     
@@ -1390,7 +1390,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
     
@@ -1570,7 +1570,7 @@ class PaymentController {
             
         } catch (PDOException $e) {
             error_log("PDO Error in PaymentController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         }
     }
     

@@ -87,6 +87,18 @@ try {
     $school_id = TenantMiddleware::resolveSchoolId($pdo);
     $school_id = (int)$school_id;
 
+    // AUDIT: restrict non-admin roles to specific tables
+    $adminOnlyTables = ['super_admins', 'token_blacklist', 'schools', 'rate_limits'];
+    $teacherAccountantAllowedTables = [
+        'students', 'teachers', 'classes', 'subjects', 'subject_assignments',
+        'results', 'compiled_results', 'scores', 'attendance', 'attendance_records',
+        'payments', 'fee_structures', 'student_fee_balances', 'invoices',
+        'assignments', 'notifications', 'parents', 'parent_student_links',
+        'academic_years', 'school_settings', 'users', 'departments',
+        'cbt_exams', 'cbt_questions', 'cbt_attempts', 'cbt_answers',
+        'progression_rules', 'student_promotions'
+    ];
+
     // Audit log for all queries
     error_log("SQL_QUERY_AUDIT: user=" . ($token_data['username'] ?? 'unknown') . " role={$role} type={$queryType} school_id={$school_id}");
 
@@ -120,6 +132,18 @@ try {
     $targetTable = extractTableName($query, $queryType);
     $tableRef = $targetTable['alias'] ?: $targetTable['name'];
     $hasSchoolId = $tableRef ? tableHasSchoolId($pdo, $targetTable['name']) : false;
+
+    // ENFORCE table access: block admin-only tables for non-admin roles
+    if ($targetTable['name'] && in_array(strtolower($targetTable['name']), $adminOnlyTables) && $role !== 'admin') {
+        error_log("SECURITY: Non-admin role '{$role}' blocked from accessing admin-only table '{$targetTable['name']}'");
+        Response::forbidden('Access denied: You do not have permission to access this table');
+    }
+
+    // ENFORCE table access: teacher/accountant can only query allowed tables
+    if ($targetTable['name'] && $role !== 'admin' && !in_array(strtolower($targetTable['name']), $teacherAccountantAllowedTables)) {
+        error_log("SECURITY: Role '{$role}' blocked from accessing table '{$targetTable['name']}' — not in allowed list");
+        Response::forbidden('Access denied: You do not have permission to access this table');
+    }
 
     if (!$hasSchoolId && $targetTable['name']) {
         error_log("SQL_QUERY_AUDIT_WARNING: Table '{$targetTable['name']}' has no school_id column — skipping tenant injection for query type {$queryType}");
@@ -222,9 +246,9 @@ try {
     
 } catch (PDOException $e) {
     error_log("Database Error: " . $e->getMessage());
-    Response::serverError('Database error: ' . $e->getMessage() . ' | Query: ' . $query . ' | Params: ' . json_encode($params));
+    Response::serverError('A database error occurred. Please check your query syntax.');
 } catch (Exception $e) {
     error_log("General Error: " . $e->getMessage());
-    Response::serverError('Error: ' . $e->getMessage());
+    Response::serverError('An error occurred while processing your request.');
 }
 ?>

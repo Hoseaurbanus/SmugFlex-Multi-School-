@@ -1,4 +1,5 @@
 import { Check, Minus } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 
@@ -53,7 +54,7 @@ export function QuestionCard({ question, index, selectedAnswer, onAnswer }: Ques
             </div>
           )}
 
-          <div className="text-base font-medium text-[#1F2937]" dangerouslySetInnerHTML={{ __html: question.question_text }} />
+          <div className="text-base font-medium text-[#1F2937]" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(question.question_text, { ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'sub', 'sup', 'br', 'p', 'span'] }) }} />
 
           {question.image_url && (
             <div className="mt-3 border border-[#E5E7EB] rounded-lg overflow-hidden bg-gray-50 p-2">

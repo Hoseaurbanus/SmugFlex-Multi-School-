@@ -1,5 +1,6 @@
 import { ArrowLeft, Plus, Trash2, Pencil, Library, Check, X, AlertCircle, Bold, Italic, Underline, List, ListOrdered, Image, Eye, Upload, Sparkles, GripVertical, FileText, FileUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -325,7 +326,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
                 onInput={handleRichInput}
                 className="p-2 min-h-[70px] sm:min-h-[80px] text-sm focus:outline-none"
                 data-placeholder="Type or paste question text..."
-                dangerouslySetInnerHTML={{ __html: newQuestion.question_text }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(newQuestion.question_text, { ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'sub', 'sup', 'br', 'p', 'span'] }) }}
               />
             </div>
           </div>
@@ -486,7 +487,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
                 <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#3B82F6] text-white text-xs font-bold shrink-0">1</span>
                 <Badge variant="outline" className="text-[10px]">{typeLabel(showPreview.question_type)} · {showPreview.marks}m</Badge>
               </div>
-              <div className="text-sm font-medium" dangerouslySetInnerHTML={{ __html: showPreview.question_text || '' }} />
+              <div className="text-sm font-medium" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(showPreview.question_text || '', { ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'sub', 'sup', 'br', 'p', 'span'] }) }} />
               {showPreview.image_url && <img src={showPreview.image_url} alt="" className="max-h-32 rounded object-contain border mx-auto" />}
               {showPreview.question_type === 'fill_in_blank' ? (
                 <div className="p-2 border border-dashed border-[#D1D5DB] rounded bg-gray-50">
@@ -536,7 +537,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
                       {q.difficulty && <Badge className={`text-[10px] px-1.5 py-0 ${q.difficulty === 'easy' ? 'bg-[#10B981]' : q.difficulty === 'hard' ? 'bg-[#EF4444]' : 'bg-[#F59E0B]'}`}>{q.difficulty}</Badge>}
                       {q.topic && <Badge variant="outline" className="text-[10px] text-[#9333EA] border-[#D8B4FE] px-1.5 py-0">{q.topic}</Badge>}
                     </div>
-                    <div className="text-xs font-medium mb-1" dangerouslySetInnerHTML={{ __html: q.question_text }} />
+                    <div className="text-xs font-medium mb-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(q.question_text, { ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'sub', 'sup', 'br', 'p', 'span'] }) }} />
                     {q.options?.length > 0 && q.question_type !== 'true_false' && (
                       <div className="space-y-0.5">
                         {q.options.filter(Boolean).map((o: string, oi: number) => (
@@ -699,7 +700,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
                   {q.difficulty && <Badge className={`text-[10px] px-1.5 py-0 ${q.difficulty === 'easy' ? 'bg-[#10B981]' : q.difficulty === 'hard' ? 'bg-[#EF4444]' : 'bg-[#F59E0B]'}`}>{q.difficulty}</Badge>}
                 </div>
                 {q.passage_text && <div className="mb-1 p-1.5 bg-gray-50 border border-[#E5E7EB] rounded text-[10px] text-[#6B7280] italic line-clamp-1">Passage: {q.passage_text.substring(0, 80)}...</div>}
-                <div className="text-xs font-medium [&_img]:max-h-12 [&_img]:rounded" dangerouslySetInnerHTML={{ __html: q.question_text }} />
+                <div className="text-xs font-medium [&_img]:max-h-12 [&_img]:rounded" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(q.question_text, { ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'sub', 'sup', 'br', 'p', 'span', 'img'] }) }} />
                 {q.image_url && <img src={q.image_url} alt="" className="mt-1 max-h-10 rounded object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
                 {q.question_type !== 'fill_in_blank' && q.options?.length > 0 && (
                   <div className="flex gap-1 mt-1 flex-wrap">

@@ -2997,7 +2997,7 @@ class ResultsController
             $students_query = "SELECT id, first_name, last_name FROM students WHERE class_id = :class_id AND school_id = :school_id AND status = 'Active' ORDER BY first_name";
             $stmt = $this->conn->prepare($students_query);
             $stmt->bindValue(':class_id', $class_id, PDO::PARAM_INT);
-            $stmt->bindValue(':school_id', $school_id, PDO::PARAM_INT);
+            $stmt->bindValue(':school_id', $__school_id_for_term, PDO::PARAM_INT);
             $stmt->execute();
             $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

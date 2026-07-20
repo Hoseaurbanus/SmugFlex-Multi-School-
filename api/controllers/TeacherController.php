@@ -100,7 +100,7 @@ class TeacherController {
      * Get Teacher by ID
      */
     public function getTeacherById($id) {
-        $token_data = Middleware::requireAuth();
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
         $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $teacher_id = Middleware::validateInteger($id, 'teacher_id');
         
@@ -286,14 +286,9 @@ class TeacherController {
      * Update Teacher
      */
     public function updateTeacher($id) {
-        $token_data = Middleware::requireAuth();
+        $token_data = Middleware::requireRole('admin');
         $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         $teacher_id = Middleware::validateInteger($id, 'teacher_id');
-        
-        // Check permissions
-        if ($token_data['role'] === 'teacher' && $token_data['linked_id'] != $teacher_id) {
-            Response::forbidden('Access denied');
-        }
         
         $data = json_decode(file_get_contents('php://input'), true);
         
@@ -443,7 +438,7 @@ class TeacherController {
      * Get Teacher's Subject Assignments - Current Term/Year Only
      */
     public function getTeacherAssignments($teacher_id) {
-        $token_data = Middleware::requireAuth();
+        $token_data = Middleware::requireAnyRole(['admin', 'teacher']);
         $school_id = TenantMiddleware::resolveSchoolId($this->conn);
         
         // Check permissions

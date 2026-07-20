@@ -162,6 +162,13 @@ class UserController {
                 Response::error('Username, role, and password are required');
                 return;
             }
+
+            // Validate role against allowed values
+            $allowedRoles = ['admin', 'teacher', 'accountant', 'parent'];
+            if (!in_array($data['role'], $allowedRoles, true)) {
+                Response::error('Invalid role. Allowed roles: ' . implode(', ', $allowedRoles));
+                return;
+            }
             
             // Check if username already exists
             $checkStmt = $this->conn->prepare("SELECT id FROM users WHERE username = ? AND school_id = ?");

@@ -161,9 +161,9 @@ class NotificationController {
 
         } catch (PDOException $e) {
             error_log("PDO Error in NotificationController: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         } catch (Exception $e) {
-            Response::serverError('Error: ' . $e->getMessage());
+            Response::serverError('An error occurred');
         }
     }
     
@@ -694,10 +694,10 @@ class NotificationController {
             
         } catch (PDOException $e) {
             error_log("Database error in getUserNotifications: " . $e->getMessage());
-            Response::serverError('Database error: ' . $e->getMessage());
+            Response::serverError('A database error occurred');
         } catch (Exception $e) {
             error_log("General error in getUserNotifications: " . $e->getMessage());
-            Response::serverError('Error: ' . $e->getMessage());
+            Response::serverError('An error occurred');
         }
     }
     
