@@ -3,6 +3,10 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Label } from '../ui/label';
 import { toast } from 'sonner';
 
 export function ExamTimetablePage() {
@@ -21,7 +25,7 @@ export function ExamTimetablePage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<number>(0);
-  
+
   const [formData, setFormData] = useState({
     classId: 0,
     subjectId: 0,
@@ -41,7 +45,7 @@ export function ExamTimetablePage() {
     if (!start || !end) return 0;
     const startTime = new Date(`2000-01-01T${start}`);
     const endTime = new Date(`2000-01-01T${end}`);
-    return Math.round((endTime.getTime() - startTime.getTime()) / 60000); // Convert to minutes
+    return Math.round((endTime.getTime() - startTime.getTime()) / 60000);
   };
 
   const handleSubmit = () => {
@@ -52,14 +56,14 @@ export function ExamTimetablePage() {
 
     const selectedClass = classes.find(c => c.id === formData.classId);
     const selectedSubject = subjects.find(s => s.id === formData.subjectId);
-    
+
     if (!selectedClass || !selectedSubject) {
       toast.error('Invalid class or subject selection');
       return;
     }
 
     const duration = calculateDuration(formData.startTime, formData.endTime);
-    
+
     if (duration <= 0) {
       toast.error('End time must be after start time');
       return;
@@ -149,7 +153,6 @@ export function ExamTimetablePage() {
     return acc;
   }, {} as { [className: string]: typeof examTimetables });
 
-  // Sort by date and time
   Object.keys(groupedTimetables).forEach(className => {
     groupedTimetables[className].sort((a, b) => {
       if (a.exam_date !== b.exam_date) {
@@ -182,107 +185,102 @@ export function ExamTimetablePage() {
       {showForm && (
         <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-[#0A2540] mb-4 font-heading font-semibold">{editingId ? 'Edit' : 'Create'} Exam Schedule</h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block mb-2 text-gray-600 text-sm">Class <span className="text-red-500">*</span></label>
-              <select
-                name="classId"
-                value={formData.classId}
-                onChange={handleInputChange}
-                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
-              >
-                <option value={0}>Select Class</option>
-                {classes.filter(c => c.status === 'Active').map(cls => (
-                  <option key={cls.id} value={cls.id}>{cls.name}</option>
-                ))}
-              </select>
+              <Label className="mb-2 text-gray-600">Class <span className="text-red-500">*</span></Label>
+              <Select value={formData.classId.toString()} onValueChange={(v) => setFormData({ ...formData, classId: Number(v) })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Select Class</SelectItem>
+                  {classes.filter(c => c.status === 'Active').map(cls => (
+                    <SelectItem key={cls.id} value={cls.id.toString()}>{cls.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
-              <label className="block mb-2 text-gray-600 text-sm">Subject <span className="text-red-500">*</span></label>
-              <select
-                name="subjectId"
-                value={formData.subjectId}
-                onChange={handleInputChange}
-                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
-              >
-                <option value={0}>Select Subject</option>
-                {subjects.filter(s => s.status === 'Active').map(sub => (
-                  <option key={sub.id} value={sub.id}>{sub.name}</option>
-                ))}
-              </select>
+              <Label className="mb-2 text-gray-600">Subject <span className="text-red-500">*</span></Label>
+              <Select value={formData.subjectId.toString()} onValueChange={(v) => setFormData({ ...formData, subjectId: Number(v) })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Select Subject</SelectItem>
+                  {subjects.filter(s => s.status === 'Active').map(sub => (
+                    <SelectItem key={sub.id} value={sub.id.toString()}>{sub.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
-              <label className="block mb-2 text-gray-600 text-sm">Exam Type <span className="text-red-500">*</span></label>
-              <select
-                name="examType"
-                value={formData.examType}
-                onChange={handleInputChange}
-                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
-              >
-                <option value="CA1">CA1</option>
-                <option value="CA2">CA2</option>
-                <option value="Exam">Main Exam</option>
-                <option value="Practical">Practical</option>
-              </select>
+              <Label className="mb-2 text-gray-600">Exam Type <span className="text-red-500">*</span></Label>
+              <Select value={formData.examType} onValueChange={(v) => setFormData({ ...formData, examType: v as 'CA1' | 'CA2' | 'Exam' | 'Practical' })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA1">CA1</SelectItem>
+                  <SelectItem value="CA2">CA2</SelectItem>
+                  <SelectItem value="Exam">Main Exam</SelectItem>
+                  <SelectItem value="Practical">Practical</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
-              <label className="block mb-2 text-gray-600 text-sm">Exam Date <span className="text-red-500">*</span></label>
-              <input
+              <Label className="mb-2 text-gray-600">Exam Date <span className="text-red-500">*</span></Label>
+              <Input
                 type="date"
                 name="examDate"
                 value={formData.examDate}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-gray-600 text-sm">Venue <span className="text-red-500">*</span></label>
-              <input
+              <Label className="mb-2 text-gray-600">Venue <span className="text-red-500">*</span></Label>
+              <Input
                 type="text"
                 name="venue"
                 value={formData.venue}
                 onChange={handleInputChange}
                 placeholder="e.g., Exam Hall A, Classroom 201"
-                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-gray-600 text-sm">Start Time <span className="text-red-500">*</span></label>
-              <input
+              <Label className="mb-2 text-gray-600">Start Time <span className="text-red-500">*</span></Label>
+              <Input
                 type="time"
                 name="startTime"
                 value={formData.startTime}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-gray-600 text-sm">End Time <span className="text-red-500">*</span></label>
-              <input
+              <Label className="mb-2 text-gray-600">End Time <span className="text-red-500">*</span></Label>
+              <Input
                 type="time"
                 name="endTime"
                 value={formData.endTime}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block mb-2 text-gray-600 text-sm">Special Instructions</label>
-              <textarea
+              <Label className="mb-2 text-gray-600">Special Instructions</Label>
+              <Textarea
                 name="instructions"
                 value={formData.instructions}
                 onChange={handleInputChange}
                 placeholder="Add any special instructions for the exam..."
                 rows={3}
-                className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
               />
             </div>
           </div>
@@ -296,7 +294,7 @@ export function ExamTimetablePage() {
           )}
 
           <div className="mt-6 flex justify-end gap-3">
-            <Button onClick={resetForm} className="bg-gray-100 text-gray-600 hover:bg-gray-200">
+            <Button onClick={resetForm} variant="outline">
               Cancel
             </Button>
             <Button onClick={handleSubmit} className="bg-[#0A2540] hover:bg-[#082030] text-white">
@@ -309,17 +307,18 @@ export function ExamTimetablePage() {
       {/* Filter */}
       <Card className="p-4 bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-4">
-          <label className="text-gray-600">Filter by Class:</label>
-          <select
-            value={selectedClassId}
-            onChange={(e) => setSelectedClassId(Number(e.target.value))}
-            className="p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
-          >
-            <option value={0}>All Classes</option>
-            {classes.filter(c => c.status === 'Active').map(cls => (
-              <option key={cls.id} value={cls.id}>{cls.name}</option>
-            ))}
-          </select>
+          <Label className="text-gray-600">Filter by Class:</Label>
+          <Select value={selectedClassId.toString()} onValueChange={(v) => setSelectedClassId(Number(v))}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All Classes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">All Classes</SelectItem>
+              {classes.filter(c => c.status === 'Active').map(cls => (
+                <SelectItem key={cls.id} value={cls.id.toString()}>{cls.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span className="text-gray-500 ml-auto">
             {filteredTimetables.length} exam{filteredTimetables.length !== 1 ? 's' : ''} scheduled
           </span>
@@ -338,7 +337,7 @@ export function ExamTimetablePage() {
           {Object.keys(groupedTimetables).sort().map(className => (
             <Card key={className} className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
               <h3 className="text-[#0A2540] mb-4 font-heading font-semibold">{className}</h3>
-              
+
               <div className="space-y-3">
                 {groupedTimetables[className].map(timetable => (
                   <div
@@ -356,7 +355,7 @@ export function ExamTimetablePage() {
                             {timetable.duration_minutes} mins
                           </span>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                           <div className="flex items-center gap-2 text-gray-500">
                             <span className="w-4 h-4" />
@@ -386,13 +385,16 @@ export function ExamTimetablePage() {
                       <div className="flex gap-2">
                         <Button
                           onClick={() => handleEdit(timetable)}
-                          className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600"
+                          variant="ghost"
+                          size="sm"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button
                           onClick={() => handleDelete(timetable.id)}
-                          className="p-2 bg-red-50 hover:bg-red-100 text-red-600"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

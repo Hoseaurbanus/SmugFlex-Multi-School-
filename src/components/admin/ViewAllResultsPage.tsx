@@ -284,95 +284,178 @@ export function ViewAllResultsPage({ onBack: _onBack, onViewResult }: ViewAllRes
               <span className="ml-3 text-[#6B7280]">Loading results...</span>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-[#F9FAFB]">
-                    <TableHead className="text-[#1F2937]">Student</TableHead>
-                    <TableHead className="text-[#1F2937]">Admission No.</TableHead>
-                    <TableHead className="text-[#1F2937]">Class</TableHead>
-                    <TableHead className="text-[#1F2937]">Term</TableHead>
-                    <TableHead className="text-[#1F2937]">Year</TableHead>
-                    <TableHead className="text-[#1F2937]">Average</TableHead>
-                    <TableHead className="text-[#1F2937]">Position</TableHead>
-                    <TableHead className="text-[#1F2937]">Status</TableHead>
-                    <TableHead className="text-[#1F2937]">Compiled Date</TableHead>
-                    <TableHead className="text-[#1F2937]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedResults.map((result) => {
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-[#F9FAFB]">
+                      <TableHead className="text-[#1F2937]">Student</TableHead>
+                      <TableHead className="text-[#1F2937]">Admission No.</TableHead>
+                      <TableHead className="text-[#1F2937]">Class</TableHead>
+                      <TableHead className="text-[#1F2937]">Term</TableHead>
+                      <TableHead className="text-[#1F2937]">Year</TableHead>
+                      <TableHead className="text-[#1F2937]">Average</TableHead>
+                      <TableHead className="text-[#1F2937]">Position</TableHead>
+                      <TableHead className="text-[#1F2937]">Status</TableHead>
+                      <TableHead className="text-[#1F2937]">Compiled Date</TableHead>
+                      <TableHead className="text-[#1F2937]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedResults.map((result) => {
+                      const student = students.find(s => s.id === result.student_id);
+                      const cls = classes.find(c => c.id === result.class_id);
+                      const isDownloading = downloadingIds[Number(result.id)];
+
+                      return (
+                        <TableRow key={result.id} className="border-b border-[#E5E7EB]">
+                          <TableCell className="text-[#1F2937] font-medium">
+                            {student
+                              ? `${student.firstName || ''} ${student.otherName || ''} ${student.lastName || ''}`.replace(/\s+/g, ' ').trim() || 'Unknown'
+                              : 'Unknown'}
+                          </TableCell>
+                          <TableCell className="text-[#1F2937]">{student?.admissionNumber}</TableCell>
+                          <TableCell className="text-[#1F2937]">{cls?.name}</TableCell>
+                          <TableCell className="text-[#1F2937]">{result.term}</TableCell>
+                          <TableCell className="text-[#1F2937]">{result.academic_year}</TableCell>
+                          <TableCell className="text-[#1F2937] font-medium">
+                            {result.average_score != null ? `${result.average_score.toFixed(2)}%` : '-'}
+                          </TableCell>
+                          <TableCell className="text-[#1F2937]">
+                            {result.position != null ? `${result.position}/${result.total_students}` : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={`${
+                                result.status === "Approved"
+                                  ? "bg-[#10B981] text-white"
+                                  : result.status === "Submitted"
+                                  ? "bg-[#F59E0B] text-white"
+                                  : result.status === "Rejected"
+                                  ? "bg-[#EF4444] text-white"
+                                  : "bg-[#6B7280] text-white"
+                              } border-0`}
+                            >
+                              {result.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-[#1F2937]">{result.compiled_date || '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={() => onViewResult ? onViewResult(result.student_id, result.id) : toast.success(`View result ${result.id}`)}
+                                className="h-8 px-3 bg-[#3B82F6] text-white hover:bg-[#2563EB] rounded-lg"
+                                aria-label={`View result for ${student?.firstName || 'student'}`}
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                              <Button
+                                onClick={() => handleDownloadResult(result)}
+                                disabled={isDownloading}
+                                className="h-8 px-3 bg-[#10B981] text-white hover:bg-[#059669] rounded-lg"
+                                aria-label={`Download result PDF for ${student?.firstName || 'student'}`}
+                              >
+                                <Download className="w-4 h-4 mr-1" />
+                                {isDownloading ? '...' : 'PDF'}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {filteredResults.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={10} className="text-center py-8 text-[#6B7280]">
+                          No results found matching the selected filters
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3 p-4">
+                {paginatedResults.length === 0 ? (
+                  <div className="text-center py-8 text-[#6B7280]">
+                    No results found matching the selected filters
+                  </div>
+                ) : (
+                  paginatedResults.map((result) => {
                     const student = students.find(s => s.id === result.student_id);
                     const cls = classes.find(c => c.id === result.class_id);
                     const isDownloading = downloadingIds[Number(result.id)];
 
                     return (
-                      <TableRow key={result.id} className="border-b border-[#E5E7EB]">
-                        <TableCell className="text-[#1F2937] font-medium">
-                          {student
-                            ? `${student.firstName || ''} ${student.otherName || ''} ${student.lastName || ''}`.replace(/\s+/g, ' ').trim() || 'Unknown'
-                            : 'Unknown'}
-                        </TableCell>
-                        <TableCell className="text-[#1F2937]">{student?.admissionNumber}</TableCell>
-                        <TableCell className="text-[#1F2937]">{cls?.name}</TableCell>
-                        <TableCell className="text-[#1F2937]">{result.term}</TableCell>
-                        <TableCell className="text-[#1F2937]">{result.academic_year}</TableCell>
-                        <TableCell className="text-[#1F2937] font-medium">
-                          {result.average_score != null ? `${result.average_score.toFixed(2)}%` : '-'}
-                        </TableCell>
-                        <TableCell className="text-[#1F2937]">
-                          {result.position != null ? `${result.position}/${result.total_students}` : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`${
-                              result.status === "Approved"
-                                ? "bg-[#10B981] text-white"
-                                : result.status === "Submitted"
-                                ? "bg-[#F59E0B] text-white"
-                                : result.status === "Rejected"
-                                ? "bg-[#EF4444] text-white"
-                                : "bg-[#6B7280] text-white"
-                            } border-0`}
-                          >
+                      <div key={result.id} className="border border-gray-100 rounded-xl bg-white p-4 shadow-sm">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[#1F2937] text-sm truncate">
+                              {student
+                                ? `${student.firstName || ''} ${student.otherName || ''} ${student.lastName || ''}`.replace(/\s+/g, ' ').trim() || 'Unknown'
+                                : 'Unknown'}
+                            </p>
+                            <p className="text-xs text-[#6B7280]">{cls?.name} &bull; {result.term}</p>
+                          </div>
+                          <Badge className={`${
+                            result.status === "Approved"
+                              ? "bg-[#10B981] text-white"
+                              : result.status === "Submitted"
+                              ? "bg-[#F59E0B] text-white"
+                              : result.status === "Rejected"
+                              ? "bg-[#EF4444] text-white"
+                              : "bg-[#6B7280] text-white"
+                          } border-0 text-xs shrink-0 ml-2`}>
                             {result.status}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-[#1F2937]">{result.compiled_date || '-'}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() => onViewResult ? onViewResult(result.student_id, result.id) : toast.success(`View result ${result.id}`)}
-                              className="h-8 px-3 bg-[#3B82F6] text-white hover:bg-[#2563EB] rounded-lg"
-                              aria-label={`View result for ${student?.firstName || 'student'}`}
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
-                            <Button
-                              onClick={() => handleDownloadResult(result)}
-                              disabled={isDownloading}
-                              className="h-8 px-3 bg-[#10B981] text-white hover:bg-[#059669] rounded-lg"
-                              aria-label={`Download result PDF for ${student?.firstName || 'student'}`}
-                            >
-                              <Download className="w-4 h-4 mr-1" />
-                              {isDownloading ? '...' : 'PDF'}
-                            </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                          <div>
+                            <span className="text-[#6B7280]">Average:</span>
+                            <span className="ml-1 font-medium text-[#1F2937]">
+                              {result.average_score != null ? `${result.average_score.toFixed(2)}%` : '-'}
+                            </span>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                          <div>
+                            <span className="text-[#6B7280]">Position:</span>
+                            <span className="ml-1 font-medium text-[#1F2937]">
+                              {result.position != null ? `${result.position}/${result.total_students}` : '-'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[#6B7280]">Year:</span>
+                            <span className="ml-1 font-medium text-[#1F2937]">{result.academic_year}</span>
+                          </div>
+                          <div>
+                            <span className="text-[#6B7280]">Adm No:</span>
+                            <span className="ml-1 font-medium text-[#1F2937]">{student?.admissionNumber}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-2 border-t border-gray-100">
+                          <Button
+                            onClick={() => onViewResult ? onViewResult(result.student_id, result.id) : toast.success(`View result ${result.id}`)}
+                            className="flex-1 h-8 px-3 bg-[#3B82F6] text-white hover:bg-[#2563EB] rounded-lg text-xs"
+                          >
+                            <Eye className="w-3 h-3 mr-1" />
+                            View
+                          </Button>
+                          <Button
+                            onClick={() => handleDownloadResult(result)}
+                            disabled={isDownloading}
+                            className="flex-1 h-8 px-3 bg-[#10B981] text-white hover:bg-[#059669] rounded-lg text-xs"
+                          >
+                            <Download className="w-3 h-3 mr-1" />
+                            {isDownloading ? '...' : 'PDF'}
+                          </Button>
+                        </div>
+                      </div>
                     );
-                  })}
-                  {filteredResults.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8 text-[#6B7280]">
-                        No results found matching the selected filters
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                  })
+                )}
+              </div>
+            </>
           )}
 
           {/* Pagination */}

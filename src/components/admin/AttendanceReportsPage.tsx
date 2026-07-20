@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Label } from '../ui/label';
+
 export function AttendanceReportsPage() {
   const {
     classes,
@@ -16,7 +20,6 @@ export function AttendanceReportsPage() {
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [reportType, setReportType] = useState<'class' | 'student' | 'daily'>('class');
 
-  // Filter attendances by date range
   const filteredAttendances = attendances.filter(a => {
     const matchesClass = selectedClassId === 0 || a.classId === selectedClassId;
     const matchesDateRange = (!startDate || a.date >= startDate) && (!endDate || a.date <= endDate);
@@ -24,21 +27,19 @@ export function AttendanceReportsPage() {
     return matchesClass && matchesDateRange && matchesTerm;
   });
 
-  // Calculate statistics
   const totalRecords = filteredAttendances.length;
   const presentCount = filteredAttendances.filter(a => a.status === 'Present').length;
   const absentCount = filteredAttendances.filter(a => a.status === 'Absent').length;
   const lateCount = filteredAttendances.filter(a => a.status === 'Late').length;
   const _excusedCount = filteredAttendances.filter(a => a.status === 'Excused').length;
-  
+
   const attendanceRate = totalRecords > 0 ? ((presentCount + lateCount) / totalRecords * 100).toFixed(1) : 0;
 
-  // Get student attendance summary
   const getStudentAttendanceSummary = () => {
-    const classStudents = selectedClassId 
+    const classStudents = selectedClassId
       ? (students || []).filter(s => s.class_id === selectedClassId && s.status === 'Active')
       : (students || []).filter(s => s.status === 'Active');
-    
+
     return classStudents.map(student => {
       const studentAttendances = filteredAttendances.filter(a => a.studentId === student.id);
       const present = studentAttendances.filter(a => a.status === 'Present').length;
@@ -57,13 +58,12 @@ export function AttendanceReportsPage() {
         total,
         rate: Number(rate),
       };
-    }).sort((a, b) => b.rate - a.rate); // Sort by attendance rate
+    }).sort((a, b) => b.rate - a.rate);
   };
 
-  // Get daily attendance summary
   const getDailyAttendanceSummary = () => {
     const dates = [...new Set(filteredAttendances.map(a => a.date))].sort().reverse();
-    
+
     return dates.map(date => {
       const dayAttendances = filteredAttendances.filter(a => a.date === date);
       const present = dayAttendances.filter(a => a.status === 'Present').length;
@@ -85,7 +85,6 @@ export function AttendanceReportsPage() {
     });
   };
 
-  // Get class-wise attendance summary
   const getClassAttendanceSummary = () => {
     return classes.map(cls => {
       const classAttendances = filteredAttendances.filter(a => a.classId === cls.id);
@@ -159,58 +158,57 @@ export function AttendanceReportsPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block mb-2 text-slate-700 text-sm">Report Type</label>
-            <select
-              value={reportType}
-              onChange={(e) => setReportType(e.target.value as 'class' | 'student' | 'daily')}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
-            >
-              <option value="class">By Class</option>
-              <option value="student">By Student</option>
-              <option value="daily">By Date</option>
-            </select>
+            <Label className="mb-2 text-slate-700">Report Type</Label>
+            <Select value={reportType} onValueChange={(v) => setReportType(v as 'class' | 'student' | 'daily')}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="class">By Class</SelectItem>
+                <SelectItem value="student">By Student</SelectItem>
+                <SelectItem value="daily">By Date</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
-            <label className="block mb-2 text-slate-700 text-sm">Class</label>
-            <select
-              value={selectedClassId}
-              onChange={(e) => setSelectedClassId(Number(e.target.value))}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
-            >
-              <option value={0}>All Classes</option>
-              {classes.map(cls => (
-                <option key={cls.id} value={cls.id}>{cls.name}</option>
-              ))}
-            </select>
+            <Label className="mb-2 text-slate-700">Class</Label>
+            <Select value={selectedClassId.toString()} onValueChange={(v) => setSelectedClassId(Number(v))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">All Classes</SelectItem>
+                {classes.map(cls => (
+                  <SelectItem key={cls.id} value={cls.id.toString()}>{cls.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
-            <label className="block mb-2 text-slate-700 text-sm">Start Date</label>
-            <input
+            <Label className="mb-2 text-slate-700">Start Date</Label>
+            <Input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               max={endDate}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
             />
           </div>
 
           <div>
-            <label className="block mb-2 text-slate-700 text-sm">End Date</label>
-            <input
+            <Label className="mb-2 text-slate-700">End Date</Label>
+            <Input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               max={new Date().toISOString().split('T')[0]}
-              className="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2540]/20 focus:border-[#0A2540]"
             />
           </div>
         </div>
 
         <div className="mt-4 flex justify-end">
-          <Button onClick={handleExportCSV} className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white">
-            <span className="w-4 h-4 mr-2" />
+          <Button onClick={handleExportCSV}>
             Export to CSV
           </Button>
         </div>
@@ -218,12 +216,12 @@ export function AttendanceReportsPage() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="p-6 bg-gradient-to-br from-[#0A2540]/5 to-[#0A2540]/10 rounded-xl border border-gray-100">
+        <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="w-8 h-8 text-[#0A2540]" />
+            <span className="w-8 h-8 text-primary" />
           </div>
-          <p className="text-[#0A2540] text-sm mb-1">Total Records</p>
-          <p className="text-3xl text-[#0A2540]">{totalRecords}</p>
+          <p className="text-primary text-sm mb-1">Total Records</p>
+          <p className="text-3xl text-primary">{totalRecords}</p>
         </Card>
 
         <Card className="p-6 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-gray-100">
@@ -250,12 +248,12 @@ export function AttendanceReportsPage() {
           <p className="text-3xl text-yellow-900">{lateCount}</p>
         </Card>
 
-        <Card className="p-6 bg-gradient-to-br from-[#0A2540]/5 to-[#0A2540]/10 rounded-xl border border-gray-100">
+        <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="w-8 h-8 text-[#0A2540]" />
+            <span className="w-8 h-8 text-primary" />
           </div>
-          <p className="text-[#0A2540] text-sm mb-1">Attendance Rate</p>
-          <p className="text-3xl text-[#0A2540]">{attendanceRate}%</p>
+          <p className="text-primary text-sm mb-1">Attendance Rate</p>
+          <p className="text-3xl text-primary">{attendanceRate}%</p>
         </Card>
       </div>
 
@@ -263,6 +261,11 @@ export function AttendanceReportsPage() {
       {reportType === 'student' && (
         <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-slate-800 mb-4 font-heading font-bold">Student Attendance Summary</h3>
+          {getStudentAttendanceSummary().length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              <p>No attendance data found for the selected filters.</p>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -287,7 +290,7 @@ export function AttendanceReportsPage() {
                     <td className="p-3 text-center text-emerald-600">{item.present}</td>
                     <td className="p-3 text-center text-red-600">{item.absent}</td>
                     <td className="p-3 text-center text-yellow-600">{item.late}</td>
-                    <td className="p-3 text-center text-[#0A2540]">{item.excused}</td>
+                    <td className="p-3 text-center text-primary">{item.excused}</td>
                     <td className="p-3 text-center">{item.total}</td>
                     <td className="p-3 text-center">
                       <span className={`px-3 py-1 rounded-full text-sm ${
@@ -303,12 +306,18 @@ export function AttendanceReportsPage() {
               </tbody>
             </table>
           </div>
+          )}
         </Card>
       )}
 
       {reportType === 'daily' && (
         <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-slate-800 mb-4 font-heading font-bold">Daily Attendance Summary</h3>
+          {getDailyAttendanceSummary().length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              <p>No attendance data found for the selected filters.</p>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -329,7 +338,7 @@ export function AttendanceReportsPage() {
                     <td className="p-3 text-center text-emerald-600">{item.present}</td>
                     <td className="p-3 text-center text-red-600">{item.absent}</td>
                     <td className="p-3 text-center text-yellow-600">{item.late}</td>
-                    <td className="p-3 text-center text-[#0A2540]">{item.excused}</td>
+                    <td className="p-3 text-center text-primary">{item.excused}</td>
                     <td className="p-3 text-center">{item.total}</td>
                     <td className="p-3 text-center">
                       <span className={`px-3 py-1 rounded-full text-sm ${
@@ -345,12 +354,18 @@ export function AttendanceReportsPage() {
               </tbody>
             </table>
           </div>
+          )}
         </Card>
       )}
 
       {reportType === 'class' && (
         <Card className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-slate-800 mb-4 font-heading font-bold">Class Attendance Summary</h3>
+          {getClassAttendanceSummary().length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              <p>No attendance data found for the selected filters.</p>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -371,7 +386,7 @@ export function AttendanceReportsPage() {
                     <td className="p-3 text-center text-emerald-600">{item.present}</td>
                     <td className="p-3 text-center text-red-600">{item.absent}</td>
                     <td className="p-3 text-center text-yellow-600">{item.late}</td>
-                    <td className="p-3 text-center text-[#0A2540]">{item.excused}</td>
+                    <td className="p-3 text-center text-primary">{item.excused}</td>
                     <td className="p-3 text-center">{item.total}</td>
                     <td className="p-3 text-center">
                       <span className={`px-3 py-1 rounded-full text-sm ${
@@ -387,6 +402,7 @@ export function AttendanceReportsPage() {
               </tbody>
             </table>
           </div>
+          )}
         </Card>
       )}
     </div>

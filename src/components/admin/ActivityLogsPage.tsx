@@ -129,7 +129,7 @@ export function ActivityLogsPage() {
         </CardHeader>
 
         <div className="p-0">
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-[#0A2540] border-none">
@@ -179,6 +179,49 @@ export function ActivityLogsPage() {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3 p-4">
+            {filteredLogs.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-[#0A2540] mb-2">No activity logs found</p>
+                <p className="text-gray-400 text-sm">Activity will be logged here automatically</p>
+              </div>
+            ) : (
+              filteredLogs.map((log) => (
+                <div key={log.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <Badge className={`${getActionBadgeColor(log.action)} text-white border-0 flex items-center gap-1 w-fit`}>
+                      {getActionIcon(log.action)}
+                      {log.action}
+                    </Badge>
+                    <Badge className={log.status === "Success" ? "bg-emerald-500 text-white border-0" : "bg-red-500 text-white border-0"}>
+                      {log.status}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-gray-400">Actor</p>
+                      <p className="text-[#0A2540]">{log.actor}</p>
+                      <p className="text-xs text-gray-400">{log.actor_role}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Target</p>
+                      <p className="text-[#0A2540]">{log.target}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">IP Address</p>
+                      <p className="text-[#0A2540] font-mono text-xs">{log.ip_address}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Timestamp</p>
+                      <p className="text-[#0A2540] text-xs">{new Date(log.timestamp).toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

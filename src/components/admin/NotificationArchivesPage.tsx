@@ -329,7 +329,7 @@ export function NotificationArchivesPage() {
           <CardTitle className="text-[#0A2540]">Archived Notifications ({filteredNotifications.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-[#0A2540]/5">
@@ -420,6 +420,71 @@ export function NotificationArchivesPage() {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3 p-4">
+            {filteredNotifications.length === 0 ? (
+              <p className="text-center py-8 text-gray-500">No notifications found</p>
+            ) : (
+              filteredNotifications.map((notification) => (
+                <div key={notification.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[#0A2540] font-medium truncate">{notification.title}</p>
+                      <p className="text-sm text-gray-500 line-clamp-1">{notification.message}</p>
+                    </div>
+                    {getTypeBadge(notification.type)}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-gray-400">Recipient</p>
+                      <p className="text-[#0A2540]">{notification.recipient}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Date</p>
+                      <p className="text-[#0A2540]">{notification.sentDate}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-gray-400">Read Rate</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-[#FFD700] h-2 rounded-full"
+                            style={{ width: `${(notification.readCount / notification.recipientCount) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-gray-600">
+                          {Math.round((notification.readCount / notification.recipientCount) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleViewNotification(notification)}
+                      className="text-[#0A2540] hover:text-[#FFD700] hover:bg-[#FFD700]/10 rounded-xl"
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      View
+                    </Button>
+                    {notification.isParentMessage && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleReply(notification)}
+                        className="text-[#0A2540] hover:text-[#0A2540]/80 hover:bg-[#0A2540]/10 rounded-xl"
+                      >
+                        <Send className="w-4 h-4 mr-1" />
+                        Reply
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

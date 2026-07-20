@@ -1075,9 +1075,93 @@ export function ManageStudentsPageMobile({ onNavigateToLink: _onNavigateToLink }
                 )}
               </div>
             ) : (
-              /* Table View with horizontal scroll for all screens */
+              /* Table View with horizontal scroll for desktop only */
               <div className="block">
                 <div>
+                  {/* Mobile Card View */}
+                  <div className="md:hidden space-y-3 p-4">
+                    {paginatedStudents.map((student) => (
+                      <div key={student.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedStudents.includes(student.id)}
+                              onChange={() => handleSelectStudent(student.id)}
+                              className="rounded border-gray-300"
+                            />
+                            <div>
+                              <div className="font-medium">{student.lastName}, {student.firstName}</div>
+                              {student.otherName && (
+                                <div className="text-sm text-gray-500">{student.otherName}</div>
+                              )}
+                            </div>
+                          </div>
+                          <Badge className={
+                            student.status === 'Active'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }>
+                            {student.status}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                          <div>
+                            <span className="text-gray-500">Reg No:</span>{' '}
+                            <span className="font-mono">{student.admissionNumber}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Class:</span>{' '}
+                            <Badge variant="outline">{student.className}</Badge>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Parent:</span>{' '}
+                            {getParentInfo(student).name || 'No Parent'}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 border-t pt-2">
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            handleView(student);
+                          }} className="h-8 w-8 p-0">
+                            <Eye className="w-3 h-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            handleEdit(student);
+                          }} className="h-8 w-8 p-0">
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleToggleStatus(student)}
+                            disabled={
+                              student.status === 'Active' && (
+                                scores.some(s => s.student_id === student.id) ||
+                                attendances.some(a => a.student_id === student.id) ||
+                                compiledResults.some(cr => cr.student_id === student.id)
+                              )
+                            }
+                            title={student.status === 'Active' ? 'Deactivate' : 'Activate'}
+                            className="h-8 w-8 p-0"
+                          >
+                            {student.status === 'Active' ? (
+                              <Lock className="w-3 h-3" />
+                            ) : (
+                              <Unlock className="w-3 h-3" />
+                            )}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            openDeleteDialog(student);
+                          }} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
@@ -1119,8 +1203,8 @@ export function ManageStudentsPageMobile({ onNavigateToLink: _onNavigateToLink }
                             </td>
                             <td className="p-3">
                               <Badge className={
-                                student.status === 'Active' 
-                                  ? 'bg-emerald-100 text-emerald-800' 
+                                student.status === 'Active'
+                                  ? 'bg-emerald-100 text-emerald-800'
                                   : 'bg-gray-100 text-gray-800'
                               }>
                                 {student.status}
@@ -1212,6 +1296,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink: _onNavigateToLink }
                       </div>
                     </div>
                   )}
+                  </div>
                 </div>
               </div>
             )}

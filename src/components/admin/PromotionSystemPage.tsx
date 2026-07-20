@@ -1070,7 +1070,7 @@ export function PromotionSystemPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50 border-b border-gray-200">
@@ -1123,6 +1123,43 @@ export function PromotionSystemPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Mobile card view for progression rules */}
+          <div className="md:hidden space-y-3 p-4">
+            {progressionRules.length === 0 ? (
+              <p className="text-center py-12 text-gray-500">No progression rules found for this academic year.</p>
+            ) : (
+              progressionRules.map((rule: any) => (
+                <div key={rule.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-900">{rule.from_class_name || `#${rule.from_class_id}`} → {rule.to_class_name || `#${rule.to_class_id}`}</p>
+                    <Badge className={rule.is_active ? 'bg-emerald-500 text-white border-0' : 'bg-gray-300 text-gray-700 border-0'}>
+                      {rule.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-gray-500">{rule.academic_year}</p>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      onClick={() => updateProgressionRuleStatus(rule.id, rule.is_active ? false : true)}
+                      disabled={ruleActionLoading}
+                      variant="outline"
+                      className="h-9 px-3 text-sm border-gray-200 flex-1"
+                    >
+                      {rule.is_active ? 'Disable' : 'Activate'}
+                    </Button>
+                    <Button
+                      onClick={() => deleteProgressionRule(rule.id)}
+                      disabled={ruleActionLoading}
+                      variant="destructive"
+                      className="h-9 px-3 text-sm flex-1"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -1161,7 +1198,7 @@ export function PromotionSystemPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50 border-b border-gray-200">
@@ -1309,6 +1346,118 @@ export function PromotionSystemPage() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Mobile card view for students */}
+            <div className="md:hidden space-y-3 p-4">
+              {filteredStudents.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-900 font-medium mb-1">No students found</p>
+                  <p className="text-gray-500 text-sm">
+                    {selectedSourceClass ? 'No active students in this class' : 'Please select a source class'}
+                  </p>
+                </div>
+              ) : (
+                paginatedStudents.map((student: any) => {
+                  const nextClasses = getNextClasses(student.class_id);
+                  return (
+                    <div key={student.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Checkbox
+                            checked={selectedStudents.includes(student.id)}
+                            onCheckedChange={(checked: boolean) => handleSelectStudent(student.id, checked)}
+                            disabled={student.promotionStatus === "Repeated"}
+                            className="border-gray-300 mt-0.5"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{student.firstName} {student.lastName}</p>
+                            <p className="text-xs text-gray-500">{student.className} • {student.admissionNumber}</p>
+                          </div>
+                        </div>
+                        {getStatusBadge(student.promotionStatus, student.id)}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-white rounded-lg p-2 border border-gray-100">
+                          <p className="text-xs text-gray-500">Average</p>
+                          <p className={`text-sm font-semibold ${student.averageScore >= 50 ? 'text-emerald-600' : student.averageScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
+                            {student.averageScore.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-lg p-2 border border-gray-100">
+                          <p className="text-xs text-gray-500">Position</p>
+                          <p className="text-sm font-semibold text-gray-700">
+                            {student.position > 0 ? `${student.position}/${student.totalStudents}` : '-'}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-lg p-2 border border-gray-100">
+                          <p className="text-xs text-gray-500">Attendance</p>
+                          <p className={`text-sm font-semibold ${student.attendance >= 75 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {student.attendance.toFixed(0)}%
+                          </p>
+                        </div>
+                      </div>
+
+                      {selectedStudents.includes(student.id) && (
+                        <div className="space-y-2">
+                          <Select
+                            value={promotionMapping[student.id]?.toString() || ''}
+                            onValueChange={(value: string) => handleSetDestinationClass(student.id, Number(value))}
+                          >
+                            <SelectTrigger className="h-10 w-full rounded-lg border-gray-200 bg-white text-gray-900">
+                              <SelectValue placeholder="Select destination class" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border-gray-200">
+                              {nextClasses.map((cls: any) => {
+                                const capacity = classCapacity[cls.id];
+                                const isFull = capacity && capacity.current >= capacity.max;
+                                return (
+                                  <SelectItem
+                                    key={cls.id}
+                                    value={cls.id.toString()}
+                                    className={`text-gray-900 ${isFull && !cls.isGraduation ? 'text-red-600 bg-red-50' : cls.isGraduation ? 'text-emerald-600 bg-emerald-50 font-medium' : ''}`}
+                                    onClick={() => {
+                                      if (isFull && !cls.isGraduation) {
+                                        toast.error('Class is at full capacity');
+                                      }
+                                    }}
+                                  >
+                                    {cls.isGraduation ? `Graduate — ${cls.name}` : `${cls.name} (${capacity?.current || 0}/${capacity?.max || 40}) ${isFull ? '(FULL)' : ''}`}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          {promotionErrors[student.id] && (
+                            <p className="text-xs text-red-600">{promotionErrors[student.id]}</p>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleManualPromotion(student)}
+                          className="h-8 px-3 text-xs border-orange-200 text-orange-600 hover:bg-orange-50 flex-1"
+                        >
+                          Manual
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleManualClassChange(student)}
+                          className="h-8 px-3 text-xs border-gray-200 text-[#0A2540] hover:bg-gray-50 flex-1"
+                        >
+                          Change Class
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
             {filteredStudents.length > 0 && (
