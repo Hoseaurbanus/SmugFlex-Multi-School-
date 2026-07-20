@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -15,7 +15,10 @@ export function SuperAdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [mounted, setMounted] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,15 +28,30 @@ export function SuperAdminLoginPage() {
     }
   }, [navigate]);
 
-  const handleLogin = async () => {
-    if (!username || !password) {
-      setError('Please enter username and password');
-      return;
+  const validate = (): boolean => {
+    let valid = true;
+    if (!username.trim()) {
+      setUsernameError('Username is required');
+      valid = false;
+    } else {
+      setUsernameError('');
     }
+    if (!password) {
+      setPasswordError('Password is required');
+      valid = false;
+    } else {
+      setPasswordError('');
+    }
+    return valid;
+  };
+
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!validate()) return;
     setIsLoading(true);
     setError('');
     try {
-      const user = await superAdminAuth.login(username, password);
+      const user = await superAdminAuth.login(username.trim(), password);
       if (user) {
         navigate('/super-admin/dashboard');
       } else {
@@ -44,10 +62,6 @@ export function SuperAdminLoginPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleLogin();
   };
 
   return (
@@ -105,7 +119,12 @@ export function SuperAdminLoginPage() {
             {/* Card header accent */}
             <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600" />
 
-            <div className="p-6 sm:p-8 space-y-6" onKeyPress={handleKeyPress}>
+            <form
+              ref={formRef}
+              onSubmit={handleLogin}
+              noValidate
+              className="p-6 sm:p-8 space-y-6"
+            >
               {/* Card title */}
               <div className="text-center">
                 <h2 className="text-lg font-heading font-bold text-[var(--foreground)]">
@@ -145,10 +164,18 @@ export function SuperAdminLoginPage() {
                     type="text"
                     placeholder="Enter your username"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="h-12 rounded-xl border-2 border-[var(--border)] pl-10 pr-4 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20 bg-[var(--input)] focus:bg-[var(--card)] text-[var(--foreground)] transition-all"
+                    onChange={(e) => { setUsername(e.target.value); setUsernameError(''); }}
+                    onKeyDown={(e) => e.key === 'Enter' && formRef.current?.requestSubmit()}
+                    className={`h-12 rounded-xl border-2 pl-10 pr-4 focus:ring-[var(--primary)]/20 bg-[var(--input)] focus:bg-[var(--card)] text-[var(--foreground)] transition-all ${usernameError ? 'border-red-400 focus:border-red-500' : 'border-[var(--border)] focus:border-[var(--primary)]'}`}
+                    disabled={isLoading}
+                    autoComplete="username"
+                    aria-invalid={!!usernameError}
+                    aria-describedby={usernameError ? 'sa-username-error' : undefined}
                   />
                 </div>
+                {usernameError && (
+                  <p id="sa-username-error" className="text-xs text-red-500">{usernameError}</p>
+                )}
               </div>
 
               {/* Password */}
@@ -165,13 +192,19 @@ export function SuperAdminLoginPage() {
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 rounded-xl border-2 border-[var(--border)] pl-10 pr-12 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20 bg-[var(--input)] focus:bg-[var(--card)] text-[var(--foreground)] transition-all"
+                    onChange={(e) => { setPassword(e.target.value); setPasswordError(''); }}
+                    onKeyDown={(e) => e.key === 'Enter' && formRef.current?.requestSubmit()}
+                    className={`h-12 rounded-xl border-2 pl-10 pr-12 focus:ring-[var(--primary)]/20 bg-[var(--input)] focus:bg-[var(--card)] text-[var(--foreground)] transition-all ${passwordError ? 'border-red-400 focus:border-red-500' : 'border-[var(--border)] focus:border-[var(--primary)]'}`}
+                    disabled={isLoading}
+                    autoComplete="current-password"
+                    aria-invalid={!!passwordError}
+                    aria-describedby={passwordError ? 'sa-password-error' : undefined}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]/60 hover:text-[var(--foreground)]/80 transition-colors p-1"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -180,12 +213,15 @@ export function SuperAdminLoginPage() {
                     )}
                   </button>
                 </div>
+                {passwordError && (
+                  <p id="sa-password-error" className="text-xs text-red-500">{passwordError}</p>
+                )}
               </div>
 
               {/* Submit */}
               <Button
-                onClick={handleLogin}
-                disabled={!username || !password || isLoading}
+                type="submit"
+                disabled={isLoading}
                 className="w-full h-12 bg-gradient-to-r from-[var(--sidebar)] to-[var(--primary)] hover:from-[var(--primary)] hover:to-[var(--sidebar)] text-white rounded-xl font-heading font-semibold text-sm transition-all duration-300 disabled:opacity-50 shadow-lg shadow-[var(--sidebar)]/20 hover:shadow-xl hover:shadow-[var(--primary)]/30 hover:-translate-y-0.5 active:translate-y-0"
               >
                 {isLoading ? (
@@ -210,13 +246,14 @@ export function SuperAdminLoginPage() {
 
               {/* Back link */}
               <button
+                type="button"
                 onClick={() => navigate('/login')}
                 className="w-full flex items-center justify-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors py-2 rounded-xl hover:bg-[var(--muted)]/30"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back to School Login
               </button>
-            </div>
+            </form>
           </div>
         </motion.div>
 
@@ -225,7 +262,7 @@ export function SuperAdminLoginPage() {
           initial={{ opacity: 0 }}
           animate={mounted ? { opacity: 1 } : {}}
           transition={{ delay: 0.5 }}
-          className="text-center text-[var(--muted-foreground)]/30 text-xs mt-6"
+          className="text-center text-[var(--muted-foreground)]/60 text-xs mt-6"
         >
           SmugFlex v2.0 &middot; Secure Access Only
         </motion.p>

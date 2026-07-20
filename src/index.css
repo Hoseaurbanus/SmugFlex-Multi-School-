@@ -466,6 +466,68 @@ html {
 }
 
 /* ============================================================
+   LOGIN PAGE MESH / SHIMMER / CARD ANIMATIONS
+   ============================================================ */
+@keyframes meshFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(80px, -60px) scale(1.1); }
+  50% { transform: translate(-40px, 80px) scale(0.95); }
+  75% { transform: translate(60px, 40px) scale(1.05); }
+}
+@keyframes meshFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-70px, 50px) scale(1.15); }
+  50% { transform: translate(50px, -70px) scale(0.9); }
+  75% { transform: translate(-30px, -40px) scale(1.1); }
+}
+@keyframes meshFloat3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(60px, 70px) scale(1.08); }
+  66% { transform: translate(-80px, -30px) scale(0.92); }
+}
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+@keyframes spinSmooth {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  animation: spinSmooth 0.9s linear infinite;
+}
+.shimmer-btn {
+  background-size: 200% auto;
+}
+.shimmer-btn:hover {
+  animation: shimmer 2s linear infinite;
+}
+.mesh-blob-1 {
+  animation: meshFloat1 20s ease-in-out infinite;
+}
+.mesh-blob-2 {
+  animation: meshFloat2 25s ease-in-out infinite;
+}
+.mesh-blob-3 {
+  animation: meshFloat3 22s ease-in-out infinite;
+}
+.card-float-1 {
+  animation: cardFloat 6s ease-in-out infinite;
+}
+.card-float-2 {
+  animation: cardFloat 6s ease-in-out 2s infinite;
+}
+.card-float-3 {
+  animation: cardFloat 6s ease-in-out 4s infinite;
+}
+.mesh-gradient-bg {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(236,72,153,0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(139,92,246,0.03) 0%, transparent 50%),
+    #ffffff;
+}
+
+/* ============================================================
    PULSE RING
    ============================================================ */
 @keyframes pulse-ring {

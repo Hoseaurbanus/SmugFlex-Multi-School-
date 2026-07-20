@@ -136,71 +136,6 @@ export function LoginPage() {
 
   return (
     <>
-      <style>{`
-        @keyframes meshFloat1 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          25% { transform: translate(80px, -60px) scale(1.1); }
-          50% { transform: translate(-40px, 80px) scale(0.95); }
-          75% { transform: translate(60px, 40px) scale(1.05); }
-        }
-        @keyframes meshFloat2 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          25% { transform: translate(-70px, 50px) scale(1.15); }
-          50% { transform: translate(50px, -70px) scale(0.9); }
-          75% { transform: translate(-30px, -40px) scale(1.1); }
-        }
-        @keyframes meshFloat3 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(60px, 70px) scale(1.08); }
-          66% { transform: translate(-80px, -30px) scale(0.92); }
-        }
-        @keyframes cardFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-12px); }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        @keyframes spinSmooth {
-          to { transform: rotate(360deg); }
-        }
-        .spinner {
-          animation: spinSmooth 0.9s linear infinite;
-        }
-        .shimmer-btn {
-          background-size: 200% auto;
-        }
-        .shimmer-btn:hover {
-          animation: shimmer 2s linear infinite;
-        }
-        .mesh-blob-1 {
-          animation: meshFloat1 20s ease-in-out infinite;
-        }
-        .mesh-blob-2 {
-          animation: meshFloat2 25s ease-in-out infinite;
-        }
-        .mesh-blob-3 {
-          animation: meshFloat3 22s ease-in-out infinite;
-        }
-        .card-float-1 {
-          animation: cardFloat 6s ease-in-out infinite;
-        }
-        .card-float-2 {
-          animation: cardFloat 6s ease-in-out 2s infinite;
-        }
-        .card-float-3 {
-          animation: cardFloat 6s ease-in-out 4s infinite;
-        }
-        .mesh-gradient-bg {
-          background:
-            radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.04) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 20%, rgba(236,72,153,0.03) 0%, transparent 50%),
-            radial-gradient(ellipse at 50% 80%, rgba(139,92,246,0.03) 0%, transparent 50%),
-            #ffffff;
-        }
-      `}</style>
-
       <div className="min-h-screen flex flex-col md:flex-row font-sans bg-white">
         {/* ───────── LEFT PANEL (FORM) ───────── */}
         <div className="flex-none w-full md:w-[46%] lg:w-[44%] mesh-gradient-bg flex flex-col md:min-h-screen overflow-y-auto z-10 relative">
@@ -367,11 +302,13 @@ export function LoginPage() {
                       errors.userId ? "border-red-300" : "border-gray-200 hover:border-gray-300"
                     }`}
                     aria-label="Username or Email"
+                    aria-invalid={!!errors.userId}
+                    aria-describedby={errors.userId ? 'login-username-error' : undefined}
                     autoComplete="username"
                   />
                 </div>
                 {errors.userId && (
-                  <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                  <p id="login-username-error" className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
                     {errors.userId.message}
                   </p>
@@ -405,6 +342,8 @@ export function LoginPage() {
                       errors.password ? "border-red-300" : "border-gray-200 hover:border-gray-300"
                     }`}
                     aria-label="Password"
+                    aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? 'login-password-error' : undefined}
                     autoComplete="current-password"
                   />
                   <button
@@ -421,7 +360,7 @@ export function LoginPage() {
                   </button>
                 </div>
                 {errors.password && (
-                  <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                  <p id="login-password-error" className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
                     {errors.password.message}
                   </p>
@@ -533,19 +472,19 @@ export function LoginPage() {
               transition={{ duration: 0.45, delay: 0.56 }}
               className="mt-5 md:mt-8 pt-4 text-center border-t border-gray-100"
             >
-              <p className="text-[10px] tracking-widest uppercase text-gray-300 mb-2">
+              <p className="text-[10px] tracking-widest uppercase text-gray-500 mb-2">
                 &copy; 2026 SmugFlex &middot; Lagos, Nigeria
               </p>
               <div className="flex justify-center gap-4">
                 <button
                   onClick={() => navigate("/privacy")}
-                  className="text-[10px] text-gray-400 hover:text-[#6366F1] transition-colors"
+                  className="text-[10px] text-gray-500 hover:text-[#6366F1] transition-colors"
                 >
                   Privacy Policy
                 </button>
                 <button
                   onClick={() => navigate("/terms")}
-                  className="text-[10px] text-gray-400 hover:text-[#6366F1] transition-colors"
+                  className="text-[10px] text-gray-500 hover:text-[#6366F1] transition-colors"
                 >
                   Terms of Service
                 </button>
@@ -613,7 +552,7 @@ export function LoginPage() {
               transition={{ duration: 0.7, delay: 0.3 }}
               className="mb-6"
             >
-              <h1
+              <h2
                 className="text-4xl lg:text-5xl font-extrabold tracking-tight text-white font-heading leading-[1.1]"
               >
                 SMUGFLEX
@@ -621,7 +560,7 @@ export function LoginPage() {
                 <span className="bg-gradient-to-r from-[#6366F1] via-[#A855F7] to-[#EC4899] bg-clip-text text-transparent">
                   VENTURE
                 </span>
-              </h1>
+              </h2>
             </motion.div>
 
             {/* Motto */}
@@ -789,9 +728,11 @@ export function LoginPage() {
                         ? "border-red-300 focus:border-red-400 focus:ring-red-100"
                         : "border-gray-200 hover:border-gray-300 focus:border-[#6366F1] focus:ring-[#6366F1]/10"
                     }`}
+                    aria-invalid={!!studentErrors.studentClass}
+                    aria-describedby={studentErrors.studentClass ? 'student-class-error' : undefined}
                   />
                   {studentErrors.studentClass && (
-                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                    <p id="student-class-error" className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       {studentErrors.studentClass.message}
                     </p>
@@ -821,9 +762,11 @@ export function LoginPage() {
                         ? "border-red-300"
                         : "border-gray-200 hover:border-gray-300"
                     }`}
+                    aria-invalid={!!studentErrors.studentReg}
+                    aria-describedby={studentErrors.studentReg ? 'student-reg-error' : undefined}
                   />
                   {studentErrors.studentReg && (
-                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                    <p id="student-reg-error" className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       {studentErrors.studentReg.message}
                     </p>
