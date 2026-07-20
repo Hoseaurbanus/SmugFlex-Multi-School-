@@ -5,6 +5,7 @@ require_once __DIR__ . '/../helpers/JWT.php';
 require_once __DIR__ . '/../helpers/Response.php';
 require_once __DIR__ . '/../helpers/Middleware.php';
 require_once __DIR__ . '/../helpers/TenantMiddleware.php';
+require_once __DIR__ . '/../helpers/RateLimiter.php';
 
 class TenantController {
     private $conn;
@@ -15,6 +16,12 @@ class TenantController {
     }
 
     public function register() {
+        // Rate limit: 5 registrations per hour per IP
+        $clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        if (RateLimiter::isLimited($clientIp, 'school_registration')) {
+            Response::error('Too many registration attempts. Please try again later.', 429);
+        }
+
         $data = json_decode(file_get_contents('php://input'), true);
 
         Middleware::validateRequired($data, ['name', 'email', 'phone', 'address', 'city', 'state']);
