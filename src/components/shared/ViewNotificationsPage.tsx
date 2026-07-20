@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { API_CONFIG, getAuthToken } from '../../config/api';
 
 export function ViewNotificationsPage() {
-  const { notifications, currentUser, markNotificationAsRead, deleteNotification, loadNotificationsFromAPI, getAllNotifications } = useSchool();
+  const { currentUser, markNotificationAsRead, deleteNotification, loadNotificationsFromAPI, getAllNotifications } = useSchool();
   const [selectedNotification, setSelectedNotification] = useState<any>(null);
   const [whatsappGroups, setWhatsappGroups] = useState<any[]>([]);
   const [loadingWhatsappGroups, setLoadingWhatsappGroups] = useState(false);

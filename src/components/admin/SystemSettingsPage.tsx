@@ -12,7 +12,6 @@ import {
   EyeOff,
   Loader2,
   AlertTriangle,
-  Plus,
   School,
   Calendar,
   ClipboardCheck,

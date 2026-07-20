@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -9,7 +9,7 @@ import { Badge } from "../ui/badge";
 import { useSchool } from "../../contexts/SchoolContext";
 import { useNotificationService } from "../../contexts/NotificationService";
 import { toast } from "sonner";
-import { MessageSquare, Send, Users, User, Search, Clock, CheckCircle, AlertCircle, Filter, RefreshCw, Mail, Phone, Camera, Upload, X, FileImage } from "lucide-react";
+import { MessageSquare, Send, Users, Search, Clock, CheckCircle, AlertCircle, RefreshCw, Mail, Camera, Upload, X, FileImage } from "lucide-react";
 
 export function MessageParentsPage() {
   const { 
@@ -74,7 +74,7 @@ export function MessageParentsPage() {
 
   const [sentMessages, setSentMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [_showPreview, _setShowPreview] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);

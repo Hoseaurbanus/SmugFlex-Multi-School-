@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -32,7 +32,6 @@ import {
   Users,
   Search,
   Eye,
-  ArrowLeft,
 } from 'lucide-react';
 
 export function NotificationArchivesPage() {
@@ -212,7 +211,7 @@ export function NotificationArchivesPage() {
             variant="destructive"
             className="rounded-xl"
           >
-            <Trash2 className="w-4 h-4 mr-2" weight="bold" />
+            <Trash2 className="w-4 h-4 mr-2" />
             Delete {selectedIds.length} Selected
           </Button>
         )}
@@ -228,7 +227,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.status === 'sent').length}</p>
               </div>
               <div className="bg-emerald-100 p-3 rounded-xl">
-                <PaperPlane className="w-6 h-6 text-emerald-600" weight="bold" />
+                <Send className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
           </CardContent>
@@ -242,7 +241,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.type === 'announcement').length}</p>
               </div>
               <div className="bg-[#0A2540]/10 p-3 rounded-xl">
-                <Megaphone className="w-6 h-6 text-[#0A2540]" weight="bold" />
+                <Megaphone className="w-6 h-6 text-[#0A2540]" />
               </div>
             </div>
           </CardContent>
@@ -256,7 +255,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.filter(n => n.type === 'alert').length}</p>
               </div>
               <div className="bg-red-100 p-3 rounded-xl">
-                <AlertTriangle className="w-6 h-6 text-red-600" weight="bold" />
+                <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
             </div>
           </CardContent>
@@ -270,7 +269,7 @@ export function NotificationArchivesPage() {
                 <p className="text-[#0A2540]">{notificationsData.reduce((sum, n) => sum + n.recipientCount, 0)}</p>
               </div>
               <div className="bg-[#0A2540]/10 p-3 rounded-xl">
-                <Users className="w-6 h-6 text-[#0A2540]" weight="bold" />
+                <Users className="w-6 h-6 text-[#0A2540]" />
               </div>
             </div>
           </CardContent>
@@ -283,7 +282,7 @@ export function NotificationArchivesPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" weight="bold" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 type="text"
                 placeholder="Search notifications..."
@@ -401,7 +400,7 @@ export function NotificationArchivesPage() {
                             onClick={() => handleViewNotification(notification)}
                             className="text-[#0A2540] hover:text-[#FFD700] hover:bg-[#FFD700]/10 rounded-xl"
                           >
-                            <Eye className="w-4 h-4" weight="bold" />
+                            <Eye className="w-4 h-4" />
                           </Button>
                           {notification.isParentMessage && (
                             <Button
@@ -411,7 +410,7 @@ export function NotificationArchivesPage() {
                               className="text-[#0A2540] hover:text-[#0A2540]/80 hover:bg-[#0A2540]/10 rounded-xl"
                               title="Reply to parent"
                             >
-                              <ArrowBendUpLeft className="w-4 h-4" weight="bold" />
+                              <Send className="w-4 h-4" />
                             </Button>
                           )}
                         </div>
@@ -502,7 +501,7 @@ export function NotificationArchivesPage() {
                 onClick={handleSendReply}
                 className="bg-[#FFD700] hover:bg-[#FFC700] text-[#0A2540] rounded-xl"
               >
-                <PaperPlane className="w-4 h-4 mr-2" weight="bold" />
+                <Send className="w-4 h-4 mr-2" />
                 Send Reply
               </Button>
             </div>

@@ -33,8 +33,6 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
     currentUser, 
     accountants, 
     studentFeeBalances, 
-    students,
-    classes,
     currentTerm,
     currentAcademicYear,
     getUnreadNotifications,
@@ -57,7 +55,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
           } else if (isMounted) {
             toast.error('Connection failed. Please refresh the page.');
           }
-        }).catch(error => {
+        }).catch(_error => {
           if (isMounted) {
             // Silent fail for security
           }
@@ -150,7 +148,7 @@ export function AccountantDashboard({ onLogout }: AccountantDashboardProps) {
 
   // Today's payments
   const today = new Date().toDateString();
-  const recentPayments = payments.slice(0, 5).sort((a, b) => new Date(b.recorded_date).getTime() - new Date(a.recorded_date).getTime());
+  const _recentPayments = payments.slice(0, 5).sort((a, b) => new Date(b.recorded_date).getTime() - new Date(a.recorded_date).getTime());
   const todayPayments = payments.filter(p => {
     const paymentDate = new Date(p.recorded_date).toDateString();
     return paymentDate === today && p.status === 'Verified';

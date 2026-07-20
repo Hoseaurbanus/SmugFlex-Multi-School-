@@ -9,11 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../ui/checkbox';
 import { toast } from 'sonner';
 import { useSchool } from '../../contexts/SchoolContext';
-import sqlDatabase from '../../services/sqlDatabase';
-import { API_CONFIG } from '../../config/api';
 
 export function RegisterUserPage() {
-  const { addTeacher, addParent, addAccountant, createUserAPI, classes, users } = useSchool();
+  const { createUserAPI, classes, users } = useSchool();
 
   const [selectedRole, setSelectedRole] = useState<'teacher' | 'parent' | 'accountant' | ''>('');
   const [photoPreview, setPhotoPreview] = useState<string>('');
@@ -229,7 +227,7 @@ export function RegisterUserPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-12 h-12 rounded-xl bg-[#0A2540] flex items-center justify-center shadow-lg">
-            <Plus className="w-6 h-6 text-white" weight="bold" />
+            <Plus className="w-6 h-6 text-white" />
           </div>
           <div>
             <h1 className="font-heading font-bold text-[#1F2937] mb-1">Register User</h1>
@@ -243,7 +241,7 @@ export function RegisterUserPage() {
           <div className="mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-[#0A2540] flex items-center justify-center shadow-sm">
-                <Plus className="w-5 h-5 text-white" weight="bold" />
+                <Plus className="w-5 h-5 text-white" />
               </div>
               <h3 className="font-heading font-semibold text-lg text-slate-800">User Information</h3>
             </div>

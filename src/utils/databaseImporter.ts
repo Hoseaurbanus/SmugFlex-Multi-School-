@@ -4,7 +4,6 @@
  * Direct MySQL database operations
  */
 
-import { toast } from 'sonner';
 import { API_CONFIG } from '../config/api';
 import { Student, Teacher, Class, Subject, Parent } from '../types/school';
 import sqlDatabase from '../services/sqlDatabase';
@@ -225,7 +224,7 @@ export class StudentDatabaseImporter {
     const year = new Date().getFullYear();
     let attempts = 0;
     const maxAttempts = 100;
-    const prefix = databaseImporter.getSchoolPrefix();
+    const prefix = StudentDatabaseImporter.getSchoolPrefix();
     
     while (attempts < maxAttempts) {
       const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');

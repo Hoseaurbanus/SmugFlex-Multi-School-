@@ -7,7 +7,6 @@ import {
   Bell,
   UserPlus,
   BookOpen,
-  BarChart3,
   Settings,
   Calendar,
   ChevronRight,
@@ -15,7 +14,7 @@ import {
   Zap,
   RefreshCw,
   Mail,
-  FileText,
+  ChartBar,
 } from "lucide-react";
 
 interface DashboardWelcomeProps {
@@ -134,7 +133,7 @@ export default function DashboardWelcome({
 
   const stats = [
     {
-      icon: Student,
+      icon: GraduationCap,
       label: "Students",
       value: activeStudents,
       animated: animatedStudents,
@@ -146,7 +145,7 @@ export default function DashboardWelcome({
       subtitle: "Active enrollment",
     },
     {
-      icon: ChalkboardTeacher,
+      icon: Users,
       label: "Staff",
       value: activeTeachers,
       animated: animatedTeachers,
@@ -158,7 +157,7 @@ export default function DashboardWelcome({
       subtitle: "Teaching & non-teaching",
     },
     {
-      icon: ClipboardText,
+      icon: ClipboardList,
       label: "Pending",
       value: pendingResults,
       animated: animatedPending,
@@ -170,7 +169,7 @@ export default function DashboardWelcome({
       subtitle: "Awaiting approval",
     },
     {
-      icon: EnvelopeSimpleOpen,
+      icon: Mail,
       label: "Messages",
       value: unreadCount,
       animated: animatedMessages,
@@ -187,7 +186,7 @@ export default function DashboardWelcome({
     { icon: UserPlus, label: "Register User", action: "register-user", gradient: "from-[#0A2540] to-[#1a3a5c]" },
     { icon: BookOpen, label: "Manage Classes", action: "manage-classes", gradient: "from-emerald-500 to-teal-500" },
     { icon: ChartBar, label: "Results", action: "results-management", gradient: "from-orange-500 to-amber-500" },
-    { icon: Gear, label: "Settings", action: "settings", gradient: "from-[#0A2540] to-[#1a3a5c]" },
+    { icon: Settings, label: "Settings", action: "settings", gradient: "from-[#0A2540] to-[#1a3a5c]" },
   ];
 
   return (
@@ -298,7 +297,7 @@ export default function DashboardWelcome({
                 <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${stat.bgGradient} flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300`}
                   style={{ boxShadow: `0 4px 14px ${stat.color}25` }}
                 >
-                  <Icon weight="bold" className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
 
                 {/* Number */}
@@ -332,7 +331,7 @@ export default function DashboardWelcome({
             Quick Actions
           </h3>
           <div className="grid grid-cols-2 gap-3">
-            {quickActions.map((item, i) => {
+            {quickActions.map((item, _i) => {
               const Icon = item.icon;
               return (
                 <motion.button
@@ -343,7 +342,7 @@ export default function DashboardWelcome({
                   className="group flex flex-col items-center gap-2.5 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 cursor-pointer transition-all duration-200"
                 >
                   <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all duration-300`}>
-                    <Icon weight="bold" className="w-5 h-5 text-white" />
+                    <Icon className="w-5 h-5 text-white" />
                   </div>
                   <span className="text-xs font-heading font-semibold text-gray-500 group-hover:text-gray-900 transition-colors text-center">
                     {item.label}
@@ -371,7 +370,7 @@ export default function DashboardWelcome({
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                  <Calendar weight="bold" className="w-6 h-6 text-white" />
+                  <Calendar className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <p className="text-lg font-heading font-bold text-gray-900">
@@ -446,7 +445,6 @@ export default function DashboardWelcome({
                           </p>
                         </div>
                         <ChevronRight
-                          weight="bold"
                           className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-900 opacity-0 group-hover:opacity-100 transition-all mt-1 flex-shrink-0"
                         />
                       </div>
@@ -456,7 +454,7 @@ export default function DashboardWelcome({
             ) : (
               <div className="text-center py-8">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center mx-auto mb-3">
-                  <Bell weight="light" className="w-7 h-7 text-gray-300" />
+                  <Bell className="w-7 h-7 text-gray-300" />
                 </div>
                 <p className="text-sm text-gray-500 font-medium">
                   No new notifications

@@ -1,4 +1,4 @@
-import { BarChart3, ArrowLeft, Download, Eye, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Download, Eye, CheckSquare } from 'lucide-react';
 import React, { useState, useMemo, useRef, useEffect } from "react";
 
 import { Button } from "../ui/button";
@@ -13,7 +13,7 @@ import { StudentResultCard } from "../shared/StudentResultCard";
 import { ViewAllResultsPage } from "./ViewAllResultsPage";
 import { ViewResultSheetsPage } from "./ViewResultSheetsPage";
 import { FullPageResultView } from "../shared/FullPageResultView";
-import { ResultSheetViewerButton } from "./ResultSheetViewer";
+
 import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { shouldShowPosition as checkShouldShowPosition, getGrade } from "../../utils/classHelpers";
 import { useSchool } from "../../contexts/SchoolContext";
@@ -38,7 +38,7 @@ class ResultsManagementErrorBoundary extends React.Component<
     return { hasError: true, message };
   }
 
-  componentDidCatch(error: unknown) {
+  componentDidCatch(_error: unknown) {
     // Silent fail for security
   }
 
@@ -130,7 +130,7 @@ export function ResultsManagementPage() {
     subjects,
     subjectAssignments,
     compiledResults,
-    getPendingApprovals,
+    getPendingApprovals: _getPendingApprovals,
     approveCompiledResult,
     getCompiledResultsByYearAndTerm,
     getAllAcademicYears,
@@ -236,7 +236,7 @@ export function ResultsManagementPage() {
   };
 
   // Generate PDF exactly matching StudentResultSheet design - Complete rebuild using exact structure
-  const generatePDFFromData = async (student: any, result: any) => {
+  const _generatePDFFromData = async (student: any, result: any) => {
     const { default: jsPDF } = await import('jspdf');
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -301,7 +301,7 @@ export function ResultsManagementPage() {
     };
 
     // Exact formatDate from StudentResultSheet
-    const formatDate = (dateStr: string) => {
+    const _formatDate = (dateStr: string) => {
       if (!dateStr) return "";
       const date = new Date(dateStr);
       return date.toLocaleDateString("en-GB", {
@@ -495,7 +495,7 @@ export function ResultsManagementPage() {
     };
 
     // EXACT same teacher title logic as StudentResultCard
-    const teacherTitle = studentClassData?.category === 'Primary' ? 'HEAD TEACHER' : 'PRINCIPAL';
+    const _teacherTitle = studentClassData?.category === 'Primary' ? 'HEAD TEACHER' : 'PRINCIPAL';
 
     // === PAGE BACKGROUND (Exact StudentResultCard: background: white) ===
     // Pure white background to match StudentResultCard exactly
@@ -760,10 +760,10 @@ export function ResultsManagementPage() {
     pdf.setLineWidth(1); // Reset to default
     
     let studentInfoTableY = studentInfoY;
-    tableData.forEach((row, rowIndex) => {
+    tableData.forEach((row, _rowIndex) => {
       let cellX = startX;
       
-      row.forEach((cell, cellIndex) => {
+      row.forEach((cell, _cellIndex) => {
         // Skip empty cells
         if (!cell.text || cell.width === 0) {
           cellX += studentInfoTableWidth * cell.width;
@@ -1052,7 +1052,7 @@ export function ResultsManagementPage() {
     let summaryCellX = summaryX;
     const summaryCellWidth = summaryWidth / 4;
     
-    summaryData.forEach((data, index) => {
+    summaryData.forEach((data, _index) => {
       // Cell border
       pdf.setDrawColor(44, 60, 80);
       pdf.rect(summaryCellX, summaryY, summaryCellWidth, 8);
@@ -1378,7 +1378,6 @@ export function ResultsManagementPage() {
 
   // Bulk selection state
   const [selectedResults, setSelectedResults] = useState<number[]>([]);
-  const [showBulkActions, setShowBulkActions] = useState(false);
   const [bulkComment, setBulkComment] = useState("");
   const [bulkRejectionReason, setBulkRejectionReason] = useState("");
   const [showBulkApproveDialog, setShowBulkApproveDialog] = useState(false);
@@ -1394,7 +1393,7 @@ export function ResultsManagementPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedResult, setSelectedResult] = useState<number | null>(null);
   const [fullPageView, setFullPageView] = useState<{ studentId: number; resultId: number } | null>(null);
-  const [principalComment, setPrincipalComment] = useState("");
+  const [_principalComment, _setPrincipalComment] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
   const [historicalResults, setHistoricalResults] = useState<any[]>([]);
 
@@ -1494,7 +1493,7 @@ export function ResultsManagementPage() {
   }, [selectedYear, selectedTerm]);
 
   // Optimized historical results loading with caching
-  const loadResultsForYearAndTerm = async (forceRefresh: boolean) => {
+  const loadResultsForYearAndTerm = async (_forceRefresh: boolean) => {
     const currentYear = currentAcademicYear ?? '';
     const currentSelectedYear = selectedYear ?? '';
     const currentSelectedTerm = selectedTerm ?? '';
@@ -1659,12 +1658,6 @@ export function ResultsManagementPage() {
     return students.find((s: any) => s.id === selectedResultData.student_id);
   }, [selectedResultData, students]);
 
-  // Get results for current class (bulk operations)
-  const classResults = useMemo(() => {
-    if (!selectedClassId || selectedClassId === "all") return filteredResults;
-    return filteredResults.filter((r: any) => String(r.class_id ?? r.classId) === String(selectedClassId));
-  }, [filteredResults, selectedClassId]);
-
   // If viewing other pages, render them (after all hooks have been called)
   if (viewMode === "viewAll") {
     return (
@@ -1688,12 +1681,12 @@ export function ResultsManagementPage() {
             onClick={() => setViewMode("management")}
             className="rounded-xl"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" weight="bold" />
+            <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Management
           </Button>
           <h1 className="text-[#0A2540] font-heading font-bold">View Result Sheets</h1>
         </div>
-        <ViewResultSheetsPage onBack={() => setViewMode("management")} />
+        <ViewResultSheetsPage />
       </div>
     );
   }
@@ -1713,7 +1706,7 @@ export function ResultsManagementPage() {
   }
 
   // Handle approve
-  const handleApprove = async (resultId: number) => {
+  const _handleApprove = async (resultId: number) => {
     const result = compiledResults.find((r: any) => r.id === resultId);
     if (!result) return;
 
@@ -1738,7 +1731,7 @@ export function ResultsManagementPage() {
   };
 
   // Handle reject
-  const handleReject = async (resultId: number) => {
+  const _handleReject = async (resultId: number) => {
     const reason = (rejectionReason || '').trim();
     await updateCompiledResult(resultId, {
       status: "Rejected",
@@ -1807,7 +1800,7 @@ export function ResultsManagementPage() {
   };
 
   // Handle delete
-  const handleDelete = (resultId: number) => {
+  const _handleDelete = (resultId: number) => {
     if (window.confirm("Are you sure you want to delete this result? This action cannot be undone.")) {
       (async () => {
         try {
@@ -1822,7 +1815,7 @@ export function ResultsManagementPage() {
   };
 
   // Handle print with improved PDF generation - only for approved results
-  const handlePrint = async () => {
+  const _handlePrint = async () => {
     // Check if result is approved before allowing print
     if (!selectedResultData || selectedResultData.status !== "Approved") {
       toast.error("Only approved results can be printed");
@@ -2314,7 +2307,7 @@ export function ResultsManagementPage() {
                                 setFullPageView({ studentId: studentData!.id, resultId: studentData!.result.id });
                               }}
                             >
-                              <Eye className="w-4 h-4 mr-1.5" weight="bold" />
+                              <Eye className="w-4 h-4 mr-1.5" />
                               View
                             </Button>
                             
@@ -2325,7 +2318,7 @@ export function ResultsManagementPage() {
                               onClick={() => handleDownloadStudentPDF(studentData!, studentData!.result)}
                               disabled={!!downloadingResultIds[Number(studentData!.result.id)]}
                             >
-                              <Download className="w-4 h-4 mr-1.5" weight="bold" />
+                              <Download className="w-4 h-4 mr-1.5" />
                               <span className="hidden sm:inline">{!!downloadingResultIds[Number(studentData!.result.id)] ? 'Preparing…' : (studentData!.result.status === 'Approved' ? 'Download PDF' : `PDF (${studentData!.result.status})`)}</span>
                               <span className="sm:hidden">PDF</span>
                             </Button>
@@ -2337,7 +2330,7 @@ export function ResultsManagementPage() {
                                   className="bg-[#0A2540] hover:bg-[#082030] text-white rounded-xl h-7 sm:h-8 text-xs"
                                   onClick={() => setSelectedResult(studentData!.result.id)}
                                 >
-                                  <CheckSquare className="w-4 h-4 mr-1.5" weight="bold" />
+                                  <CheckSquare className="w-4 h-4 mr-1.5" />
                                   <span className="hidden sm:inline">Review</span>
                                   <span className="sm:hidden">R</span>
                                 </Button>
@@ -2350,7 +2343,7 @@ export function ResultsManagementPage() {
                                       onClick={() => setSelectedResult(null)}
                                       className="flex items-center gap-2"
                                     >
-                                      <ArrowLeft className="w-4 h-4" weight="bold" />
+                                      <ArrowLeft className="w-4 h-4" />
                                       Back to Results
                                     </Button>
                                     <div>
@@ -2534,7 +2527,7 @@ export function ResultsManagementPage() {
                                     }}
                                     className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white rounded-lg"
                                   >
-                                    <Download className="w-4 h-4 mr-2" weight="bold" />
+                                    <Download className="w-4 h-4 mr-2" />
                                     {loadingCumulative ? 'Loading...' : 'Download PDF'}
                                   </Button>
                                 </div>

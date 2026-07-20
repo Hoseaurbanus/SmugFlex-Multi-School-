@@ -114,11 +114,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     currentUser,
     teachers,
     classes,
-    getTeacherAssignments,
     getTeacherClasses,
     getTeacherResponsibilities,
     getUnreadNotifications,
-    getActivityLogs,
     subjectAssignments,
     classTeacherAssignments,
     currentTerm,
@@ -164,7 +162,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     ? (Number(currentUser.linked_id) || (currentTeacher ? Number(currentTeacher.id) : null))
     : (currentTeacher ? Number(currentTeacher.id) : null);
   
-  const responsibilities = useMemo(() => {
+  const _responsibilities = useMemo(() => {
     if (!teacherId || !classes || classes.length === 0) {
       return { isClassTeacher: false, assignedClassesCount: 0, totalStudentsCount: 0, subjectsCount: 0, classTeacherClassesCount: 0, canEnterScores: false, canCompileResults: false, canViewResults: false, canManageAttendance: false, departments: [] };
     }

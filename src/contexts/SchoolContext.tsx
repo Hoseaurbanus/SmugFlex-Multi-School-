@@ -20,12 +20,23 @@ if (typeof window !== 'undefined') {
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { toast } from 'sonner';
-import { api, PaginatedData } from '../services/api';
+import { api } from '../services/api';
 import { setAuthToken, setCurrentUser as setApiCurrentUser, getAuthToken, removeAuthToken, API_CONFIG, getCurrentUser as getApiCurrentUser } from '../config/api';
 import { tokenManager } from '../utils/tokenManager';
-import { connectionMonitor } from '../utils/connectionMonitor';
 import sqlDatabase from '../services/sqlDatabase';
-import { calculateGrade, getRemark, normalizeParentStudentLink, normalizeParentStudentLinks } from '../utils/schoolHelpers';
+import { normalizeParentStudentLinks } from '../utils/schoolHelpers';
+import type {
+  Student, Parent, Class, Subject, SubjectAssignment, SubjectRegistration,
+  Score, AffectiveDomain, PsychomotorDomain, CompiledResult,
+  CumulativeResult,
+  FeeStructure, StudentFeeBalance, StudentInvoiceSummary,
+  Payment, CreatePaymentPayload,
+  Teacher, User, Accountant,
+  Notification, ActivityLog, Attendance,
+  ExamTimetable, ClassTimetable, Department,
+  CbtExam, CbtQuestion, CbtAttempt, CbtQuestionBank,
+  SchoolSettings, BankAccountSettings, Scholarship, Assignment
+} from '../types/school';
 
 // ==================== INTERFACES ====================
 // Re-export all types from the centralized types module for backward compatibility
@@ -1064,8 +1075,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       return { term: loadedTerm, year: loadedYear };
     } catch (error) {
-      console.error('loadSubjectsFromAPI error:', error);
-      return false;
+      console.error('loadCurrentTermAndYear error:', error);
+      return { term: null, year: null };
     }
   };
 
@@ -1689,7 +1700,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loadSubjectsFromAPI = async (force: boolean = false): Promise<boolean> => {
+  const loadSubjectsFromAPI = async (_force: boolean = false): Promise<boolean> => {
     try {
       // Loading subjects from API
       
@@ -2248,7 +2259,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(0);
-  const LOAD_COOLDOWN = 5000; // 5 seconds between loads
 
   // Load data from API when user is logged in - REMOVED (handled by initial load useEffect)
   // useEffect(() => {
@@ -2536,9 +2546,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const token = user.token || '';
         
         setAuthToken(token);
-        
-        // Verify token was stored
-        const storedToken = tokenManager.getToken();
         
         // Reload all data after successful login using the helper function
         
@@ -3009,11 +3016,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   }, [classes, classTeacherAssignments, currentAcademicYear, currentTerm, subjectAssignments, teachers, lastTeacherIdRef]);
 
-  // Get teacher's students for a specific class
-  const getTeacherStudentsForClass = (classId: number): any[] => {
-    return students.filter(s => s.class_id === classId);
-  };
-
   // Parent Methods
   const addParent = async (parent: Omit<Parent, 'id'>): Promise<number> => {
     const result = await createParentAPI(parent);
@@ -3066,10 +3068,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (success) {
       await loadAccountantsFromAPI();
     }
-  };
-
-  const updateAccountantStatus = async (id: number, status: string): Promise<void> => {
-    await updateAccountantAPI(id, { status });
   };
 
   // Class Methods
@@ -3484,7 +3482,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const loadAttendanceRequirements = async () => {
     try {
       // Test database connection first
-      const testQuery = await sqlDatabase.executeQuery("SELECT 1 as test");
+      await sqlDatabase.executeQuery("SELECT 1 as test");
       
       const terms = ['first_term', 'second_term', 'third_term'];
       const requirements: Record<string, number> = {};
@@ -3733,33 +3731,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   // Bank Account Settings Methods
-  const loadBankAccountSettingsFromAPI = async (): Promise<boolean> => {
-    try {
-      const result = await sqlDatabase.executeQuery('SELECT * FROM bank_account_settings LIMIT 1');
-      if (result && result.data && result.data.length > 0) {
-        const row = result.data[0];
-        const settings: BankAccountSettings = {
-          id: row.id,
-          bank_name: row.bank_name,
-          account_name: row.account_name,
-          account_number: row.account_number,
-          payment_methods: {
-            bank_transfer: Boolean(row.bank_transfer_enabled),
-            online_payment: Boolean(row.online_payment_enabled),
-            cash: Boolean(row.cash_payment_enabled),
-          },
-          updated_by: row.updated_by,
-          updated_date: row.updated_at || new Date().toISOString(),
-        };
-        setBankAccountSettings(settings);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      return false;
-    }
-  };
-
   const updateBankAccountSettings = async (settings: Omit<BankAccountSettings, 'id' | 'updated_date'>) => {
     try {
       const dbPayload: any = {
@@ -4147,104 +4118,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   // Helper function to update class student count
-  const compileResult = async (resultData: any): Promise<number> => {
-    try {
-      // Use INSERT ... ON DUPLICATE KEY UPDATE to handle race conditions and duplicates atomically
-      const query = `
-        INSERT INTO compiled_results (
-          student_id, class_id, term, academic_year, 
-          total_score, average_score, class_average, position, 
-          total_students, times_present, times_absent, total_attendance_days, 
-          term_begin, term_end, next_term_begin,
-          class_teacher_name, class_teacher_comment, 
-          principal_name, principal_comment, principal_signature, 
-          compiled_by, compiled_date, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-          total_score = VALUES(total_score),
-          average_score = VALUES(average_score),
-          class_average = VALUES(class_average),
-          position = VALUES(position),
-          total_students = VALUES(total_students),
-          times_present = VALUES(times_present),
-          times_absent = VALUES(times_absent),
-          total_attendance_days = VALUES(total_attendance_days),
-          term_begin = VALUES(term_begin),
-          term_end = VALUES(term_end),
-          next_term_begin = VALUES(next_term_begin),
-          class_teacher_name = VALUES(class_teacher_name),
-          class_teacher_comment = VALUES(class_teacher_comment),
-          principal_name = VALUES(principal_name),
-          principal_comment = VALUES(principal_comment),
-          principal_signature = VALUES(principal_signature),
-          compiled_by = VALUES(compiled_by),
-          compiled_date = VALUES(compiled_date),
-          status = VALUES(status)
-      `;
-      
-      const params = [
-        resultData.student_id,
-        resultData.class_id,
-        resultData.term,
-        resultData.academic_year,
-        resultData.total_score,
-        resultData.average_score,
-        resultData.class_average || 0,
-        resultData.position,
-        resultData.total_students,
-        resultData.times_present || 0,
-        resultData.times_absent || 0,
-        resultData.total_attendance_days || 0,
-        resultData.term_begin || null,
-        resultData.term_end || null,
-        resultData.next_term_begin || null,
-        resultData.class_teacher_name,
-        resultData.class_teacher_comment,
-        resultData.principal_name || '',
-        resultData.principal_comment,
-        resultData.principal_signature || '',
-        resultData.compiled_by || null,
-        resultData.compiled_date,
-        resultData.status
-      ];
-
-      const result = await sqlDatabase.executeQuery(query, params);
-
-      // If insertId is present, it's a new record. 
-      if (result && result.insertId) {
-          const newResult = { ...resultData, id: result.insertId };
-          setCompiledResults(prev => {
-              // Check just in case
-              const exists = prev.find(r => r.id === result.insertId);
-              if (exists) return prev.map(r => r.id === result.insertId ? newResult : r);
-              return [...prev, newResult];
-          });
-          return result.insertId;
-      } else {
-         // Updated record. Fetch the ID to ensure we return the correct ID and update state correctly.
-         const idQuery = `SELECT id FROM compiled_results WHERE student_id = ? AND class_id = ? AND term = ? AND academic_year = ?`;
-         const idResult = await sqlDatabase.executeQuery(idQuery, [resultData.student_id, resultData.class_id, resultData.term, resultData.academic_year]);
-         
-         if (idResult && (idResult.length > 0 || idResult.data?.length > 0)) {
-             const rows = idResult.data || idResult;
-             const id = rows[0].id;
-             const updatedResult = { ...resultData, id };
-             
-             setCompiledResults(prev => {
-                 const exists = prev.find(r => r.id === id);
-                 if (exists) return prev.map(r => r.id === id ? updatedResult : r);
-                 return [...prev, updatedResult];
-             });
-             return id;
-         }
-         return 0;
-      }
-    } catch (error) {
-      
-      throw error;
-    }
-  };
-
   const updateCompiledResult = async (id: number, resultData: any): Promise<void> => {
     try {
       // Update database
@@ -4264,112 +4137,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       setCompiledResults(prev => prev.filter((r: any) => r.id !== id));
       await loadCompiledResultsFromAPI(null);
     } catch (error) {
-      throw error;
-    }
-  };
-
-  const submitResult = async (id: number): Promise<void> => {
-    try {
-      // Update compiled result status to 'Submitted' in database using generic update
-      await sqlDatabase.updateRecord('compiled_results', id, { status: 'Submitted' });
-      
-      // Update local state
-      setCompiledResults(compiledResults.map((r: any) => (r.id === id ? { ...r, status: 'Submitted' } : r)));
-      
-      // Also update individual scores status to 'Submitted'
-      const result = compiledResults.find((r: any) => r.id === id);
-      if (result) {
-        // Get all scores for this student and update their status
-        const studentScores = scores.filter((s: Score) => s.student_id === result.student_id);
-        for (const score of studentScores) {
-          if (score.status === 'Draft') {
-            await sqlDatabase.updateRecord('scores', score.id, { status: 'Submitted' });
-          }
-        }
-        // Reload scores to get updated status
-        await loadScoresFromAPI();
-      }
-    } catch (error) {
-      
-      throw error;
-    }
-  };
-
-  const approveResult = async (id: number): Promise<void> => {
-    try {
-      // Update compiled result status to 'Approved' in database
-      await sqlDatabase.updateCompiledResult(id, { status: 'Approved' });
-      
-      // Update local state
-      setCompiledResults(compiledResults.map((r: any) => (r.id === id ? { ...r, status: 'Approved' } : r)));
-    } catch (error) {
-      
-      throw error;
-    }
-  };
-
-  const rejectResult = async (id: number, reason: string = ''): Promise<void> => {
-    try {
-      // Get the compiled result details
-      const result = compiledResults.find((r: any) => r.id === id);
-      if (!result) {
-        throw new Error('Result not found');
-      }
-
-      // Update compiled result status to 'Rejected' in database
-      await sqlDatabase.updateCompiledResult(id, { 
-        status: 'Rejected',
-        rejectionReason: reason
-      });
-      
-      // Update local state
-      setCompiledResults(compiledResults.map((r: any) => (r.id === id ? { ...r, status: 'Rejected', rejectionReason: reason } : r)));
-
-      // Find and reject all subject scores for this student, class, and term
-      const studentScores = scores.filter((s: any) => 
-        s.student_id === result.student_id &&
-        s.term === result.term &&
-        s.academic_year === result.academic_year &&
-        s.status === 'Approved' // Only reject approved scores, not submitted ones
-      );
-
-      // Update all related scores to 'Rejected' status
-      for (const score of studentScores) {
-        await sqlDatabase.updateRecord('scores', score.id, { 
-          status: 'Rejected',
-          rejectionReason: `Admin rejected compiled result: ${reason}`,
-          rejectedBy: currentUser?.id || null,
-          rejectedDate: new Date().toISOString()
-        });
-        
-        // Update local state
-        setScores(scores.map((s: any) => 
-          s.id === score.id 
-            ? { ...s, status: 'Rejected', rejectionReason: `Admin rejected compiled result: ${reason}` }
-            : s
-        ));
-      }
-
-      // Send notification to class teacher
-      const student = students.find((s: any) => s.id === result.student_id);
-      const studentName = student ? `${student.firstName} ${student.lastName}` : 'Unknown Student';
-      
-      const classTeacher = teachers.find((t: any) => t.id === result.compiled_by);
-      if (classTeacher) {
-        await addNotification({
-          title: "Compiled Result Rejected - Action Required",
-          message: `Admin has rejected the compiled result for ${studentName}. You can now edit attendance, comments, psychomotor skills, and reject subject scores for correction.`,
-          type: "warning",
-          targetAudience: "teachers",
-          sentBy: currentUser?.id || 0,
-          sentDate: new Date().toISOString(),
-          isRead: false,
-          readBy: []
-        });
-      }
-
-    } catch (error) {
-      
       throw error;
     }
   };
@@ -4579,7 +4346,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     return balance || null;
   };
 
-  const updateStudentFeeBalance = async (studentId: number, balance: Partial<StudentFeeBalance>): Promise<void> => {
+  const updateStudentFeeBalance = async (_studentId: number, _balance: Partial<StudentFeeBalance>): Promise<void> => {
     // Student fee balances are now backend-authoritative via invoices/payments.
     // Keep this method as a no-op to avoid breaking older pages while we migrate.
     return;
@@ -5001,7 +4768,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   // Additional missing functions
-  const getTeacherStudents = (teacherId: number, classId: number): Student[] => {
+  const getTeacherStudents = (_teacherId: number, classId: number): Student[] => {
     return students.filter(s => s.class_id === classId);
   };
 
@@ -5348,7 +5115,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getParentPermissions = (parentId: number) => {
+  const getParentPermissions = (_parentId: number) => {
     return [
       { module: 'view_students', permissions: ['read', 'view'] },
       { module: 'view_results', permissions: ['read', 'view'] },
@@ -5358,7 +5125,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     ];
   };
 
-  const linkParentToStudent = async (parentId: number, studentId: number): Promise<void> => {
+  const linkParentToStudent = async (_parentId: number, _studentId: number): Promise<void> => {
     
     // Placeholder: actual linking logic should be implemented here
   };
@@ -7263,7 +7030,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     await updateTeacherStatusAPI(id, status);
   };
 
-  const getStudentRecentActivities = (studentId: number) => {
+  const getStudentRecentActivities = (_studentId: number) => {
     // Return recent activities for a student (placeholder implementation)
     return [];
   };
@@ -7370,7 +7137,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     return subjects.filter(s => !assignedSubjectIds.includes(s.id));
   };
 
-  const getAvailableTeachers = (academicYear: string, term: string, subjectId: number, classId: number) => {
+  const getAvailableTeachers = (_academicYear: string, _term: string, _subjectId: number, _classId: number) => {
     // Return all teachers for now - could be enhanced with availability logic
     return teachers;
   };
@@ -7401,7 +7168,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   // Add missing methods
-  const getAttendanceSummary = (classId: number, academicYear: string, term: string) => {
+  const getAttendanceSummary = (_classId: number, _academicYear: string, _term: string) => {
     return [];
   };
 
@@ -7438,7 +7205,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     return [];
   };
 
-  const getStudentScholarships = (studentId: number) => {
+  const getStudentScholarships = (_studentId: number) => {
     return [];
   };
 
@@ -7526,7 +7293,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const publishCompiledResult = async (resultId: number): Promise<void> => {
+  const publishCompiledResult = async (_resultId: number): Promise<void> => {
     // Implementation would go here
   };
 
@@ -7919,7 +7686,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    deleteAffectiveDomain: async (id: number) => {
+    deleteAffectiveDomain: async (_id: number) => {
       // Placeholder implementation
       
       return Promise.resolve();
@@ -7961,7 +7728,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    deletePsychomotorDomain: async (id: number) => {
+    deletePsychomotorDomain: async (_id: number) => {
       // Placeholder implementation
       
       return Promise.resolve();
@@ -8137,7 +7904,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     },
     
     // Teacher-specific refresh methods
-    refreshTeacherData: async (teacherId: number) => {
+    refreshTeacherData: async (_teacherId: number) => {
       await Promise.all([
         loadStudentsFromAPI(),
         loadClassesFromAPI(),
@@ -8152,7 +7919,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     },
     
     // Class-specific refresh
-    refreshClassData: async (classId: number) => {
+    refreshClassData: async (_classId: number) => {
       await Promise.all([
         loadStudentsFromAPI(),
         loadScoresFromAPI(),
@@ -8359,7 +8126,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
     },
 
-    updateAffectiveDomain: async (id: number, affectiveData: any) => {
+    updateAffectiveDomain: async (_id: number, affectiveData: any) => {
   try {
     // Backend endpoint performs upsert, so update uses the same route.
     await tokenManager.ensureToken(currentUser);
@@ -8434,7 +8201,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
     },
 
-    updatePsychomotorDomain: async (id: number, psychomotorData: any) => {
+    updatePsychomotorDomain: async (_id: number, psychomotorData: any) => {
       try {
         // Backend endpoint performs upsert, so update uses the same route.
         await tokenManager.ensureToken(currentUser);
@@ -8485,12 +8252,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadCurrentTermAndYear();
   }, []); // Empty dependency array to run only once on mount
-
-  // Term change detection and auto-refresh (DISABLED - data loads lazily per term/session)
-  const handleTermChange = (newTerm: string, newYear: string) => {
-    
-    // Data will reload on next access due to cleared state in update functions
-  };
 
   // DISABLED: No automatic term change detection or refresh
   // const { isRefreshing } = useTermChangeDetector({

@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
 import { api } from '../../services/api';
 import { API_CONFIG } from '../../config/api';
-import { Plus, Search, Pencil, Trash2, BookOpen, Users, X, Check, AlertTriangle, Trophy, Clock, Zap, UserCheck, Calendar, Filter, ChevronDown, ChevronUp, LayoutGrid, List, User, Loader2, Save, FileText } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Plus, Search, Trash2, BookOpen, Users, Check, AlertTriangle, Trophy, Zap, UserCheck, Calendar, LayoutGrid, List, User, Loader2, Save } from 'lucide-react';
+import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -27,14 +27,10 @@ export function ManageTeacherAssignmentsPage() {
     removeSubjectAssignmentAPI,
     currentAcademicYear,
     currentTerm,
-    updateClass,
-    updateTeacher,
-    getTeacherAssignments,
     loadSubjectAssignmentsFromAPI,
     loadClassTeacherAssignmentsFromAPI,
     loadTeachersFromAPI,
     loadClassesFromAPI,
-    validateClassTeacherAssignment,
     loadCurrentTermAndYear,
     subjectRegistrations,
     loadSubjectRegistrationsFromAPI,
@@ -53,7 +49,7 @@ export function ManageTeacherAssignmentsPage() {
   const [selectedAssignments, setSelectedAssignments] = useState<{ subject_id: number; class_id: number }[]>([]);
   const [selectedClassForTeacher, setSelectedClassForTeacher] = useState<string>('');
   const [selectedClassIdForAssignments, setSelectedClassIdForAssignments] = useState<number | null>(null);
-  const [activityLogs, setActivityLogs] = useState<Array<{
+  const [_activityLogs, setActivityLogs] = useState<Array<{
     id: string;
     action: string;
     teacherName: string;
@@ -67,7 +63,7 @@ export function ManageTeacherAssignmentsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteType, setConfirmDeleteType] = useState<'subject' | 'class-teacher' | null>(null);
   const [confirmDeleteDetails, setConfirmDeleteDetails] = useState<string>('');
-  const [showFilters, setShowFilters] = useState(false);
+  const [_showFilters, _setShowFilters] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
@@ -575,7 +571,7 @@ export function ManageTeacherAssignmentsPage() {
             <div>
               <h1 className="text-xl sm:text-3xl font-heading font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
                 <div className="p-1.5 sm:p-2 bg-[#0A2540] rounded-lg">
-                  <UserCheck weight="bold" className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  <UserCheck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 Teacher Assignments
               </h1>
@@ -587,7 +583,7 @@ export function ManageTeacherAssignmentsPage() {
                 className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-4 sm:px-6 w-full sm:w-auto flex items-center justify-center gap-2 h-10 sm:h-auto"
                 size="sm"
               >
-                <Plus weight="bold" className="w-4 h-4 flex-shrink-0" />
+                <Plus className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline whitespace-nowrap">New Assignment</span>
                 <span className="sm:hidden whitespace-nowrap">Assignment</span>
               </Button>
@@ -597,7 +593,7 @@ export function ManageTeacherAssignmentsPage() {
                 className="border-gray-300 hover:bg-gray-50 transition-all duration-200 px-4 sm:px-6 w-full sm:w-auto flex items-center justify-center gap-2 h-10 sm:h-auto"
                 size="sm"
               >
-                <UserCheck weight="bold" className="w-4 h-4 flex-shrink-0" />
+                <UserCheck className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline whitespace-nowrap">Class Teachers</span>
                 <span className="sm:hidden whitespace-nowrap">Teachers</span>
               </Button>
@@ -610,7 +606,7 @@ export function ManageTeacherAssignmentsPage() {
         {/* Loading State */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24">
-            <Loader2 weight="bold" className="w-10 h-10 text-[#0A2540] animate-spin mb-4" />
+            <Loader2 className="w-10 h-10 text-[#0A2540] animate-spin mb-4" />
             <p className="text-gray-600 font-medium">Loading teacher assignments...</p>
           </div>
         ) : (<>
@@ -624,12 +620,12 @@ export function ManageTeacherAssignmentsPage() {
                   <p className="text-gray-600 text-xs sm:text-sm font-medium">Total Assignments</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.totalAssignments}</p>
                   <p className="text-[10px] sm:text-xs text-emerald-600 mt-1 sm:mt-2 flex items-center">
-                    <Zap weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
+                    <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     Active this term
                   </p>
                 </div>
                 <div className="p-2 sm:p-3 bg-[#0A2540]/10 rounded-xl">
-                  <BookOpen weight="bold" className="w-4 h-4 sm:w-6 sm:h-6 text-[#0A2540]" />
+                  <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-[#0A2540]" />
                 </div>
               </div>
             </CardContent>
@@ -642,12 +638,12 @@ export function ManageTeacherAssignmentsPage() {
                   <p className="text-gray-600 text-xs sm:text-sm font-medium">Active Teachers</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.uniqueTeachers}</p>
                   <p className="text-[10px] sm:text-xs text-[#0A2540] mt-1 sm:mt-2 flex items-center">
-                    <Users weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
+                    <Users className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     With assignments
                   </p>
                 </div>
                 <div className="p-2 sm:p-3 bg-[#0A2540]/10 rounded-xl">
-                  <Users weight="bold" className="w-4 h-4 sm:w-6 sm:h-6 text-[#0A2540]" />
+                  <Users className="w-4 h-4 sm:w-6 sm:h-6 text-[#0A2540]" />
                 </div>
               </div>
             </CardContent>
@@ -660,12 +656,12 @@ export function ManageTeacherAssignmentsPage() {
                   <p className="text-gray-600 text-xs sm:text-sm font-medium">Subjects Covered</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.uniqueSubjects}</p>
                   <p className="text-[10px] sm:text-xs text-orange-600 mt-1 sm:mt-2 flex items-center">
-                    <Trophy weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
+                    <Trophy className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     Across curriculum
                   </p>
                 </div>
                 <div className="p-2 sm:p-3 bg-orange-100 rounded-xl">
-                  <Trophy weight="bold" className="w-4 h-4 sm:w-6 sm:h-6 text-orange-600" />
+                  <Trophy className="w-4 h-4 sm:w-6 sm:h-6 text-orange-600" />
                 </div>
               </div>
             </CardContent>
@@ -678,12 +674,12 @@ export function ManageTeacherAssignmentsPage() {
                   <p className="text-gray-600 text-xs sm:text-sm font-medium">Classes Served</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-0.5 sm:mt-1">{stats.uniqueClasses}</p>
                   <p className="text-[10px] sm:text-xs text-emerald-600 mt-1 sm:mt-2 flex items-center">
-                    <Calendar weight="bold" className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
+                    <Calendar className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
                     All levels
                   </p>
                 </div>
                 <div className="p-2 sm:p-3 bg-emerald-100 rounded-xl">
-                  <Calendar weight="bold" className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-600" />
+                  <Calendar className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-600" />
                 </div>
               </div>
             </CardContent>
@@ -696,7 +692,7 @@ export function ManageTeacherAssignmentsPage() {
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
-                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <Input
                     placeholder="Search by teacher, subject, or class..."
                     value={searchQuery}
@@ -709,7 +705,7 @@ export function ManageTeacherAssignmentsPage() {
                 <Select value={filterTeacher} onValueChange={setFilterTeacher}>
                   <SelectTrigger className="w-full lg:w-48 h-10 rounded-xl border-gray-200">
                     <div className="flex items-center gap-2">
-                      <User weight="bold" className="w-4 h-4 text-gray-400" />
+                      <User className="w-4 h-4 text-gray-400" />
                       <SelectValue placeholder="All Teachers" />
                     </div>
                   </SelectTrigger>
@@ -731,7 +727,7 @@ export function ManageTeacherAssignmentsPage() {
                 <Select value={filterClass} onValueChange={setFilterClass}>
                   <SelectTrigger className="w-full lg:w-48 h-10 rounded-xl border-gray-200">
                     <div className="flex items-center gap-2">
-                      <LayoutGrid weight="bold" className="w-4 h-4 text-gray-400" />
+                      <LayoutGrid className="w-4 h-4 text-gray-400" />
                       <SelectValue placeholder="All Classes" />
                     </div>
                   </SelectTrigger>
@@ -752,7 +748,7 @@ export function ManageTeacherAssignmentsPage() {
                     onClick={() => setViewMode('table')}
                     className={`rounded-lg ${viewMode === 'table' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'} p-2`}
                   >
-                    <List weight="bold" className="w-4 h-4" />
+                    <List className="w-4 h-4" />
                   </Button>
                   <Button
                     variant={viewMode === 'grid' ? 'default' : 'ghost'}
@@ -760,7 +756,7 @@ export function ManageTeacherAssignmentsPage() {
                     onClick={() => setViewMode('grid')}
                     className={`rounded-lg ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'} p-2`}
                   >
-                    <LayoutGrid weight="bold" className="w-4 h-4" />
+                    <LayoutGrid className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -776,12 +772,12 @@ export function ManageTeacherAssignmentsPage() {
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'subjects' | 'class-teachers')} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 bg-gray-100/50 p-1 rounded-xl">
                     <TabsTrigger value="subjects" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm sm:text-base py-2 px-3">
-                      <BookOpen weight="bold" className="w-4 h-4 flex-shrink-0" />
+                      <BookOpen className="w-4 h-4 flex-shrink-0" />
                       <span className="hidden sm:inline">Subject Assignments</span>
                       <span className="sm:hidden">Subjects</span>
                     </TabsTrigger>
                     <TabsTrigger value="class-teachers" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm sm:text-base py-2 px-3">
-                      <UserCheck weight="bold" className="w-4 h-4 flex-shrink-0" />
+                      <UserCheck className="w-4 h-4 flex-shrink-0" />
                       <span className="hidden sm:inline">Class Teachers</span>
                       <span className="sm:hidden">Teachers</span>
                     </TabsTrigger>
@@ -816,14 +812,14 @@ export function ManageTeacherAssignmentsPage() {
                             <TableCell colSpan={5} className="text-center py-16">
                               <div className="flex flex-col items-center gap-4">
                                 <div className="p-4 bg-gray-100 rounded-full">
-                                  <BookOpen weight="bold" className="w-8 h-8 text-gray-400" />
+                                  <BookOpen className="w-8 h-8 text-gray-400" />
                                 </div>
                                 <div>
                                   <p className="text-gray-900 font-medium">No assignments found</p>
                                   <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
                                 </div>
                                 <Button onClick={handleOpenAssignDialog} className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white">
-                                  <Plus weight="bold" className="w-4 h-4 mr-2" />
+                                  <Plus className="w-4 h-4 mr-2" />
                                   Create First Assignment
                                 </Button>
                               </div>
@@ -846,7 +842,7 @@ export function ManageTeacherAssignmentsPage() {
                           <TableCell className="py-4">
                             <div className="flex items-center gap-2">
                               <div className="p-2 bg-orange-100 rounded-lg flex-shrink-0">
-                                <BookOpen weight="bold" className="w-4 h-4 text-orange-600" />
+                                <BookOpen className="w-4 h-4 text-orange-600" />
                               </div>
                               <div className="min-w-0">
                                 <p className="font-medium text-gray-900 truncate">{assignment.subject_name}</p>
@@ -857,7 +853,7 @@ export function ManageTeacherAssignmentsPage() {
                           <TableCell className="py-4">
                             <div className="flex items-center gap-2">
                               <div className="p-2 bg-emerald-100 rounded-lg flex-shrink-0">
-                                <Users weight="bold" className="w-4 h-4 text-emerald-600" />
+                                <Users className="w-4 h-4 text-emerald-600" />
                               </div>
                               <div className="min-w-0">
                                 <p className="font-medium text-gray-900 truncate">{assignment.class_name}</p>
@@ -882,7 +878,7 @@ export function ManageTeacherAssignmentsPage() {
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
                               aria-label="Delete assignment"
                             >
-                              <Trash2 weight="bold" className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -897,12 +893,12 @@ export function ManageTeacherAssignmentsPage() {
                     {filteredAssignments.length === 0 ? (
                       <div className="flex flex-col items-center gap-3 py-12 px-4">
                         <div className="p-3 bg-gray-100 rounded-full">
-                          <BookOpen weight="bold" className="w-6 h-6 text-gray-400" />
+                          <BookOpen className="w-6 h-6 text-gray-400" />
                         </div>
                         <p className="text-gray-900 font-medium text-sm">No assignments found</p>
                         <p className="text-gray-500 text-xs">Try adjusting your search or filters</p>
                         <Button onClick={handleOpenAssignDialog} className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white h-8 text-xs" size="sm">
-                          <Plus weight="bold" className="w-3 h-3 mr-1" />
+                          <Plus className="w-3 h-3 mr-1" />
                           Create Assignment
                         </Button>
                       </div>
@@ -930,7 +926,7 @@ export function ManageTeacherAssignmentsPage() {
                                 }}
                                 className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-8 w-8 flex-shrink-0"
                               >
-                                <Trash2 weight="bold" className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -960,7 +956,7 @@ export function ManageTeacherAssignmentsPage() {
                         <Card className="bg-white border border-gray-100 shadow-lg rounded-2xl">
                           <CardContent className="p-12 text-center">
                             <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                              <BookOpen weight="bold" className="w-8 h-8 text-gray-400" />
+                              <BookOpen className="w-8 h-8 text-gray-400" />
                             </div>
                             <p className="text-gray-900 font-medium text-lg mb-2">No assignments found</p>
                             <p className="text-gray-500 text-sm mb-6">Try adjusting your search or filters</p>
@@ -968,7 +964,7 @@ export function ManageTeacherAssignmentsPage() {
                               onClick={handleOpenAssignDialog}
                               className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white"
                             >
-                              <Plus weight="bold" className="w-4 h-4 mr-2" />
+                              <Plus className="w-4 h-4 mr-2" />
                               Create First Assignment
                             </Button>
                           </CardContent>
@@ -999,13 +995,13 @@ export function ManageTeacherAssignmentsPage() {
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 min-w-[44px] min-h-[44px]"
                                 aria-label="Delete assignment"
                               >
-                                <Trash2 weight="bold" className="w-4 h-4" />
+                                <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
                             <div className="space-y-3">
                               <div className="flex items-center gap-2">
                                 <div className="p-2 bg-orange-100 rounded-lg">
-                                  <BookOpen weight="bold" className="w-4 h-4 text-orange-600" />
+                                  <BookOpen className="w-4 h-4 text-orange-600" />
                                 </div>
                                 <div>
                                   <p className="font-medium text-gray-900">{assignment.subject_name}</p>
@@ -1014,7 +1010,7 @@ export function ManageTeacherAssignmentsPage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="p-2 bg-emerald-100 rounded-lg">
-                                  <Users weight="bold" className="w-4 h-4 text-emerald-600" />
+                                  <Users className="w-4 h-4 text-emerald-600" />
                                 </div>
                                 <div>
                                   <p className="font-medium text-gray-900">{assignment.class_name}</p>
@@ -1093,7 +1089,7 @@ export function ManageTeacherAssignmentsPage() {
                       onClick={() => setIsClassTeacherDialogOpen(true)}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-9 sm:h-auto w-full sm:w-auto text-sm"
                     >
-                      <Plus weight="bold" className="w-4 h-4 flex-shrink-0" />
+                      <Plus className="w-4 h-4 flex-shrink-0" />
                       <span className="hidden sm:inline whitespace-nowrap">Assign Class Teacher</span>
                       <span className="sm:hidden whitespace-nowrap">Assign Teacher</span>
                     </Button>
@@ -1102,7 +1098,7 @@ export function ManageTeacherAssignmentsPage() {
                   {classTeacherAssignments.length === 0 ? (
                     <div className="text-center py-10 sm:py-16">
                       <div className="p-3 bg-gray-100 rounded-full w-12 h-12 mx-auto mb-3 flex items-center justify-center">
-                        <UserCheck weight="bold" className="w-6 h-6 text-gray-400" />
+                        <UserCheck className="w-6 h-6 text-gray-400" />
                       </div>
                       <p className="text-gray-900 font-medium text-sm sm:text-lg mb-1">No class teachers assigned</p>
                       <p className="text-gray-500 text-xs sm:text-sm mb-4">Assign class teachers to manage classes</p>
@@ -1110,7 +1106,7 @@ export function ManageTeacherAssignmentsPage() {
                         onClick={() => setIsClassTeacherDialogOpen(true)}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-6 flex items-center justify-center gap-2 h-9 sm:h-auto w-full sm:w-auto text-sm"
                       >
-                        <Plus weight="bold" className="w-4 h-4 flex-shrink-0" />
+                        <Plus className="w-4 h-4 flex-shrink-0" />
                         <span className="hidden sm:inline whitespace-nowrap">Assign First Class Teacher</span>
                         <span className="sm:hidden whitespace-nowrap">Assign Teacher</span>
                       </Button>
@@ -1149,7 +1145,7 @@ export function ManageTeacherAssignmentsPage() {
                                 disabled={removingAssignmentId === String(assignment.id)}
                                 className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1.5 h-8 w-8"
                               >
-                                <Trash2 weight="bold" className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
                           </div>
@@ -1217,7 +1213,7 @@ export function ManageTeacherAssignmentsPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
-                <AlertTriangle weight="bold" className="w-5 h-5 text-red-600" />
+                <AlertTriangle className="w-5 h-5 text-red-600" />
                 Confirm Deletion
               </AlertDialogTitle>
               <AlertDialogDescription>
@@ -1235,7 +1231,7 @@ export function ManageTeacherAssignmentsPage() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
-                <Trash2 weight="bold" className="w-4 h-4 mr-2" />
+                <Trash2 className="w-4 h-4 mr-2" />
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1258,19 +1254,19 @@ export function ManageTeacherAssignmentsPage() {
                   <div className="flex items-center gap-2">
                     {saveStatus === 'saving' && (
                       <div className="flex items-center gap-1 text-[#0A2540]">
-                        <Loader2 weight="bold" className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         <span className="text-sm">Saving...</span>
                       </div>
                     )}
                     {saveStatus === 'saved' && (
                       <div className="flex items-center gap-1 text-emerald-600">
-                        <Check weight="bold" className="w-4 h-4" />
+                        <Check className="w-4 h-4" />
                         <span className="text-sm">Saved</span>
                       </div>
                     )}
                     {saveStatus === 'error' && (
                       <div className="flex items-center gap-1 text-red-600">
-                        <AlertTriangle weight="bold" className="w-4 h-4" />
+                        <AlertTriangle className="w-4 h-4" />
                         <span className="text-sm">Error</span>
                       </div>
                     )}
@@ -1284,7 +1280,7 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Teacher</Label>
                 <div className="relative">
-                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search teachers..."
@@ -1321,7 +1317,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="text-xs text-gray-500">ID: {teacher.id}</p>
                           </div>
                           {selectedTeacherId === teacher.id && (
-                            <Check weight="bold" className="w-4 h-4 text-[#0A2540]" />
+                            <Check className="w-4 h-4 text-[#0A2540]" />
                           )}
                         </div>
                       </div>
@@ -1334,7 +1330,7 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Class</Label>
                 <div className="relative">
-                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search classes..."
@@ -1369,7 +1365,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="text-xs text-gray-500">{cls.level}</p>
                           </div>
                           {selectedClassIdForAssignments === cls.id && (
-                            <Check weight="bold" className="w-4 h-4 text-emerald-600" />
+                            <Check className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>
@@ -1430,7 +1426,7 @@ export function ManageTeacherAssignmentsPage() {
                           >
                             <div className="flex items-center gap-2">
                               <div className="p-1 bg-[#0A2540]/10 rounded">
-                                <BookOpen weight="bold" className="w-3 h-3 text-[#0A2540]" />
+                                <BookOpen className="w-3 h-3 text-[#0A2540]" />
                               </div>
                               <div>
                                 <p className="font-medium text-gray-900 text-sm">{subject.name}</p>
@@ -1492,12 +1488,12 @@ export function ManageTeacherAssignmentsPage() {
               >
                 {isSaving ? (
                   <>
-                    <Loader2 weight="bold" className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Saving...
                   </>
                 ) : (
                   <>
-                    <Save weight="bold" className="w-4 h-4 mr-2" />
+                    <Save className="w-4 h-4 mr-2" />
                     Save Assignments ({selectedAssignments.length})
                   </>
                 )}
@@ -1519,7 +1515,7 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Teacher</Label>
                 <div className="relative">
-                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search teachers..."
@@ -1556,7 +1552,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="text-xs text-gray-500">ID: {teacher.id}</p>
                           </div>
                           {selectedTeacherId === teacher.id && (
-                            <Check weight="bold" className="w-4 h-4 text-emerald-600" />
+                            <Check className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>
@@ -1569,7 +1565,7 @@ export function ManageTeacherAssignmentsPage() {
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Class</Label>
                 <div className="relative">
-                  <Search weight="bold" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     type="text"
                     placeholder="Search classes..."
@@ -1604,7 +1600,7 @@ export function ManageTeacherAssignmentsPage() {
                             <p className="text-xs text-gray-500">{cls.level}</p>
                           </div>
                           {selectedClassForTeacher === cls.id.toString() && (
-                            <Check weight="bold" className="w-4 h-4 text-emerald-600" />
+                            <Check className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>

@@ -120,7 +120,7 @@ export class AdminPageOptimizer {
   /**
    * Check if user has specific permission
    */
-  private static hasPermission(user: any, permission: AdminPermission): boolean {
+  private static hasPermission(user: any, _permission: AdminPermission): boolean {
     if (!user || user.role !== 'admin') {
       return false;
     }

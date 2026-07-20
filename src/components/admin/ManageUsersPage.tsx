@@ -1,6 +1,6 @@
-import { Settings, Calculator, GraduationCap, User, CheckCircle2, Pencil, Trash2, Eye, Plus, Download, FileText, Search, Key, UserMinus, UserCheck } from 'lucide-react';
+import { Settings, User, Pencil, Trash2, Eye, Plus, FileText, Search, Key, UserMinus, UserCheck } from 'lucide-react';
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader } from "../ui/card";
+import { CardContent, CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 // @ts-ignore - TypeScript language service caching issue
@@ -11,7 +11,6 @@ import { toast } from "sonner";
 // @ts-ignore - TypeScript language service caching issue
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -28,20 +27,17 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Label } from "../ui/label";
-import { Switch } from "../ui/switch";
 import { Teacher, Parent, Accountant, User as UserType } from "../../types/school";
 import { useSchool } from "../../contexts/SchoolContext";
 import { User as UserIcon } from "lucide-react";
 import { Checkbox } from "../ui/checkbox";
-import { Textarea } from "../ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../ui/sheet";
 
 export function ManageUsersPage() {
-  const { users, teachers, parents, accountants, classes, setUsers, setTeachers, setParents, setAccountants, createUserAPI, updateUserAPI, deleteUserAPI, updateUserStatusAPI, resetUserPasswordAPI, loadUsersFromAPI, loadTeachersFromAPI, loadParentsFromAPI, loadAccountantsFromAPI, deleteTeacherAPI, deleteParentAPI, deleteAccountantAPI, updateTeacherStatusAPI, updateParentStatusAPI, updateAccountantStatusAPI } = useSchool();
+  const { users, teachers, parents, accountants, classes, setTeachers, setParents, setAccountants, createUserAPI, updateUserAPI, deleteUserAPI, updateUserStatusAPI, resetUserPasswordAPI, loadUsersFromAPI, loadTeachersFromAPI, loadParentsFromAPI, loadAccountantsFromAPI, deleteTeacherAPI, deleteParentAPI, deleteAccountantAPI, updateTeacherStatusAPI, updateParentStatusAPI, updateAccountantStatusAPI } = useSchool();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
-  const [activeTab, setActiveTab] = useState("users");
+  const [_activeTab, setActiveTab] = useState("users");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -52,16 +48,16 @@ export function ManageUsersPage() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   
   // Teacher dialogs
-  const [showTeacherViewDialog, setShowTeacherViewDialog] = useState(false);
-  const [showTeacherEditDialog, setShowTeacherEditDialog] = useState(false);
+  const [_showTeacherViewDialog, setShowTeacherViewDialog] = useState(false);
+  const [_showTeacherEditDialog, setShowTeacherEditDialog] = useState(false);
   
   // Parent dialogs
-  const [showParentViewDialog, setShowParentViewDialog] = useState(false);
-  const [showParentEditDialog, setShowParentEditDialog] = useState(false);
+  const [_showParentViewDialog, setShowParentViewDialog] = useState(false);
+  const [_showParentEditDialog, setShowParentEditDialog] = useState(false);
   
   // Accountant dialogs
-  const [showAccountantViewDialog, setShowAccountantViewDialog] = useState(false);
-  const [showAccountantEditDialog, setShowAccountantEditDialog] = useState(false);
+  const [_showAccountantViewDialog, setShowAccountantViewDialog] = useState(false);
+  const [_showAccountantEditDialog, setShowAccountantEditDialog] = useState(false);
   const [showDeleteTeacherDialog, setShowDeleteTeacherDialog] = useState(false);
   const [showDeleteParentDialog, setShowDeleteParentDialog] = useState(false);
   const [showDeleteAccountantDialog, setShowDeleteAccountantDialog] = useState(false);
@@ -69,16 +65,16 @@ export function ManageUsersPage() {
   const [deleteParentTarget, setDeleteParentTarget] = useState<Parent | null>(null);
   const [deleteAccountantTarget, setDeleteAccountantTarget] = useState<Accountant | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
-  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
-  const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
-  const [selectedAccountant, setSelectedAccountant] = useState<Accountant | null>(null);
+  const [_selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+  const [_selectedParent, setSelectedParent] = useState<Parent | null>(null);
+  const [_selectedAccountant, setSelectedAccountant] = useState<Accountant | null>(null);
   const [resetViaEmail, setResetViaEmail] = useState(true);
   const [resetViaSMS, setResetViaSMS] = useState(false);
-  const [resetParentToDefault, setResetParentToDefault] = useState(false);
+  const [_resetParentToDefault, setResetParentToDefault] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [teacherActionLoading, setTeacherActionLoading] = useState<string | null>(null);
-  const [parentActionLoading, setParentActionLoading] = useState<string | null>(null);
-  const [accountantActionLoading, setAccountantActionLoading] = useState<string | null>(null);
+  const [_parentActionLoading, _setParentActionLoading] = useState<string | null>(null);
+  const [_accountantActionLoading, _setAccountantActionLoading] = useState<string | null>(null);
 
   // Form states
   const [createFormData, setCreateFormData] = useState({
@@ -220,7 +216,7 @@ export function ManageUsersPage() {
   }, [filteredUsers, currentPage, pageSize]);
 
   // Filter teachers - optimized with useMemo
-  const filteredTeachers = useMemo(() => {
+  const _filteredTeachers = useMemo(() => {
     if (!teachers || teachers.length === 0) return [];
     
     return teachers.filter(teacher => {
@@ -235,7 +231,7 @@ export function ManageUsersPage() {
   }, [teachers, searchTerm]);
 
   // Filter parents - optimized with useMemo
-  const filteredParents = useMemo(() => {
+  const _filteredParents = useMemo(() => {
     if (!parents || parents.length === 0) return [];
     
     return parents.filter(parent => {
@@ -250,7 +246,7 @@ export function ManageUsersPage() {
   }, [parents, searchTerm]);
 
   // Filter accountants - optimized with useMemo
-  const filteredAccountants = useMemo(() => {
+  const _filteredAccountants = useMemo(() => {
     if (!accountants || accountants.length === 0) return [];
     
     return accountants.filter(accountant => {
@@ -317,7 +313,7 @@ export function ManageUsersPage() {
       const newPassword = await resetUserPasswordAPI(selectedUser.id, requestedPassword);
       
       if (newPassword) {
-        const method = resetViaEmail && resetViaSMS 
+        const _method = resetViaEmail && resetViaSMS 
           ? "Email & SMS" 
           : resetViaEmail 
           ? "Email" 
@@ -369,7 +365,7 @@ export function ManageUsersPage() {
     setEditFormData({
       username: user.username,
       email: user.email,
-      role: user.role,
+      role: user.role as 'admin' | 'teacher' | 'accountant' | 'parent',
       status: user.status,
       first_name: anyUser.first_name || '',
       last_name: anyUser.last_name || '',
@@ -420,11 +416,11 @@ export function ManageUsersPage() {
     setShowViewDialog(true);
   };
 
-  const handleResendCredentials = (user: UserType) => {
+  const _handleResendCredentials = (user: UserType) => {
     toast.success(`Credentials resent to ${user.email}`);
   };
 
-  const handleBulkImport = () => {
+  const _handleBulkImport = () => {
     toast.info("CSV import functionality");
   };
 
@@ -544,17 +540,17 @@ export function ManageUsersPage() {
   };
 
   // Handler functions for teachers, parents, and accountants
-  const handleViewTeacher = (teacher: Teacher) => {
+  const _handleViewTeacher = (teacher: Teacher) => {
     setSelectedTeacher(teacher);
     setShowTeacherViewDialog(true);
   };
 
-  const handleEditTeacher = (teacher: Teacher) => {
+  const _handleEditTeacher = (teacher: Teacher) => {
     setSelectedTeacher(teacher);
     setShowTeacherEditDialog(true);
   };
 
-  const handleDeleteTeacher = (teacher: Teacher) => {
+  const _handleDeleteTeacher = (teacher: Teacher) => {
     setDeleteTeacherTarget(teacher);
     setShowDeleteTeacherDialog(true);
   };
@@ -576,17 +572,17 @@ export function ManageUsersPage() {
     }
   };
 
-  const handleViewParent = (parent: Parent) => {
+  const _handleViewParent = (parent: Parent) => {
     setSelectedParent(parent);
     setShowParentViewDialog(true);
   };
 
-  const handleEditParent = (parent: Parent) => {
+  const _handleEditParent = (parent: Parent) => {
     setSelectedParent(parent);
     setShowParentEditDialog(true);
   };
 
-  const handleDeleteParent = (parent: Parent) => {
+  const _handleDeleteParent = (parent: Parent) => {
     setDeleteParentTarget(parent);
     setShowDeleteParentDialog(true);
   };
@@ -606,17 +602,17 @@ export function ManageUsersPage() {
     }
   };
 
-  const handleViewAccountant = (accountant: Accountant) => {
+  const _handleViewAccountant = (accountant: Accountant) => {
     setSelectedAccountant(accountant);
     setShowAccountantViewDialog(true);
   };
 
-  const handleEditAccountant = (accountant: Accountant) => {
+  const _handleEditAccountant = (accountant: Accountant) => {
     setSelectedAccountant(accountant);
     setShowAccountantEditDialog(true);
   };
 
-  const handleDeleteAccountant = (accountant: Accountant) => {
+  const _handleDeleteAccountant = (accountant: Accountant) => {
     setDeleteAccountantTarget(accountant);
     setShowDeleteAccountantDialog(true);
   };
@@ -637,7 +633,7 @@ export function ManageUsersPage() {
   };
 
   // Status toggle handlers
-  const handleToggleTeacherStatus = async (teacher: Teacher) => {
+  const _handleToggleTeacherStatus = async (teacher: Teacher) => {
     const newStatus = teacher.status === 'Active' ? 'Inactive' : 'Active';
     const actionKey = `status-${teacher.id}`;
     
@@ -676,7 +672,7 @@ export function ManageUsersPage() {
     }
   };
 
-  const handleToggleParentStatus = async (parent: Parent) => {
+  const _handleToggleParentStatus = async (parent: Parent) => {
     const newStatus = parent.status === 'Active' ? 'Inactive' : 'Active';
     
     // Optimistic update - update UI immediately
@@ -710,7 +706,7 @@ export function ManageUsersPage() {
     }
   };
 
-  const handleToggleAccountantStatus = async (accountant: Accountant) => {
+  const _handleToggleAccountantStatus = async (accountant: Accountant) => {
     const newStatus = accountant.status === 'Active' ? 'Inactive' : 'Active';
     
     // Optimistic update - update UI immediately
@@ -770,7 +766,7 @@ export function ManageUsersPage() {
             disabled={isLoading}
             type="button"
           >
-            <Plus className="w-4 h-4" weight="bold" />
+            <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Create User</span>
             <span className="sm:hidden">New User</span>
           </Button>
@@ -782,7 +778,7 @@ export function ManageUsersPage() {
             disabled={isLoading}
             type="button"
           >
-            <FileText className="w-4 h-4" weight="bold" />
+            <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">Export</span>
             <span className="sm:hidden">Export</span>
           </Button>
@@ -798,7 +794,7 @@ export function ManageUsersPage() {
                 <p className="text-[#0A2540] text-xs font-medium">Total Users</p>
                 <p className="text-lg font-bold text-[#0A2540]">{stats.users.total}</p>
               </div>
-              <UserIcon className="w-6 h-6 text-[#0A2540]" weight="bold" />
+              <UserIcon className="w-6 h-6 text-[#0A2540]" />
             </div>
           </CardContent>
         </div>
@@ -822,7 +818,7 @@ export function ManageUsersPage() {
                 <p className="text-orange-600 text-xs font-medium">Inactive Users</p>
                 <p className="text-lg font-bold text-orange-900">{stats.users.inactive}</p>
               </div>
-              <Settings className="w-6 h-6 text-orange-500" weight="bold" />
+              <Settings className="w-6 h-6 text-orange-500" />
             </div>
           </CardContent>
         </div>
@@ -834,7 +830,7 @@ export function ManageUsersPage() {
                 <p className="text-[#0A2540] text-xs font-medium">Admin Users</p>
                 <p className="text-lg font-bold text-[#0A2540]">{stats.users.admin}</p>
               </div>
-              <Settings className="w-6 h-6 text-[#0A2540]" weight="bold" />
+              <Settings className="w-6 h-6 text-[#0A2540]" />
             </div>
           </CardContent>
         </div>
@@ -885,7 +881,7 @@ export function ManageUsersPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" weight="bold" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     placeholder="Search by name, email, or phone..."
                     value={searchTerm}
@@ -961,7 +957,7 @@ export function ManageUsersPage() {
                                 title="View Details"
                                 type="button"
                               >
-                                <Eye className="w-3 h-3" weight="bold" />
+                                <Eye className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(user); }}
@@ -971,7 +967,7 @@ export function ManageUsersPage() {
                                 title="Edit User"
                                 type="button"
                               >
-                                <Pencil className="w-3 h-3" weight="bold" />
+                                <Pencil className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleResetPassword(user); }}
@@ -981,7 +977,7 @@ export function ManageUsersPage() {
                                 title="Reset Password"
                                 type="button"
                               >
-                                <Key className="w-3 h-3" weight="bold" />
+                                <Key className="w-3 h-3" />
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeactivate(user); }}
@@ -991,7 +987,7 @@ export function ManageUsersPage() {
                                 title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
                                 type="button"
                               >
-                                {user.status === 'Active' ? <UserMinus className="w-3 h-3" weight="bold" /> : <UserCheck className="w-3 h-3" weight="bold" />}
+                                {user.status === 'Active' ? <UserMinus className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
                               </Button>
                               <Button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(user); }}
@@ -1001,7 +997,7 @@ export function ManageUsersPage() {
                                 title="Delete User"
                                 type="button"
                               >
-                                <Trash2 className="w-3 h-3" weight="bold" />
+                                <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1099,7 +1095,7 @@ export function ManageUsersPage() {
                           title="View Details"
                           type="button"
                         >
-                          <Eye className="w-3 h-3" weight="bold" />
+                          <Eye className="w-3 h-3" />
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(user); }}
@@ -1109,7 +1105,7 @@ export function ManageUsersPage() {
                           title="Edit User"
                           type="button"
                         >
-                          <Pencil className="w-3 h-3" weight="bold" />
+                          <Pencil className="w-3 h-3" />
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleResetPassword(user); }}
@@ -1119,7 +1115,7 @@ export function ManageUsersPage() {
                           title="Reset Password"
                           type="button"
                         >
-                          <Key className="w-3 h-3" weight="bold" />
+                          <Key className="w-3 h-3" />
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeactivate(user); }}
@@ -1129,7 +1125,7 @@ export function ManageUsersPage() {
                           title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
                           type="button"
                         >
-                          {user.status === 'Active' ? <UserMinus className="w-3 h-3" weight="bold" /> : <UserCheck className="w-3 h-3" weight="bold" />}
+                          {user.status === 'Active' ? <UserMinus className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
                         </Button>
                         <Button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(user); }}
@@ -1139,7 +1135,7 @@ export function ManageUsersPage() {
                           title="Delete User"
                           type="button"
                         >
-                          <Trash2 className="w-3 h-3" weight="bold" />
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
                     </CardContent>
@@ -1200,7 +1196,7 @@ export function ManageUsersPage() {
               <SheetHeader className="text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[#0A2540] flex items-center justify-center shadow-sm">
-                    <Plus className="w-5 h-5 text-white" weight="bold" />
+                    <Plus className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <SheetTitle className="text-[#1F2937] text-lg">Create New User</SheetTitle>
@@ -1602,7 +1598,7 @@ export function ManageUsersPage() {
             {selectedUser && (
               <div className="flex items-center gap-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
                 <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#0A2540]/10 rounded-full flex items-center justify-center shrink-0">
-                  <User className="w-6 h-6 sm:w-8 sm:h-8 text-[#0A2540]" weight="bold" />
+                  <User className="w-6 h-6 sm:w-8 sm:h-8 text-[#0A2540]" />
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-heading font-semibold text-base sm:text-lg truncate">{getUserFullName(selectedUser)}</h3>

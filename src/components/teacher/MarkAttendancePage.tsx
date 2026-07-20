@@ -7,7 +7,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
-import { Textarea } from '../ui/textarea';
+
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { API_CONFIG } from '../../config/api';
@@ -19,7 +19,6 @@ import {
   Clock, 
   AlertTriangle, 
   AlertCircle, 
-  BarChart3, 
   Zap, 
   RotateCcw, 
   XSquare, 
@@ -33,10 +32,8 @@ export function MarkAttendancePage() {
     teachers,
     classes,
     students,
-    getStudentsByClass,
     addAttendance,
     getAttendancesByDate,
-    getTeacherAssignments,
     classTeacherAssignments,
     currentTerm,
     currentAcademicYear,
@@ -277,7 +274,7 @@ export function MarkAttendancePage() {
   const handleAttendanceDaysChange = async (studentId: number, days: string) => {
     const daysNum = parseInt(days) || 0;
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm as any] || 0;
+    const _requiredDays = attendanceRequirements[currentTerm as any] || 0;
 
     if (!currentTerm || !currentAcademicYear) {
       toast.error('Current term or academic session is not set. Please contact the admin to set it in System Settings.');
@@ -425,7 +422,7 @@ export function MarkAttendancePage() {
   const handleSubmit = async () => {
     // Since we're saving in real-time, this just shows a summary
     const attendanceRequirements = getAttendanceRequirements();
-    const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
+    const _requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
     const totalStudents = classStudents.length;
     const studentsWithAttendance = Object.keys(studentAttendanceInput).length;
@@ -441,7 +438,7 @@ export function MarkAttendancePage() {
   };
 
   // Calculate attendance percentage for a student based on input
-  const calculateAttendancePercentage = (studentId: number): number => {
+  const _calculateAttendancePercentage = (studentId: number): number => {
     const attendanceRequirements = getAttendanceRequirements();
     const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
@@ -452,18 +449,18 @@ export function MarkAttendancePage() {
   };
 
   // Get total school days for the term from school settings
-  const getTotalSchoolDays = (): number => {
+  const _getTotalSchoolDays = (): number => {
     const attendanceRequirements = getAttendanceRequirements();
     return attendanceRequirements[currentTerm || 'First Term'] || 0;
   };
 
   // Get present days count for a student from input
-  const getPresentDays = (studentId: number): number => {
+  const _getPresentDays = (studentId: number): number => {
     return studentAttendanceInput[studentId] || 0;
   };
 
   // Send notifications to parents for students with low attendance
-  const sendAttendanceNotifications = async () => {
+  const _sendAttendanceNotifications = async () => {
     const attendanceRequirements = getAttendanceRequirements();
     const requiredDays = attendanceRequirements[currentTerm || 'First Term'] || 0;
     
@@ -506,7 +503,7 @@ export function MarkAttendancePage() {
     }
   };
 
-  const getStatusColor = (status: 'Present' | 'Absent' | 'Late' | 'Excused') => {
+  const _getStatusColor = (status: 'Present' | 'Absent' | 'Late' | 'Excused') => {
     switch (status) {
       case 'Present': return 'text-green-600 bg-green-50';
       case 'Absent': return 'text-red-600 bg-red-50';
@@ -516,7 +513,7 @@ export function MarkAttendancePage() {
     }
   };
 
-  const getStatusIcon = (status: 'Present' | 'Absent' | 'Late' | 'Excused') => {
+  const _getStatusIcon = (status: 'Present' | 'Absent' | 'Late' | 'Excused') => {
     switch (status) {
       case 'Present': return <CheckCircle className="w-4 h-4" />;
       case 'Absent': return <XCircle className="w-4 h-4" />;

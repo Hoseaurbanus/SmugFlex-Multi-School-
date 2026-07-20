@@ -54,7 +54,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
   const [aiExamType, setAiExamType] = useState('JAMB/WAEC');
   const [aiTopic, setAiTopic] = useState('');
   const [aiExplanations, setAiExplanations] = useState(true);
-  const [aiDiagrams, setAiDiagrams] = useState(false);
+  const [_aiDiagrams, _setAiDiagrams] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiPreview, setAiPreview] = useState<any[] | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);

@@ -6,9 +6,6 @@ export function AttendanceReportsPage() {
   const {
     classes,
     students,
-    getStudentsByClass,
-    getAttendancesByClass,
-    getAttendancesByDate,
     attendances,
     currentTerm,
     currentAcademicYear,
@@ -32,7 +29,7 @@ export function AttendanceReportsPage() {
   const presentCount = filteredAttendances.filter(a => a.status === 'Present').length;
   const absentCount = filteredAttendances.filter(a => a.status === 'Absent').length;
   const lateCount = filteredAttendances.filter(a => a.status === 'Late').length;
-  const excusedCount = filteredAttendances.filter(a => a.status === 'Excused').length;
+  const _excusedCount = filteredAttendances.filter(a => a.status === 'Excused').length;
   
   const attendanceRate = totalRecords > 0 ? ((presentCount + lateCount) / totalRecords * 100).toFixed(1) : 0;
 

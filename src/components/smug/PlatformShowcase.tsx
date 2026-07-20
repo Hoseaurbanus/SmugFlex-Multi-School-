@@ -4,12 +4,10 @@ import {
   Trophy,
   Monitor,
   Wallet,
-  Clock,
   CheckCircle2,
   XCircle,
   TrendingUp,
   Users,
-  CreditCard,
   AlertTriangle,
   FileText,
   ArrowUpRight,
@@ -17,7 +15,6 @@ import {
   Star,
   CircleDollarSign,
   Receipt,
-  PiggyBank,
 } from "lucide-react";
 
 interface PlatformShowcaseProps {

@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Card, CardContent, CardHeader } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Switch } from '../ui/switch';
 import { Alert, AlertDescription } from '../ui/alert';
 import { superAdminAuth } from '../../services/superAdminAuthService';
@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   School, Shield, LogOut, Users, Search, Check, X, Ban, Clock,
-  Plus, RefreshCw, Activity, BarChart3, ChevronDown, Menu,
+  Plus, Activity, BarChart3, Menu,
   Bell, BookOpen, FileText, Calculator, ClipboardList,
   GraduationCap, Trash2, Power, PowerOff, Key,
   ChevronRight, ChevronLeft, AlertTriangle, Globe, Mail, Phone, MapPin,
@@ -868,16 +868,16 @@ export function SuperAdminDashboard() {
                                 <div className="flex flex-wrap gap-3 mt-1 text-xs text-[var(--muted-foreground)]">
                                   <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {school.email}</span>
                                   <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {school.phone}</span>
-                                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {school.city}, {school.state}</span>
+                                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {'city' in school ? (school as SchoolDetail).city : ''}, {'state' in school ? (school as SchoolDetail).state : ''}</span>
                                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(school.created_at).toLocaleDateString()}</span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                <Button size="sm" onClick={() => { setApproveSuffix(''); setSelectedSchool(school); setShowApproveDialog(true); }}
+                                <Button size="sm" onClick={() => { setApproveSuffix(''); setSelectedSchool(school as SchoolDetail); setShowApproveDialog(true); }}
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs">
                                   <Check className="w-3 h-3 mr-1" /> Approve
                                 </Button>
-                                <Button size="sm" variant="outline" onClick={() => { setSelectedSchool(school); setShowReject(true); }}
+                                <Button size="sm" variant="outline" onClick={() => { setSelectedSchool(school as SchoolDetail); setShowReject(true); }}
                                   className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50">
                                   <X className="w-3 h-3 mr-1" /> Reject
                                 </Button>
@@ -955,7 +955,7 @@ export function SuperAdminDashboard() {
                           <TableBody>
                             {(() => {
                               const perPage = 10;
-                              const totalPages = Math.ceil(activityLogs.length / perPage);
+                              const _totalPages = Math.ceil(activityLogs.length / perPage);
                               const paginatedLogs = activityLogs.slice((activityPage - 1) * perPage, activityPage * perPage);
                               return (
                                 <>
@@ -1095,7 +1095,7 @@ export function SuperAdminDashboard() {
           <div className="space-y-1">
             {MODULE_LIST.map(mod => {
               const modData = (Array.isArray(schoolModules) ? schoolModules : []).find(m => m.module_name === mod.key);
-              const isEnabled = modData?.is_enabled === 1 || modData?.is_enabled === true;
+              const isEnabled = modData?.is_enabled === 1 || (modData?.is_enabled as any) === true;
               const isToggling = togglingModule === mod.key;
               return (
                 <motion.div key={mod.key}

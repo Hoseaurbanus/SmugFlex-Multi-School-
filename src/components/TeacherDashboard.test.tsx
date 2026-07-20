@@ -173,7 +173,7 @@ describe('TeacherDashboard', () => {
 
   describe('class teacher features', () => {
     it('shows class-list sidebar item', async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       renderDashboard();
       expect(screen.getByTestId('sidebar-class-list')).toBeInTheDocument();
     });

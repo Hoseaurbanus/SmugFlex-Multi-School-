@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Button } from "../ui/button";
-import { Badge } from "../ui/badge";
 import { StudentResultCard } from "./StudentResultCard";
 import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { useSchool } from "../../contexts/SchoolContext";
@@ -15,7 +14,7 @@ interface FullPageResultViewProps {
 }
 
 export function FullPageResultView({ studentId, resultId, onClose }: FullPageResultViewProps) {
-  const { students, classes, compiledResults, currentTerm, currentAcademicYear, cumulativeResults, loadCumulativeResultsFromAPI, schoolSettings, loadingCumulative } = useSchool();
+  const { students, classes, compiledResults, currentAcademicYear, cumulativeResults, loadCumulativeResultsFromAPI, schoolSettings, loadingCumulative } = useSchool();
   const [student, setStudent] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [studentClass, setStudentClass] = useState<any>(null);

@@ -25,7 +25,7 @@ function stripLine(line: string): string {
 }
 
 function detectSection(line: string): string | null {
-  const s = line.trim().toLowerCase();
+  const _s = line.trim().toLowerCase();
   if (/^section\s+[a-d]\b/i.test(line.trim())) return line.trim();
   if (/^(part|instruction|passage)\s+\w/i.test(line.trim())) return line.trim();
   return null;

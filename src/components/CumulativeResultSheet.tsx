@@ -1,6 +1,5 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { useSchool } from "../contexts/SchoolContext";
-import { API_CONFIG } from "../config/api";
 import { formatPositionWithSuffix } from "../utils/position";
 import { generateQrDataUrl } from "../utils/qrCode";
 import { shouldShowPosition as checkShouldShowPosition } from "../utils/classHelpers";

@@ -29,7 +29,6 @@ function ManageClassesPageDesktop() {
     subjectAssignments,
     currentTerm,
     currentAcademicYear,
-    addClass, 
     updateClass, 
     deleteClass,
     registerSubjectForClass,
@@ -442,7 +441,7 @@ function ManageClassesPageDesktop() {
                 size="sm"
                 className="rounded-xl border-gray-300 text-gray-600 hover:bg-gray-100 w-full sm:w-auto flex items-center gap-2"
               >
-                <FileText className="w-4 h-4" weight="bold" />
+                <FileText className="w-4 h-4" />
                 <span className="hidden sm:inline">Template</span>
                 <span className="sm:hidden">Template</span>
               </Button>
@@ -452,7 +451,7 @@ function ManageClassesPageDesktop() {
                 size="sm"
                 className="rounded-xl border-gray-300 text-gray-600 hover:bg-gray-100 w-full sm:w-auto flex items-center gap-2"
               >
-                <Upload className="w-4 h-4" weight="bold" />
+                <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">Bulk Import</span>
                 <span className="sm:hidden">Import</span>
               </Button>
@@ -465,7 +464,7 @@ function ManageClassesPageDesktop() {
                 size="sm"
                 className="rounded-xl border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white w-full sm:w-auto flex items-center gap-2"
               >
-                <FileText className="w-4 h-4" weight="bold" />
+                <FileText className="w-4 h-4" />
                 <span className="hidden sm:inline">Export CSV</span>
                 <span className="sm:hidden">Export</span>
               </Button>
@@ -476,7 +475,7 @@ function ManageClassesPageDesktop() {
                 className="bg-[#0A2540] hover:bg-[#082030] text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
                 size="sm"
               >
-                <Plus className="w-4 h-4" weight="bold" />
+                <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">Create New Class</span>
                 <span className="sm:hidden">New Class</span>
               </Button>
@@ -509,7 +508,7 @@ function ManageClassesPageDesktop() {
                     <p className="text-2xl font-bold text-[#0A2540]">{stats.totalClasses}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#FFD700]/10 rounded-full flex items-center justify-center">
-                    <BookOpen className="w-6 h-6 text-[#0A2540]" weight="bold" />
+                    <BookOpen className="w-6 h-6 text-[#0A2540]" />
                   </div>
                 </div>
               </div>
@@ -523,7 +522,7 @@ function ManageClassesPageDesktop() {
                     <p className="text-2xl font-bold text-emerald-600">{stats.activeClasses}</p>
                   </div>
                   <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                    <GraduationCap className="w-6 h-6 text-emerald-600" weight="bold" />
+                    <GraduationCap className="w-6 h-6 text-emerald-600" />
                   </div>
                 </div>
               </div>
@@ -537,7 +536,7 @@ function ManageClassesPageDesktop() {
                     <p className="text-2xl font-bold text-[#0A2540]">{stats.totalStudents}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#0A2540]/10 rounded-full flex items-center justify-center">
-                    <Book className="w-6 h-6 text-[#0A2540]" weight="bold" />
+                    <Book className="w-6 h-6 text-[#0A2540]" />
                   </div>
                 </div>
               </div>
@@ -551,7 +550,7 @@ function ManageClassesPageDesktop() {
                     <p className="text-2xl font-bold text-orange-600">{stats.averageCapacity}%</p>
                   </div>
                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <BookOpen className="w-6 h-6 text-orange-600" weight="bold" />
+                    <BookOpen className="w-6 h-6 text-orange-600" />
                   </div>
                 </div>
               </div>
@@ -565,7 +564,7 @@ function ManageClassesPageDesktop() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">Search</Label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" weight="bold" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                       type="text"
                       placeholder="Search classes..."
@@ -623,7 +622,7 @@ function ManageClassesPageDesktop() {
           {isLoading && (
             <div className="flex items-center justify-center py-12">
               <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-5 h-5 animate-spin" weight="bold" />
+                <Loader2 className="w-5 h-5 animate-spin" />
                 Loading classes...
               </div>
             </div>
@@ -708,7 +707,7 @@ function ManageClassesPageDesktop() {
             <div className="section-band">
               <div className="p-12 text-center">
                 <div className="text-gray-500">
-                  <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" weight="bold" />
+                  <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                   <h3 className="text-lg font-medium mb-2">No Classes Found</h3>
                   <p>Try adjusting your filters or create a new class.</p>
                 </div>
@@ -724,7 +723,7 @@ function ManageClassesPageDesktop() {
             variant="outline"
             className="mb-6"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" weight="bold" />
+            <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Classes
           </Button>
 
@@ -756,7 +755,7 @@ function ManageClassesPageDesktop() {
                           Deleting...
                         </>
                       ) : (
-                        <Trash2 className="w-4 h-4" weight="bold" />
+                        <Trash2 className="w-4 h-4" />
                       )}
                     </Button>
                   </div>
@@ -864,9 +863,9 @@ function ManageClassesPageDesktop() {
                                     disabled={actionLoading === `remove-${reg.subject_id}`}
                                   >
                                     {actionLoading === `remove-${reg.subject_id}` ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" weight="bold" />
+                                      <Loader2 className="w-4 h-4 animate-spin" />
                                     ) : (
-                                      <Trash2 className="w-4 h-4" weight="bold" />
+                                      <Trash2 className="w-4 h-4" />
                                     )}
                                   </Button>
                                 </TableCell>
@@ -898,9 +897,9 @@ function ManageClassesPageDesktop() {
                               className="shrink-0 ml-2"
                             >
                               {actionLoading === `remove-${reg.subject_id}` ? (
-                                <Loader2 className="w-4 h-4 animate-spin" weight="bold" />
+                                <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
-                                <Trash2 className="w-4 h-4" weight="bold" />
+                                <Trash2 className="w-4 h-4" />
                               )}
                             </Button>
                           </div>
@@ -937,12 +936,12 @@ function ManageClassesPageDesktop() {
                         >
                           {actionLoading === 'register-subjects' ? (
                             <>
-                              <Loader2 className="w-4 h-4 animate-spin mr-2" weight="bold" />
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
                               Registering...
                             </>
                           ) : (
                             <>
-                              <Plus className="w-4 h-4 mr-2" weight="bold" />
+                              <Plus className="w-4 h-4 mr-2" />
                               Register {selectedSubjects.length > 0 ? `(${selectedSubjects.length})` : ''}
                             </>
                           )}
@@ -1080,7 +1079,7 @@ function ManageClassesPageDesktop() {
                 <Button onClick={handleEditClass} disabled={actionLoading === "edit"}>
                   {actionLoading === "edit" ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" weight="bold" />
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
                       Saving...
                     </>
                   ) : (
@@ -1096,7 +1095,7 @@ function ManageClassesPageDesktop() {
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-600" weight="bold" />
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
                   Delete Class
                 </AlertDialogTitle>
                 <AlertDialogDescription>

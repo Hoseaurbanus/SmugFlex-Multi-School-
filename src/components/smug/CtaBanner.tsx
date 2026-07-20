@@ -9,7 +9,7 @@ interface CtaBannerProps {
   onRegisterClick?: () => void;
 }
 
-export function CtaBanner({ id, setActiveSection, onLoginClick, onRegisterClick }: CtaBannerProps) {
+export function CtaBanner({ id, onLoginClick, onRegisterClick }: CtaBannerProps) {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.3 });
 

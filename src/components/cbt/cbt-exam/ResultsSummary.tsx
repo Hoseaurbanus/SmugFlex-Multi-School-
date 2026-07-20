@@ -1,6 +1,5 @@
-import { CheckCircle2, XCircle, HelpCircle, BarChart3 } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import { Card, CardContent } from '../../ui/card';
-import { Badge } from '../../ui/badge';
 
 interface ResultsSummaryProps {
   attempt: any;
@@ -12,7 +11,7 @@ export function ResultsSummary({ attempt, answers, questions }: ResultsSummaryPr
   const correctCount = answers.filter(a => a.is_correct).length;
   const incorrectCount = answers.filter(a => a.is_correct === false).length;
   const unansweredCount = answers.filter(a => a.is_correct === null || a.is_correct === undefined).length;
-  const total = questions.length;
+  const _total = questions.length;
 
   const getGrade = (pct: number) => {
     if (pct >= 90) return { label: 'A+', color: 'text-[#10B981]', desc: 'Excellent' };

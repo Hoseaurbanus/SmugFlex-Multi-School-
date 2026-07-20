@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { StudentResultSheet } from "../StudentResultSheet";
 import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { useSchool } from "../../contexts/SchoolContext";
-import { generatePDFFromData as generateStudentResultPdf, generateCumulativePDF } from "../../utils/pdfGenerator";
+import { generateCumulativePDF } from "../../utils/pdfGenerator";
 import { shouldShowPosition as checkShouldShowPosition } from "../../utils/classHelpers";
 import { toast } from "sonner";
 
@@ -22,15 +22,10 @@ export function ViewResultSheetsPage() {
     classes,
     compiledResults,
     schoolSettings,
-    teachers,
-    scores,
-    affectiveDomains,
-    psychomotorDomains,
     currentTerm,
     currentAcademicYear,
     cumulativeResults,
     loadCumulativeResultsFromAPI,
-    compileCumulativeResults,
     currentUser,
     loadingCumulative,
   } = useSchool();
@@ -40,7 +35,7 @@ export function ViewResultSheetsPage() {
   const [selectedYear, setSelectedYear] = useState<string>(currentAcademicYear ?? "");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
-  const [downloadingIds, setDownloadingIds] = useState<Record<number, boolean>>({});
+  const [_downloadingIds, _setDownloadingIds] = useState<Record<number, boolean>>({});
   const [viewMode, setViewMode] = useState<ViewMode>("term");
 
   const resultSheetRef = useRef<HTMLDivElement>(null);
@@ -57,7 +52,7 @@ export function ViewResultSheetsPage() {
   }, [safeCompiledResults, currentAcademicYear]);
 
   // Handle print using native browser print with enhanced styling
-  const handlePrint = () => {
+  const _handlePrint = () => {
     if (resultSheetRef.current) {
       const printWindow = window.open('', '_blank');
       if (printWindow) {

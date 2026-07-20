@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { SuperAdminLoginPage } from './SuperAdminLoginPage';
@@ -117,7 +117,7 @@ describe('SuperAdminLoginPage', () => {
     });
 
     it('shows error when submitting empty form', async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       renderLogin();
 
       // Button is disabled when empty, but handleLogin validates independently

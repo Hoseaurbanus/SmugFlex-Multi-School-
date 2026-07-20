@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { User, Calendar, Award, TrendingUp, Download, Eye, Search, MoreVertical, Filter } from 'lucide-react';
-import { Card, CardContent, CardHeader } from "../ui/card";
+import { User, Calendar, Award, Download, Eye, Search } from 'lucide-react';
+import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
@@ -29,24 +29,6 @@ interface Child {
   recentActivities: any[];
   feeBalance: number;
   totalFees: number;
-}
-
-interface CompiledResult {
-  id: number;
-  student_id: number;
-  class_id: number;
-  term: string;
-  academic_year: string;
-  total_score: number;
-  average_score: number;
-  class_average: number;
-  position: number;
-  total_students: number;
-  times_present: number;
-  times_absent: number;
-  status: string;
-  compiled_date: string;
-  scores: any[];
 }
 
 export function MyChildrenPage() {
@@ -79,7 +61,7 @@ export function MyChildrenPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [fullPageView, setFullPageView] = useState<{ studentId: number; resultId: number } | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const [_showFilters, _setShowFilters] = useState(false);
   const [cumulativeViewChild, setCumulativeViewChild] = useState<Child | null>(null);
 
   const currentParent = currentUser && parents.length > 0 ? parents.find((p) => p.id === currentUser?.linked_id) : null;
@@ -126,7 +108,7 @@ export function MyChildrenPage() {
   }, [compiledResults, currentTerm, currentAcademicYear, children]);
 
   // Get students with results - EXACT same as admin
-  const studentsWithResults = useMemo(() => {
+  const _studentsWithResults = useMemo(() => {
     return filteredResults
       .map((result: any) => {
         const child = (children || []).find((c: any) => Number(c.id) === Number(result.student_id));

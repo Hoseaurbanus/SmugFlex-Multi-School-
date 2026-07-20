@@ -17,7 +17,7 @@ interface CbtExamFormProps {
 }
 
 export function CbtExamForm({ open, onOpenChange, exam, onSaved }: CbtExamFormProps) {
-  const { classes, subjects, subjectAssignments, currentUser, currentAcademicYear, currentTerm, createCbtExam, updateCbtExam, getTeacherAssignments } = useSchool();
+  const { classes, subjects, currentUser, createCbtExam, updateCbtExam, getTeacherAssignments } = useSchool();
   const isEditing = !!exam;
 
   const [title, setTitle] = useState('');

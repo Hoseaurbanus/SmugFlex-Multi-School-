@@ -22,9 +22,7 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
       compiledResults,
       subjectAssignments,
       schoolSettings,
-      subjectRegistrations,
       subjects,
-      teachers,
       loadSchoolSettings,
     } = useSchool();
 

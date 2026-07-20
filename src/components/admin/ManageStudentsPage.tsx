@@ -13,7 +13,6 @@ import { Student } from "../../types/school";
 import { useSchool } from "../../contexts/SchoolContext";
 import { API_CONFIG } from '../../config/api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
-import { exportStudentsToCSV } from "../../utils/csvExporter";
 import { tokenManager } from "../../utils/tokenManager";
 
 const AddStudentForm = lazy(() => import('./AddStudentFormSimple'));
@@ -22,29 +21,20 @@ interface ManageStudentsPageProps {
   onNavigateToLink?: () => void;
 }
 
-export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPageProps) {
+export function ManageStudentsPageMobile({ onNavigateToLink: _onNavigateToLink }: ManageStudentsPageProps) {
   const { 
     students, 
-    teachers, 
     parents, 
     classes, 
-    subjects,
-    users,
     parentStudentLinks,
     scores,
     attendances,
     compiledResults,
-    setStudents,
-    setUsers,
-    addStudent, 
     updateStudent, 
     deleteStudent,
     deleteBulkStudents,
-    getStudentsByClass,
     refreshStudents,
     currentUser,
-    updateUser,
-    resetUserPasswordAPI,
     linkStudentToParent,
     unlinkStudentFromParent
   } = useSchool();
@@ -98,34 +88,34 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
   const [unlinkDialogOpen, setUnlinkDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [linkGuardianDialogOpen, setLinkGuardianDialogOpen] = useState(false);
-  const [uploadPassportDialogOpen, setUploadPassportDialogOpen] = useState(false);
-  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
-  const [bulkImportDialogOpen, setBulkImportDialogOpen] = useState(false);
-  const [quickImportDialogOpen, setQuickImportDialogOpen] = useState(false);
+  const [_uploadPassportDialogOpen, setUploadPassportDialogOpen] = useState(false);
+  const [_resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
+  const [_bulkImportDialogOpen, _setBulkImportDialogOpen] = useState(false);
+  const [_quickImportDialogOpen, _setQuickImportDialogOpen] = useState(false);
   const [addStudentDialogOpen, setAddStudentDialogOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [unlinkingStudentId, setUnlinkingStudentId] = useState<number | null>(null);
-  const [isUnlinkingAll, setIsUnlinkingAll] = useState(false);
+  const [_isUnlinkingAll, _setIsUnlinkingAll] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
   const [isSelectAll, setIsSelectAll] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card'); // Mobile-friendly card view
   
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passportFile, setPassportFile] = useState<File | null>(null);
-  const [csvFile, setCSVFile] = useState<File | null>(null);
+  const [_newPassword, _setNewPassword] = useState("");
+  const [_confirmPassword, _setConfirmPassword] = useState("");
+  const [_passportFile, _setPassportFile] = useState<File | null>(null);
+  const [_csvFile, _setCSVFile] = useState<File | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
-  const [selectedClassId, setSelectedClassId] = useState<number | undefined>(undefined);
-  const [importProgress, setImportProgress] = useState({ processed: 0, total: 0 });
-  const [isImporting, setIsImporting] = useState(false);
+  const [_selectedClassId, _setSelectedClassId] = useState<number | undefined>(undefined);
+  const [_importProgress, _setImportProgress] = useState({ processed: 0, total: 0 });
+  const [_isImporting, _setIsImporting] = useState(false);
   
-  const passportInputRef = useRef<HTMLInputElement>(null);
-  const csvInputRef = useRef<HTMLInputElement>(null);
+  const _passportInputRef = useRef<HTMLInputElement>(null);
+  const _csvInputRef = useRef<HTMLInputElement>(null);
   
   const [editFormData, setEditFormData] = useState({
     first_name: "",
@@ -141,7 +131,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
   const editPassportInputRef = useRef<HTMLInputElement>(null);
 
   // Data safety: Enhanced validation
-  const validateStudentData = (data: any) => {
+  const _validateStudentData = (data: any) => {
     const errors: string[] = [];
     
     if (!data.first_name?.trim()) errors.push("First name is required");
@@ -271,7 +261,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
         const backup = localStorage.getItem('students_backup');
         if (backup) {
           try {
-            const parsedBackup = JSON.parse(backup);
+            const _parsedBackup = JSON.parse(backup);
             toast.info('Restored from backup');
           } catch (e) {
             // Silent fail for security
@@ -393,7 +383,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 if (hasRecords && student.status === 'Active') {
                   return (
                     <div className="flex items-center gap-1 text-xs text-amber-600">
-                      <AlertTriangle className="w-3 h-3" weight="bold" />
+                      <AlertTriangle className="w-3 h-3" />
                       <span>Has Records</span>
                     </div>
                   );
@@ -439,7 +429,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               variant="outline"
               className="flex-1 min-w-[70px] text-xs px-2 py-1.5 h-7"
             >
-              <Eye className="w-3 h-3 mr-1" weight="bold" />
+              <Eye className="w-3 h-3 mr-1" />
               View
             </Button>
             
@@ -449,7 +439,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               variant="outline"
               className="flex-1 min-w-[70px] text-xs px-2 py-1.5 h-7"
             >
-              <Pencil className="w-3 h-3 mr-1" weight="bold" />
+              <Pencil className="w-3 h-3 mr-1" />
               Edit
             </Button>
 
@@ -462,9 +452,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               className="flex-1 min-w-[90px] text-xs px-2 py-1.5 h-7"
             >
               {student.status === 'Active' ? (
-                <Lock className={`w-3 h-3 mr-1 ${hasRecords ? 'text-amber-500' : ''}`} weight="bold" />
+                <Lock className={`w-3 h-3 mr-1 ${hasRecords ? 'text-amber-500' : ''}`} />
               ) : (
-                <Unlock className="w-3 h-3 mr-1" weight="bold" />
+                <Unlock className="w-3 h-3 mr-1" />
               )}
               {student.status === 'Active' ? 'Deactivate' : 'Activate'}
             </Button>
@@ -472,7 +462,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" className="px-2 py-1.5 h-7">
-                  <MoreVertical className="w-3 h-3" weight="bold" />
+                  <MoreVertical className="w-3 h-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
@@ -480,13 +470,13 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   setSelectedStudent(student);
                   setLinkGuardianDialogOpen(true);
                 }}>
-                  <Link className="w-3 h-3 mr-2" weight="bold" />
+                  <Link className="w-3 h-3 mr-2" />
                   Link Guardian
                 </DropdownMenuItem>
                 
                 {Array.isArray(parentStudentLinks) && parentStudentLinks.some(link => link.student_id === student.id) && (
                   <DropdownMenuItem onClick={() => unlinkStudent(student)}>
-                    <Link className="w-3 h-3 mr-2" weight="bold" />
+                    <Link className="w-3 h-3 mr-2" />
                     Unlink Guardian
                   </DropdownMenuItem>
                 )}
@@ -502,14 +492,14 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 >
                   {student.status === 'Active' ? (
                     <>
-                      <Lock className={`w-3 h-3 mr-2 ${hasRecords ? 'text-amber-500' : ''}`} weight="bold" />
+                      <Lock className={`w-3 h-3 mr-2 ${hasRecords ? 'text-amber-500' : ''}`} />
                       <span className={hasRecords ? 'text-amber-600' : ''}>
                         {hasRecords ? 'Cannot Deactivate (Has Records)' : 'Deactivate'}
                       </span>
                     </>
                   ) : (
                     <>
-                      <Unlock className="w-3 h-3 mr-2" weight="bold" />
+                      <Unlock className="w-3 h-3 mr-2" />
                       Activate
                     </>
                   )}
@@ -519,7 +509,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   setSelectedStudent(student);
                   setUploadPassportDialogOpen(true);
                 }}>
-                  <Camera className="w-3 h-3 mr-2" weight="bold" />
+                  <Camera className="w-3 h-3 mr-2" />
                   Upload Photo
                 </DropdownMenuItem>
                 
@@ -527,7 +517,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   setSelectedStudent(student);
                   setResetPasswordDialogOpen(true);
                 }}>
-                  <Key className="w-3 h-3 mr-2" weight="bold" />
+                  <Key className="w-3 h-3 mr-2" />
                   Reset Password
                 </DropdownMenuItem>
                 
@@ -537,7 +527,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   onClick={() => openDeleteDialog(student)}
                   className="text-red-600"
                 >
-                  <Trash2 className="w-3 h-3 mr-2" weight="bold" />
+                  <Trash2 className="w-3 h-3 mr-2" />
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -671,7 +661,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
     }
   };
 
-  const handleEditPhotoUpload = async () => {
+  const _handleEditPhotoUpload = async () => {
     if (!editPassportFile) {
       toast.error("Please select a photo");
       return;
@@ -702,7 +692,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
         throw new Error('Failed to upload photo');
       }
 
-      const result = await response.json();
+      await response.json();
       
       toast.success('Student photo uploaded successfully');
       setEditPassportFile(null);
@@ -731,7 +721,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
               variant="outline"
               className="lg:hidden"
             >
-              <List className="w-3 h-3" weight="bold" />
+              <List className="w-3 h-3" />
             </Button>
           </div>
 
@@ -745,7 +735,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 size="sm"
                 className="bg-emerald-600 hover:bg-emerald-700 text-xs px-3 py-2 h-8"
               >
-                <Plus className="w-3 h-3 mr-1" weight="bold" />
+                <Plus className="w-3 h-3 mr-1" />
                 Add
               </Button>
               
@@ -755,7 +745,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 variant="outline"
                 className="text-xs px-3 py-2 h-8"
               >
-                <Filter className="w-3 h-3 mr-1" weight="bold" />
+                <Filter className="w-3 h-3 mr-1" />
                 Filters
               </Button>
               
@@ -769,7 +759,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 {isRefreshing ? (
                   <div className="w-3 h-3 animate-spin rounded-full border border-gray-300 border-t-emerald-600" />
                 ) : (
-                  <RefreshCw className="w-3 h-3" weight="bold" />
+                  <RefreshCw className="w-3 h-3" />
                 )}
               </Button>
             </div>
@@ -784,14 +774,14 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 }}
                 className="bg-emerald-600 hover:bg-emerald-700 text-sm px-4 py-2 h-9"
               >
-                <Plus className="w-4 h-4 mr-2" weight="bold" />
+                <Plus className="w-4 h-4 mr-2" />
                 Add Student
               </Button>
               
               <Button onClick={() => {
                 setMobileFiltersOpen(!mobileFiltersOpen);
               }} variant="outline" className="text-sm px-4 py-2 h-9">
-                <Filter className="w-4 h-4 mr-2" weight="bold" />
+                <Filter className="w-4 h-4 mr-2" />
                 Filters
               </Button>
               
@@ -799,7 +789,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 {isRefreshing ? (
                   <div className="w-4 h-4 animate-spin rounded-full border border-gray-300 border-t-emerald-600 mr-2" />
                 ) : (
-                  <RefreshCw className="w-4 h-4 mr-2" weight="bold" />
+                  <RefreshCw className="w-4 h-4 mr-2" />
                 )}
                 Refresh
               </Button>
@@ -827,7 +817,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
             <div>
               <Label className="text-sm font-medium">Search</Label>
               <div className="relative mt-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" weight="bold" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -899,7 +889,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   <p className="text-xl font-bold text-gray-900">{stats.total}</p>
                 </div>
                 <div className="bg-[#FFD700]/10 p-2 rounded-lg">
-                  <Users className="w-4 h-4 text-[#0A2540]" weight="bold" />
+                  <Users className="w-4 h-4 text-[#0A2540]" />
                 </div>
               </div>
           </div>
@@ -911,7 +901,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   <p className="text-xl font-bold text-emerald-600">{stats.active}</p>
                 </div>
                 <div className="bg-emerald-100 p-2 rounded-lg">
-                  <Power className="w-4 h-4 text-emerald-600" weight="bold" />
+                  <Power className="w-4 h-4 text-emerald-600" />
                 </div>
               </div>
           </div>
@@ -923,7 +913,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   <p className="text-xl font-bold text-[#0A2540]">{stats.primary}</p>
                 </div>
                 <div className="bg-[#0A2540]/10 p-2 rounded-lg">
-                  <BookOpen className="w-4 h-4 text-[#0A2540]" weight="bold" />
+                  <BookOpen className="w-4 h-4 text-[#0A2540]" />
                 </div>
               </div>
           </div>
@@ -935,7 +925,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   <p className="text-xl font-bold text-yellow-600">{stats.secondary}</p>
                 </div>
                 <div className="bg-yellow-100 p-2 rounded-lg">
-                  <BookOpen className="w-4 h-4 text-yellow-600" weight="bold" />
+                  <BookOpen className="w-4 h-4 text-yellow-600" />
                 </div>
               </div>
           </div>
@@ -974,7 +964,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                   {actionLoading === 'bulk-delete' ? (
                     <div className="w-4 h-4 animate-spin rounded-full border border-white border-t-transparent mr-2" />
                   ) : (
-                    <Trash2 className="w-4 h-4 mr-2" weight="bold" />
+                    <Trash2 className="w-4 h-4 mr-2" />
                   )}
                   Delete Selected
                 </Button>
@@ -1002,7 +992,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                 {filteredStudents.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <User className="w-10 h-10 text-gray-400" weight="bold" />
+                      <User className="w-10 h-10 text-gray-400" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">No Students Found</h3>
                     <p className="text-gray-600 mb-4">
@@ -1012,7 +1002,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                       onClick={() => setAddStudentDialogOpen(true)}
                       className="bg-[#0A2540] hover:bg-[#082030]"
                     >
-                      <Plus className="w-4 h-4 mr-2" weight="bold" />
+                      <Plus className="w-4 h-4 mr-2" />
                       Add First Student
                     </Button>
                   </div>
@@ -1141,12 +1131,12 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   handleView(student);
                                 }} className="h-8 w-8 p-0">
-                                  <Eye className="w-3 h-3" weight="bold" />
+                                  <Eye className="w-3 h-3" />
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   handleEdit(student);
                                 }} className="h-8 w-8 p-0">
-                                  <Pencil className="w-3 h-3" weight="bold" />
+                                  <Pencil className="w-3 h-3" />
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1163,15 +1153,15 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                                   className="h-8 w-8 p-0"
                                 >
                                   {student.status === 'Active' ? (
-                                    <Lock className="w-3 h-3" weight="bold" />
+                                    <Lock className="w-3 h-3" />
                                   ) : (
-                                    <Unlock className="w-3 h-3" weight="bold" />
+                                    <Unlock className="w-3 h-3" />
                                   )}
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   openDeleteDialog(student);
                                 }} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
-                                  <Trash2 className="w-3 h-3" weight="bold" />
+                                  <Trash2 className="w-3 h-3" />
                                 </Button>
                               </div>
                             </td>
@@ -1414,7 +1404,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink }: ManageStudentsPag
                     size="sm"
                     className="w-full"
                   >
-                    <Camera className="w-4 h-4 mr-2" weight="bold" />
+                    <Camera className="w-4 h-4 mr-2" />
                     Choose New Photo
                   </Button>
                   {editPassportFile && (

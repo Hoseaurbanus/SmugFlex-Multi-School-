@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { tokenManager } from './tokenManager';
-import { getAuthToken, setAuthToken, removeAuthToken, API_CONFIG } from '../config/api';
+import { getAuthToken, setAuthToken, removeAuthToken } from '../config/api';
 
 vi.mock('../config/api', () => ({
   getAuthToken: vi.fn(),
@@ -119,7 +119,7 @@ describe('tokenManager', () => {
       const futureExp = Math.floor(Date.now() / 1000) + 3600;
       const token = makeJwt({ exp: futureExp });
 
-      const result = await tokenManager.ensureToken({ token });
+      const _result = await tokenManager.ensureToken({ token });
       expect(setAuthToken).toHaveBeenCalledWith(token);
     });
 

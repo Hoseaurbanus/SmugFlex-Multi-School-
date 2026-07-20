@@ -35,13 +35,9 @@ export interface ApiError {
 }
 
 class ApiService {
-  private baseURL: string;
-  private timeout: number;
   private connectionStatus: { isOnline: boolean; isSlow: boolean } = { isOnline: true, isSlow: false };
 
   constructor() {
-    this.baseURL = API_CONFIG.BASE_URL;
-    this.timeout = API_CONFIG.TIMEOUT;
     
     // Monitor connection status
     this.updateConnectionStatus();

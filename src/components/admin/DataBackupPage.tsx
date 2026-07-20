@@ -260,7 +260,7 @@ export function DataBackupPage() {
   };
 
   // Export Complete Backup (JSON with localStorage)
-  const handleCompleteBackup = () => {
+  const _handleCompleteBackup = () => {
     const dataToExport: StorageData = {
       version: '1.0.0',
       lastUpdated: new Date().toISOString(),
@@ -303,7 +303,7 @@ export function DataBackupPage() {
     if (!file) return;
 
     try {
-      const importedData = await importDataFromJSON(file);
+      const _importedData = await importDataFromJSON(file);
       // You can add logic here to merge or replace data
       toast.success('Data imported successfully! Please refresh to see changes.');
       // Note: Full import would require reloading context, which is complex
@@ -354,7 +354,7 @@ export function DataBackupPage() {
   };
 
   // Export Subject Assignments
-  const exportSubjectAssignments = () => {
+  const _exportSubjectAssignments = () => {
     const headers = ['id', 'subjectId', 'subjectName', 'classId', 'className', 'teacherId', 'teacherName', 'academicYear', 'term'];
     const csv = convertToCSV(subjectAssignments, headers);
     downloadFile(csv, `subject_assignments_${new Date().toISOString().split('T')[0]}.csv`);
@@ -362,7 +362,7 @@ export function DataBackupPage() {
   };
 
   // Export Scores
-  const exportScores = () => {
+  const _exportScores = () => {
     const headers = ['id', 'studentId', 'subjectAssignmentId', 'subjectName', 'ca1', 'ca2', 'exam', 'total', 'classAverage', 'grade', 'remark', 'subjectTeacher', 'enteredBy', 'enteredDate', 'status'];
     const csv = convertToCSV(scores, headers);
     downloadFile(csv, `scores_${new Date().toISOString().split('T')[0]}.csv`);
@@ -370,7 +370,7 @@ export function DataBackupPage() {
   };
 
   // Export Compiled Results
-  const exportCompiledResults = () => {
+  const _exportCompiledResults = () => {
     const headers = ['id', 'studentId', 'classId', 'term', 'academicYear', 'totalScore', 'averageScore', 'classAverage', 'position', 'totalStudents', 'timesPresent', 'timesAbsent', 'totalAttendanceDays', 'classTeacherComment', 'principalComment', 'status'];
     const csv = convertToCSV(compiledResults, headers);
     downloadFile(csv, `compiled_results_${new Date().toISOString().split('T')[0]}.csv`);
@@ -378,7 +378,7 @@ export function DataBackupPage() {
   };
 
   // Export Fee Structures
-  const exportFeeStructures = () => {
+  const _exportFeeStructures = () => {
     const headers = ['id', 'classId', 'className', 'level', 'term', 'academicYear', 'tuitionFee', 'developmentLevy', 'sportsFee', 'examFee', 'booksFee', 'uniformFee', 'transportFee', 'totalFee'];
     const csv = convertToCSV(feeStructures, headers);
     downloadFile(csv, `fee_structures_${new Date().toISOString().split('T')[0]}.csv`);
@@ -386,7 +386,7 @@ export function DataBackupPage() {
   };
 
   // Export Student Fee Balances
-  const exportStudentFeeBalances = () => {
+  const _exportStudentFeeBalances = () => {
     const headers = ['id', 'studentId', 'classId', 'term', 'academicYear', 'totalFeeRequired', 'totalPaid', 'balance', 'status'];
     const csv = convertToCSV(studentFeeBalances, headers);
     downloadFile(csv, `student_fee_balances_${new Date().toISOString().split('T')[0]}.csv`);
@@ -394,7 +394,7 @@ export function DataBackupPage() {
   };
 
   // Export Payments
-  const exportPayments = () => {
+  const _exportPayments = () => {
     const headers = ['id', 'studentId', 'studentName', 'amount', 'paymentType', 'term', 'academicYear', 'paymentMethod', 'reference', 'recordedBy', 'recordedDate', 'status', 'receiptNumber'];
     const csv = convertToCSV(payments, headers);
     downloadFile(csv, `payments_${new Date().toISOString().split('T')[0]}.csv`);
@@ -402,7 +402,7 @@ export function DataBackupPage() {
   };
 
   // Export Activity Logs
-  const exportActivityLogs = () => {
+  const _exportActivityLogs = () => {
     const headers = ['id', 'actor', 'actorRole', 'action', 'target', 'timestamp', 'ip', 'status', 'details'];
     const csv = convertToCSV(activityLogs, headers);
     downloadFile(csv, `activity_logs_${new Date().toISOString().split('T')[0]}.csv`);
@@ -410,7 +410,7 @@ export function DataBackupPage() {
   };
 
   // Export Users (passwords excluded for security)
-  const exportUsers = () => {
+  const _exportUsers = () => {
     const safeUsers = users.map((user: any) => {
   const { password, ...safeUser } = user;
   return safeUser;
@@ -422,7 +422,7 @@ export function DataBackupPage() {
   };
 
   // Export Affective Domains
-  const exportAffectiveDomains = () => {
+  const _exportAffectiveDomains = () => {
     const headers = ['id', 'studentId', 'classId', 'term', 'academicYear', 'attentiveness', 'attentivenessRemark', 'honesty', 'honestyRemark', 'neatness', 'neatnessRemark', 'obedience', 'obedienceRemark', 'senseOfResponsibility', 'senseOfResponsibilityRemark'];
     const csv = convertToCSV(affectiveDomains, headers);
     downloadFile(csv, `affective_domains_${new Date().toISOString().split('T')[0]}.csv`);
@@ -430,7 +430,7 @@ export function DataBackupPage() {
   };
 
   // Export Psychomotor Domains
-  const exportPsychomotorDomains = () => {
+  const _exportPsychomotorDomains = () => {
     const headers = ['id', 'studentId', 'classId', 'term', 'academicYear', 'attentionToDirection', 'attentionToDirectionRemark', 'considerateOfOthers', 'considerateOfOthersRemark', 'handwriting', 'handwritingRemark', 'sports', 'sportsRemark', 'verbalFluency', 'verbalFluencyRemark', 'worksWellIndependently', 'worksWellIndependentlyRemark'];
     const csv = convertToCSV(psychomotorDomains, headers);
     downloadFile(csv, `psychomotor_domains_${new Date().toISOString().split('T')[0]}.csv`);
@@ -501,7 +501,7 @@ export function DataBackupPage() {
   const dataCategories = [
     {
       title: 'Student Data',
-      icon: <GraduationCap className="w-5 h-5" weight="bold" />,
+      icon: <GraduationCap className="w-5 h-5" />,
       items: [
         { name: 'Students', count: students.length, export: handleExportStudents, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
         { name: 'Student Fee Balances', count: studentFeeBalances.length, export: handleExportFeeBalances, color: 'bg-[#0A2540]/10 text-[#0A2540]' },
@@ -542,7 +542,7 @@ export function DataBackupPage() {
     },
     {
       title: 'System Data',
-      icon: <Database className="w-5 h-5" weight="bold" />,
+      icon: <Database className="w-5 h-5" />,
       items: [
         { name: 'Activity Logs', count: activityLogs.length, export: handleExportActivityLogs, color: 'bg-gray-50 text-gray-600' },
         { name: 'Notifications', count: notifications.length, export: () => {
@@ -617,7 +617,7 @@ export function DataBackupPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-[#0A2540]/10 rounded-lg">
-                <HardDrive className="w-5 h-5 text-[#0A2540]" weight="bold" />
+                <HardDrive className="w-5 h-5 text-[#0A2540]" />
               </div>
               <div>
                 <CardTitle className="text-lg text-[#1F2937]">Local Storage Manager</CardTitle>
@@ -673,7 +673,7 @@ export function DataBackupPage() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <Database className="w-6 h-6 text-white" weight="bold" />
+                <Database className="w-6 h-6 text-white" />
                 <h3 className="text-white text-xl font-heading font-bold">CSV Export Center</h3>
               </div>
               <p className="text-white/90 mb-4">

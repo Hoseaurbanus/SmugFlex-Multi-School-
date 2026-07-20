@@ -13,7 +13,6 @@ export function ExamTimetablePage() {
     addExamTimetable,
     updateExamTimetable,
     deleteExamTimetable,
-    getExamTimetablesByClass,
     currentUser,
     currentTerm,
     currentAcademicYear,

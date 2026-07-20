@@ -12,10 +12,8 @@ import { TrendingUp, DollarSign, Users, CheckCircle, AlertCircle, Clock, Downloa
 
 export function PaymentReportsPage() {
   const {
-    payments,
     students,
     classes,
-    feeStructures,
     studentFeeBalances,
     currentTerm,
     currentAcademicYear,

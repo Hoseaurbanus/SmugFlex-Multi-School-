@@ -1,5 +1,4 @@
 // Shared PDF generation utility for both admin and parent dashboards
-import { useSchool } from "../contexts/SchoolContext";
 import schoolLogo from "../assets/images/smug-logo.png";
 import { API_CONFIG } from "../config/api";
 import { formatPositionWithSuffix } from "./position";
@@ -66,7 +65,7 @@ const getValidNextTermBegin = (nextTermBegin: any): string => {
 };
 
 // Format date
-const formatDate = (dateStr: string) => {
+const _formatDate = (dateStr: string) => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
   return date.toLocaleDateString('en-GB', {
@@ -165,7 +164,7 @@ const getAffectiveRemark = (score: any) => {
 };
 
 // Get domain name
-const getDomainName = (key: string) => {
+const _getDomainName = (key: string) => {
   const names: { [key: string]: string } = {
     'attentiveness': 'Attentiveness',
     'honesty': 'Honesty',
@@ -598,11 +597,11 @@ export const generatePDFFromData = async (student: any, result: any, context: an
   ];
   
   let studentInfoTableY = studentInfoY;
-  tableData.forEach((row, rowIndex) => {
+  tableData.forEach((row, _rowIndex) => {
     const rowHeight = 4.0; // tighter rows
     let cellX = startX;
     
-    row.forEach((cell, cellIndex) => {
+    row.forEach((cell, _cellIndex) => {
       // Skip empty cells
       if (!cell.text || cell.width === 0) {
         cellX += studentInfoTableWidth * cell.width;

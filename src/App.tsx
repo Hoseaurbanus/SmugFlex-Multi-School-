@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, Component, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, Component, type ReactNode } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
@@ -11,6 +11,7 @@ import { NotificationServiceProvider } from './contexts/NotificationService';
 import { ConnectionProvider } from './contexts/ConnectionContext';
 import { SchoolProvider } from './contexts/SchoolContext';
 import { AuthProvider, useAuth } from './contexts/domains/AuthContext';
+import { NotificationProvider } from './contexts/domains/NotificationContext';
 import { Toaster } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { getAuthToken } from './config/api';
@@ -65,8 +66,10 @@ function App() {
       <AuthProvider>
         <ConnectionProvider>
           <NotificationServiceProvider>
-            <Toaster position="top-right" richColors />
-            <AppContent navigate={navigate} />
+            <NotificationProvider>
+              <Toaster position="top-right" richColors />
+              <AppContent navigate={navigate} />
+            </NotificationProvider>
           </NotificationServiceProvider>
         </ConnectionProvider>
       </AuthProvider>

@@ -416,7 +416,7 @@ export function importStudentsFromCSV(
       }
     };
     
-    reader.onerror = (error) => {
+    reader.onerror = (_error) => {
       reject(new Error('Failed to read file'));
     };
     

@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Button } from "../ui/button";
-import { Badge } from "../ui/badge";
 import { useSchool } from "../../contexts/SchoolContext";
 import { StudentResultCardProps } from './types/resultCard';
 import { API_CONFIG } from "../../config/api";
@@ -92,12 +91,10 @@ export function StudentResultCard({
   detailedScores: propDetailedScores,
   showActions = false,
   onDownload,
-  onPrint,
-  onApprovePrint,
   currentUser
 }: StudentResultCardProps) {
-  const { schoolSettings, loadSchoolSettings, students, classes, teachers, scores, subjectAssignments, subjects, affectiveDomains, psychomotorDomains, compiledResults, loadCompiledResultsFromAPI, loadScoresFromAPI, loadSubjectAssignmentsFromAPI, loadSubjectsFromAPI, loadAffectiveDomainsFromAPI, loadPsychomotorDomainsFromAPI, getClassTeacher } = useSchool();
-  const [showDetails, setShowDetails] = useState(false);
+  const { schoolSettings, students, classes, teachers, scores, subjectAssignments, subjects, affectiveDomains, psychomotorDomains, compiledResults, loadCompiledResultsFromAPI, loadScoresFromAPI, loadSubjectAssignmentsFromAPI, loadSubjectsFromAPI, loadAffectiveDomainsFromAPI, loadPsychomotorDomainsFromAPI, getClassTeacher } = useSchool();
+  const [_showDetails, _setShowDetails] = useState(false);
   const [detailedScoresData, setDetailedScoresData] = useState<any[]>([]);
   const [signatureResumptionDate, setSignatureResumptionDate] = useState<string>('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
@@ -403,9 +400,9 @@ export function StudentResultCard({
   const safeStudents = Array.isArray(students) ? students : [];
   const safeClasses = Array.isArray(classes) ? classes : [];
   const safeTeachers = Array.isArray(teachers) ? teachers : [];
-  const safeSubjectAssignments = Array.isArray(subjectAssignments) ? subjectAssignments : [];
-  const safeSubjects = Array.isArray(subjects) ? subjects : [];
-  const safeScores = Array.isArray(scores) ? scores : [];
+  const _safeSubjectAssignments = Array.isArray(subjectAssignments) ? subjectAssignments : [];
+  const _safeSubjects = Array.isArray(subjects) ? subjects : [];
+  const _safeScores = Array.isArray(scores) ? scores : [];
   
   const studentData = propStudent || safeStudents.find(s => String((s as any).id) === String((result as any)?.student_id));
 
@@ -572,7 +569,7 @@ export function StudentResultCard({
   };
 
   // Check if user can download/print (admin only or approved for parents)
-  const canDownloadPrint = currentUser?.role === 'admin' || result.print_approved;
+  const _canDownloadPrint = currentUser?.role === 'admin' || result.print_approved;
 
   const getStudentPhotoCandidates = (s: any): string[] => {
     const raw =

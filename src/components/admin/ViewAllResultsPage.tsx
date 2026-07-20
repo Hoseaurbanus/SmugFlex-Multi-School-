@@ -14,7 +14,7 @@ interface ViewAllResultsPageProps {
   onViewResult?: (studentId: number, resultId: number) => void;
 }
 
-export function ViewAllResultsPage({ onBack, onViewResult }: ViewAllResultsPageProps = {}) {
+export function ViewAllResultsPage({ onBack: _onBack, onViewResult }: ViewAllResultsPageProps = {}) {
   const {
     compiledResults,
     students,

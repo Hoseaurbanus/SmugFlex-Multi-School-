@@ -1,15 +1,12 @@
  import { useState, useMemo, useCallback, useEffect } from "react";
-import { Book, BookOpen, ArrowLeft, CheckCircle, XCircle, AlertTriangle, Sparkles, Users, Calendar, Award, Calculator, FileText, TrendingUp, Heart, Activity } from 'lucide-react';
+import { BookOpen, ArrowLeft, CheckCircle, XCircle, AlertTriangle, Sparkles, Users, Calendar, Calculator, FileText, Heart, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Label } from "../ui/label";
-import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Alert, AlertDescription } from "../ui/alert";
-import { Save } from "lucide-react";
 import { Score, Subject, SubjectAssignment } from "../../types/school";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
@@ -61,7 +58,7 @@ const handleStudentPhotoError = (e: React.SyntheticEvent<HTMLImageElement>, s: a
 };
 
 // Auto-comment generation system
-const commentTemplates = {
+const _commentTemplates = {
   excellent: [
     "Outstanding performance! Shows exceptional understanding and mastery of all subjects.",
     "Brilliant academic achievement. Maintains excellent standards across all areas.",
@@ -136,7 +133,7 @@ const commentTemplates = {
   ]
 };
 
-const positionComments = {
+const _positionComments = {
   top: [
     "Outstanding class position! Shows exceptional academic ability.",
     "Excellent class ranking! Among the best performers in class.",
@@ -179,7 +176,7 @@ const positionComments = {
   ]
 };
 
-const constructiveFeedback = {
+const _constructiveFeedback = {
   excellent: [
     "Continue maintaining excellent standards. Consider advanced studies.",
     "Outstanding work! Explore leadership roles and academic competitions.",
@@ -224,7 +221,7 @@ const constructiveFeedback = {
   ]
 };
 
-function generateAutoComment(averageScore: number, position: number, totalStudents: number): string {
+function generateAutoComment(averageScore: number, _position: number, _totalStudents: number): string {
   // Generate comment based on specific average score ranges
   if (averageScore >= 90 && averageScore <= 100) {
     return 'An excellent result Keep it up.';
@@ -265,8 +262,8 @@ function parseAttendanceFromRemarks(remarks: unknown): { attendedDays: number; r
   };
 }
 
-function generateMultipleCommentOptions(averageScore: number, position: number, totalStudents: number): string[] {
-  const baseComment = generateAutoComment(averageScore, position, totalStudents);
+function _generateMultipleCommentOptions(averageScore: number, _position: number, _totalStudents: number): string[] {
+  const baseComment = generateAutoComment(averageScore, _position, _totalStudents);
   
   // Generate variations of the base comment for teacher to choose from
   const options: string[] = [baseComment];
@@ -295,7 +292,7 @@ function generateMultipleCommentOptions(averageScore: number, position: number, 
   return options.slice(0, 5);
 }
 
-function generatePrincipalComment(averageScore: number): string {
+function _generatePrincipalComment(averageScore: number): string {
   if (averageScore >= 80) {
     return "Exceptional performance! Keep up the excellent work. You are a role model for others.";
   } else if (averageScore >= 70) {
@@ -320,7 +317,6 @@ export function CompileResultsPage() {
     psychomotorDomains,
     compiledResults,
     subjects,
-    updateCompiledResult,
     currentTerm,
     currentAcademicYear,
     subjectAssignments,
@@ -343,7 +339,6 @@ export function CompileResultsPage() {
     updateAttendance,
     getAttendanceRequirements,
     loadAttendanceRequirements,
-    addNotification,
     classTeacherAssignments,
     getTermDates,
     loadClassTeacherAssignmentsFromAPI,
@@ -369,7 +364,7 @@ export function CompileResultsPage() {
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [customComment, setCustomComment] = useState<string>("");
-  const [showCommentOptions, setShowCommentOptions] = useState<boolean>(false);
+  const [_showCommentOptions, _setShowCommentOptions] = useState<boolean>(false);
 
   const resolveCanonicalClassId = (classId: any): string | null => {
     if (!classId) return null;
@@ -396,7 +391,7 @@ export function CompileResultsPage() {
   const effectiveSelectedClassId = useMemo(() => {
     return resolveCanonicalClassId(selectedClassId) ?? selectedClassId;
   }, [selectedClassId, classes, students]);
-  const [commentOptions, setCommentOptions] = useState<string[]>([]);
+  const [_commentOptions, _setCommentOptions] = useState<string[]>([]);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [resultsGenerated, setResultsGenerated] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -673,7 +668,7 @@ export function CompileResultsPage() {
   // Get current teacher
   const currentTeacher = currentUser ? teachers.find(t => String(t.id) === String(currentUser.linked_id)) : null;
   // Check if teacher has class teacher assignments
-  const hasClassTeacherAssignments = useMemo(() => {
+  const _hasClassTeacherAssignments = useMemo(() => {
     if (!currentTeacher) return false;
     return classes.some((c: any) => {
       const assignment = classTeacherAssignments.find((cta: any) => 
@@ -1317,7 +1312,7 @@ export function CompileResultsPage() {
   const canSubmit = hasAllScores && hasAffective && hasPsychomotor && hasAttendance && !studentResultData?.isSubmitted && studentResultData?.existingResult?.status !== 'Approved';
 
   // Calculate class statistics
-  const classStatistics = useMemo(() => {
+  const _classStatistics = useMemo(() => {
     const validStudents = studentsCompletion.filter(s => s.averageScore > 0);
     const scores = validStudents.map(s => s.averageScore);
     
@@ -1639,7 +1634,7 @@ export function CompileResultsPage() {
         if (!student) continue;
 
         // Get existing result for this student
-        const existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
+        const _existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
           cr.student_id === student.id &&
           cr.class_id === Number(effectiveSelectedClassId) &&
           cr.term === term &&
@@ -1749,7 +1744,7 @@ export function CompileResultsPage() {
         if (!student) continue;
 
         // Get existing result for this student
-        const existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
+        const _existingResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
           cr.student_id === student.id &&
           cr.class_id === Number(effectiveSelectedClassId) &&
           cr.term === currentTerm &&
@@ -1791,19 +1786,21 @@ export function CompileResultsPage() {
         const sortedStudents = [...allAverages].sort((a, b) => b - a);
         const position = sortedStudents.indexOf(averageScore) + 1;
 
-        let autoComment = '';
+        let _autoComment = '';
         if (averageScore >= 90) {
-          autoComment = 'Excellent';
+          _autoComment = 'Excellent';
+
+
         } else if (averageScore >= 80) {
-          autoComment = 'A very good result';
+          _autoComment = 'A very good result';
         } else if (averageScore >= 70) {
-          autoComment = 'Good result';
+          _autoComment = 'Good result';
         } else if (averageScore >= 60) {
-          autoComment = 'A satisfaction result';
+          _autoComment = 'A satisfaction result';
         } else if (averageScore >= 50) {
-          autoComment = 'A fair result';
+          _autoComment = 'A fair result';
         } else {
-          autoComment = 'Fail';
+          _autoComment = 'Fail';
         }
 
         const submitAttendanceRows = getAttendanceByStudent(student.id, academicYear, term);

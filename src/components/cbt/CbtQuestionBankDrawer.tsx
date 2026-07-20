@@ -185,7 +185,7 @@ export function CbtQuestionBankDrawer({ open, onOpenChange, examId, subjectId, o
                       </div>
                       <p className="text-sm font-medium text-[#1F2937] line-clamp-2">{q.question_text}</p>
                       {q.topic && <span className="text-xs text-[#6B7280] mt-1 block">Topic: {q.topic}</span>}
-                      {q.tags?.length > 0 && (
+                      {q.tags && q.tags.length > 0 && (
                         <div className="flex gap-1 mt-1 flex-wrap">
                           {q.tags.map((tag: string, ti: number) => (
                             <span key={ti} className="text-xs px-1.5 py-0.5 bg-[#F3F4F6] rounded text-[#6B7280]">#{tag}</span>

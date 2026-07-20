@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
@@ -17,7 +17,6 @@ import { ExamTimetablePage } from "./admin/ExamTimetablePage";
 import { DataBackupPage } from "./admin/DataBackupPage";
 import { ActivityLogsPage } from "./admin/ActivityLogsPage";
 import { NotificationSystemPage } from "./admin/NotificationSystemPage";
-import { NotificationArchivesPage } from "./admin/NotificationArchivesPage";
 import { ViewNotificationsPage } from "./shared/ViewNotificationsPage";
 import { SystemSettingsPage } from "./admin/SystemSettingsPage";
 import { CbtExamListPage } from "./cbt/CbtExamListPage";
@@ -78,10 +77,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const {
     students,
     teachers,
-    compiledResults,
     getPendingApprovals,
     currentUser,
-    checkUserPermissionAPI,
     currentAcademicYear,
     currentTerm,
     loadCompiledResultsFromAPI,
@@ -92,7 +89,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     loadSchoolSettings,
     notifications,
     schoolSettings,
-    addNotification
   } = useSchool();
   const [activeItem, setActiveItem] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -152,7 +148,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
           notifications={notifications}
           onLogout={onLogout}
           onNotificationClick={() => setActiveItem('view-messages')}
-          onMarkAsRead={(id) => {}}
+          onMarkAsRead={(_id) => {}}
           aria-label="Top navigation bar"
         />
 
@@ -168,8 +164,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 <DashboardWelcome
                   adminName={adminName}
                   schoolName={schoolDisplayName}
-                  currentAcademicYear={currentAcademicYear}
-                  currentTerm={currentTerm}
+                  currentAcademicYear={currentAcademicYear ?? ''}
+                  currentTerm={currentTerm ?? ''}
                   activeStudents={activeStudents}
                   activeTeachers={activeTeachers}
                   pendingResults={pendingResults}

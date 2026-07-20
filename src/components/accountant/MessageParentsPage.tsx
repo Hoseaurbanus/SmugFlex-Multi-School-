@@ -76,8 +76,6 @@ export function MessageParentsPage() {
     try {
       // Extract parent info from the original message
       const originalMessage = replyingTo.originalNotification || replyingTo;
-      const parentInfo = originalMessage.message.split('\n')[0]; // First line should contain parent info
-      
       // Send reply notification to the specific parent
       await addNotification({
         title: `Re: ${replyingTo.title}`,
@@ -101,7 +99,7 @@ export function MessageParentsPage() {
   };
 
   // Mark notification as read when viewed
-  const handleViewNotification = async (notification: any) => {
+  const _handleViewNotification = async (notification: any) => {
     // Mark as read if it's unread
     if (!notification.readBy.includes(currentUser?.id || 0)) {
       try {

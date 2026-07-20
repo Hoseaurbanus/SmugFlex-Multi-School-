@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useSchool } from "../../contexts/SchoolContext";
 import { useNotificationService } from "../../contexts/NotificationService";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, AlertCircle, Filter, Search, User, BookOpen, Calendar, TrendingUp, Eye, MessageSquare, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { CheckCircle, XCircle, AlertCircle, Filter, Search, User, BookOpen, Calendar, TrendingUp, Eye, MessageSquare, RefreshCw, Wifi } from "lucide-react";
 
 interface ScoreWithDetails {
   id: number;
@@ -101,7 +101,7 @@ export function ScoreApprovalPage() {
       if (isMounted) {
         setTeacherClasses(classes);
       }
-    }).catch(error => {
+    }).catch(_error => {
       if (isMounted) {
         // Silent fail for security
       }

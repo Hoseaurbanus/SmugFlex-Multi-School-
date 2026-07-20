@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Heart, Activity, Users, CheckCircle, RotateCcw, AlertTriangle, Save, ChevronDown, ChevronUp, Search, Loader2, Clock } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Heart, Activity, CheckCircle, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Search, Loader2 } from 'lucide-react';
+import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
@@ -106,7 +106,6 @@ export function DomainsPage() {
     teachers, 
     classes, 
     students, 
-    getStudentsByClass, 
     affectiveDomains,
     psychomotorDomains,
     compiledResults,

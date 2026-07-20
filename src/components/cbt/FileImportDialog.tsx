@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, FileText, File, Check, X, AlertCircle, Eye, Pencil, ArrowLeft, Sparkles } from 'lucide-react';
+import { Upload, FileText, File, Check, Eye, Pencil, ArrowLeft } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';

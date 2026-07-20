@@ -15,7 +15,7 @@ interface AddStudentFormProps {
   onSuccess: () => void;
 }
 
-function AddStudentFormComponent({ onClose, onSuccess }: AddStudentFormProps) {
+function AddStudentFormComponent({ onClose: _onClose, onSuccess }: AddStudentFormProps) {
   const { classes, parents, currentAcademicYear, createStudentAPI, currentUser } = useSchool();
   const [isLoading, setIsLoading] = useState(false);
   const [passportFile, setPassportFile] = useState<File | null>(null);

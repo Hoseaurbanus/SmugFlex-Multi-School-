@@ -207,7 +207,7 @@ export function NotificationSystemPage() {
                           className="border-gray-300"
                         />
                         <Label htmlFor="teachers" className="text-gray-800 cursor-pointer flex items-center gap-2">
-                          <GraduationCap className="w-4 h-4" weight="bold" />
+                          <GraduationCap className="w-4 h-4" />
                           Teachers
                         </Label>
                       </div>
@@ -221,7 +221,7 @@ export function NotificationSystemPage() {
                           className="border-gray-300"
                         />
                         <Label htmlFor="parents" className="text-gray-800 cursor-pointer flex items-center gap-2">
-                          <Users className="w-4 h-4" weight="bold" />
+                          <Users className="w-4 h-4" />
                           Parents
                         </Label>
                       </div>
@@ -235,7 +235,7 @@ export function NotificationSystemPage() {
                           className="border-gray-300"
                         />
                         <Label htmlFor="accountants" className="text-gray-800 cursor-pointer flex items-center gap-2">
-                          <Calculator className="w-4 h-4" weight="bold" />
+                          <Calculator className="w-4 h-4" />
                           Accountants
                         </Label>
                       </div>

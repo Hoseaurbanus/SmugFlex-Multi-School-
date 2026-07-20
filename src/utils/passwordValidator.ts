@@ -163,7 +163,7 @@ export class PasswordValidator {
   /**
    * Calculate password strength
    */
-  private calculateStrength(score: number, length: number): 'weak' | 'medium' | 'strong' | 'very-strong' {
+  private calculateStrength(score: number, _length: number): 'weak' | 'medium' | 'strong' | 'very-strong' {
     if (score < 30) return 'weak';
     if (score < 45) return 'medium';
     if (score < 60) return 'strong';

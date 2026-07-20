@@ -22,7 +22,6 @@ class ConnectionMonitorImpl implements ConnectionMonitor {
   private readonly MAX_FAILURES = 5; // Increased for low networks
   private readonly HEALTH_CHECK_INTERVAL = 120000; // 2 minutes for low networks
   private readonly FAILURE_RESET_INTERVAL = 600000; // 10 minutes for low networks
-  private readonly SLOW_NETWORK_THRESHOLD = 2000; // 2 seconds
   private adaptiveInterval = this.HEALTH_CHECK_INTERVAL;
   private isSlowNetwork = false;
 

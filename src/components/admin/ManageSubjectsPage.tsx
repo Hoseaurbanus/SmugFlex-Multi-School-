@@ -17,7 +17,7 @@ import { importSubjectsFromCSV, generateSubjectTemplate } from "../../utils/csvI
 import { SubjectCreationForm } from "./forms/SubjectCreationForm";
 
 export function ManageSubjectsPageFixed() {
-  const { subjects, addSubject, updateSubject, deleteSubject, subjectAssignments, loadSubjectsFromAPI } = useSchool();
+  const { subjects, updateSubject, deleteSubject, subjectAssignments, loadSubjectsFromAPI } = useSchool();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
@@ -26,18 +26,18 @@ export function ManageSubjectsPageFixed() {
   const [showSubjectForm, setShowSubjectForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [bulkImportDialogOpen, setBulkImportDialogOpen] = useState(false);
-  const [quickImportDialogOpen, setQuickImportDialogOpen] = useState(false);
+  const [_viewDialogOpen, _setViewDialogOpen] = useState(false);
+  const [_bulkImportDialogOpen, _setBulkImportDialogOpen] = useState(false);
+  const [_quickImportDialogOpen, _setQuickImportDialogOpen] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<any>(null);
-  const [csvFile, setCSVFile] = useState<File | null>(null);
-  const csvInputRef = useRef<HTMLInputElement>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [_csvFile, _setCSVFile] = useState<File | null>(null);
+  const _csvInputRef = useRef<HTMLInputElement>(null);
+  const [_isLoading, _setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Refresh subjects list when page mounts
   useEffect(() => {
-    loadSubjectsFromAPI(true);
+    loadSubjectsFromAPI();
   }, []);
 
   // Filter subjects
@@ -194,7 +194,7 @@ export function ManageSubjectsPageFixed() {
     setDeleteDialogOpen(true);
   };
 
-  const exportCSVTemplate = () => {
+  const _exportCSVTemplate = () => {
     const template = generateSubjectTemplate();
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -205,7 +205,7 @@ export function ManageSubjectsPageFixed() {
     toast.success("CSV template downloaded");
   };
 
-  const handleCSVImport = async (file: File) => {
+  const _handleCSVImport = async (file: File) => {
     if (!file) {
       toast.error("Please select a CSV file");
       return;
@@ -224,7 +224,7 @@ export function ManageSubjectsPageFixed() {
         toast.success(`${result.valid.length} subjects imported successfully`);
         
         // Refresh subjects data
-        await loadSubjectsFromAPI(true);
+        await loadSubjectsFromAPI();
       } else {
         toast.error("No valid subjects found in CSV file");
       }
@@ -251,7 +251,7 @@ export function ManageSubjectsPageFixed() {
             size="sm"
             className="w-full sm:w-auto flex items-center gap-2"
           >
-            <FileText weight="bold" className="w-4 h-4" />
+            <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">Export CSV</span>
             <span className="sm:hidden">Export</span>
           </Button>
@@ -264,7 +264,7 @@ export function ManageSubjectsPageFixed() {
             className="bg-[#0A2540] hover:bg-[#082030] text-white rounded-xl w-full sm:w-auto flex items-center gap-2"
             size="sm"
           >
-            <Plus weight="bold" className="w-4 h-4" />
+            <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Create New Subject</span>
             <span className="sm:hidden">New Subject</span>
           </Button>
@@ -439,7 +439,7 @@ export function ManageSubjectsPageFixed() {
                 <p className="text-2xl font-bold text-emerald-600">{stats.activeSubjects}</p>
               </div>
               <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center">
-                <BookOpen weight="bold" className="w-6 h-6 text-emerald-600" />
+                <BookOpen className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
         </div>
@@ -463,7 +463,7 @@ export function ManageSubjectsPageFixed() {
                 <p className="text-2xl font-bold text-[#FFD700]">{stats.assignedSubjects}</p>
               </div>
               <div className="w-12 h-12 bg-[#FFD700]/10 rounded-full flex items-center justify-center">
-                <BookOpen weight="bold" className="w-6 h-6 text-[#FFD700]" />
+                <BookOpen className="w-6 h-6 text-[#FFD700]" />
               </div>
             </div>
         </div>

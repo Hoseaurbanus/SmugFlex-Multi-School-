@@ -1,14 +1,13 @@
 // Parent Dashboard Component - Main interface for parent users
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Users, Calendar, Bell, Settings, User, CheckCircle, BookOpen, Award, TrendingUp, Download, Eye, Search, Filter, Mail, Phone, Lock, CreditCard, FileText, Clock, AlertCircle, Check, X, Edit2, Save, RefreshCw, Banknote, Upload, Printer, MessageCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Bell, Settings, User, CheckCircle, BookOpen, Award, TrendingUp, Download, Mail, Lock, CreditCard, FileText, Banknote, Upload, Printer, MessageCircle } from 'lucide-react';
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardHeader } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { toast } from "sonner";
@@ -61,7 +60,6 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     loadCompiledResultsFromAPI,
     loadSchoolSettings,
     compiledResults,
-    getCompiledResults,
     payments,
     loadPaymentsFromAPI,
     markNotificationAsRead,
@@ -70,9 +68,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     deleteNotification,
     loadNotificationsFromAPI,
     classes,
-    teachers,
     schoolSettings,
-    feeStructures,
     loadFeeStructuresFromAPI,
     getStudentInvoice,
     users,
@@ -133,7 +129,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
           } else if (isMounted) {
             toast.error('Connection failed. Please refresh the page.');
           }
-        }).catch(error => {
+        }).catch(_error => {
           if (isMounted) {
             // Silent fail for security
           }
@@ -159,7 +155,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     phone: "",
     address: ""
   });
-  const [retryScheduled, setRetryScheduled] = useState(false); // Prevent multiple retries
+  const [_retryScheduled, _setRetryScheduled] = useState(false); // Prevent multiple retries
   const [dataLoadedSuccessfully, setDataLoadedSuccessfully] = useState(false); // Track successful data load
   const dataLoadedRef = useRef(false); // Ref to track successful data load (not affected by state timing)
   const [passwordData, setPasswordData] = useState({
@@ -178,7 +174,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "transfer">("card");
   const [loadingPayments, setLoadingPayments] = useState(false);
-  const [loadingResults, setLoadingResults] = useState(false);
+  const [_loadingResults, _setLoadingResults] = useState(false);
   const [bankTransferReceipt, setBankTransferReceipt] = useState<File | null>(null);
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
   const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<any>(null);
@@ -407,14 +403,14 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     toast.success(`Opening approved result details for ID: ${resultId}`);
   };
 
-  const handleDownloadResult = (resultId: number) => {
+  const _handleDownloadResult = (resultId: number) => {
     setActiveItem('children');
     toast.success(`Downloading PDF result for ID: ${resultId}`);
     // In a real implementation, this would generate and download a PDF
   };
 
   // Profile management functions
-  const handleSaveProfile = async () => {
+  const _handleSaveProfile = async () => {
     if (!currentParent) return;
     
     try {
@@ -451,7 +447,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     }
   };
 
-  const handleSendMessage = async () => {
+  const _handleSendMessage = async () => {
     if (!messageData.subject.trim() || !messageData.message.trim()) {
       toast.error("Please fill in all fields");
       return;
@@ -507,7 +503,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     return userNotifications;
   };
 
-  const openReceiptDialog = (payment: any) => {
+  const _openReceiptDialog = (payment: any) => {
     setSelectedPaymentForReceipt(payment);
     setIsReceiptDialogOpen(true);
   };
@@ -1375,7 +1371,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
         .map(c => invoiceSummaries[c.id])
         .filter(Boolean);
 
-      const totalOutstanding = invRows.reduce((sum: number, inv: any) => {
+      const _totalOutstanding = invRows.reduce((sum: number, inv: any) => {
         const outstanding = Number(inv?.outstanding || 0);
         return sum + (outstanding > 0 ? outstanding : 0);
       }, 0);

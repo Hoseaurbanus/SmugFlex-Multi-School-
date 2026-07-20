@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 const NAIRA = "\u20A6";
 
 export function PaymentHistoryPage() {
-  const { payments, students, reversePayment, currentTerm, currentAcademicYear, loadPaymentsFromAPI } = useSchool();
+  const { payments, students, reversePayment, currentAcademicYear, loadPaymentsFromAPI } = useSchool();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [feeTypeFilter, setFeeTypeFilter] = useState('all');

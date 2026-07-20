@@ -1,4 +1,4 @@
-import { Book, BookOpen, Loader2, Printer, Download, Eye } from 'lucide-react';
+import { BookOpen, Loader2, Printer, Download, Eye } from 'lucide-react';
 import { useState, useEffect, useRef } from "react";
 import { useSchool } from "../../contexts/SchoolContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -333,7 +333,7 @@ export function ResultSheetViewerButton({ studentId, classId, term, academicYear
   academicYear: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const { students, classes, compiledResults, currentUser, loadCompiledResultsFromAPI } = useSchool();
+  const { students, compiledResults, currentUser, loadCompiledResultsFromAPI } = useSchool();
   const [isLoading, setIsLoading] = useState(false);
   const [studentResultData, setStudentResultData] = useState<any>(null);
 
@@ -366,7 +366,7 @@ export function ResultSheetViewerButton({ studentId, classId, term, academicYear
         setStudentResultData(result);
       } else {
         // Create a default result structure if no compiled result exists
-        const student = students.find(s => s.id === studentId);
+        const _student = students.find(s => s.id === studentId);
         const defaultResult = {
           id: 0,
           student_id: studentId,
@@ -409,11 +409,11 @@ export function ResultSheetViewerButton({ studentId, classId, term, academicYear
     }
   };
 
-  const handlePrint = () => {
+  const _handlePrint = () => {
     // Print functionality removed - only use ResultsManagementPage PDF generation
   };
 
-  const handleDownloadPDF = () => {
+  const _handleDownloadPDF = () => {
     // PDF generation removed - only use ResultsManagementPage PDF generation
   };
 

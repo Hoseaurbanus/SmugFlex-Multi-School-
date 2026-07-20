@@ -14,7 +14,6 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
     parents,
     teachers,
     examTimetables,
-    getExamTimetablesByClass,
     currentTerm,
     currentAcademicYear,
   } = useSchool();

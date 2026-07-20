@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Badge } from '../ui/badge';
+
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import {
   Dialog,
@@ -44,7 +44,6 @@ export function ClassListPage() {
     parents, 
     currentUser, 
     teachers, 
-    getTeacherAssignments,
     classTeacherAssignments,
     compiledResults,
     currentTerm,

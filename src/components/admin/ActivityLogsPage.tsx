@@ -27,7 +27,7 @@ export function ActivityLogsPage() {
 
   const getActionIcon = (action: string) => {
     if (action.includes('User') || action.includes('Create')) return <Settings className="w-4 h-4" />;
-    if (action.includes('Password')) return <Key weight="bold" className="w-4 h-4" />;
+    if (action.includes('Password')) return <Key className="w-4 h-4" />;
     if (action.includes('Link') || action.includes('Unlink')) return <Link className="w-4 h-4" />;
     if (action.includes('Deactivate') || action.includes('Activate')) return <span className="w-4 h-4" />;
     return <Settings className="w-4 h-4" />;

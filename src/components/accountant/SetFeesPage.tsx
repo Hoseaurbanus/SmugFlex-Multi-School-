@@ -198,7 +198,7 @@ export function SetFeesPage() {
           toast.warning("Invoices could not be refreshed automatically. Please try again.");
         }
       } else {
-        const newFeeId = await addFeeStructure(feeData);
+        await addFeeStructure(feeData);
         let invoicesOk = true;
         try {
           await autoGenerateInvoices(Number(selectedClassId), selectedTerm, selectedYear);

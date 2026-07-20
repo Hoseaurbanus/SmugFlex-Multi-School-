@@ -344,6 +344,45 @@ class SQLDatabaseService {
     }
   }
 
+  // Check existence methods for import validation
+  async checkAdmissionNumberExists(admissionNumber: string): Promise<boolean> {
+    try {
+      const result = await this.executeQueryInternal(
+        'SELECT id FROM students WHERE admission_number = ? LIMIT 1',
+        [admissionNumber]
+      );
+      return (result.data || []).length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  async checkEmployeeIdExists(employeeId: string): Promise<boolean> {
+    try {
+      const result = await this.executeQueryInternal(
+        'SELECT id FROM teachers WHERE employee_id = ? LIMIT 1',
+        [employeeId]
+      );
+      return (result.data || []).length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  async checkEmailExists(email: string, table: string = 'users'): Promise<boolean> {
+    try {
+      const validTables = ['users', 'students', 'teachers', 'parents'];
+      if (!validTables.includes(table)) return false;
+      const result = await this.executeQueryInternal(
+        `SELECT id FROM ${table} WHERE email = ? LIMIT 1`,
+        [email]
+      );
+      return (result.data || []).length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   // Get all data (for export) - Updated to match exact XAMPP schema
   async getStudents(): Promise<any[]> {
     try {

@@ -15,6 +15,7 @@ import {
 
 import { cn } from '../../lib/utils';
 import { Label } from "./label";
+import { Slot } from "@radix-ui/react-slot";
 
 const Form = FormProvider;
 
@@ -90,7 +91,7 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
 function FormLabel({
   className,
   ...props
-}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+}: React.ComponentProps<typeof Label>) {
   const { error, formItemId } = useFormField();
 
   return (

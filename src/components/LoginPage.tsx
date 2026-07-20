@@ -69,8 +69,8 @@ export function LoginPage() {
     register: registerStudent,
     handleSubmit: handleStudentSubmit,
     formState: { errors: studentErrors },
-    setValue: setStudentValue,
-    watch: watchStudent,
+    setValue: _setStudentValue,
+    watch: _watchStudent,
   } = useForm<StudentLoginFormInputs>({
     defaultValues: { studentClass: "", studentReg: "" },
   });

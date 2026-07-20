@@ -20,7 +20,6 @@ interface DashboardSidebarProps {
   onItemClick: (id: string) => void;
   sections?: SidebarSection[];
   schoolName?: string;
-  header?: ReactNode;
   footer?: ReactNode;
 }
 
@@ -37,8 +36,6 @@ const DashboardSidebar = memo(function DashboardSidebar({
   activeItem,
   onItemClick,
   sections,
-  schoolName = '',
-  header,
   footer,
 }: DashboardSidebarProps) {
   const [isOpen, setIsOpen] = useState(false);

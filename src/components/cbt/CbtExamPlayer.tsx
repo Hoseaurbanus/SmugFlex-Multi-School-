@@ -136,7 +136,7 @@ export function CbtExamPlayer({ exam, onExit }: Props) {
           saveCbtAnswer(attempt.id, Number(qId), val)
         )
       );
-      const result = await submitCbtAttempt(attempt.id, tabSwitchCount);
+      const _result = await submitCbtAttempt(attempt.id, tabSwitchCount);
       submittedRef.current = true;
       setSubmitted(true);
       const detail = await getCbtAttemptDetail(attempt.id);
@@ -183,7 +183,7 @@ export function CbtExamPlayer({ exam, onExit }: Props) {
           <CardContent className="p-6">
             <ResultsSummary
               attempt={resultData}
-              answers={resultData.answers || questions.map((q, i) => ({
+              answers={resultData.answers || questions.map((_q, i) => ({
                 is_correct: null,
                 student_answer: answers[i],
               }))}

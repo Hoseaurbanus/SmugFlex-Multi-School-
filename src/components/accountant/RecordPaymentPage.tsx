@@ -91,7 +91,7 @@ export function RecordPaymentPage() {
   }, [selectedStudent?.id, term, academicYear, getStudentInvoice]);
 
   // Filter students for dropdown
-  const filteredStudents = useMemo(() => {
+  const _filteredStudents = useMemo(() => {
     if (!searchTerm.trim()) return students.slice(0, 20);
     const term = searchTerm.toLowerCase();
     return students.filter(
@@ -129,7 +129,7 @@ export function RecordPaymentPage() {
     }
   };
 
-  const handleSelectStudent = (studentId: number) => {
+  const _handleSelectStudent = (studentId: number) => {
     setSelectedStudentId(studentId);
     const student = students.find(s => s.id === studentId);
     if (student) {

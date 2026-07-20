@@ -23,7 +23,7 @@ interface DashboardTopBarProps {
   onChangePasswordClick?: () => void;
 }
 
-export function DashboardTopBar({ userName, userRole, schoolName = '', notificationCount = 0, notifications = [], onLogout, onNotificationClick, onMarkAsRead, onChangePasswordClick }: DashboardTopBarProps) {
+export function DashboardTopBar({ userName, userRole, schoolName = '', onLogout, onNotificationClick, onChangePasswordClick }: DashboardTopBarProps) {
   const { currentUser } = useAuth();
   const { getUnreadNotifications, deleteNotification } = useNotifications();
   useNotificationListener(currentUser?.role, currentUser?.id);

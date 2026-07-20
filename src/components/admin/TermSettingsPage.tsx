@@ -11,8 +11,6 @@ export function TermSettingsPage() {
     const {
     currentTerm,
     currentAcademicYear,
-    updateCurrentTerm,
-    updateCurrentAcademicYear,
     updateCurrentTermAndYear,
     updateAttendanceRequirements,
     getAttendanceRequirements,

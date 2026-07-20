@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, BookOpen, FileText, Clock, CheckCircle2, AlertCircle, LogOut, Eye, ArrowLeft, HelpCircle, XCircle, BarChart3, TrendingUp, Award, Play, ChevronRight, Sparkles, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileText, Clock, CheckCircle2, LogOut, Eye, BarChart3, TrendingUp, Award, Play, ChevronRight, GraduationCap } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -26,7 +26,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const { cbtExams, cbtAttempts, loadCbtStudentExamsFromAPI, loadCbtMyAttemptsFromAPI, getCbtAttemptDetail, currentUser, schoolSettings } = useSchool();
   const [activeItem, setActiveItem] = useState('dashboard');
   const [selectedExam, setSelectedExam] = useState<any>(null);
-  const [viewAttempt, setViewAttempt] = useState<any>(null);
+  const [_viewAttempt, _setViewAttempt] = useState<any>(null);
   const [viewDetailOpen, setViewDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailData, setDetailData] = useState<any>(null);
@@ -520,7 +520,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
             <ResultsSummary
               attempt={detailData}
               answers={detailData.answers || []}
-              questions={detailData.answers?.map((a: any, i: number) => ({
+              questions={detailData.answers?.map((a: any, _i: number) => ({
                 question_text: a.question_text,
                 correct_answer: a.correct_answer,
               })) || []}

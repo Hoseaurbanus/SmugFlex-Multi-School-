@@ -188,7 +188,7 @@ export function ScoreEntryPage() {
   // Batch save scores in a single API call
   const batchSaveScores = useCallback(async (
     assignmentId: number,
-    assignmentSubjectName: string,
+    _assignmentSubjectName: string,
     status: 'Draft' | 'Submitted',
     studentIds: number[]
   ) => {
@@ -567,7 +567,7 @@ export function ScoreEntryPage() {
         let errorCount = 0;
         const updatedScores: Record<number, { ca1: string; ca2: string; exam: string }> = {};
 
-        dataLines.forEach((line, idx) => {
+        dataLines.forEach((line, _idx) => {
           try {
             const parts = [];
             let current = '';
@@ -742,7 +742,7 @@ export function ScoreEntryPage() {
                 selectedClass={selectedClass || null}
                 selectedAssignment={selectedAssignment || null}
                 statistics={statistics}
-                currentTeacher={currentTeacher}
+                currentTeacher={currentTeacher ?? null}
                 autoSaveStatus={autoSaveStatus}
                 isLocked={isLocked}
                 hasSubmittedScores={hasSubmittedScores}

@@ -9,7 +9,7 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    Navigate: ({ to, replace }: { to: string; replace?: boolean }) => {
+    Navigate: ({ to }: { to: string; replace?: boolean }) => {
       mockNavigate(to);
       return <div data-testid="navigate" data-to={to} />;
     },

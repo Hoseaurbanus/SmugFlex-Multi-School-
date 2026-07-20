@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminDashboard } from './AdminDashboard';
@@ -53,7 +53,7 @@ vi.mock('./admin/AttendanceReportsPage', () => ({ AttendanceReportsPage: () => <
 
 // Mock DashboardSidebar and DashboardTopBar
 vi.mock('./DashboardSidebar', () => ({
-  DashboardSidebar: ({ items, activeItem, onItemClick }: any) => (
+  DashboardSidebar: ({ items, activeItem: _activeItem, onItemClick }: any) => (
     <div data-testid="dashboard-sidebar">
       {items.map((item: any) => (
         <button

@@ -90,8 +90,8 @@ export const SelectValue = React.forwardRef<HTMLSpanElement, SelectValueProps>(
     React.useEffect(() => {
       const map: Record<string, string> = {}
       React.Children.forEach(children, (child) => {
-        if (React.isValidElement(child) && child.props.value !== undefined) {
-          map[child.props.value] = String(child.props.children ?? '');
+        if (React.isValidElement(child) && (child.props as any).value !== undefined) {
+          map[(child.props as any).value] = String((child.props as any).children ?? '');
         }
       })
       setLabelMap(map)
