@@ -9,7 +9,12 @@ const getApiBaseUrl = () => {
     return configuredBaseUrl.replace(/\/$/, '');
   }
 
-  // All environments use relative /api path — Vercel serverless proxy handles forwarding to cPanel
+  // Mobile: use absolute URL since relative /api doesn't work in file:// protocol
+  // Web: use relative /api path — Vercel serverless proxy handles forwarding to cPanel
+  if (window.location.protocol === 'file:') {
+    return 'https://smug.site.gracelandroyalacademy.com.ng/api';
+  }
+
   return '/api';
 };
 
