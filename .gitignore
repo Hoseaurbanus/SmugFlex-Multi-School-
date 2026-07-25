@@ -13,3 +13,7 @@ uploads/
 api/error_log
 database/
 build/
+
+# Capacitor native platforms
+android/
+ios/
