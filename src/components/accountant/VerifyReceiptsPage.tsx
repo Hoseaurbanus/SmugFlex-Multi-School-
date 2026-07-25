@@ -12,6 +12,7 @@ import { useSchool } from '../../contexts/SchoolContext';
 import { api } from '../../services/api';
 import { Eye, Download, FileText, Printer, RefreshCw, CheckCircle, XCircle, AlertCircle, User, DollarSign } from 'lucide-react';
 import { PaymentReceipt } from '../ui/PaymentReceipt';
+import { CapacitorHelper } from '../../utils/capacitorHelper';
 
 const NAIRA = "\u20A6";
 
@@ -998,10 +999,10 @@ export function VerifyReceiptsPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     const receiptUrl = getReceiptUrl(selectedPayment.notes);
                     if (receiptUrl) {
-                      window.open(receiptUrl, '_blank');
+                      await CapacitorHelper.openUrl(receiptUrl);
                     }
                   }}
                   className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg"

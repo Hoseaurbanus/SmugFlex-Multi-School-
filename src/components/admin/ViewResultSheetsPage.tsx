@@ -13,6 +13,7 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { generateCumulativePDF } from "../../utils/pdfGenerator";
 import { shouldShowPosition as checkShouldShowPosition } from "../../utils/classHelpers";
 import { toast } from "sonner";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 type ViewMode = "term" | "cumulative";
 
@@ -584,15 +585,11 @@ export function ViewResultSheetsPage() {
                                 </Button>
                               )}
                               <Button
-                                onClick={() => {
+                                onClick={async () => {
                                   const ref = viewMode === "cumulative" ? cumulativeResultSheetRef : resultSheetRef;
                                   if (ref.current) {
-                                    const pw = window.open('', '_blank');
-                                    if (pw) {
-                                      pw.document.write(`<html><head><title>${viewMode === "cumulative" ? "Cumulative Result" : "Result Sheet"}</title><style>@page{size:A4;margin:8mm}body{margin:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}table{border-collapse:collapse;width:100%}td,th{padding:4px;font-size:10px}.bg-white{background:white!important}</style></head><body>${ref.current.innerHTML}</body></html>`);
-                                      pw.document.close();
-                                      setTimeout(() => { pw.print(); pw.close(); }, 500);
-                                    }
+                                    const htmlContent = `<html><head><title>${viewMode === "cumulative" ? "Cumulative Result" : "Result Sheet"}</title><style>@page{size:A4;margin:8mm}body{margin:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}table{border-collapse:collapse;width:100%}td,th{padding:4px;font-size:10px}.bg-white{background:white!important}</style></head><body>${ref.current.innerHTML}</body></html>`;
+                                    await CapacitorHelper.print(htmlContent);
                                   }
                                 }}
                                 className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl"
