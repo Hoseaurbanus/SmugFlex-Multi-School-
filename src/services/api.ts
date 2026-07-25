@@ -4,6 +4,7 @@
  */
 
 import { API_CONFIG, buildUrl, getAuthToken, setAuthToken, removeAuthToken } from '../config/api';
+import { CapacitorHelper } from '../utils/capacitorHelper';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -370,14 +371,7 @@ class ApiService {
 
       // Create blob and download
       const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename || 'download';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      await CapacitorHelper.downloadFile(blob, filename || 'download', blob.type || 'application/octet-stream');
     } catch (error) {
       throw new Error('Download failed. Please try again.');
     }

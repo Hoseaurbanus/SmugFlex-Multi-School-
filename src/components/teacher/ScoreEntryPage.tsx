@@ -10,6 +10,7 @@ import { ScoreEntryFilters } from "./score-entry/ScoreEntryFilters";
 import { ScoreEntryInfoBar } from "./score-entry/ScoreEntryInfoBar";
 import { ScoreEntryTable } from "./score-entry/ScoreEntryTable";
 import { calculateTotal } from "./score-entry/scoreConfig";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 export function ScoreEntryPage() {
   const {
@@ -510,14 +511,7 @@ export function ScoreEntryPage() {
       }
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedAssignment?.class_name || 'Class'} - ${selectedAssignment?.subject_name || 'Subject'}_${currentTerm}_${currentAcademicYear}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    await CapacitorHelper.downloadFile(blob, `${selectedAssignment?.class_name || 'Class'} - ${selectedAssignment?.subject_name || 'Subject'}_${currentTerm}_${currentAcademicYear}.csv`, 'text/csv');
     toast.success("CSV file exported successfully!");
   };
 

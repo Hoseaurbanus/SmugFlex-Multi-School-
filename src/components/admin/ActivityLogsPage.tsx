@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Badge } from "../ui/badge";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 export function ActivityLogsPage() {
   const { activityLogs, getActivityLogs } = useSchool();
@@ -55,12 +56,7 @@ export function ActivityLogsPage() {
     ]);
     
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `activity-logs-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    await CapacitorHelper.downloadCSV(csvContent, `activity-logs-${new Date().toISOString().split('T')[0]}.csv`);
     toast.success("Activity log exported successfully");
   };
 

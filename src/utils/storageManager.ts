@@ -4,6 +4,7 @@
  */
 
 import { API_CONFIG } from '../config/api';
+import { CapacitorHelper } from './capacitorHelper';
 
 const STORAGE_VERSION = '1.0.0';
 
@@ -132,17 +133,9 @@ export function getStorageSize(): number {
 /**
  * Export data as JSON file
  */
-export function exportDataAsJSON(data: StorageData, filename?: string): void {
+export async function exportDataAsJSON(data: StorageData, filename?: string): Promise<void> {
   const jsonString = JSON.stringify(data, null, 2);
-  const blob = new Blob([jsonString], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename || `smugflex_backup_${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  await CapacitorHelper.downloadJSON(data, filename || `smugflex_backup_${new Date().toISOString().split('T')[0]}.json`);
 }
 
 /**

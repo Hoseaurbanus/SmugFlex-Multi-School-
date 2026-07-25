@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import { generatePDFFromData as generateStudentResultPdf } from "../../utils/pdfGenerator";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 interface ViewAllResultsPageProps {
   onBack?: () => void;
@@ -120,13 +121,7 @@ export function ViewAllResultsPage({ onBack: _onBack, onViewResult }: ViewAllRes
     });
 
     const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `results-export-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await CapacitorHelper.downloadCSV(csv, `results-export-${new Date().toISOString().split('T')[0]}.csv`);
     toast.success(`Exported ${filteredResults.length} results`);
   };
 

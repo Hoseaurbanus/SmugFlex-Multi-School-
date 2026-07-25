@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
 import { GraduationCap, Users, TrendingUp, AlertTriangle, Download, CheckCircle, XCircle, Clock, Settings } from "lucide-react";
 import { API_CONFIG } from "../../config/api";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 // Enhanced promotion status types matching database
 const PROMOTION_STATUSES = [
@@ -773,12 +774,7 @@ export function PromotionSystemPage() {
     });
     
     const csvContent = [headers, ...rows].map((row: any[]) => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `promotion-list-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    await CapacitorHelper.downloadCSV(csvContent, `promotion-list-${new Date().toISOString().split('T')[0]}.csv`);
     toast.success("Promotion list exported successfully");
   };
 

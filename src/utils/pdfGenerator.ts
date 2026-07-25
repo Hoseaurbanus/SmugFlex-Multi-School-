@@ -4,6 +4,7 @@ import { API_CONFIG } from "../config/api";
 import { formatPositionWithSuffix } from "./position";
 import { generateQrDataUrl } from "./qrCode";
 import { shouldShowPosition as checkShouldShowPosition } from "./classHelpers";
+import { CapacitorHelper } from "./capacitorHelper";
 
 type PdfDownloadMethod = 'save' | 'blob';
 
@@ -1194,19 +1195,17 @@ export const generatePDFFromData = async (student: any, result: any, context: an
       return { blob, filename } as any;
     }
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    await CapacitorHelper.downloadPDF(blob, filename);
     return;
   }
 
-  pdf.save(filename);
+  // For 'save' method, use CapacitorHelper on native, pdf.save on web
+  if (CapacitorHelper.isNative()) {
+    const blob = pdf.output('blob');
+    await CapacitorHelper.downloadPDF(blob, filename);
+  } else {
+    pdf.save(filename);
+  }
   
 };
 

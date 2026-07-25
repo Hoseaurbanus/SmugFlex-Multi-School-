@@ -27,6 +27,7 @@ import {
   UserCheck, AlertCircle, RefreshCw, Medal, GraduationCap
 } from 'lucide-react';
 import { toast } from "sonner";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 interface ExtendedStudent extends SchoolStudent {
   parentName: string;
@@ -378,13 +379,7 @@ export function ClassListPage() {
       ]);
       
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${selectedClass?.name || 'class'}-class-list-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await CapacitorHelper.downloadCSV(csvContent, `${selectedClass?.name || 'class'}-class-list-${new Date().toISOString().split('T')[0]}.csv`);
       toast.success(`Exported ${filteredStudents.length} students`);
     } catch {
       toast.error('Failed to export CSV');

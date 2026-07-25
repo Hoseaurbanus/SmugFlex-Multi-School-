@@ -16,6 +16,7 @@ import { importClassesFromCSV, generateClassTemplate } from "../../utils/csvImpo
 import { Class, Subject, SubjectRegistration, Teacher, Student } from "../../types/school";
 import { useSchool } from "../../contexts/SchoolContext";
 import { ClassCreationForm } from "./forms/ClassCreationForm";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 const CLASS_LEVELS = ["Creche", "Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "JSS 1", "JSS 2", "JSS 3", "SSS 1", "SSS 2", "SSS 3"];
 
@@ -372,14 +373,9 @@ function ManageClassesPageDesktop() {
     }
   };
 
-  const exportCSVTemplate = () => {
+  const exportCSVTemplate = async () => {
     const template = generateClassTemplate();
-    const blob = new Blob([template], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'class_import_template.csv';
-    a.click();
+    await CapacitorHelper.downloadCSV(template, 'class_import_template.csv');
     toast.success("CSV template downloaded");
   };
 
