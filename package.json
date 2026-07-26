@@ -104,6 +104,11 @@
             "test:run": "vitest run",
             "test:coverage": "vitest run --coverage",
             "setup": "npm install && npm run install-types",
-            "install-types": "npm install --save-dev @types/node vite"
+            "install-types": "npm install --save-dev @types/node vite",
+            "cap:sync": "npx cap sync android",
+            "cap:open": "npx cap open android",
+            "cap:build": "npm run build && npx cap sync android",
+            "android:debug": "cd android && gradlew.bat assembleDebug",
+            "android:release": "cd android && gradlew.bat assembleRelease"
       }
 }

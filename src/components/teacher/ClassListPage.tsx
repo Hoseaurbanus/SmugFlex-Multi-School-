@@ -354,7 +354,7 @@ export function ClassListPage() {
     }
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     try {
       const escapeCsv = (val: any) => {
         const s = String(val ?? '');

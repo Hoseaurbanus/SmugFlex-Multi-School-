@@ -8,6 +8,7 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 import { TrendingUp, DollarSign, Users, CheckCircle, AlertCircle, Clock, Download, FileText } from 'lucide-react';
 
 export function PaymentReportsPage() {
@@ -133,7 +134,7 @@ export function PaymentReportsPage() {
     toast.success("Report exported successfully!");
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const escapeCSV = (value: any) => {
       if (value === null || value === undefined) return '';
       const str = String(value);
@@ -177,12 +178,8 @@ export function PaymentReportsPage() {
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Payment_Report_${filterTerm}_${filterYear}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const fileName = `Payment_Report_${filterTerm}_${filterYear}.csv`;
+    await CapacitorHelper.downloadFile(blob, fileName, 'text/csv');
     
     toast.success("CSV exported successfully!");
   };

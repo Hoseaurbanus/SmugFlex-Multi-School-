@@ -26,7 +26,7 @@ export function ViewNotificationsPage() {
         return;
       }
 
-      const token = getAuthToken();
+      const token = await getAuthToken();
       if (!token) {
         setWhatsappGroups([]);
         return;

@@ -105,7 +105,7 @@ export function PaymentHistoryPage() {
     }
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const escapeCSV = (value: any) => {
       if (value === null || value === undefined) return '';
       const str = String(value);

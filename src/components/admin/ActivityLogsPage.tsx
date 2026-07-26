@@ -43,7 +43,7 @@ export function ActivityLogsPage() {
     return "bg-gray-300";
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const headers = ['Timestamp', 'Actor', 'Role', 'Action', 'Target', 'IP Address', 'Status'];
     const rows = filteredLogs.map(log => [
       new Date(log.timestamp).toLocaleString(),

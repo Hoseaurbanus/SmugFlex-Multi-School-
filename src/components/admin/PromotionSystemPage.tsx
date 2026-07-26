@@ -755,7 +755,7 @@ export function PromotionSystemPage() {
     }
   };
 
-  const exportPromotionList = () => {
+  const exportPromotionList = async () => {
     const headers = ['Student Name', 'Admission No', 'Current Class', 'Average Score', 'Position', 'Attendance', 'Status', 'Next Class', 'Manual Override'];
     const rows = filteredStudents.map((s: any) => {
       const nextClass = promotionMapping[s.id] ? classes.find((c: any) => c.id === promotionMapping[s.id])?.name : '-';

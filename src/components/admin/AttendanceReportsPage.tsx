@@ -108,7 +108,7 @@ export function AttendanceReportsPage() {
     }).filter(c => c.total > 0).sort((a, b) => b.rate - a.rate);
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     let csvContent = '';
     let fileName = '';
 

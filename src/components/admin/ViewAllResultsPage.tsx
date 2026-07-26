@@ -97,7 +97,7 @@ export function ViewAllResultsPage({ onBack: _onBack, onViewResult }: ViewAllRes
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (filteredResults.length === 0) {
       toast.error('No results to export');
       return;

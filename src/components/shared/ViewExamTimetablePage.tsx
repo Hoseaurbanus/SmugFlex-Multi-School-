@@ -68,7 +68,7 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
     groupedByDate[date].sort((a, b) => a.start_time.localeCompare(b.start_time));
   });
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     // Create CSV content
     let csvContent = `${currentUser?.school_name || currentUser?.school_suffix || 'School'} - Exam Timetable\n`;
     csvContent += `Term: ${currentTerm}, Academic Year: ${currentAcademicYear}\n`;

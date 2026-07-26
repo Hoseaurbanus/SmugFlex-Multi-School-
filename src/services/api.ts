@@ -67,7 +67,7 @@ class ApiService {
     retries = 3 // Increased retries for low networks
   ): Promise<ApiResponse<T>> {
     const url = buildUrl(endpoint);
-    const token = getAuthToken();
+    const token = await getAuthToken();
 
     const method = String(options.method || 'GET').toUpperCase();
     const isIdempotentMethod = method === 'GET' || method === 'HEAD';
@@ -128,7 +128,7 @@ class ApiService {
           try {
             const refreshResponse = await this.refreshToken();
             if (refreshResponse && refreshResponse.success && refreshResponse.data?.token) {
-              setAuthToken(refreshResponse.data.token);
+              await setAuthToken(refreshResponse.data.token);
               const retryResponse = await fetch(url, {
                 ...config,
                 headers: {
@@ -141,7 +141,7 @@ class ApiService {
               return retryData;
             }
           } catch (refreshError) {
-            removeAuthToken();
+            await removeAuthToken();
             if (attempt < retries - 1) {
               if ((headers as any)['Authorization']) {
                 delete (headers as any)['Authorization'];
@@ -171,7 +171,7 @@ class ApiService {
           // If backend embeds 401/403/4xx in JSON while HTTP status is 200, surface it as an error
           if (statusCode >= 400) {
             if ((statusCode === 401 || statusCode === 403) && (headers as any)['Authorization']) {
-              removeAuthToken();
+              await removeAuthToken();
               if (attempt < retries - 1) {
                 delete (headers as any)['Authorization'];
                 const baseDelay = this.connectionStatus.isSlow ? 1000 : 500;
@@ -244,7 +244,7 @@ class ApiService {
    */
   private async refreshToken(): Promise<ApiResponse | null> {
     try {
-      const token = getAuthToken();
+      const token = await getAuthToken();
       if (!token) {
         return null;
       }
@@ -317,7 +317,7 @@ class ApiService {
       });
     }
 
-    const token = getAuthToken();
+    const token = await getAuthToken();
     const headers: HeadersInit = {
       'Accept': 'application/json',
     };
@@ -338,7 +338,7 @@ class ApiService {
    */
   async download(endpoint: string, filename?: string): Promise<void> {
     const url = buildUrl(endpoint);
-    const token = getAuthToken();
+    const token = await getAuthToken();
 
     const headers: HeadersInit = {
       'Accept': 'application/octet-stream',
@@ -380,22 +380,22 @@ class ApiService {
   /**
    * Set authentication token
    */
-  setToken(token: string): void {
-    setAuthToken(token);
+  async setToken(token: string): Promise<void> {
+    await setAuthToken(token);
   }
 
   /**
    * Remove authentication token
    */
-  clearToken(): void {
-    removeAuthToken();
+  async clearToken(): Promise<void> {
+    await removeAuthToken();
   }
 
   /**
    * Check if user is authenticated
    */
-  isAuthenticated(): boolean {
-    return !!getAuthToken();
+  async isAuthenticated(): Promise<boolean> {
+    return !!(await getAuthToken());
   }
 }
 

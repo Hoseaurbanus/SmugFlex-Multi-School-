@@ -492,7 +492,7 @@ export function ScoreEntryPage() {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!selectedClassId || !selectedSubjectId || classStudents.length === 0) {
       toast.error("Please select class and subject with students");
       return;

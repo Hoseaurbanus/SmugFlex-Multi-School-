@@ -3,6 +3,8 @@
  * SMugFlex 2.0 Multi-School Management Platform
  */
 
+import { SecureStorage } from '../utils/secureStorage';
+
 const getApiBaseUrl = () => {
   const configuredBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL;
   if (configuredBaseUrl) {
@@ -265,60 +267,60 @@ export const buildUrl = (endpoint: string): string => {
   return `${API_CONFIG.BASE_URL}${endpoint}`;
 };
 
-// Helper function to get auth token
-export const getAuthToken = (): string | null => {
+// Helper function to get auth token (async for secure storage)
+export const getAuthToken = async (): Promise<string | null> => {
   try {
-    return localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+    return await SecureStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
   } catch (error) {
     return null;
   }
 };
 
-// Helper function to set auth token
-export const setAuthToken = (token: string): void => {
+// Helper function to set auth token (async for secure storage)
+export const setAuthToken = async (token: string): Promise<void> => {
   try {
-    localStorage.setItem(API_CONFIG.AUTH.TOKEN_KEY, token);
+    await SecureStorage.setItem(API_CONFIG.AUTH.TOKEN_KEY, token);
   } catch (error) {
     // Silent fail for security
   }
 };
 
-// Helper function to remove auth token
-export const removeAuthToken = (): void => {
+// Helper function to remove auth token (async for secure storage)
+export const removeAuthToken = async (): Promise<void> => {
   try {
-    localStorage.removeItem(API_CONFIG.AUTH.TOKEN_KEY);
-    localStorage.removeItem(API_CONFIG.AUTH.REFRESH_TOKEN_KEY);
-    localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
+    await SecureStorage.removeItem(API_CONFIG.AUTH.TOKEN_KEY);
+    await SecureStorage.removeItem(API_CONFIG.AUTH.REFRESH_TOKEN_KEY);
+    await SecureStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
     // Legacy key cleanup
-    localStorage.removeItem('currentUser');
+    await SecureStorage.removeItem('currentUser');
   } catch (error) {
     // Silent fail for security
   }
 };
 
-// Helper function to get current user
-export const getCurrentUser = (): any | null => {
+// Helper function to get current user (async for secure storage)
+export const getCurrentUser = async (): Promise<any | null> => {
   try {
-    const userStr = localStorage.getItem(API_CONFIG.AUTH.USER_KEY);
+    const userStr = await SecureStorage.getItem(API_CONFIG.AUTH.USER_KEY);
     if (userStr) return JSON.parse(userStr);
 
     // Legacy fallback (older builds stored current user under a different key)
-    const legacyUserStr = localStorage.getItem('currentUser');
+    const legacyUserStr = await SecureStorage.getItem('currentUser');
     return legacyUserStr ? JSON.parse(legacyUserStr) : null;
   } catch (error) {
     // Clear corrupted data
-    localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
-    localStorage.removeItem('currentUser');
+    await SecureStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
+    await SecureStorage.removeItem('currentUser');
     return null;
   }
 };
 
-// Helper function to set current user
-export const setCurrentUser = (user: any): void => {
+// Helper function to set current user (async for secure storage)
+export const setCurrentUser = async (user: any): Promise<void> => {
   try {
-    localStorage.setItem(API_CONFIG.AUTH.USER_KEY, JSON.stringify(user));
+    await SecureStorage.setItem(API_CONFIG.AUTH.USER_KEY, JSON.stringify(user));
     // Keep legacy key in sync so older codepaths don't see stale roles
-    localStorage.setItem('currentUser', JSON.stringify(user));
+    await SecureStorage.setItem('currentUser', JSON.stringify(user));
   } catch (error) {
     // Silent fail for security
   }

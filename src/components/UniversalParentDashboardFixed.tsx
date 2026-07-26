@@ -529,7 +529,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
       return;
     }
 
-    const token = getAuthToken();
+    const token = await getAuthToken();
     if (!token) {
       setWhatsappGroups([]);
       toast.error('Session expired. Please log in again to view WhatsApp groups.');
@@ -566,7 +566,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeItem, currentUser?.linked_id, children.length]);
 
-  const handleJoinWhatsappGroup = (group: any) => {
+  const handleJoinWhatsappGroup = async (group: any) => {
     if (!group || !group.whatsapp_group_link) {
       toast.error('WhatsApp group link not available');
       return;
