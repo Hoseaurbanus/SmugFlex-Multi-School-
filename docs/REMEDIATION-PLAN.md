@@ -16,8 +16,8 @@
 | Phase 3: Component Extraction | ✅ COMPLETE | 5 pages extracted | 10,877 → 5,403 lines (50.3% reduction) |
 | Phase 4: TypeScript Hardening | ✅ COMPLETE | Interface typed | types/api.ts created; all interface params/returns typed; domain contexts typed |
 | Phase 6: Performance | ✅ COMPLETE | React.memo + useEffect cleanup + ErrorBoundary | React.memo on 4 components; useEffect cleanup in SchoolContext; ErrorBoundary created |
-| Phase 5: Testing | ⏳ PENDING | — | Requires test framework setup |
-| Phase 7: Accessibility, CI/CD | 🔄 IN PROGRESS | CI/CD pipeline created | ErrorBoundary + GitHub Actions workflow |
+| Phase 5: Testing | 🔄 IN PROGRESS | 107 unit tests passing | vitest + testing-library + jsdom; test setup with browser API + heavy library mocks; 8 test files; heavy dashboard tests excluded from CI (timeout) |
+| Phase 7: Accessibility, CI/CD | ✅ COMPLETE | CI/CD + ARIA | GitHub Actions pipeline (4 jobs); ARIA labels/roles across 8 files; image alt text; vitest 4 compat |
 
 ### Phase 3 Completed Extractions
 
