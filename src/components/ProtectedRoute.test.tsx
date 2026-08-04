@@ -17,10 +17,10 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-const mockUseSchool = vi.fn();
+const mockUseAuth = vi.fn();
 
-vi.mock('../contexts/SchoolContext', () => ({
-  useSchool: () => mockUseSchool(),
+vi.mock('../contexts/domains/AuthContext', () => ({
+  useAuth: () => mockUseAuth(),
 }));
 
 function renderWithRouter(ui: React.ReactNode, initialEntries = ['/']) {
@@ -37,7 +37,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('shows loading spinner when isLoading is true', () => {
-    mockUseSchool.mockReturnValue({ currentUser: null, isLoading: true });
+    mockUseAuth.mockReturnValue({ currentUser: null, isLoading: true });
     renderWithRouter(
       <ProtectedRoute>
         <div>Child content</div>
@@ -48,7 +48,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('redirects to /login when no user', () => {
-    mockUseSchool.mockReturnValue({ currentUser: null, isLoading: false });
+    mockUseAuth.mockReturnValue({ currentUser: null, isLoading: false });
     renderWithRouter(
       <ProtectedRoute>
         <div>Child content</div>
@@ -59,7 +59,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('redirects to /login when user has no token', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: { id: 1, role: 'admin', token: null },
       isLoading: false,
     });
@@ -72,7 +72,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('renders children when user is authenticated', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: { id: 1, role: 'admin', token: 'valid-jwt' },
       isLoading: false,
     });
@@ -85,7 +85,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('redirects to /login when role does not match', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: { id: 1, role: 'teacher', token: 'valid-jwt' },
       isLoading: false,
     });
@@ -99,7 +99,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('renders children when role matches', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: { id: 1, role: 'admin', token: 'valid-jwt' },
       isLoading: false,
     });
@@ -112,7 +112,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('redirects to /login?reason=suspended for suspended school', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: { id: 1, role: 'admin', token: 'valid-jwt', school_status: 'Suspended' },
       isLoading: false,
     });
@@ -125,7 +125,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('redirects to /login?reason=pending for pending school', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: { id: 1, role: 'admin', token: 'valid-jwt', school_status: 'Pending' },
       isLoading: false,
     });
@@ -138,7 +138,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('redirects to /login?reason=inactive for other inactive statuses', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: { id: 1, role: 'admin', token: 'valid-jwt', school_status: 'Inactive' },
       isLoading: false,
     });
@@ -151,7 +151,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('redirects to /login?reason=expired when access_until is past', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: {
         id: 1,
         role: 'admin',
@@ -170,7 +170,7 @@ describe('ProtectedRoute', () => {
   });
 
   it('renders children when access_until is in the future', () => {
-    mockUseSchool.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       currentUser: {
         id: 1,
         role: 'admin',
