@@ -22,3 +22,18 @@ Object.defineProperty(globalThis, 'localStorage', {
     key(index: number) { return [...this.store.keys()][index] ?? null; },
   },
 });
+
+// Mock matchMedia
+Object.defineProperty(globalThis, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
+});

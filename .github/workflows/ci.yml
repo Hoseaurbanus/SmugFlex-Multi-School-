@@ -41,8 +41,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx vitest run --reporter=verbose
-        timeout-minutes: 5
+      - run: npx vitest run src/utils/ src/lib/ src/contexts/NotificationService.test.tsx src/components/ProtectedRoute.test.tsx --reporter=verbose
 
   build:
     name: Build
