@@ -106,6 +106,8 @@ const defaultSchoolContext = {
     { id: 1, isRead: false, targetAudience: 'all' },
     { id: 2, isRead: true, targetAudience: 'all' },
   ],
+  schoolSettings: { school_name: 'Test School' },
+  loadSchoolSettings: vi.fn().mockResolvedValue(undefined),
   logout: vi.fn(),
 };
 
