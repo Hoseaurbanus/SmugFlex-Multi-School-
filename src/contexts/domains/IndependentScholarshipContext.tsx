@@ -36,7 +36,7 @@ export function ScholarshipProvider({ children }: { children: ReactNode }) {
 
   const addScholarship = useCallback(async (scholarship: Omit<Scholarship, 'id'>): Promise<number> => {
     try {
-      const currentUser = getCurrentUser();
+      const currentUser = await getCurrentUser();
       const dbPayload: Record<string, unknown> = {
         ...scholarship,
         current_beneficiaries: scholarship.beneficiaries,

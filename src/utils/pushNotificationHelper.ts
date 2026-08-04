@@ -7,7 +7,6 @@ import { Capacitor } from '@capacitor/core';
 import {
   PushNotifications,
   PushNotificationSchema,
-  TokenRegistrationType,
 } from '@capacitor/push-notifications';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { API_CONFIG } from '../config/api';

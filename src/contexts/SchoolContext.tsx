@@ -825,69 +825,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const url = `${API_CONFIG.BASE_URL}/realtime/stream?token=${encodeURIComponent(String(token))}&lastEventId=${encodeURIComponent(String(lastRealtimeEventIdRef.current || 0))}`;
-
-    const es = new EventSource(url);
-    realtimeEventSourceRef.current = es;
-
-    es.addEventListener('hello', () => {
-      // connected
-      stopRealtimePollingFallback();
-    });
-
-    es.addEventListener('update', (evt: MessageEvent) => {
-      try {
-        const parsed = JSON.parse(String(evt.data || '{}')) as RealtimeEvent;
-        const id = Number(parsed?.id);
-        if (Number.isFinite(id) && id > 0) {
-          lastRealtimeEventIdRef.current = id;
-        }
-
-        const topic = String(parsed?.topic || '').trim();
-        if (!topic) return;
-
-        if (topic === 'notifications' && parsed?.payload?.action === 'created') {
-          const notifTargetAudience = String(parsed?.payload?.target_audience || '').toLowerCase();
-          const userRole = (currentUser?.role || '').toLowerCase();
-          const isForUser =
-            notifTargetAudience === 'all' ||
-            notifTargetAudience === userRole ||
-            (notifTargetAudience === 'students' && userRole === 'student') ||
-            userRole === 'admin';
-          if (isForUser) {
-            toast.info('New Notification', {
-              description: 'A new notification has been received.',
-              duration: 5000,
-            });
-          }
-        }
-
-        scheduleRealtimeRefresh(topic);
-      } catch (e) {
-        // ignore malformed events
-      }
-    });
-
-    es.onerror = () => {
-      startRealtimePollingFallback();
-      // EventSource auto-reconnects, but in some hosting setups it can get stuck.
-      // We force a clean reconnect after a short delay.
-      if (realtimeReconnectTimerRef.current) {
-        return;
-      }
-      realtimeReconnectTimerRef.current = window.setTimeout(() => {
-        realtimeReconnectTimerRef.current = null;
-        try {
-          if (realtimeEventSourceRef.current) {
-            realtimeEventSourceRef.current.close();
-            realtimeEventSourceRef.current = null;
-          }
-        } catch {}
-        // Re-run this effect by updating a topic flush (no-op) and relying on token/user deps.
-        scheduleRealtimeRefresh('notifications');
-      }, 3000);
-    };
-
     initPolling();
 
     return () => {

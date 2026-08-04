@@ -3,7 +3,7 @@
  * Works in both web browser and native Capacitor WebView
  */
 
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Browser } from '@capacitor/browser';
 import { Clipboard } from '@capacitor/clipboard';
@@ -66,13 +66,12 @@ export class CapacitorHelper {
       path: filename,
       data: base64Data,
       directory: Directory.Cache,
-      encoding: Encoding.Base64,
     });
 
     // Share the file
     await Share.share({
       title: filename,
-      files: [{ url: result.uri, type: mimeType }],
+      files: [result.uri],
     });
   }
 
@@ -146,7 +145,6 @@ export class CapacitorHelper {
           path: file.filename,
           data: base64Data,
           directory: Directory.Cache,
-          encoding: Encoding.Base64,
         });
         files.push({ url: result.uri, type: file.mimeType });
       }

@@ -4,7 +4,7 @@
  */
 
 import { Capacitor } from '@capacitor/core';
-import { BiometricAuth, BiometryType, BiometryResult } from '@aparajita/capacitor-biometric-auth';
+import { BiometricAuth, BiometryType } from '@aparajita/capacitor-biometric-auth';
 import { SecureStorage } from './secureStorage';
 
 const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
@@ -33,16 +33,16 @@ export class BiometricHelper {
       const result = await BiometricAuth.checkBiometry();
       let biometryType: 'fingerprint' | 'face' | 'iris' | 'none' = 'none';
 
-      if (result.biometryType === BiometryType.fingerprint) {
+      if (result.biometryType === BiometryType.fingerprintAuthentication) {
         biometryType = 'fingerprint';
-      } else if (result.biometryType === BiometryType.face) {
+      } else if (result.biometryType === BiometryType.faceAuthentication || result.biometryType === BiometryType.faceId) {
         biometryType = 'face';
-      } else if (result.biometryType === BiometryType.iris) {
+      } else if (result.biometryType === BiometryType.irisAuthentication) {
         biometryType = 'iris';
       }
 
       return {
-        available: result.available,
+        available: result.isAvailable,
         biometryType,
         reason: result.reason || '',
       };
@@ -126,8 +126,6 @@ export class BiometricHelper {
         allowDeviceCredential: true,
       });
 
-      if (!result.success) return null;
-
       // Retrieve saved credentials
       const credentialsStr = await SecureStorage.getItem(BIOMETRIC_CREDENTIALS_KEY);
       if (!credentialsStr) return null;
@@ -156,7 +154,7 @@ export class BiometricHelper {
         allowDeviceCredential: true,
       });
 
-      return result.success;
+      return true;
     } catch (error) {
       console.error('Biometric authentication failed:', error);
       return false;

@@ -2047,7 +2047,6 @@ export function ManageTeacherAssignmentsPage() {
                         </div>
                       </div>
                       );
-                    }
                     })
                   )}
                 </div>

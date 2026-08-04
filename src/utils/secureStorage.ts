@@ -12,7 +12,7 @@ async function getSecureStorage() {
   if (!SecureStoragePlugin) {
     try {
       const module = await import('capacitor-secure-storage-plugin');
-      SecureStoragePlugin = module.SecureStorage;
+      SecureStoragePlugin = module.SecureStoragePlugin;
     } catch {
       // Plugin not available
     }

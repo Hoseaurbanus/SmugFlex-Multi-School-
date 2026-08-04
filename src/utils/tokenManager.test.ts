@@ -30,72 +30,72 @@ describe('tokenManager', () => {
   });
 
   describe('getToken', () => {
-    it('returns token from getAuthToken', () => {
-      vi.mocked(getAuthToken).mockReturnValue('test-token');
-      expect(tokenManager.getToken()).toBe('test-token');
+    it('returns token from getAuthToken', async () => {
+      vi.mocked(getAuthToken).mockResolvedValue('test-token');
+      expect(await tokenManager.getToken()).toBe('test-token');
     });
 
-    it('returns null when no token', () => {
-      vi.mocked(getAuthToken).mockReturnValue(null);
-      expect(tokenManager.getToken()).toBeNull();
+    it('returns null when no token', async () => {
+      vi.mocked(getAuthToken).mockResolvedValue(null);
+      expect(await tokenManager.getToken()).toBeNull();
     });
   });
 
   describe('setToken', () => {
-    it('calls setAuthToken with the token', () => {
-      tokenManager.setToken('new-token');
+    it('calls setAuthToken with the token', async () => {
+      await tokenManager.setToken('new-token');
       expect(setAuthToken).toHaveBeenCalledWith('new-token');
     });
   });
 
   describe('clearToken', () => {
-    it('calls removeAuthToken', () => {
-      tokenManager.clearToken();
+    it('calls removeAuthToken', async () => {
+      await tokenManager.clearToken();
       expect(removeAuthToken).toHaveBeenCalled();
     });
   });
 
   describe('isTokenValid', () => {
-    it('returns false when no token', () => {
-      vi.mocked(getAuthToken).mockReturnValue(null);
-      expect(tokenManager.isTokenValid()).toBe(false);
+    it('returns false when no token', async () => {
+      vi.mocked(getAuthToken).mockResolvedValue(null);
+      expect(await tokenManager.isTokenValid()).toBe(false);
     });
 
-    it('returns false for non-JWT token', () => {
-      vi.mocked(getAuthToken).mockReturnValue('not-a-jwt-token');
-      expect(tokenManager.isTokenValid()).toBe(false);
+    it('returns false for non-JWT token', async () => {
+      vi.mocked(getAuthToken).mockResolvedValue('not-a-jwt-token');
+      expect(await tokenManager.isTokenValid()).toBe(false);
     });
 
-    it('returns false for short token', () => {
-      vi.mocked(getAuthToken).mockReturnValue('abc');
-      expect(tokenManager.isTokenValid()).toBe(false);
+    it('returns false for short token', async () => {
+      vi.mocked(getAuthToken).mockResolvedValue('abc');
+      expect(await tokenManager.isTokenValid()).toBe(false);
     });
 
-    it('returns true for valid non-expired JWT', () => {
+    it('returns true for valid non-expired JWT', async () => {
       const futureExp = Math.floor(Date.now() / 1000) + 3600;
       const token = makeJwt({ exp: futureExp });
-      vi.mocked(getAuthToken).mockReturnValue(token);
-      expect(tokenManager.isTokenValid()).toBe(true);
+      vi.mocked(getAuthToken).mockResolvedValue(token);
+      expect(await tokenManager.isTokenValid()).toBe(true);
     });
 
-    it('returns false for expired JWT', () => {
+    it('returns false for expired JWT', async () => {
       const pastExp = Math.floor(Date.now() / 1000) - 7200;
       const token = makeJwt({ exp: pastExp });
-      vi.mocked(getAuthToken).mockReturnValue(token);
-      expect(tokenManager.isTokenValid()).toBe(false);
+      vi.mocked(getAuthToken).mockResolvedValue(token);
+      expect(await tokenManager.isTokenValid()).toBe(false);
     });
 
-    it('returns true for JWT expiring within 1 minute buffer', () => {
+    it('returns true for JWT expiring within 1 minute buffer', async () => {
       const nearFuture = Math.floor(Date.now() / 1000) + 30;
       const token = makeJwt({ exp: nearFuture });
-      vi.mocked(getAuthToken).mockReturnValue(token);
-      expect(tokenManager.isTokenValid()).toBe(true);
+      vi.mocked(getAuthToken).mockResolvedValue(token);
+      expect(await tokenManager.isTokenValid()).toBe(true);
     });
 
-    it('returns false for JWT with malformed payload', () => {
+    it('returns false for JWT with malformed payload', async () => {
       const token = 'ey.JhbGci.123';
-      vi.mocked(getAuthToken).mockReturnValue(token);
-      expect(tokenManager.isTokenValid()).toBe(false);
+      vi.mocked(getAuthToken).mockResolvedValue(token);
+      expect(await tokenManager.isTokenValid()).toBe(false);
     });
   });
 
@@ -103,19 +103,19 @@ describe('tokenManager', () => {
     it('returns true when valid token already exists', async () => {
       const futureExp = Math.floor(Date.now() / 1000) + 3600;
       const token = makeJwt({ exp: futureExp });
-      vi.mocked(getAuthToken).mockReturnValue(token);
+      vi.mocked(getAuthToken).mockResolvedValue(token);
       const result = await tokenManager.ensureToken();
       expect(result).toBe(true);
     });
 
     it('returns false when no token anywhere', async () => {
-      vi.mocked(getAuthToken).mockReturnValue(null);
+      vi.mocked(getAuthToken).mockResolvedValue(null);
       const result = await tokenManager.ensureToken();
       expect(result).toBe(false);
     });
 
     it('sets token from currentUser if provided', async () => {
-      vi.mocked(getAuthToken).mockReturnValueOnce(null).mockReturnValueOnce('valid-jwt');
+      vi.mocked(getAuthToken).mockResolvedValueOnce(null).mockResolvedValueOnce('valid-jwt');
       const futureExp = Math.floor(Date.now() / 1000) + 3600;
       const token = makeJwt({ exp: futureExp });
 
@@ -124,7 +124,7 @@ describe('tokenManager', () => {
     });
 
     it('clears corrupted localStorage data', async () => {
-      vi.mocked(getAuthToken).mockReturnValue(null);
+      vi.mocked(getAuthToken).mockResolvedValue(null);
       localStorage.setItem('current_user', 'not-valid-json{{{');
 
       const result = await tokenManager.ensureToken();
@@ -135,7 +135,7 @@ describe('tokenManager', () => {
 
   describe('refreshAuthToken', () => {
     it('returns false when no token', async () => {
-      vi.mocked(getAuthToken).mockReturnValue(null);
+      vi.mocked(getAuthToken).mockResolvedValue(null);
       const result = await tokenManager.refreshAuthToken();
       expect(result).toBe(false);
     });
@@ -144,7 +144,7 @@ describe('tokenManager', () => {
       const futureExp = Math.floor(Date.now() / 1000) + 3600;
       const oldToken = makeJwt({ exp: futureExp });
       const newToken = makeJwt({ exp: futureExp + 3600 });
-      vi.mocked(getAuthToken).mockReturnValue(oldToken);
+      vi.mocked(getAuthToken).mockResolvedValue(oldToken);
 
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -159,7 +159,7 @@ describe('tokenManager', () => {
     it('returns false on failed refresh', async () => {
       const futureExp = Math.floor(Date.now() / 1000) + 3600;
       const token = makeJwt({ exp: futureExp });
-      vi.mocked(getAuthToken).mockReturnValue(token);
+      vi.mocked(getAuthToken).mockResolvedValue(token);
 
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: false,
@@ -173,7 +173,7 @@ describe('tokenManager', () => {
     it('returns false on network error', async () => {
       const futureExp = Math.floor(Date.now() / 1000) + 3600;
       const token = makeJwt({ exp: futureExp });
-      vi.mocked(getAuthToken).mockReturnValue(token);
+      vi.mocked(getAuthToken).mockResolvedValue(token);
 
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
