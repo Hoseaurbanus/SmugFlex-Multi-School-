@@ -63,7 +63,7 @@ if (in_array($queryType, ['INSERT', 'UPDATE', 'DELETE'], true) && $role !== 'adm
 }
 
 // Basic security check: prevent highly destructive queries
-$disallowed_keywords = ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE', 'CREATE'];
+$disallowed_keywords = ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE', 'CREATE', 'UNION', 'INTO OUTFILE', 'INTO DUMPFILE', 'LOAD_FILE'];
 foreach ($disallowed_keywords as $keyword) {
     // Match whole words only to avoid false positives on column names like created_at
     if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/i', $query)) {

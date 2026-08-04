@@ -201,7 +201,7 @@ export function RecordPaymentPage() {
         transaction_reference: txnReference,
       });
 
-      const actualReceiptNumber = result?.receipt_number || result?.receiptNumber || `RCPT-${Date.now()}`;
+      const actualReceiptNumber = (result as any)?.receipt_number || (result as any)?.receiptNumber || `RCPT-${Date.now()}`;
 
       // Notify parent
       if (selectedStudent?.parent_id) {

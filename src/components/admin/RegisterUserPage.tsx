@@ -158,7 +158,7 @@ export function RegisterUserPage() {
       };
 
       // A single API call now handles everything
-      const createdUser = await createUserAPI(payload);
+      const createdUser = await createUserAPI(payload as any);
 
       if (!createdUser) {
         // createUserAPI already shows specific error toasts

@@ -1,6 +1,7 @@
 // NotificationContext - Focused notification wrapper around SchoolContext
 import { createContext, useContext, ReactNode } from 'react';
 import { useSchool } from '../SchoolContext';
+import { useActivityLogs } from './IndependentActivityLogContext';
 import { Notification, ActivityLog } from '../../types/school';
 
 interface NotificationDomain {
@@ -19,16 +20,17 @@ const NotificationContext = createContext<NotificationDomain | null>(null);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const school = useSchool();
+  const { activityLogs, addActivityLog, getActivityLogs } = useActivityLogs();
   const value: NotificationDomain = {
     notifications: school.notifications,
-    activityLogs: school.activityLogs,
+    activityLogs,
     addNotification: school.addNotification,
     markNotificationAsRead: school.markNotificationAsRead,
     deleteNotification: school.deleteNotification,
     getUnreadNotifications: school.getUnreadNotifications,
     getAllNotifications: school.getAllNotifications,
-    addActivityLog: school.addActivityLog,
-    getActivityLogs: school.getActivityLogs,
+    addActivityLog,
+    getActivityLogs,
   };
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 }

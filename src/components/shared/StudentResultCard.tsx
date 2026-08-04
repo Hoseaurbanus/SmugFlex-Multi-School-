@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
 import { useSchool } from "../../contexts/SchoolContext";
 import { StudentResultCardProps } from './types/resultCard';
@@ -84,7 +84,7 @@ const fetchScoresByTerm = async (term: string, academicYear: string): Promise<an
   return Array.isArray(rows) ? rows : [];
 };
 
-export function StudentResultCard({
+const StudentResultCardInner = ({
   student: propStudent,
   studentClass: propStudentClass,
   result,
@@ -92,7 +92,7 @@ export function StudentResultCard({
   showActions = false,
   onDownload,
   currentUser
-}: StudentResultCardProps) {
+}: StudentResultCardProps) => {
   const { schoolSettings, students, classes, teachers, scores, subjectAssignments, subjects, affectiveDomains, psychomotorDomains, compiledResults, loadCompiledResultsFromAPI, loadScoresFromAPI, loadSubjectAssignmentsFromAPI, loadSubjectsFromAPI, loadAffectiveDomainsFromAPI, loadPsychomotorDomainsFromAPI, getClassTeacher } = useSchool();
   const [_showDetails, _setShowDetails] = useState(false);
   const [detailedScoresData, setDetailedScoresData] = useState<any[]>([]);
@@ -1250,6 +1250,8 @@ export function StudentResultCard({
       )}
     </div>
   )}
-</>
+ </>
 );
-}
+};
+
+export const StudentResultCard = React.memo(StudentResultCardInner);

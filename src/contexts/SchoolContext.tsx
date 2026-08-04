@@ -32,10 +32,11 @@ import type {
   FeeStructure, StudentFeeBalance, StudentInvoiceSummary,
   Payment, CreatePaymentPayload,
   Teacher, User, Accountant,
-  Notification, ActivityLog, Attendance,
-  ExamTimetable, ClassTimetable, Department,
+  Notification, Attendance,
+  Department,
   CbtExam, CbtQuestion, CbtAttempt, CbtQuestionBank,
-  SchoolSettings, BankAccountSettings, Scholarship, Assignment
+  SchoolSettings, BankAccountSettings, Scholarship, Assignment,
+  ParentStudentLink, ClassTeacherAssignment, SchoolSetting, RealtimeEvent, ParentChildData
 } from '../types/school';
 
 // ==================== INTERFACES ====================
@@ -62,11 +63,11 @@ export interface SchoolContextType {
   parents: Parent[];
   accountants: Accountant[];
   classes: Class[];
-  parentChildrenData: any[];
-  feeBalances: any[];
+  parentChildrenData: ParentChildData[];
+  feeBalances: StudentFeeBalance[];
   subjects: Subject[];
   subjectAssignments: SubjectAssignment[];
-  classTeacherAssignments: any[];
+  classTeacherAssignments: ClassTeacherAssignment[];
   subjectRegistrations: SubjectRegistration[];
   scores: Score[];
   affectiveDomains: AffectiveDomain[];
@@ -81,20 +82,13 @@ export interface SchoolContextType {
   feeStructures: FeeStructure[];
   studentFeeBalances: StudentFeeBalance[];
   notifications: Notification[];
-  activityLogs: ActivityLog[];
   attendances: Attendance[];
-  examTimetables: ExamTimetable[];
-  classTimetables: ClassTimetable[];
-  departments: Department[];
-  scholarships: Scholarship[];
-  assignments: Assignment[];
   cbtExams: CbtExam[];
   cbtQuestions: CbtQuestion[];
   cbtAttempts: CbtAttempt[];
   cbtQuestionBank: CbtQuestionBank[];
-  parentStudentLinks: any[];
+  parentStudentLinks: ParentStudentLink[];
   attendanceRequirements: Record<string, number>;
-  sqlDatabase: any;
 
   // State Setters
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
@@ -106,7 +100,7 @@ export interface SchoolContextType {
   setSubjects: (subjects: Subject[]) => void;
   setSubjectRegistrations: (registrations: SubjectRegistration[]) => void;
   setSubjectAssignments: (assignments: SubjectAssignment[]) => void;
-  setClassTeacherAssignments: (assignments: any[]) => void;
+  setClassTeacherAssignments: (assignments: ClassTeacherAssignment[]) => void;
   setScores: (scores: Score[]) => void;
   setAffectiveDomains: (domains: AffectiveDomain[]) => void;
   setPsychomotorDomains: (domains: PsychomotorDomain[]) => void;
@@ -115,7 +109,6 @@ export interface SchoolContextType {
   setFeeStructures: (structures: FeeStructure[]) => void;
   setStudentFeeBalances: (balances: StudentFeeBalance[]) => void;
   setNotifications: (notifications: Notification[]) => void;
-  setActivityLogs: (logs: ActivityLog[]) => void;
   setAttendances: (attendances: Attendance[]) => void;
   setCbtExams: (exams: CbtExam[]) => void;
   setCbtQuestions: (questions: CbtQuestion[]) => void;
@@ -164,9 +157,9 @@ export interface SchoolContextType {
   addStudent: (student: Omit<Student, 'id'>) => Promise<number>;
   updateStudent: (id: number, student: Partial<Student>) => Promise<void>;
   deleteStudent: (id: number) => Promise<void>;
-  deleteBulkStudents: (studentIds: number[]) => Promise<any>;
-  createStudentAPI: (studentData: any) => Promise<any>;
-  updateStudentAPI: (id: number, studentData: any) => Promise<boolean>;
+  deleteBulkStudents: (studentIds: number[]) => Promise<{ success: boolean }>;
+  createStudentAPI: (studentData: Omit<Student, 'id'>) => Promise<Student | null>;
+  updateStudentAPI: (id: number, studentData: Partial<Student>) => Promise<boolean>;
   deleteStudentAPI: (id: number) => Promise<boolean>;
   getStudentsByClass: (classId: number) => Student[];
   refreshStudents: () => Promise<void>;
@@ -174,8 +167,8 @@ export interface SchoolContextType {
   promoteMultipleStudents: (studentIds: number[], classMapping: { [studentId: number]: number }, newAcademicYear: string) => void;
 
   // Teacher Methods
-  addTeacher: (teacher: any) => Promise<number>;
-  addUser: (user: any) => Promise<number>;
+  addTeacher: (teacher: Omit<Teacher, 'id'>) => Promise<number>;
+  addUser: (user: Omit<User, 'id'>) => Promise<number>;
   updateTeacher: (id: number, teacher: Partial<Teacher>) => Promise<void>;
   deleteTeacher: (id: number) => Promise<void>;
   getTeacherAssignments: (teacherId: number) => SubjectAssignment[];
@@ -305,8 +298,8 @@ export interface SchoolContextType {
   addSubject: (subject: Omit<Subject, 'id'>) => Promise<number>;
   updateSubject: (id: number, subject: Partial<Subject>) => Promise<void>;
   deleteSubject: (id: number) => Promise<void>;
-  createSubjectAPI: (subjectData: any) => Promise<number>;
-  updateSubjectAPI: (id: number, subjectData: any) => Promise<boolean>;
+  createSubjectAPI: (subjectData: Omit<Subject, 'id'>) => Promise<number>;
+  updateSubjectAPI: (id: number, subjectData: Partial<Subject>) => Promise<boolean>;
   deleteSubjectAPI: (id: number) => Promise<boolean>;
   getSubjectsByCategory: (category: string) => Subject[];
   getSubjectsByLevel: (level: string) => Subject[];
@@ -370,7 +363,7 @@ export interface SchoolContextType {
   createBatchAttendance: (attendanceRecords: Omit<Attendance, 'id'>[]) => Promise<boolean>;
 
   // Payment Methods
-  addPayment: (payment: CreatePaymentPayload) => Promise<any>;
+  addPayment: (payment: CreatePaymentPayload) => Promise<void>;
   updatePayment: (id: number, payment: Partial<Payment>) => Promise<void>;
   verifyPayment: (
     id: number,
@@ -391,23 +384,23 @@ export interface SchoolContextType {
   logout: () => void;
   setCurrentUser: (user: User | null) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
-  createUser: (userData: any) => Promise<User | null>;
-  updateUser: (id: number, userData: any) => Promise<boolean>;
+  createUser: (userData: Omit<User, 'id'>) => Promise<User | null>;
+  updateUser: (id: number, userData: Partial<User>) => Promise<boolean>;
   deleteUser: (id: number) => Promise<boolean>;
   updateUserStatus: (id: number, status: string) => Promise<boolean>;
   resetUserPassword: (id: number) => Promise<string>;
   getUserPermissions: (userId: number) => Promise<string[]>;
-  createUserAPI: (userData: any) => Promise<User | null>;
-  updateUserAPI: (id: number, userData: any) => Promise<boolean>;
+  createUserAPI: (userData: Omit<User, 'id'>) => Promise<User | null>;
+  updateUserAPI: (id: number, userData: Partial<User>) => Promise<boolean>;
   deleteUserAPI: (id: number) => Promise<boolean>;
   updateUserStatusAPI: (id: number, status: string) => Promise<boolean>;
   resetUserPasswordAPI: (id: number, newPassword?: string) => Promise<string>;
   getUserPermissionsAPI: (userId: number) => Promise<string[]>;
   checkUserPermissionAPI: (role: string, permission: string) => boolean;
-  getPendingApprovals: () => any[];
+  getPendingApprovals: () => CompiledResult[];
 
   // Fee Management Methods
-  addFeeStructure: (feeStructure: any) => Promise<number>;
+  addFeeStructure: (feeStructure: Omit<FeeStructure, 'id'>) => Promise<number>;
   updateFeeStructure: (id: number, feeStructure: Partial<FeeStructure>) => Promise<void>;
   deleteFeeStructure: (id: number) => Promise<void>;
   getFeeStructures: (classId: number, academicYear: string) => FeeStructure[];
@@ -416,9 +409,9 @@ export interface SchoolContextType {
   updateStudentFeeBalance: (studentId: number, balance: Partial<StudentFeeBalance>) => Promise<void>;
 
   // Invoice Ledger Methods (Backend Authoritative)
-  autoGenerateInvoices: (classId: number, term: string, academicYear: string) => Promise<any>;
+  autoGenerateInvoices: (classId: number, term: string, academicYear: string) => Promise<{ success: boolean; message: string; count: number }>;
   getStudentInvoice: (studentId: number, term: string, academicYear: string) => Promise<StudentInvoiceSummary>;
-  getClassInvoices: (classId: number, term: string, academicYear: string) => Promise<any[]>;
+  getClassInvoices: (classId: number, term: string, academicYear: string) => Promise<StudentInvoiceSummary[]>;
 
   // Notification Methods
   addNotification: (notification: Omit<Notification, 'id'>) => Promise<number>;
@@ -427,80 +420,41 @@ export interface SchoolContextType {
   getUnreadNotifications: () => Notification[];
   getAllNotifications: () => Notification[];
 
-  // Activity Log Methods
-  addActivityLog: (log: ActivityLog) => Promise<number>;
-  getActivityLogs: (userId?: number, action?: string) => ActivityLog[];
-
-  // Timetable Methods
-  addExamTimetable: (timetable: Omit<ExamTimetable, 'id'>) => Promise<number>;
-  updateExamTimetable: (id: number, timetable: Partial<ExamTimetable>) => Promise<void>;
-  deleteExamTimetable: (id: number) => Promise<void>;
-  getExamTimetables: (classId: number, academicYear: string, term: string) => ExamTimetable[];
-  getExamTimetablesByClass: (classId: number) => ExamTimetable[];
-  getExamTimetablesBySubject: (subjectId: number) => ExamTimetable[];
-  getExamTimetablesByDate: (date: string) => ExamTimetable[];
-
-  addClassTimetable: (timetable: Omit<ClassTimetable, 'id'>) => Promise<number>;
-  updateClassTimetable: (id: number, timetable: Partial<ClassTimetable>) => Promise<void>;
-  deleteClassTimetable: (id: number) => Promise<void>;
-  getClassTimetables: (classId: number, academicYear: string, term: string) => ClassTimetable[];
-  getClassTimetablesByClass: (classId: number) => ClassTimetable[];
-  getClassTimetablesBySubject: (subjectId: number) => ClassTimetable[];
-  getClassTimetablesByDay: (day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday') => ClassTimetable[];
-
-  // Department Methods
-  addDepartment: (department: Omit<Department, 'id'>) => Promise<number>;
-  updateDepartment: (id: number, department: Partial<Department>) => Promise<void>;
-  deleteDepartment: (id: number) => Promise<void>;
-  getDepartments: () => Department[];
-
-  // Scholarship Methods
-  addScholarship: (scholarship: Omit<Scholarship, 'id'>) => Promise<number>;
-  updateScholarship: (id: number, scholarship: Partial<Scholarship>) => Promise<void>;
-  deleteScholarship: (id: number) => Promise<void>;
-  getScholarships: () => Scholarship[];
-  getStudentScholarships: (studentId: number) => Scholarship[];
-
-  // Assignment Methods
-  addAssignment: (assignment: Omit<Assignment, 'id'>) => void;
-  updateAssignment: (id: number, assignment: Partial<Assignment>) => void;
-  deleteAssignment: (id: number) => void;
-
   // CBT Methods
   loadCbtExamsFromAPI: () => Promise<boolean>;
   loadCbtQuestionsFromAPI: (examId: number) => Promise<boolean>;
   loadCbtAttemptsFromAPI: (examId?: number) => Promise<boolean>;
-  loadCbtQuestionBankFromAPI: (params?: Record<string, any>) => Promise<boolean>;
+  loadCbtQuestionBankFromAPI: (params?: Record<string, string | number>) => Promise<boolean>;
   loadCbtStudentExamsFromAPI: () => Promise<boolean>;
   loadCbtMyAttemptsFromAPI: () => Promise<boolean>;
   createCbtExam: (exam: Omit<CbtExam, 'id' | 'total_marks' | 'published' | 'status' | 'created_at'>) => Promise<number>;
   updateCbtExam: (id: number, exam: Partial<CbtExam>) => Promise<void>;
   deleteCbtExam: (id: number) => Promise<void>;
   publishCbtExam: (id: number) => Promise<void>;
-  addCbtQuestion: (examId: number, question: any) => Promise<number>;
-  updateCbtQuestion: (examId: number, questionId: number, question: any) => Promise<void>;
+  addCbtQuestion: (examId: number, question: Omit<CbtQuestion, 'id'>) => Promise<number>;
+  updateCbtQuestion: (examId: number, questionId: number, question: Partial<CbtQuestion>) => Promise<void>;
   deleteCbtQuestion: (examId: number, questionId: number) => Promise<void>;
   reorderCbtQuestions: (examId: number, order: {question_id: number; sort_order: number}[]) => Promise<void>;
-  addToCbtQuestionBank: (question: any) => Promise<number>;
+  addToCbtQuestionBank: (question: Omit<CbtQuestionBank, 'id'>) => Promise<number>;
   deleteFromCbtQuestionBank: (id: number) => Promise<void>;
-  importFromCbtBank: (examId: number, questionIds: number[]) => Promise<any>;
-  startCbtAttempt: (examId: number) => Promise<any>;
-  saveCbtAnswer: (attemptId: number, questionId: number, answer: any) => Promise<void>;
-  submitCbtAttempt: (attemptId: number, tabSwitchCount?: number) => Promise<any>;
-  getCbtAttemptDetail: (attemptId: number) => Promise<any>;
-  getCbtExamResults: (examId: number) => Promise<any>;
-  feedCbtExamScores: (examId: number, scoreSlot: string) => Promise<any>;
-  deleteCbtExamScores: (examId: number) => Promise<any>;
-  bulkImportQuestions: (examId: number, questions: any[]) => Promise<any>;
-  uploadQuestionImage: (file: File) => Promise<any>;
-  generateQuestionsFromMaterial: (materialText: string, questionType: string, count: number, options?: { difficulty?: string; exam_type?: string; topic?: string; include_explanations?: boolean }) => Promise<any>;
+  importFromCbtBank: (examId: number, questionIds: number[]) => Promise<{ imported: number; skipped: number }>;
+  startCbtAttempt: (examId: number) => Promise<CbtAttempt>;
+  saveCbtAnswer: (attemptId: number, questionId: number, answer: string | string[]) => Promise<void>;
+  submitCbtAttempt: (attemptId: number, tabSwitchCount?: number) => Promise<CbtAttempt>;
+  getCbtAttemptDetail: (attemptId: number) => Promise<CbtAttempt>;
+  getCbtExamResults: (examId: number) => Promise<CbtAttempt[]>;
+  feedCbtExamScores: (examId: number, scoreSlot: string) => Promise<{ success: boolean }>;
+  deleteCbtExamScores: (examId: number) => Promise<void>;
+  bulkImportQuestions: (examId: number, questions: Omit<CbtQuestion, 'id'>[]) => Promise<{ imported: number; errors: string[] }>;
+  uploadQuestionImage: (file: File) => Promise<{ url: string }>;
+  generateQuestionsFromMaterial: (materialText: string, questionType: string, count: number, options?: { difficulty?: string; exam_type?: string; topic?: string; include_explanations?: boolean }) => Promise<CbtQuestion[]>;
 
   // Data Loading Methods
   loadUsersFromAPI: () => Promise<boolean>;
   loadTeachersFromAPI: () => Promise<boolean>;
   loadParentsFromAPI: () => Promise<boolean>;
   loadParentStudentLinksFromAPI: () => Promise<boolean>;
-  getParentChildrenFromAPI: (parentId: number) => Promise<any[]>;
+  getParentChildrenFromAPI: (parentId: number) => Promise<ParentChildData[]>;
   loadAccountantsFromAPI: () => Promise<boolean>;
   loadStudentsFromAPI: () => Promise<boolean>;
   loadClassesFromAPI: (force?: boolean) => Promise<boolean>;
@@ -520,11 +474,6 @@ export interface SchoolContextType {
   ) => Promise<boolean>;
   loadAffectiveDomainsFromAPI: (termParam?: string | null, academicYearParam?: string | null) => Promise<boolean>;
   loadPsychomotorDomainsFromAPI: (termParam?: string | null, academicYearParam?: string | null) => Promise<boolean>;
-  loadExamTimetablesFromAPI: () => Promise<boolean>;
-  loadClassTimetablesFromAPI: () => Promise<boolean>;
-  loadDepartmentsFromAPI: () => Promise<boolean>;
-  loadScholarshipsFromAPI: () => Promise<boolean>;
-  loadAssignmentsFromAPI: () => Promise<boolean>;
   loadClassTeacherAssignmentsFromAPI: (forceReload?: boolean, termParam?: string | null, yearParam?: string | null) => Promise<boolean>;
   loadCumulativeResultsFromAPI: (classId: number, academicYear: string) => Promise<CumulativeResult[]>;
   compileCumulativeResults: (classId: number, academicYear: string) => Promise<{ success: boolean; message: string; count: number }>;
@@ -532,44 +481,44 @@ export interface SchoolContextType {
   // Payment API Methods
   createPaymentAPI: (payment: any) => Promise<any>;
   loadPaymentsFromAPI: (allHistory?: boolean) => Promise<boolean>;
-  getPaymentExceptions: (pendingOnlineMinutes?: number, pendingBankHours?: number) => Promise<any>;
+  getPaymentExceptions: (pendingOnlineMinutes?: number, pendingBankHours?: number) => Promise<{ pending: Payment[]; verified: Payment[] }>;
   createFeeStructureAPI: (feeStructure: any) => Promise<any>;
-  getFeeStructuresAPI: () => Promise<any>;
-  getPaymentsAPI: () => Promise<any>;
-  updatePaymentStatusAPI: (paymentId: number, status: string) => Promise<any>;
-  getFeeBalancesAPI: () => Promise<any>;
-  createBatchPaymentsAPI: (payments: any[]) => Promise<any>;
+  getFeeStructuresAPI: () => Promise<FeeStructure[]>;
+  getPaymentsAPI: () => Promise<Payment[]>;
+  updatePaymentStatusAPI: (paymentId: number, status: string) => Promise<{ success: boolean }>;
+  getFeeBalancesAPI: () => Promise<StudentFeeBalance[]>;
+  createBatchPaymentsAPI: (payments: CreatePaymentPayload[]) => Promise<{ success: boolean; count: number }>;
 
   // Subject Registration API Methods
   registerSubjectForClassAPI: (classId: number, subjectId: number, academicYear: string, term: string, isCompulsory?: boolean) => Promise<boolean>;
   removeSubjectRegistrationAPI: (classId: number, subjectId: number, academicYear: string, term: string) => Promise<boolean>;
-  getSubjectRegistrationsAPI: (classId?: number, academicYear?: string, term?: string) => Promise<any>;
-  getRegisteredSubjectsAPI: (classId: number, academicYear: string, term: string) => Promise<any>;
+  getSubjectRegistrationsAPI: (classId?: number, academicYear?: string, term?: string) => Promise<SubjectRegistration[]>;
+  getRegisteredSubjectsAPI: (classId: number, academicYear: string, term: string) => Promise<Subject[]>;
   getActiveAcademicYearAPI: () => Promise<string | null>;
   getActiveTermAPI: () => Promise<string | null>;
 
   // Subject Assignment API Methods
-  getSubjectAssignmentsAPI: (academicYear: string, term: string) => Promise<any>;
+  getSubjectAssignmentsAPI: (academicYear: string, term: string) => Promise<SubjectAssignment[]>;
   assignSubjectToTeacherAPI: (teacherId: number, subjectId: number, classId: number, academicYear: string, term: string) => Promise<boolean>;
   removeSubjectAssignmentAPI: (teacherId: number, subjectId: number, classId: number, academicYear: string, term: string) => Promise<boolean>;
-  getUnassignedSubjectsAPI: (classId: number, academicYear: string, term: string) => Promise<any>;
+  getUnassignedSubjectsAPI: (classId: number, academicYear: string, term: string) => Promise<Subject[]>;
   getAvailableTeachersAPI: (academicYear: string, term: string, subjectId: number, classId: number) => Promise<Teacher[]>;
 
   // Teacher API Methods
-  createTeacherAPI: (teacherData: any) => Promise<any>;
-  updateTeacherAPI: (id: number, teacherData: any) => Promise<boolean>;
+  createTeacherAPI: (teacherData: Omit<Teacher, 'id'>) => Promise<Teacher | null>;
+  updateTeacherAPI: (id: number, teacherData: Partial<Teacher>) => Promise<boolean>;
   deleteTeacherAPI: (id: number) => Promise<boolean>;
   updateTeacherStatusAPI: (id: number, status: string) => Promise<boolean>;
 
   // Parent API Methods
-  createParentAPI: (parentData: any) => Promise<any>;
-  updateParentAPI: (id: number, parentData: any) => Promise<boolean>;
+  createParentAPI: (parentData: Omit<Parent, 'id'>) => Promise<Parent | null>;
+  updateParentAPI: (id: number, parentData: Partial<Parent>) => Promise<boolean>;
   deleteParentAPI: (id: number) => Promise<boolean>;
   updateParentStatusAPI: (id: number, status: string) => Promise<boolean>;
 
   // Accountant API Methods
-  createAccountantAPI: (accountantData: any) => Promise<any>;
-  updateAccountantAPI: (id: number, accountantData: any) => Promise<boolean>;
+  createAccountantAPI: (accountantData: Omit<Accountant, 'id'>) => Promise<Accountant | null>;
+  updateAccountantAPI: (id: number, accountantData: Partial<Accountant>) => Promise<boolean>;
   deleteAccountantAPI: (id: number) => Promise<boolean>;
   updateAccountantStatusAPI: (id: number, status: string) => Promise<boolean>;
 
@@ -577,11 +526,11 @@ export interface SchoolContextType {
   addAffectiveDomain: (affectiveData: any) => Promise<any>;
   createAffectiveDomain: (affectiveData: any) => Promise<any>;
   updateAffectiveDomain: (id: number, affectiveData: any) => Promise<any>;
-  deleteAffectiveDomain: (id: number) => Promise<any>;
+  deleteAffectiveDomain: (id: number) => Promise<void>;
   addPsychomotorDomain: (psychomotorData: any) => Promise<any>;
   createPsychomotorDomain: (psychomotorData: any) => Promise<any>;
   updatePsychomotorDomain: (id: number, psychomotorData: any) => Promise<any>;
-  deletePsychomotorDomain: (id: number) => Promise<any>;
+  deletePsychomotorDomain: (id: number) => Promise<void>;
 
   // Real-time Sync Methods (MINIMAL)
   refreshTermData: () => Promise<void>;
@@ -677,7 +626,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [accountants, setAccountants] = useState<Accountant[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [attendanceRequirements, setAttendanceRequirements] = useState<Record<string, number>>({});
 
@@ -704,7 +652,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     loadParentsFromAPI?: () => Promise<boolean>;
     loadUsersFromAPI?: () => Promise<boolean>;
     loadAttendancesFromAPI?: () => Promise<boolean>;
-    loadAssignmentsFromAPI?: () => Promise<boolean>;
   }>({});
 
   const flushRealtimeTopics = useCallback(async () => {
@@ -820,12 +767,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (topics.includes('assignments') && role !== 'parent') {
-        if (realtimeLoadersRef.current.loadAssignmentsFromAPI) {
-          jobs.push(realtimeLoadersRef.current.loadAssignmentsFromAPI());
-        }
-      }
-
       await Promise.all(jobs);
     } catch (e) {
       // Do not toast here; realtime is best-effort and should be silent.
@@ -907,7 +848,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
     es.addEventListener('update', (evt: MessageEvent) => {
       try {
-        const parsed = JSON.parse(String(evt.data || '{}')) as any;
+        const parsed = JSON.parse(String(evt.data || '{}')) as RealtimeEvent;
         const id = Number(parsed?.id);
         if (Number.isFinite(id) && id > 0) {
           lastRealtimeEventIdRef.current = id;
@@ -992,7 +933,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
     const termAverages = results
       .map((r: any) => {
-        const raw = (r as any)?.average_score;
+        const raw = r?.average_score;
         const n = typeof raw === 'string' ? parseFloat(raw) : Number(raw);
         return Number.isFinite(n) ? n : 0;
       })
@@ -1012,11 +953,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   }
 
   const [users, setUsers] = useState<User[]>([]);
-  const [examTimetables, setExamTimetables] = useState<ExamTimetable[]>([]);
-  const [classTimetables, setClassTimetables] = useState<ClassTimetable[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [scholarships, setScholarships] = useState<Scholarship[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [parentStudentLinksData, setParentStudentLinksData] = useState<any[]>([]);
   const [parentChildrenData, setParentChildrenData] = useState<any[]>([]);
 
@@ -1254,37 +1190,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       return response.data;
     } catch (error: any) {
       throw error;
-    }
-  };
-
-  const loadActivityLogsFromAPI = async (): Promise<boolean> => {
-    try {
-      // Ensure token is available
-      await tokenManager.ensureToken(currentUser);
-
-      const result = await sqlDatabase.executeQuery(`
-        SELECT 
-          id,
-          actor,
-          actor_role as actorRole,
-          action,
-          target,
-          ip_address as ipAddress,
-          status,
-          details,
-          user_id as userId,
-          created_at as timestamp
-        FROM activity_logs 
-        ORDER BY created_at DESC
-        LIMIT 1000
-      `);
-      if (result && result.data) {
-        setActivityLogs(result.data);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      return false;
     }
   };
 
@@ -1877,7 +1782,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         acc[snakeKey] = studentData[key];
         return acc;
-      }, {} as any);
+      }, {} as Record<string, unknown>);
 
       const response = await api.put<any>(`/students/${id}`, snakeCaseData);
       if (response.success) {
@@ -2316,18 +2221,32 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
+    let cancelled = false;
+    let safetyTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      if (safetyTimeout) {
+        clearTimeout(safetyTimeout);
+        safetyTimeout = null;
+      }
+    };
+
     // Prevent multiple initial loads using module-level variable (persists across StrictMode)
     if (globalInitialLoadStarted || globalInitialLoadCompleted) {
+      cleanup();
       return;
     }
     
     // Also check ref for additional safety
     if (initialLoadDone.current) {
+      cleanup();
       return;
     }
     
     // Prevent multiple initial loads using state
     if (isLoadingData || isDataLoading) {
+      cleanup();
       return;
     }
     
@@ -2339,7 +2258,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       setIsDataLoading(true);
       
       // Safety timeout to prevent loading from getting stuck
-      const safetyTimeout = setTimeout(() => {
+      safetyTimeout = setTimeout(() => {
+        if (cancelled) return;
         setIsLoadingData(false);
         setIsDataLoading(false);
         setIsLoading(false);
@@ -2365,22 +2285,27 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             setCurrentUser(savedUser);
             
             await loadDataForUser(savedUser);
-            setIsLoading(false);
+            if (!cancelled) setIsLoading(false);
           } else {
-            setIsLoading(false);
+            if (!cancelled) setIsLoading(false);
           }
         } else {
-          setIsLoading(false);
+          if (!cancelled) setIsLoading(false);
         }
         
         initialLoadDone.current = true;
       } catch (error) {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       } finally {
-        clearTimeout(safetyTimeout); // Clear safety timeout
-        setIsLoadingData(false);
-        setIsDataLoading(false);
-        setIsLoading(false);
+        if (safetyTimeout) {
+          clearTimeout(safetyTimeout);
+          safetyTimeout = null;
+        }
+        if (!cancelled) {
+          setIsLoadingData(false);
+          setIsDataLoading(false);
+          setIsLoading(false);
+        }
         initialLoadDone.current = true; // Mark ref as done
         globalInitialLoadCompleted = true; // Mark global as done
         globalInitialLoadStarted = false; // Reset started flag
@@ -2389,7 +2314,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     
     loadInitialData();
     return () => {
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      cancelled = true;
+      cleanup();
     };
   }, []); // Only run once on mount
 
@@ -2490,7 +2416,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             loadCbtExamsFromAPI().catch(() => null),
             loadCbtQuestionBankFromAPI().catch(() => null),
             loadNotificationsFromAPI().catch(() => null),
-            loadAssignmentsFromAPI().catch(() => null),
             loadAttendancesFromAPI().catch(() => null),
           ]);
         } else if (user.role === 'student') {
@@ -3756,30 +3681,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         updated_date: new Date().toISOString(),
       };
       setBankAccountSettings(newSettings);
-
-      if (currentUser) {
-        const getCapitalizedRole = (role: string): 'Admin' | 'Teacher' | 'Accountant' | 'Parent' | 'System' => {
-          const roleMap: { [key: string]: 'Admin' | 'Teacher' | 'Accountant' | 'Parent' | 'System' } = {
-            'admin': 'Admin',
-            'teacher': 'Teacher',
-            'accountant': 'Accountant',
-            'parent': 'Parent'
-          };
-          return roleMap[role] || 'System';
-        };
-
-        addActivityLog({
-          id: 0,
-          actor: currentUser.username,
-          actor_role: getCapitalizedRole(currentUser.role),
-          action: 'update_bank_account',
-          target: settings.bank_name,
-          ip_address: '127.0.0.1',
-          status: 'Success',
-          timestamp: new Date().toISOString(),
-          details: `Updated bank account to ${settings.account_number}`,
-        });
-      }
     } catch (error) {
       // Silent fail
     }
@@ -3787,79 +3688,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const getBankAccountSettings = () => {
     return bankAccountSettings;
-  };
-
-  // Activity Log Methods
-  const addActivityLog = async (log: ActivityLog): Promise<number> => {
-    try {
-      // Create a copy without id and timestamp for database insertion
-      const { id, timestamp, ...logData } = log;
-      
-      // Save to database first
-      const result = await sqlDatabase.insertRecord('activity_logs', logData);
-
-      if (result && result.insertId) {
-        // Reload activity logs from database to get the latest
-        await loadActivityLogsFromAPI();
-        return result.insertId;
-      }
-      return 0;
-    } catch (error) {
-      
-      // Fallback to memory-only storage
-      const newId = activityLogs.length > 0 ? Math.max(...activityLogs.map((l: ActivityLog) => l.id)) + 1 : 1;
-      const newLog: ActivityLog = {
-        ...log,
-        id: newId,
-        timestamp: new Date().toISOString(),
-      };
-      setActivityLogs([newLog, ...activityLogs]);
-      return newId;
-    }
-  };
-
-  const getActivityLogs = (userId?: number, action?: string): ActivityLog[] => {
-    let filtered = activityLogs;
-    
-    // If current user is a teacher, filter logs to show only their assigned responsibilities
-    if (currentUser?.role === 'teacher' && currentUser.linked_id) {
-      const currentTeacher = teachers.find(t => t.id === currentUser.linked_id);
-      if (currentTeacher) {
-        const teacherAssignments = getTeacherAssignments(Number(currentTeacher.id));
-        const assignedClassIds = teacherAssignments.map(a => a.class_id);
-        
-        // Filter logs related to teacher's assigned classes and students
-        filtered = filtered.filter((log: ActivityLog) => {
-          // Show logs where the teacher is the actor
-          if (log.actor === currentUser.username) return true;
-          
-          // Show logs related to students in teacher's assigned classes
-          const targetStudentId = log.user_id;
-          if (targetStudentId) {
-            const targetStudent = students.find(s => s.id === targetStudentId);
-            if (targetStudent && assignedClassIds.includes(targetStudent.class_id)) {
-              return true;
-            }
-          }
-          
-          // Show logs related to teacher's assigned classes
-          if (log.target && log.target.includes('Class')) {
-            return true; // Class-related logs are relevant
-          }
-          
-          return false;
-        });
-      }
-    } else if (userId) {
-      // For other roles, filter by specific user if requested
-      filtered = filtered.filter((log: ActivityLog) => log.actor === currentUser?.username);
-    }
-    
-    if (action && action !== 'all') {
-      filtered = filtered.filter((log: ActivityLog) => log.action === action);
-    }
-    
-    return filtered;
   };
 
   const createUserAPI = async (userData: any): Promise<User | null> => {
@@ -4152,14 +3980,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Backend expects: student_id, amount, payment_type, payment_method, term, academic_year, notes
       const payload = {
         student_id: payment.student_id,
-        invoice_id: (payment as any).invoice_id,
+        invoice_id: payment.invoice_id,
         amount: payment.amount,
         payment_type: payment.payment_type || 'School Fees',
         payment_method: payment.payment_method,
         term: payment.term || currentTerm,
         academic_year: payment.academic_year || currentAcademicYear,
         notes: payment.notes,
-        transaction_reference: (payment as any).transaction_reference || (payment as any).reference
+        transaction_reference: payment.transaction_reference || payment.reference
       };
 
       // Use the main payments endpoint (POST /payments) which is wired to createPayment
@@ -4616,21 +4444,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     // Update class student counts
     updateClassStudentCount(student.class_id);
     updateClassStudentCount(newClassId);
-    
-    // Log the promotion activity
-    if (currentUser) {
-      addActivityLog({
-        id: 0, // Will be generated by database
-        actor: currentUser.username,
-        actor_role: 'Admin',
-        action: 'Promote Student',
-        target: `${student.firstName} ${student.lastName} → ${newClass.name}`,
-        ip_address: 'System',
-        status: 'Success',
-        timestamp: new Date().toISOString(),
-        details: `Promoted from ${student.className} to ${newClass.name} for ${newAcademicYear}`,
-      });
-    }
   };
 
   const promoteMultipleStudents = (studentIds: number[], classMapping: { [studentId: number]: number }, newAcademicYear: string) => {
@@ -5423,7 +5236,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           }))
           .sort((a: any, b: any) => new Date(b.recorded_date).getTime() - new Date(a.recorded_date).getTime());
 
-        setPayments(transformedData as any);
+        setPayments(transformedData as Payment[]);
         return true;
       }
       
@@ -5525,7 +5338,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       try {
         // Parents are not allowed to call /database/query, so do not attempt SQL-based loads.
         if (currentUser?.role === 'parent') {
-          setAffectiveDomains([] as any);
+          setAffectiveDomains([] as AffectiveDomain[]);
           return true;
         }
 
@@ -5533,7 +5346,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const termToUse = termParam ?? currentTerm;
         const yearToUse = academicYearParam ?? currentAcademicYear;
         if (!termToUse || !yearToUse) {
-          setAffectiveDomains([] as any);
+          setAffectiveDomains([] as AffectiveDomain[]);
           return true;
         }
 
@@ -5558,7 +5371,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       try {
         // Parents are not allowed to call /database/query, so do not attempt SQL-based loads.
         if (currentUser?.role === 'parent') {
-          setPsychomotorDomains([] as any);
+          setPsychomotorDomains([] as PsychomotorDomain[]);
           return true;
         }
 
@@ -5566,7 +5379,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const termToUse = termParam ?? currentTerm;
         const yearToUse = academicYearParam ?? currentAcademicYear;
         if (!termToUse || !yearToUse) {
-          setPsychomotorDomains([] as any);
+          setPsychomotorDomains([] as PsychomotorDomain[]);
           return true;
         }
 
@@ -5647,7 +5460,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const [termToUse, yearToUse, statusToUse] = requestKey.split('__');
 
     try {
-      const params: Record<string, any> = {};
+      const params: Record<string, string | number> = {};
 
       // Cache-busting to ensure approvals reflect immediately across devices.
       // Some browsers/proxies can serve stale GET responses until caches are cleared.
@@ -5675,7 +5488,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
       const compiled = Array.isArray(raw) ? raw : [];
 
-      setCompiledResults(compiled as any);
+      setCompiledResults(compiled as CompiledResult[]);
       return true;
     } catch (innerError: any) {
       const msg = String(innerError?.message || '');
@@ -5957,73 +5770,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loadExamTimetablesFromAPI = async (): Promise<boolean> => {
-    try {
-      const result = await sqlDatabase.getExamTimetables();
-      setExamTimetables(result);
-      return true;
-    } catch (error) {
-      
-      return false;
-    }
-  };
-
-  const loadClassTimetablesFromAPI = async (): Promise<boolean> => {
-    try {
-      const result = await sqlDatabase.executeQuery('SELECT * FROM class_timetables ORDER BY day_of_week, start_time');
-      if (result && result.data) {
-        setClassTimetables(result.data);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      
-      return false;
-    }
-  };
-
-  const loadDepartmentsFromAPI = async (): Promise<boolean> => {
-    try {
-      const result = await sqlDatabase.executeQuery('SELECT * FROM departments ORDER BY name');
-      if (result && result.data) {
-        setDepartments(result.data);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      
-      return false;
-    }
-  };
-
-  const loadScholarshipsFromAPI = async (): Promise<boolean> => {
-    try {
-      const result = await sqlDatabase.executeQuery('SELECT * FROM scholarships ORDER BY academic_year, student_id');
-      if (result && result.data) {
-        setScholarships(result.data);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      
-      return false;
-    }
-  };
-
-  const loadAssignmentsFromAPI = async (): Promise<boolean> => {
-    try {
-      const result = await sqlDatabase.executeQuery('SELECT * FROM assignments ORDER BY assigned_date DESC');
-      if (result && result.data) {
-        setAssignments(result.data);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      
-      return false;
-    }
-  };
-
   const loadCbtExamsFromAPI = async (): Promise<boolean> => {
     try {
       await tokenManager.ensureToken(currentUser);
@@ -6062,7 +5808,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const loadCbtAttemptsFromAPI = async (examId?: number): Promise<boolean> => {
     try {
       await tokenManager.ensureToken(currentUser);
-      const params: Record<string, any> = {};
+      const params: Record<string, string | number> = {};
       if (examId) params.exam_id = examId;
       const response = await api.get('/cbt/attempts', params);
       if (response && response.success) {
@@ -6076,7 +5822,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loadCbtQuestionBankFromAPI = async (params?: Record<string, any>): Promise<boolean> => {
+  const loadCbtQuestionBankFromAPI = async (params?: Record<string, string | number>): Promise<boolean> => {
     try {
       await tokenManager.ensureToken(currentUser);
       const response = await api.get('/cbt/question-bank', params);
@@ -6154,62 +5900,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       return false;
     }
-  };
-
-  // Exam Timetable Methods
-  const addExamTimetable = async (timetable: Omit<ExamTimetable, 'id'>): Promise<number> => {
-    try {
-      const timetableData = {
-        ...timetable,
-        createdBy: currentUser?.id || null,
-        academicYear: currentAcademicYear,
-        term: currentTerm
-      };
-      const result = await sqlDatabase.createExamTimetable(timetableData);
-      await loadExamTimetablesFromAPI();
-      return result.id;
-    } catch (error) {
-      
-      throw error;
-    }
-  };
-
-  const updateExamTimetable = async (id: number, timetable: Partial<ExamTimetable>): Promise<void> => {
-    try {
-      await sqlDatabase.updateExamTimetable(id, timetable);
-      await loadExamTimetablesFromAPI();
-    } catch (error) {
-      
-      throw error;
-    }
-  };
-
-  const deleteExamTimetable = async (id: number): Promise<void> => {
-    try {
-      await sqlDatabase.deleteExamTimetable(id);
-      await loadExamTimetablesFromAPI();
-    } catch (error) {
-      
-      throw error;
-    }
-  };
-
-  const getExamTimetablesByClass = (classId: number) => {
-    return examTimetables.filter((t: ExamTimetable) => t.class_id === classId);
-  };
-
-  const getExamTimetablesBySubject = (subjectId: number) => {
-    return examTimetables.filter((t: ExamTimetable) => t.subject_id === subjectId);
-  };
-
-  const getExamTimetablesByDate = (date: string) => {
-    return examTimetables.filter((t: ExamTimetable) => t.exam_date === date);
-  };
-
-  const getExamTimetables = (classId: number, academicYear: string, term: string) => {
-    return examTimetables.filter((t: ExamTimetable) => 
-      t.class_id === classId && t.academic_year === academicYear && t.term === term
-    );
   };
 
   // ─── CBT Exam CRUD ──────────────────────────────────────
@@ -6462,114 +6152,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Class Timetable Methods
-  const addClassTimetable = async (timetable: Omit<ClassTimetable, 'id'>): Promise<number> => {
-    const newId = classTimetables.length > 0 ? Math.max(...classTimetables.map((t: ClassTimetable) => t.id)) + 1 : 1;
-    const newTimetable = { ...timetable, id: newId };
-    setClassTimetables([...classTimetables, newTimetable]);
-    return newId;
-  };
-
-  const updateClassTimetable = async (id: number, timetable: Partial<ClassTimetable>): Promise<void> => {
-    setClassTimetables(classTimetables.map((t: ClassTimetable) => (t.id === id ? { ...t, ...timetable } : t)));
-  };
-
-  const deleteClassTimetable = async (id: number): Promise<void> => {
-    setClassTimetables(classTimetables.filter((t: ClassTimetable) => t.id !== id));
-  };
-
-  const getClassTimetablesByClass = (classId: number) => {
-    return classTimetables.filter((t: ClassTimetable) => t.class_id === classId);
-  };
-
-  const getClassTimetablesBySubject = (subjectId: number) => {
-    return classTimetables.filter((t: ClassTimetable) => t.subject_id === subjectId);
-  };
-
-  const getClassTimetablesByDay = (dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday') => {
-    return classTimetables.filter((t: ClassTimetable) => t.day_of_week === dayOfWeek);
-  };
-
-  const getClassTimetables = (classId: number, academicYear: string, term: string) => {
-    return classTimetables.filter((t: ClassTimetable) => 
-      t.class_id === classId && t.academic_year === academicYear && t.term === term
-    );
-  };
-
-  // Department Methods
-  const addDepartment = async (department: Omit<Department, 'id'>): Promise<number> => {
-    const newId = departments.length > 0 ? Math.max(...departments.map((d: Department) => d.id)) + 1 : 1;
-    const newDepartment = { ...department, id: newId };
-    setDepartments([...departments, newDepartment]);
-    return newId;
-  };
-
-  const updateDepartment = async (id: number, department: Partial<Department>): Promise<void> => {
-    setDepartments(departments.map((d: Department) => (d.id === id ? { ...d, ...department } : d)));
-  };
-
-  const deleteDepartment = async (id: number): Promise<void> => {
-    setDepartments(departments.filter((d: Department) => d.id !== id));
-  };
-
-  // Scholarship Methods
-  const addScholarship = async (scholarship: Omit<Scholarship, 'id'>): Promise<number> => {
-    try {
-      const dbPayload: any = {
-        ...scholarship,
-        current_beneficiaries: scholarship.beneficiaries,
-        created_by: currentUser?.id || 0,
-      };
-      delete dbPayload.beneficiaries;
-
-      const insertId = await sqlDatabase.insertRecord('scholarships', dbPayload);
-      await loadScholarshipsFromAPI();
-      return Number(insertId) || 0;
-    } catch (error) {
-      return 0;
-    }
-  };
-
-  const updateScholarship = async (id: number, scholarship: Partial<Scholarship>): Promise<void> => {
-    try {
-      const dbPayload: any = { ...scholarship };
-      if (dbPayload.beneficiaries !== undefined) {
-        dbPayload.current_beneficiaries = dbPayload.beneficiaries;
-        delete dbPayload.beneficiaries;
-      }
-
-      await sqlDatabase.updateRecord('scholarships', id, dbPayload);
-      await loadScholarshipsFromAPI();
-    } catch (error) {
-      // Silent fail
-    }
-  };
-
-  const deleteScholarship = async (id: number): Promise<void> => {
-    try {
-      await sqlDatabase.deleteRecord('scholarships', id);
-      await loadScholarshipsFromAPI();
-    } catch (error) {
-      // Silent fail
-    }
-  };
-
-  // Assignment Methods
-  const addAssignment = async (assignment: Omit<Assignment, 'id'>): Promise<number> => {
-    const newId = assignments.length > 0 ? Math.max(...assignments.map((a: Assignment) => a.id)) + 1 : 1;
-    const newAssignment = { ...assignment, id: newId };
-    setAssignments([...assignments, newAssignment]);
-    return newId;
-  };
-
-  const updateAssignment = async (id: number, assignment: Partial<Assignment>): Promise<void> => {
-    setAssignments(assignments.map((a: Assignment) => (a.id === id ? { ...a, ...assignment } : a)));
-  };
-
-  const deleteAssignment = async (id: number): Promise<void> => {
-    setAssignments(assignments.filter((a: Assignment) => a.id !== id));
-  };
-
   // Score Methods
   const checkAndUpdateClassCompletionStatus = async (classId: number): Promise<void> => {
     try {
@@ -6814,9 +6396,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       if (response && response.success) {
         const tempId = -Date.now();
         const optimisticScore: Score = {
-          ...(score as any),
+          ...score,
           id: tempId,
-          status: (score.status ?? 'Draft') as any
+          status: (score.status ?? 'Draft') as Score['status']
         };
 
         setScores(prev => {
@@ -6884,7 +6466,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       if (response && response.success) {
         setScores(prev => prev.map(s => {
           if (s.id !== id) return s;
-          return { ...s, ...score } as any;
+          return { ...s, ...score };
         }));
 
         // Reload scores from database to get the updated data
@@ -7197,18 +6779,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getDepartments = () => {
-    return [];
-  };
-
-  const getScholarships = () => {
-    return [];
-  };
-
-  const getStudentScholarships = (_studentId: number) => {
-    return [];
-  };
-
   const createUser = async (userData: any): Promise<User | null> => {
     return await createUserAPI(userData);
   };
@@ -7315,7 +6885,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     realtimeLoadersRef.current.loadParentsFromAPI = loadParentsFromAPI;
     realtimeLoadersRef.current.loadUsersFromAPI = loadUsersFromAPI;
     realtimeLoadersRef.current.loadAttendancesFromAPI = loadAttendancesFromAPI;
-    realtimeLoadersRef.current.loadAssignmentsFromAPI = loadAssignmentsFromAPI;
   }, [
     loadSchoolSettings,
     loadClassesFromAPI,
@@ -7332,7 +6901,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     loadParentsFromAPI,
     loadUsersFromAPI,
     loadAttendancesFromAPI,
-    loadAssignmentsFromAPI,
   ]);
 
   const value: SchoolContextType = {
@@ -7361,10 +6929,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     studentFeeBalances,
     feeBalances: studentFeeBalances,
     notifications,
-    activityLogs,
     attendances,
     attendanceRequirements,
-    sqlDatabase,
     
     // State Setters
     setUsers,
@@ -7385,17 +6951,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     setFeeStructures,
     setStudentFeeBalances,
     setNotifications,
-    setActivityLogs,
     setAttendances,
     setCbtExams,
     setCbtQuestions,
     setCbtAttempts,
     setCbtQuestionBank,
-    examTimetables,
-    classTimetables,
-    departments,
-    scholarships,
-    assignments,
     cbtExams,
     cbtQuestions,
     cbtAttempts,
@@ -7618,9 +7178,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     getAttendanceByClass,
     getFeeStructureByClass,
     addNotification,
-    addAssignment,
-    updateAssignment,
-    deleteAssignment,
 
     // CBT Methods
     loadCbtExamsFromAPI,
@@ -7809,8 +7366,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     updateBankAccountSettings,
     getBankAccountSettings,
     validateClassTeacherAssignment,
-    addActivityLog,
-    getActivityLogs,
     promoteStudent,
     promoteMultipleStudents,
 
@@ -7821,37 +7376,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     getAttendancesByStudent,
     getAttendancesByClass,
     getAttendancesByDate,
-
-    // Exam Timetable Methods
-    addExamTimetable,
-    updateExamTimetable,
-    deleteExamTimetable,
-    getExamTimetables,
-    getExamTimetablesByClass,
-    getExamTimetablesBySubject,
-    getExamTimetablesByDate,
-
-    // Class Timetable Methods
-    addClassTimetable,
-    updateClassTimetable,
-    deleteClassTimetable,
-    getClassTimetables,
-    getClassTimetablesByClass,
-    getClassTimetablesBySubject,
-    getClassTimetablesByDay,
-
-    // Department Methods
-    addDepartment,
-    updateDepartment,
-    deleteDepartment,
-    getDepartments,
-
-    // Scholarship Methods
-    addScholarship,
-    updateScholarship,
-    deleteScholarship,
-    getScholarships,
-    getStudentScholarships,
 
     // Enhanced Teacher Assignment Methods
     getTeacherStudents,
@@ -7886,11 +7410,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     loadStudentFeeBalancesFromAPI,
     loadNotificationsFromAPI,
     loadAttendancesFromAPI,
-    loadExamTimetablesFromAPI,
-    loadClassTimetablesFromAPI,
-    loadDepartmentsFromAPI,
-    loadScholarshipsFromAPI,
-    loadAssignmentsFromAPI,
     // Real-time Sync Methods (MINIMAL - only term-specific data)
     refreshTermData: async () => {
       // Only load data that's term-specific

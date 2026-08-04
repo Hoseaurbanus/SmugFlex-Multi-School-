@@ -84,8 +84,9 @@
       "scripts": {
             "dev": "vite",
             "build": "vite build --mode production",
-            "lint": "eslint src/ --report-unused-disable-directives --max-warnings 100",
-            "preview": "vite preview",
+      "lint": "eslint src/ --report-unused-disable-directives --max-warnings 100",
+      "typecheck": "tsc --noEmit",
+      "preview": "vite preview",
             "test": "vitest",
             "test:run": "vitest run",
             "test:coverage": "vitest run --coverage",

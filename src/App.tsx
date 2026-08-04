@@ -12,6 +12,11 @@ import { ConnectionProvider } from './contexts/ConnectionContext';
 import { SchoolProvider } from './contexts/SchoolContext';
 import { AuthProvider, useAuth } from './contexts/domains/AuthContext';
 import { NotificationProvider } from './contexts/domains/NotificationContext';
+import { DepartmentProvider } from './contexts/domains/IndependentDepartmentContext';
+import { ScholarshipProvider } from './contexts/domains/IndependentScholarshipContext';
+import { AssignmentProvider } from './contexts/domains/IndependentAssignmentContext';
+import { TimetableProvider } from './contexts/domains/IndependentTimetableContext';
+import { ActivityLogProvider } from './contexts/domains/IndependentActivityLogContext';
 import { Toaster } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { getAuthToken } from './config/api';
@@ -63,16 +68,26 @@ function App() {
 
   return (
     <SchoolProvider>
-      <AuthProvider>
-        <ConnectionProvider>
-          <NotificationServiceProvider>
-            <NotificationProvider>
-              <Toaster position="top-right" richColors />
-              <AppContent navigate={navigate} />
-            </NotificationProvider>
-          </NotificationServiceProvider>
-        </ConnectionProvider>
-      </AuthProvider>
+      <DepartmentProvider>
+        <ScholarshipProvider>
+          <AssignmentProvider>
+            <TimetableProvider>
+              <ActivityLogProvider>
+                <AuthProvider>
+                  <ConnectionProvider>
+                    <NotificationServiceProvider>
+                      <NotificationProvider>
+                        <Toaster position="top-right" richColors />
+                        <AppContent navigate={navigate} />
+                      </NotificationProvider>
+                    </NotificationServiceProvider>
+                  </ConnectionProvider>
+                </AuthProvider>
+              </ActivityLogProvider>
+            </TimetableProvider>
+          </AssignmentProvider>
+        </ScholarshipProvider>
+      </DepartmentProvider>
     </SchoolProvider>
   );
 }

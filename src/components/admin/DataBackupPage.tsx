@@ -7,6 +7,11 @@ import { Progress } from "../ui/progress";
 import { Alert, AlertDescription } from "../ui/alert";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
+import { useDepartments } from "../../contexts/domains/IndependentDepartmentContext";
+import { useScholarships } from "../../contexts/domains/IndependentScholarshipContext";
+import { useAssignments } from "../../contexts/domains/IndependentAssignmentContext";
+import { useTimetables } from "../../contexts/domains/IndependentTimetableContext";
+import { useActivityLogs } from "../../contexts/domains/IndependentActivityLogContext";
 import { 
   exportDataAsJSON, 
   importDataFromJSON, 
@@ -46,13 +51,7 @@ export function DataBackupPage() {
     payments,
     users,
     notifications,
-    activityLogs,
     attendances,
-    examTimetables,
-    classTimetables,
-    departments,
-    scholarships,
-    assignments,
     schoolSettings,
     bankAccountSettings,
     currentTerm,
@@ -70,6 +69,11 @@ export function DataBackupPage() {
     loadUsersFromAPI,
     loadNotificationsFromAPI,
   } = useSchool();
+  const { departments } = useDepartments();
+  const { scholarships } = useScholarships();
+  const { assignments } = useAssignments();
+  const { examTimetables, classTimetables } = useTimetables();
+  const { activityLogs } = useActivityLogs();
 
   const hasAccess = currentUser && currentUser.role === 'admin';
 

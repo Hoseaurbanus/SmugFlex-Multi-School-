@@ -1,29 +1,24 @@
 // PaymentContext - Focused payment wrapper around SchoolContext
 import { createContext, useContext, ReactNode } from 'react';
 import { useSchool } from '../SchoolContext';
-import { Payment, FeeStructure, StudentFeeBalance, Scholarship, CreatePaymentPayload, StudentInvoiceSummary } from '../../types/school';
+import { Payment, FeeStructure, StudentFeeBalance, StudentInvoiceSummary } from '../../types/school';
 
 interface PaymentDomain {
   payments: Payment[];
   feeStructures: FeeStructure[];
   studentFeeBalances: StudentFeeBalance[];
-  scholarships: Scholarship[];
-  addPayment: (payment: CreatePaymentPayload) => Promise<any>;
+  addPayment: (payment: import('../../types/school').CreatePaymentPayload) => Promise<void>;
   updatePayment: (id: number, payment: Partial<Payment>) => Promise<void>;
   verifyPayment: (id: number, data?: { action: 'verify' | 'reject'; rejection_reason?: string; adjusted_amount?: number; adjustment_reason?: string }) => Promise<void>;
   rejectPayment: (id: number, reason: string) => Promise<void>;
   reversePayment: (id: number, reason: string) => Promise<void>;
   getPaymentsByStudent: (studentId: number) => Payment[];
-  addFeeStructure: (feeStructure: any) => Promise<number>;
+  addFeeStructure: (feeStructure: Omit<FeeStructure, 'id'>) => Promise<number>;
   updateFeeStructure: (id: number, feeStructure: Partial<FeeStructure>) => Promise<void>;
   deleteFeeStructure: (id: number) => Promise<void>;
   getFeeStructures: (classId: number, academicYear: string) => FeeStructure[];
   getStudentFeeBalance: (studentId: number) => StudentFeeBalance | null;
-  addScholarship: (scholarship: Omit<Scholarship, 'id'>) => Promise<number>;
-  updateScholarship: (id: number, scholarship: Partial<Scholarship>) => Promise<void>;
-  deleteScholarship: (id: number) => Promise<void>;
-  getScholarships: () => Scholarship[];
-  autoGenerateInvoices: (classId: number, term: string, academicYear: string) => Promise<any>;
+  autoGenerateInvoices: (classId: number, term: string, academicYear: string) => Promise<{ success: boolean; message: string; count: number }>;
   getStudentInvoice: (studentId: number, term: string, academicYear: string) => Promise<StudentInvoiceSummary>;
 }
 
@@ -35,7 +30,6 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     payments: school.payments,
     feeStructures: school.feeStructures,
     studentFeeBalances: school.studentFeeBalances,
-    scholarships: school.scholarships,
     addPayment: school.addPayment,
     updatePayment: school.updatePayment,
     verifyPayment: school.verifyPayment,
@@ -47,10 +41,6 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     deleteFeeStructure: school.deleteFeeStructure,
     getFeeStructures: school.getFeeStructures,
     getStudentFeeBalance: school.getStudentFeeBalance,
-    addScholarship: school.addScholarship,
-    updateScholarship: school.updateScholarship,
-    deleteScholarship: school.deleteScholarship,
-    getScholarships: school.getScholarships,
     autoGenerateInvoices: school.autoGenerateInvoices,
     getStudentInvoice: school.getStudentInvoice,
   };

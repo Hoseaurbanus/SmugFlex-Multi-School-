@@ -43,8 +43,8 @@ export function CbtExamPlayer({ exam, onExit }: Props) {
     try {
       const result = await startCbtAttempt(exam.id);
       if (!result) { setError('Failed to start exam. You may have already attempted it.'); setLoading(false); return; }
-      const attemptData = result.attempt;
-      const questionData = result.questions || [];
+      const attemptData = result;
+      const questionData = (result as any)?.questions || [];
 
       setAttempt(attemptData);
       setQuestions(questionData);

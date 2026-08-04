@@ -33,7 +33,7 @@ export function CbtExamResultsPage({ exam, onBack }: Props) {
     setMessage(null);
     try {
       const data = await getCbtExamResults(exam.id);
-      setResults(data?.attempts || data || []);
+      setResults(Array.isArray(data) ? data : []);
     } catch {
       setResults([]);
     } finally {
@@ -48,7 +48,7 @@ export function CbtExamResultsPage({ exam, onBack }: Props) {
     setConfirmAction(null);
     try {
       const result = await feedCbtExamScores(exam.id, feedSlot);
-      const count = result?.fed_count || 0;
+      const count = (result as any)?.fed || (result as any)?.fed_count || 0;
       setMessage({ type: 'success', text: `${count} score(s) fed to ${feedSlot === 'first_test' ? 'CA1' : 'CA2'} successfully` });
     } catch (error: any) {
       const msg = error?.response?.data?.message || error?.message || 'Failed to feed scores';
@@ -64,7 +64,7 @@ export function CbtExamResultsPage({ exam, onBack }: Props) {
     setConfirmAction(null);
     try {
       const result = await deleteCbtExamScores(exam.id);
-      const count = result?.deleted_count || 0;
+      const count = (result as any)?.deleted_count || 0;
       setMessage({ type: 'success', text: `${count} score(s) deleted successfully` });
     } catch (error: any) {
       const msg = error?.response?.data?.message || error?.message || 'Failed to delete scores';

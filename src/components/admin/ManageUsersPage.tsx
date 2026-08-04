@@ -32,6 +32,10 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { User as UserIcon } from "lucide-react";
 import { Checkbox } from "../ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../ui/sheet";
+import { CreateUserSheet } from "./manage-users/CreateUserSheet";
+import { EditUserDialog } from "./manage-users/EditUserDialog";
+import { ViewUserDialog } from "./manage-users/ViewUserDialog";
+import { ResetPasswordDialog, DeactivateDialog, DeleteUserDialog } from "./manage-users/ConfirmationDialogs";
 
 export function ManageUsersPage() {
   const { users, teachers, parents, accountants, classes, setTeachers, setParents, setAccountants, createUserAPI, updateUserAPI, deleteUserAPI, updateUserStatusAPI, resetUserPasswordAPI, loadUsersFromAPI, loadTeachersFromAPI, loadParentsFromAPI, loadAccountantsFromAPI, deleteTeacherAPI, deleteParentAPI, deleteAccountantAPI, updateTeacherStatusAPI, updateParentStatusAPI, updateAccountantStatusAPI } = useSchool();
@@ -165,7 +169,7 @@ export function ManageUsersPage() {
     loadAllData();
   }, []);
 
-  const getUserFullName = (user: UserType): string => {
+  const getUserFullName = (user: any): string => {
     const anyUser = user as any;
     const dn = (anyUser?.display_name || '').toString().trim();
     if (dn) return dn;
@@ -465,7 +469,7 @@ export function ManageUsersPage() {
     }
     setIsLoading(true);
     try {
-      const newUser = await createUserAPI(createFormData);
+      const newUser = await createUserAPI(createFormData as any);
       if (!newUser || !(newUser as any).id) {
         throw new Error('User was not created');
       }
@@ -1188,753 +1192,59 @@ export function ManageUsersPage() {
       </div>
 
       {/* Create User Sheet - Mobile-first full screen design */}
-      <Sheet open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <SheetContent side="bottom" className="h-[95vh] rounded-t-2xl p-0 sm:rounded-t-none sm:h-full sm:max-w-lg sm:mx-auto">
-          <div className="flex flex-col h-full">
-            {/* Sticky Header */}
-            <div className="flex-shrink-0 px-5 pt-5 pb-4 border-b border-gray-100">
-              <SheetHeader className="text-left">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#0A2540] flex items-center justify-center shadow-sm">
-                    <Plus className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <SheetTitle className="text-[#1F2937] text-lg">Create New User</SheetTitle>
-                    <SheetDescription className="text-[#6B7280] text-sm">
-                      Add a new user with role-based access
-                    </SheetDescription>
-                  </div>
-                </div>
-              </SheetHeader>
-            </div>
+      <CreateUserSheet
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        formData={createFormData}
+        onFormDataChange={setCreateFormData}
+        usernameValidation={createUsernameValidation}
+        isLoading={isLoading}
+        classes={classes}
+        onCreate={confirmCreateUser}
+        onCheckUsername={checkCreateUsernameAvailability}
+      />
 
-            {/* Scrollable Form Body */}
-            <div className="flex-1 overflow-y-auto overscroll-contain">
-              <div className="px-5 py-5 space-y-6">
+      <EditUserDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        selectedUser={selectedUser as any}
+        formData={editFormData as any}
+        onFormDataChange={setEditFormData as any}
+        isLoading={isLoading}
+        getUserFullName={getUserFullName}
+        getRoleBadgeColor={getRoleBadgeColor}
+        onUpdate={confirmEditUser}
+      />
 
-                {/* Section 1: Role Selection */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-[#0A2540] flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">1</span>
-                    </div>
-                    <h4 className="font-heading font-semibold text-sm text-[#1F2937]">Select Role</h4>
-                  </div>
-                  <Select value={createFormData.role} onValueChange={(value: any) => setCreateFormData({...createFormData, role: value})}>
-                    <SelectTrigger className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-[#F9FAFB] text-[#1F2937] hover:bg-white transition-all shadow-sm">
-                      <SelectValue placeholder="Choose user role" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-100 rounded-xl shadow-lg">
-                      <SelectItem value="admin" className="text-[#1F2937] hover:bg-[#F9FAFB] rounded-lg m-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-[#EF4444]" />
-                          Admin
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="teacher" className="text-[#1F2937] hover:bg-[#F9FAFB] rounded-lg m-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-[#10B981]" />
-                          Teacher
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="accountant" className="text-[#1F2937] hover:bg-[#F9FAFB] rounded-lg m-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
-                          Accountant
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="parent" className="text-[#1F2937] hover:bg-[#F9FAFB] rounded-lg m-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-[#0A2540]" />
-                          Parent/Guardian
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+      <ResetPasswordDialog
+        open={showResetDialog}
+        onOpenChange={setShowResetDialog}
+        username={selectedUser?.username || ''}
+        resetViaEmail={resetViaEmail}
+        resetViaSMS={resetViaSMS}
+        isLoading={isLoading}
+        onEmailChange={setResetViaEmail}
+        onSMSChange={setResetViaSMS}
+        onConfirm={confirmResetPassword}
+      />
 
-                {/* Section 2: Personal Details */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-[#0A2540]/10 flex items-center justify-center">
-                      <span className="text-[#0A2540] text-xs font-bold">2</span>
-                    </div>
-                    <h4 className="font-heading font-semibold text-sm text-[#1F2937]">Personal Details</h4>
-                  </div>
+      <DeactivateDialog
+        open={showDeactivateDialog}
+        onOpenChange={setShowDeactivateDialog}
+        userStatus={selectedUser?.status || ''}
+        username={selectedUser?.username || ''}
+        isLoading={isLoading}
+        onConfirm={confirmDeactivate}
+      />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">
-                        First Name <span className="text-[#EF4444]">*</span>
-                      </Label>
-                      <Input
-                        value={createFormData.firstName}
-                        onChange={(e) => setCreateFormData({...createFormData, firstName: e.target.value})}
-                        placeholder="Enter first name"
-                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">
-                        Last Name <span className="text-[#EF4444]">*</span>
-                      </Label>
-                      <Input
-                        value={createFormData.lastName}
-                        onChange={(e) => setCreateFormData({...createFormData, lastName: e.target.value})}
-                        placeholder="Enter last name"
-                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-[#1F2937] text-sm">Email Address</Label>
-                    <Input
-                      type="email"
-                      value={createFormData.email}
-                      onChange={(e) => setCreateFormData({...createFormData, email: e.target.value})}
-                      placeholder="email@example.com"
-                      className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-[#1F2937] text-sm">Phone Number</Label>
-                    <Input
-                      type="tel"
-                      value={createFormData.phone}
-                      onChange={(e) => setCreateFormData({...createFormData, phone: e.target.value})}
-                      placeholder="080XXXXXXXX"
-                      className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] focus:ring-[#0A2540]/20 bg-white text-[#1F2937] transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Section 3: Role-specific fields */}
-                {createFormData.role === 'teacher' && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-7 h-7 rounded-lg bg-[#10B981]/10 flex items-center justify-center">
-                        <span className="text-[#10B981] text-xs font-bold">3</span>
-                      </div>
-                      <h4 className="font-heading font-semibold text-sm text-[#1F2937]">Teacher Details</h4>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">Gender</Label>
-                      <Select value={createFormData.gender} onValueChange={(value: any) => setCreateFormData({...createFormData, gender: value})}>
-                        <SelectTrigger className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all">
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border-gray-100 rounded-xl">
-                          <SelectItem value="Male" className="text-[#1F2937] rounded-lg">Male</SelectItem>
-                          <SelectItem value="Female" className="text-[#1F2937] rounded-lg">Female</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">Qualification</Label>
-                      <Select value={createFormData.qualification} onValueChange={(value: any) => setCreateFormData({...createFormData, qualification: value})}>
-                        <SelectTrigger className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all">
-                          <SelectValue placeholder="Select qualification" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border-gray-100 rounded-xl">
-                          <SelectItem value="NCE" className="text-[#1F2937] rounded-lg">NCE</SelectItem>
-                          <SelectItem value="B.Ed" className="text-[#1F2937] rounded-lg">B.Ed</SelectItem>
-                          <SelectItem value="B.Sc" className="text-[#1F2937] rounded-lg">B.Sc</SelectItem>
-                          <SelectItem value="B.A" className="text-[#1F2937] rounded-lg">B.A</SelectItem>
-                          <SelectItem value="M.Ed" className="text-[#1F2937] rounded-lg">M.Ed</SelectItem>
-                          <SelectItem value="M.Sc" className="text-[#1F2937] rounded-lg">M.Sc</SelectItem>
-                          <SelectItem value="PhD" className="text-[#1F2937] rounded-lg">PhD</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">Specialization</Label>
-                      <Input
-                        value={createFormData.specialization.join(', ')}
-                        onChange={(e) => setCreateFormData({...createFormData, specialization: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
-                        placeholder="e.g., Mathematics, Physics"
-                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">Department</Label>
-                      <Select value={createFormData.departmentId} onValueChange={(value: any) => setCreateFormData({...createFormData, departmentId: value})}>
-                        <SelectTrigger className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all">
-                          <SelectValue placeholder="Select department" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border-gray-100 rounded-xl">
-                          <SelectItem value="" className="text-[#1F2937] rounded-lg">Select department</SelectItem>
-                          <SelectItem value="1" className="text-[#1F2937] rounded-lg">Sciences</SelectItem>
-                          <SelectItem value="2" className="text-[#1F2937] rounded-lg">Mathematics</SelectItem>
-                          <SelectItem value="3" className="text-[#1F2937] rounded-lg">Languages</SelectItem>
-                          <SelectItem value="4" className="text-[#1F2937] rounded-lg">Social Sciences</SelectItem>
-                          <SelectItem value="5" className="text-[#1F2937] rounded-lg">Technical</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="p-4 bg-gradient-to-br from-[#F0F4F8] to-[#F8FAFC] rounded-xl border-2 border-[#0A2540]/20 space-y-3 shadow-sm">
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          id="isClassTeacher"
-                          checked={createFormData.isClassTeacher}
-                          onCheckedChange={(checked: boolean) =>
-                            setCreateFormData({...createFormData, isClassTeacher: checked, assignedClassId: checked ? createFormData.assignedClassId : null})
-                          }
-                          className="border-2 border-[#0A2540] data-[state=checked]:bg-[#0A2540]"
-                        />
-                        <Label htmlFor="isClassTeacher" className="text-[#1F2937] text-sm cursor-pointer">
-                          Assign as Class Teacher
-                        </Label>
-                      </div>
-                      {createFormData.isClassTeacher && (
-                        <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-200">
-                          <Label className="text-[#1F2937] text-sm">
-                            Assigned Class <span className="text-[#EF4444]">*</span>
-                          </Label>
-                          <Select value={createFormData.assignedClassId?.toString() || ""} onValueChange={(value: string) => setCreateFormData({...createFormData, assignedClassId: parseInt(value)})}>
-                            <SelectTrigger className="h-12 rounded-xl border-2 border-[#0A2540]/20 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all">
-                              <SelectValue placeholder="Select class" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border-gray-100 rounded-xl">
-                              {classes.filter((c: any) => c.status === 'Active' && !c.class_teacher_id).map((cls: any) => (
-                                <SelectItem key={cls.id} value={cls.id.toString()} className="text-[#1F2937] rounded-lg">
-                                  {cls.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {createFormData.role === 'parent' && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-7 h-7 rounded-lg bg-[#0A2540]/10 flex items-center justify-center">
-                        <span className="text-[#0A2540] text-xs font-bold">3</span>
-                      </div>
-                      <h4 className="font-heading font-semibold text-sm text-[#1F2937]">Parent Details</h4>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">
-                        Address <span className="text-[#EF4444]">*</span>
-                      </Label>
-                      <Input
-                        value={createFormData.address}
-                        onChange={(e) => setCreateFormData({...createFormData, address: e.target.value})}
-                        placeholder="Enter home address"
-                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">Alternate Phone</Label>
-                      <Input
-                        type="tel"
-                        value={createFormData.alternatePhone}
-                        onChange={(e) => setCreateFormData({...createFormData, alternatePhone: e.target.value})}
-                        placeholder="Alternate contact number"
-                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">
-                        Occupation <span className="text-[#EF4444]">*</span>
-                      </Label>
-                      <Input
-                        value={createFormData.occupation}
-                        onChange={(e) => setCreateFormData({...createFormData, occupation: e.target.value})}
-                        placeholder="Enter occupation"
-                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {createFormData.role === 'accountant' && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-7 h-7 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
-                        <span className="text-[#F59E0B] text-xs font-bold">3</span>
-                      </div>
-                      <h4 className="font-heading font-semibold text-sm text-[#1F2937]">Accountant Details</h4>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-[#1F2937] text-sm">
-                        Department <span className="text-[#EF4444]">*</span>
-                      </Label>
-                      <Input
-                        value={createFormData.department}
-                        onChange={(e) => setCreateFormData({...createFormData, department: e.target.value})}
-                        placeholder="e.g., Finance, Accounts, Bursary"
-                        className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Section: Login Credentials */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-[#FB923C]/10 flex items-center justify-center">
-                      <span className="text-[#FB923C] text-xs font-bold">
-                        {createFormData.role === 'teacher' ? '4' : createFormData.role === 'parent' || createFormData.role === 'accountant' ? '4' : '3'}
-                      </span>
-                    </div>
-                    <h4 className="font-heading font-semibold text-sm text-[#1F2937]">Login Credentials</h4>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-[#1F2937] text-sm">
-                      Username <span className="text-[#EF4444]">*</span>
-                    </Label>
-                    <Input
-                      value={createFormData.username}
-                      onChange={(e) => {
-                        const newUsername = e.target.value;
-                        setCreateFormData({...createFormData, username: newUsername});
-                        const timeoutId = setTimeout(() => checkCreateUsernameAvailability(newUsername), 500);
-                        return () => clearTimeout(timeoutId);
-                      }}
-                      placeholder="Username for login"
-                      className={`h-12 rounded-xl border-2 ${
-                        createUsernameValidation.isChecking
-                          ? 'border-[#F59E0B] focus:border-[#F59E0B]'
-                          : createUsernameValidation.isValid
-                            ? 'border-gray-100 focus:border-[#0A2540]'
-                            : 'border-[#EF4444] focus:border-[#EF4444]'
-                      } bg-white text-[#1F2937] transition-all`}
-                    />
-                    <div className="flex items-center justify-between min-h-[20px]">
-                      <p className="text-xs text-[#6B7280]">This will be used for system login</p>
-                      {createUsernameValidation.message && (
-                        <p className={`text-xs ${
-                          createUsernameValidation.isValid ? 'text-[#10B981]' : 'text-[#EF4444]'
-                        }`}>
-                          {createUsernameValidation.isChecking && '⏳ '}
-                          {createUsernameValidation.message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-[#1F2937] text-sm">Password (Optional)</Label>
-                    <Input
-                      type="password"
-                      value={createFormData.password}
-                      onChange={(e) => setCreateFormData({...createFormData, password: e.target.value})}
-                      placeholder="Leave blank for default password"
-                      className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all"
-                    />
-                    <p className="text-xs text-[#6B7280]">Default password: {createFormData.role}123</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-[#1F2937] text-sm">Status</Label>
-                    <Select value={createFormData.status} onValueChange={(value: any) => setCreateFormData({...createFormData, status: value})}>
-                      <SelectTrigger className="h-12 rounded-xl border-2 border-gray-100 focus:border-[#0A2540] bg-white text-[#1F2937] transition-all">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-100 rounded-xl">
-                        <SelectItem value="Active" className="text-[#1F2937] rounded-lg">Active</SelectItem>
-                        <SelectItem value="Inactive" className="text-[#1F2937] rounded-lg">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Bottom spacer for safe area on mobile */}
-                <div className="h-4 sm:h-0" />
-              </div>
-            </div>
-
-            {/* Sticky Footer Buttons */}
-            <div className="flex-shrink-0 px-5 py-4 border-t border-gray-100 bg-[#F9FAFB]">
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowCreateDialog(false)}
-                  className="flex-1 h-12 rounded-xl border-2 border-gray-100 text-[#1F2937] hover:bg-white hover:border-[#CBD5E1] transition-all"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={confirmCreateUser}
-                  disabled={isLoading || (createFormData.username.trim() !== '' && !createUsernameValidation.isValid)}
-                  className="flex-1 h-12 bg-gradient-to-r from-[#0A2540] to-[#0A2540]/90 hover:from-[#0A2540]/90 hover:to-[#0A2540] text-white rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-                >
-                  {isLoading ? 'Creating...' : 'Create User'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Edit User Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Update user information and settings.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            {/* User Photo Display */}
-            {selectedUser && (
-              <div className="flex items-center gap-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#0A2540]/10 rounded-full flex items-center justify-center shrink-0">
-                  <User className="w-6 h-6 sm:w-8 sm:h-8 text-[#0A2540]" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-heading font-semibold text-base sm:text-lg truncate">{getUserFullName(selectedUser)}</h3>
-                  <p className="text-xs sm:text-sm text-gray-500 truncate">@{selectedUser.username}</p>
-                  <Badge className={`${getRoleBadgeColor(selectedUser.role)} text-xs`}>
-                    {selectedUser.role}
-                  </Badge>
-                </div>
-              </div>
-            )}
-            
-            {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-username">Username *</Label>
-                <Input
-                  id="edit-username"
-                  value={editFormData.username}
-                  onChange={(e) => setEditFormData({...editFormData, username: e.target.value})}
-                  placeholder="Enter username"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="edit-email">Email *</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  value={editFormData.email}
-                  onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
-                  placeholder="Enter email address"
-                />
-              </div>
-            </div>
-            
-            {/* Complete Name Fields */}
-            <div className="space-y-3">
-              <h4 className="font-heading font-semibold text-gray-900">Complete Name</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="edit-firstName">First Name *</Label>
-                  <Input
-                    id="edit-firstName"
-                    value={editFormData.first_name || ''}
-                    onChange={(e) => setEditFormData({...editFormData, first_name: e.target.value})}
-                    placeholder="First name"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-otherName">Other Name</Label>
-                  <Input
-                    id="edit-otherName"
-                    value={editFormData.other_name || ''}
-                    onChange={(e) => setEditFormData({...editFormData, other_name: e.target.value})}
-                    placeholder="Middle/other name"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-lastName">Last Name *</Label>
-                  <Input
-                    id="edit-lastName"
-                    value={editFormData.last_name || ''}
-                    onChange={(e) => setEditFormData({...editFormData, last_name: e.target.value})}
-                    placeholder="Last name"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Contact Information */}
-            <div className="space-y-3">
-              <h4 className="font-heading font-semibold text-gray-900">Contact Information</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="edit-phone">Primary Phone</Label>
-                  <Input
-                    id="edit-phone"
-                    value={editFormData.phone || ''}
-                    onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
-                    placeholder="Primary phone number"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-alternatePhone">Alternate Phone</Label>
-                  <Input
-                    id="edit-alternatePhone"
-                    value={editFormData.alternatePhone || ''}
-                    onChange={(e) => setEditFormData({...editFormData, alternatePhone: e.target.value})}
-                    placeholder="Alternate phone number"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="edit-address">Address</Label>
-                <Input
-                  id="edit-address"
-                  value={editFormData.address || ''}
-                  onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
-                  placeholder="Residential address"
-                />
-              </div>
-            </div>
-            
-            {/* Role and Status */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-role">Role *</Label>
-                <Select value={editFormData.role} onValueChange={(value: any) => setEditFormData({...editFormData, role: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="teacher">Teacher</SelectItem>
-                    <SelectItem value="accountant">Accountant</SelectItem>
-                    <SelectItem value="parent">Parent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="edit-status">Status</Label>
-                <Select value={editFormData.status} onValueChange={(value: any) => setEditFormData({...editFormData, status: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            {/* Role-specific fields */}
-            {editFormData.role === 'teacher' && (
-              <div className="space-y-3">
-                <h4 className="font-heading font-semibold text-gray-900">Teacher Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-employeeId">Employee ID</Label>
-                    <Input
-                      id="edit-employeeId"
-                      value={editFormData.employee_id || ''}
-                      onChange={(e) => setEditFormData({...editFormData, employee_id: e.target.value})}
-                      placeholder="Employee ID"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-gender">Gender</Label>
-                    <Select value={editFormData.gender || ''} onValueChange={(value: any) => setEditFormData({...editFormData, gender: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-qualification">Qualification</Label>
-                    <Input
-                      id="edit-qualification"
-                      value={editFormData.qualification || ''}
-                      onChange={(e) => setEditFormData({...editFormData, qualification: e.target.value})}
-                      placeholder="e.g., B.Ed, M.Sc, Ph.D"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-department">Department</Label>
-                    <Input
-                      id="edit-department"
-                      value={editFormData.department || ''}
-                      onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
-                      placeholder="e.g., Mathematics, Science, Arts"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {editFormData.role === 'accountant' && (
-              <div className="space-y-3">
-                <h4 className="font-heading font-semibold text-gray-900">Accountant Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-employeeId">Employee ID</Label>
-                    <Input
-                      id="edit-employeeId"
-                      value={editFormData.employee_id || ''}
-                      onChange={(e) => setEditFormData({...editFormData, employee_id: e.target.value})}
-                      placeholder="Employee ID"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-department">Department</Label>
-                    <Input
-                      id="edit-department"
-                      value={editFormData.department || ''}
-                      onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
-                      placeholder="e.g., Finance, Accounts, Bursary"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {editFormData.role === 'parent' && (
-              <div className="space-y-3">
-                <h4 className="font-heading font-semibold text-gray-900">Parent Information</h4>
-                <div>
-                  <Label htmlFor="edit-occupation">Occupation</Label>
-                  <Input
-                    id="edit-occupation"
-                    value={editFormData.occupation || ''}
-                    onChange={(e) => setEditFormData({...editFormData, occupation: e.target.value})}
-                    placeholder="Parent's occupation"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={confirmEditUser} disabled={isLoading}>
-              {isLoading ? 'Updating...' : 'Update User'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reset Password Dialog */}
-      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reset Password</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to reset the password for {selectedUser?.username}? 
-              A temporary password will be generated and shown to you.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="reset-email"
-                checked={resetViaEmail}
-                onCheckedChange={(checked: boolean) => setResetViaEmail(checked)}
-              />
-              <Label htmlFor="reset-email">Send via Email</Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="reset-sms"
-                checked={resetViaSMS}
-                onCheckedChange={(checked: boolean) => setResetViaSMS(checked)}
-              />
-              <Label htmlFor="reset-sms">Send via SMS</Label>
-            </div>
-          </div>
-          
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button onClick={confirmResetPassword} disabled={isLoading}>
-              {isLoading ? 'Resetting...' : 'Reset Password'}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Deactivate/Activate Dialog */}
-      <AlertDialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {selectedUser?.status === 'Active' ? 'Deactivate User' : 'Activate User'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to {selectedUser?.status === 'Active' ? 'deactivate' : 'activate'} {selectedUser?.username}? 
-              {selectedUser?.status === 'Active' ? ' The user will not be able to access the system.' : ' The user will regain access to the system.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button 
-              onClick={confirmDeactivate}
-              disabled={isLoading}
-              className={selectedUser?.status === 'Active' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}
-            >
-              {isLoading ? 'Processing...' : (selectedUser?.status === 'Active' ? 'Deactivate User' : 'Activate User')}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete User Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedUser?.username}? This action cannot be undone.
-              <br /><br />
-              <strong>Warning:</strong> This will permanently remove the user and all their associated data from the system.
-              {selectedUser?.role === 'teacher' && ' This includes all teacher records, subject assignments, and related data.'}
-              {selectedUser?.role === 'parent' && ' This includes all parent records and student links.'}
-              {selectedUser?.role === 'accountant' && ' This includes all accountant records and financial data.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <Button 
-              onClick={confirmDelete} 
-              disabled={isLoading}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-            >
-              {isLoading ? 'Deleting...' : 'Delete User'}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteUserDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        username={selectedUser?.username || ''}
+        role={selectedUser?.role || ''}
+        isLoading={isLoading}
+        onConfirm={confirmDelete}
+      />
 
       {/* Delete Teacher Dialog */}
       <AlertDialog open={showDeleteTeacherDialog} onOpenChange={setShowDeleteTeacherDialog}>
@@ -2006,54 +1316,11 @@ export function ManageUsersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* View User Dialog */}
-      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>User Details</DialogTitle>
-            <DialogDescription>
-              View detailed information for {selectedUser?.username}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Username</Label>
-              <p className="text-sm">{selectedUser?.username}</p>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Email</Label>
-              <p className="text-sm">{selectedUser?.email}</p>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Role</Label>
-              <Badge variant={selectedUser?.role === 'admin' ? 'destructive' : 'secondary'}>
-                {selectedUser?.role}
-              </Badge>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Status</Label>
-              <Badge variant={selectedUser?.status === 'Active' ? 'default' : 'secondary'}>
-                {selectedUser?.status}
-              </Badge>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Last Login</Label>
-              <p className="text-sm">{selectedUser?.last_login || 'Never'}</p>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Created At</Label>
-              <p className="text-sm">{new Date(selectedUser?.created_at || '').toLocaleDateString()}</p>
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button onClick={() => setShowViewDialog(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ViewUserDialog
+        open={showViewDialog}
+        onOpenChange={setShowViewDialog}
+        selectedUser={selectedUser as any}
+      />
     </div>
   );
 }

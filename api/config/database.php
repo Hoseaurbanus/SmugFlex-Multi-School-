@@ -28,7 +28,7 @@ class Database {
     private function shouldEmulatePrepares() {
         $value = $_ENV['DB_EMULATE_PREPARES'] ?? getenv('DB_EMULATE_PREPARES');
         if ($value === null || $value === false) {
-            return true;
+            return false;
         }
         if (is_bool($value)) {
             return $value;

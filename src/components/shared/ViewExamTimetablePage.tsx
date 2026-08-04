@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSchool } from '../../contexts/SchoolContext';
+import { useTimetables } from '../../contexts/domains/IndependentTimetableContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 interface ViewExamTimetablePageProps {
@@ -13,10 +14,10 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
     students,
     parents,
     teachers,
-    examTimetables,
     currentTerm,
     currentAcademicYear,
   } = useSchool();
+  const { examTimetables } = useTimetables();
 
   const [selectedClassId, setSelectedClassId] = useState<number>(0);
 

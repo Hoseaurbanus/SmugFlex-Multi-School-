@@ -128,7 +128,6 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     loadTeachersFromAPI,
     loadNotificationsFromAPI,
     loadScoresFromAPI,
-    loadAssignmentsFromAPI,
     loadAttendancesFromAPI,
     schoolSettings,
   } = useSchool();
@@ -241,7 +240,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
       await Promise.allSettled([
         loadStudentsFromAPI(), loadTeachersFromAPI(), loadClassesFromAPI(true),
         loadNotificationsFromAPI(), loadScoresFromAPI(currentTerm, currentAcademicYear),
-        loadAssignmentsFromAPI(), loadAttendancesFromAPI(),
+        loadAttendancesFromAPI(),
         loadSubjectAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
         loadClassTeacherAssignmentsFromAPI(true, currentTerm, currentAcademicYear),
       ]);
@@ -249,7 +248,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
       try { const refreshedClasses = await getTeacherClasses(Number(teacherId)); setTeacherClasses(refreshedClasses); } catch (e) {}
       finally { setIsWelcomeLoading(false); }
     } catch (e) { setIsWelcomeLoading(false); }
-  }, [teacherId, currentTerm, currentAcademicYear, loadStudentsFromAPI, loadTeachersFromAPI, loadClassesFromAPI, loadNotificationsFromAPI, loadScoresFromAPI, loadAssignmentsFromAPI, loadAttendancesFromAPI, loadSubjectAssignmentsFromAPI, loadClassTeacherAssignmentsFromAPI, getTeacherClasses]);
+  }, [teacherId, currentTerm, currentAcademicYear, loadStudentsFromAPI, loadTeachersFromAPI, loadClassesFromAPI, loadNotificationsFromAPI, loadScoresFromAPI, loadAttendancesFromAPI, loadSubjectAssignmentsFromAPI, loadClassTeacherAssignmentsFromAPI, getTeacherClasses]);
 
   const isRefreshingRef = useRef(false);
 

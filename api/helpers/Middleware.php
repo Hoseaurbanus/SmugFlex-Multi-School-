@@ -104,7 +104,7 @@ class Middleware {
         }
         
         // Users can access their own resources
-        return $token_data['linked_id'] == $resource_user_id;
+        return (int)($token_data['linked_id'] ?? 0) === (int)$resource_user_id;
     }
     
     /**

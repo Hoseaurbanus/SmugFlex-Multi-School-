@@ -3,6 +3,22 @@ import { createContext, useContext, ReactNode } from 'react';
 import { useSchool } from '../SchoolContext';
 import { User, Teacher, Parent, Accountant } from '../../types/school';
 
+interface UserCreateInput {
+  username: string;
+  password: string;
+  role: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  linked_id?: number;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  last_login?: string | null;
+  [key: string]: unknown;
+}
+
 interface AuthDomain {
   currentUser: User | null;
   users: User[];
@@ -12,14 +28,14 @@ interface AuthDomain {
   logout: () => void;
   setCurrentUser: (user: User | null) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
-  createUser: (userData: any) => Promise<User | null>;
-  updateUser: (id: number, userData: any) => Promise<boolean>;
+  createUser: (userData: Omit<User, 'id'>) => Promise<User | null>;
+  updateUser: (id: number, userData: Partial<User>) => Promise<boolean>;
   deleteUser: (id: number) => Promise<boolean>;
   updateUserStatus: (id: number, status: string) => Promise<boolean>;
   resetUserPassword: (id: number) => Promise<string>;
   getUserPermissions: (userId: number) => Promise<string[]>;
-  createUserAPI: (userData: any) => Promise<User | null>;
-  updateUserAPI: (id: number, userData: any) => Promise<boolean>;
+  createUserAPI: (userData: Omit<User, 'id'>) => Promise<User | null>;
+  updateUserAPI: (id: number, userData: Partial<User>) => Promise<boolean>;
   deleteUserAPI: (id: number) => Promise<boolean>;
   updateUserStatusAPI: (id: number, status: string) => Promise<boolean>;
   resetUserPasswordAPI: (id: number, newPassword?: string) => Promise<string>;

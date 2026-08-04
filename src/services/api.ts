@@ -36,13 +36,43 @@ export interface ApiError {
 
 class ApiService {
   private connectionStatus: { isOnline: boolean; isSlow: boolean } = { isOnline: true, isSlow: false };
+  private csrfToken: string | null = null;
 
   constructor() {
-    
     // Monitor connection status
     this.updateConnectionStatus();
     window.addEventListener('online', () => this.updateConnectionStatus());
     window.addEventListener('offline', () => this.updateConnectionStatus());
+  }
+
+  /**
+   * Fetch CSRF token from backend and cache it
+   */
+  async fetchCsrfToken(): Promise<string | null> {
+    try {
+      const url = buildUrl('/csrf');
+      const token = getAuthToken();
+      const headers: HeadersInit = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(url, { method: 'GET', headers });
+      if (response.ok) {
+        const data = await response.json();
+        this.csrfToken = data?.data?.csrf_token || null;
+        return this.csrfToken;
+      }
+    } catch {}
+    return null;
+  }
+
+  /**
+   * Get cached CSRF token or fetch a new one
+   */
+  private async getCsrfToken(): Promise<string | null> {
+    if (!this.csrfToken) {
+      await this.fetchCsrfToken();
+    }
+    return this.csrfToken;
   }
 
   private updateConnectionStatus() {
@@ -76,6 +106,14 @@ class ApiService {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+
+    // Add CSRF token for state-changing requests
+    if (!isIdempotentMethod) {
+      const csrfToken = await this.getCsrfToken();
+      if (csrfToken) {
+        (headers as Record<string, string>)['X-CSRF-Token'] = csrfToken;
+      }
+    }
 
     // Prevent browsers/proxies from caching GET/HEAD responses (fixes stale data until cache clear)
     if (isIdempotentMethod) {
@@ -395,6 +433,7 @@ class ApiService {
    */
   clearToken(): void {
     removeAuthToken();
+    this.csrfToken = null;
   }
 
   /**

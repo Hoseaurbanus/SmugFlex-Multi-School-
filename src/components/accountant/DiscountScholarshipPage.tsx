@@ -7,14 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { Scholarship } from "../../types/school";
-import { usePayments } from "../../contexts/domains/PaymentContext";
+import { useScholarships } from "../../contexts/domains/IndependentScholarshipContext";
 import { useSettings } from "../../contexts/domains/SettingsContext";
 import { Percent } from "lucide-react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 
 export function DiscountScholarshipPage() {
-  const { scholarships, addScholarship, updateScholarship, deleteScholarship } = usePayments();
+  const { scholarships, addScholarship, updateScholarship, deleteScholarship } = useScholarships();
   const { currentAcademicYear } = useSettings();
   
   const [showForm, setShowForm] = useState(false);
@@ -126,9 +126,9 @@ export function DiscountScholarshipPage() {
   };
 
   // Statistics
-  const totalBeneficiaries = scholarships.reduce((sum, s) => sum + s.beneficiaries, 0);
-  const totalBudget = scholarships.reduce((sum, s) => sum + s.total_budget, 0);
-  const activeScholarships = scholarships.filter(s => s.status === 'Active').length;
+  const totalBeneficiaries = scholarships.reduce((sum: number, s: Scholarship) => sum + s.beneficiaries, 0);
+  const totalBudget = scholarships.reduce((sum: number, s: Scholarship) => sum + s.total_budget, 0);
+  const activeScholarships = scholarships.filter((s: Scholarship) => s.status === 'Active').length;
 
   return (
     <div className="p-6 space-y-6">
@@ -364,7 +364,7 @@ export function DiscountScholarshipPage() {
             </CardContent>
           </Card>
         ) : (
-          scholarships.map((scholarship) => (
+          scholarships.map((scholarship: Scholarship) => (
             <Card key={scholarship.id} className="border-[#0A2540]/10 hover:shadow-lg transition-shadow">
               <CardHeader className="border-b border-[#0A2540]/10 bg-[#0A2540]/5 p-4">
                 <div className="flex items-start justify-between">

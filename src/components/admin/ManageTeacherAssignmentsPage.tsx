@@ -58,6 +58,10 @@ export function ManageTeacherAssignmentsPage() {
   const [classDialogTeacherSearch, setClassDialogTeacherSearch] = useState('');
   const [classDialogClassSearch, setClassDialogClassSearch] = useState('');
 
+  // Refs for initial focus on dialog open
+  const subjectTeacherSearchRef = useRef<HTMLInputElement | null>(null);
+  const classTeacherSearchRef = useRef<HTMLInputElement | null>(null);
+
   // Shared dialog state
   const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
 
@@ -94,6 +98,22 @@ export function ManageTeacherAssignmentsPage() {
       }
     };
   }, []);
+
+  // Focus the teacher search input when the subject assignment dialog opens
+  useEffect(() => {
+    if (isAssignDialogOpen) {
+      const t = setTimeout(() => subjectTeacherSearchRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [isAssignDialogOpen]);
+
+  // Focus the teacher search input when the class teacher dialog opens
+  useEffect(() => {
+    if (isClassTeacherDialogOpen) {
+      const t = setTimeout(() => classTeacherSearchRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [isClassTeacherDialogOpen]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [removingAssignmentId, setRemovingAssignmentId] = useState<string | null>(null);
@@ -1256,9 +1276,9 @@ export function ManageTeacherAssignmentsPage() {
                       >
                         Next
                       </Button>
-                    </div>
-                  </div>
-                )}
+                        </div>
+                      </div>
+                      )}
               </TabsContent>
               <TabsContent value="class-teachers" className="m-0">
                 <div className="p-3 sm:p-6">
@@ -1393,7 +1413,7 @@ export function ManageTeacherAssignmentsPage() {
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={confirmDeleteId !== null} onOpenChange={(open) => { if (!open) { setConfirmDeleteId(null); setConfirmDeleteType(null); setConfirmDeleteDetails(''); } }}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-600" />
@@ -1412,18 +1432,34 @@ export function ManageTeacherAssignmentsPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
+              <AlertDialogCancel disabled={removingAssignmentId !== null}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={removingAssignmentId !== null}
+                onClick={handleConfirmDelete}
+                className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+              >
+                {removingAssignmentId !== null ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </>
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
 
         {/* Multi-Class Warning Dialog */}
-        <AlertDialog open={isMultiClassWarningOpen} onOpenChange={setIsMultiClassWarningOpen}>
-          <AlertDialogContent>
+        <AlertDialog open={isMultiClassWarningOpen} onOpenChange={(open) => {
+          setIsMultiClassWarningOpen(open);
+          if (!open) setMultiClassWarningData(null);
+        }}>
+          <AlertDialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -1450,9 +1486,18 @@ export function ManageTeacherAssignmentsPage() {
                 }
                 setIsMultiClassWarningOpen(false);
                 setMultiClassWarningData(null);
-              }} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                <UserCheck className="w-4 h-4 mr-2" />
-                Assign Anyway
+              }} disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Assigning...
+                  </>
+                ) : (
+                  <>
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    Assign Anyway
+                  </>
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -1530,8 +1575,10 @@ export function ManageTeacherAssignmentsPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
+                    ref={subjectTeacherSearchRef}
                     type="text"
                     placeholder="Search teachers..."
+                    aria-label="Search teachers"
                     value={subjectDialogTeacherSearch}
                     onChange={(e) => setSubjectDialogTeacherSearch(e.target.value)}
                     className="pl-10 h-12 rounded-xl border-gray-300 focus:border-[#0A2540] focus:ring-[#0A2540]"
@@ -1543,33 +1590,47 @@ export function ManageTeacherAssignmentsPage() {
                       No teachers found
                     </div>
                   ) : (
-                    subjectDialogFilteredTeachers.map((teacher) => (
+                    subjectDialogFilteredTeachers.map((teacher) => {
+                      const isSelected = subjectDialogTeacherId === Number(teacher.id);
+                      return (
                       <div
                         key={teacher.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isSelected}
+                        aria-label={`Select teacher ${teacher.firstName} ${teacher.lastName}`}
                         onClick={() => {
                           setSubjectDialogTeacherId(Number(teacher.id));
                           setSubjectDialogTeacherSearch(`${teacher.firstName} ${teacher.lastName}`);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSubjectDialogTeacherId(Number(teacher.id));
+                            setSubjectDialogTeacherSearch(`${teacher.firstName} ${teacher.lastName}`);
+                          }
+                        }}
                         className={`p-3 cursor-pointer hover:bg-[#0A2540]/5 border-b border-gray-100 last:border-b-0 ${
-                          subjectDialogTeacherId === Number(teacher.id) ? 'bg-[#0A2540]/5 border-l-4 border-l-[#0A2540]' : ''
+                          isSelected ? 'bg-[#0A2540]/5 border-l-4 border-l-[#0A2540]' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-gradient-to-br from-[#0A2540] to-[#0A2540]/80 rounded-full flex items-center justify-center text-white text-xs font-semibold">
                             {teacher.firstName?.[0]}{teacher.lastName?.[0]}
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 text-sm">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 text-sm truncate">
                               {teacher.firstName} {teacher.lastName}
                             </p>
                             <p className="text-xs text-gray-500">ID: {teacher.id}</p>
                           </div>
-                          {subjectDialogTeacherId === teacher.id && (
+                          {isSelected && (
                             <Check className="w-4 h-4 text-[#0A2540]" />
                           )}
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -1582,6 +1643,7 @@ export function ManageTeacherAssignmentsPage() {
                   <Input
                     type="text"
                     placeholder="Search classes..."
+                    aria-label="Search classes"
                     value={subjectDialogClassSearch}
                     onChange={(e) => setSubjectDialogClassSearch(e.target.value)}
                     className="pl-10 h-12 rounded-xl border-gray-300 focus:border-[#0A2540] focus:ring-[#0A2540]"
@@ -1593,31 +1655,44 @@ export function ManageTeacherAssignmentsPage() {
                       No classes found
                     </div>
                   ) : (
-                    subjectDialogFilteredClasses.map((cls) => (
+                    subjectDialogFilteredClasses.map((cls) => {
+                      const isSelected = Number(selectedClassIdForAssignments) === Number(cls.id);
+                      return (
                       <div
                         key={cls.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isSelected}
+                        aria-label={`Select class ${cls.name}`}
                         onClick={() => {
                           setSelectedClassIdForAssignments(cls.id);
                           setSubjectDialogClassSearch(cls.name);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedClassIdForAssignments(cls.id);
+                            setSubjectDialogClassSearch(cls.name);
+                          }
+                        }}
                         className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
-                          selectedClassIdForAssignments === cls.id ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
+                          isSelected ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-[#0A2540] rounded-full flex items-center justify-center text-white text-xs font-semibold">
                             {cls.name?.[0]}
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 text-sm">{cls.name}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 text-sm truncate">{cls.name}</p>
                             <p className="text-xs text-gray-500">{cls.level}</p>
                           </div>
-                          {selectedClassIdForAssignments === cls.id && (
+                          {isSelected && (
                             <Check className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>
-                    ))
+                    )                    })
                   )}
                 </div>
               </div>
@@ -1667,26 +1742,36 @@ export function ManageTeacherAssignmentsPage() {
                         return (
                           <div
                             key={subject.id}
-                            className="flex items-center justify-between p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50"
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={isSelected}
+                            aria-label={`${isSelected ? 'Remove' : 'Add'} ${subject.name} for this class`}
+                            className="flex items-center justify-between p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 min-w-0"
                             onClick={() =>
                               handleAddAssignment(subject.id, selectedClassIdForAssignments)
                             }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleAddAssignment(subject.id, selectedClassIdForAssignments);
+                              }
+                            }}
                           >
-                            <div className="flex items-center gap-2">
-                              <div className="p-1 bg-[#0A2540]/10 rounded">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="p-1 bg-[#0A2540]/10 rounded flex-shrink-0">
                                 <BookOpen className="w-3 h-3 text-[#0A2540]" />
                               </div>
-                              <div>
-                                <p className="font-medium text-gray-900 text-sm">{subject.name}</p>
-                                <p className="text-xs text-gray-500">{subject.code} • {subject.category}</p>
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 text-sm truncate">{subject.name}</p>
+                                <p className="text-xs text-gray-500 truncate">{subject.code} • {subject.category}</p>
                               </div>
                               {subject.is_core && (
-                                <Badge variant="outline" className="bg-[#0A2540]/10 text-[#0A2540] text-xs ml-2">
+                                <Badge variant="outline" className="bg-[#0A2540]/10 text-[#0A2540] text-xs ml-2 flex-shrink-0">
                                   Core
                                 </Badge>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                               <Checkbox
                                 checked={isSelected}
                                 className="w-4 h-4"
@@ -1736,18 +1821,38 @@ export function ManageTeacherAssignmentsPage() {
                         Select Teachers ({bulkSelectedTeacherIds.length} selected)
                       </Label>
                       <div className="border rounded-xl max-h-48 overflow-y-auto bg-white">
-                        {allActiveTeachers.map(teacher => (
-                          <div key={teacher.id} className="flex items-center gap-3 p-3 border-b last:border-b-0">
+                        {allActiveTeachers.map(teacher => {
+                          const isChecked = bulkSelectedTeacherIds.includes(Number(teacher.id));
+                          return (
+                          <div
+                            key={teacher.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={isChecked}
+                            aria-label={`${isChecked ? 'Deselect' : 'Select'} teacher ${teacher.firstName} ${teacher.lastName}`}
+                            className="flex items-center gap-3 p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50"
+                            onClick={() => {
+                              if (isChecked) setBulkSelectedTeacherIds(prev => prev.filter(id => id !== Number(teacher.id)));
+                              else setBulkSelectedTeacherIds(prev => [...prev, Number(teacher.id)]);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                if (isChecked) setBulkSelectedTeacherIds(prev => prev.filter(id => id !== Number(teacher.id)));
+                                else setBulkSelectedTeacherIds(prev => [...prev, Number(teacher.id)]);
+                              }
+                            }}
+                          >
                             <Checkbox
-                              checked={bulkSelectedTeacherIds.includes(teacher.id)}
+                              checked={isChecked}
                               onCheckedChange={(checked) => {
-                                if (checked) setBulkSelectedTeacherIds(prev => [...prev, teacher.id]);
-                                else setBulkSelectedTeacherIds(prev => prev.filter(id => id !== teacher.id));
+                                if (checked) setBulkSelectedTeacherIds(prev => [...prev, Number(teacher.id)]);
+                                else setBulkSelectedTeacherIds(prev => prev.filter(id => id !== Number(teacher.id)));
                               }}
                             />
-                            <span className="text-sm">{teacher.firstName} {teacher.lastName}</span>
+                            <span className="text-sm truncate">{teacher.firstName} {teacher.lastName}</span>
                           </div>
-                        ))}
+                        )})}
                       </div>
                     </div>
                   )}
@@ -1825,8 +1930,10 @@ export function ManageTeacherAssignmentsPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
+                    ref={classTeacherSearchRef}
                     type="text"
                     placeholder="Search teachers..."
+                    aria-label="Search teachers"
                     value={classDialogTeacherSearch}
                     onChange={(e) => setClassDialogTeacherSearch(e.target.value)}
                     className="pl-10 h-12 rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
@@ -1838,33 +1945,46 @@ export function ManageTeacherAssignmentsPage() {
                       No teachers found
                     </div>
                   ) : (
-                    classDialogFilteredTeachers.map((teacher) => (
+                    classDialogFilteredTeachers.map((teacher) => {
+                      const isSelected = Number(classDialogTeacherId) === Number(teacher.id);
+                      return (
                       <div
                         key={teacher.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isSelected}
+                        aria-label={`Select teacher ${teacher.firstName} ${teacher.lastName}`}
                         onClick={() => {
                           setClassDialogTeacherId(Number(teacher.id));
                           setClassDialogTeacherSearch(`${teacher.firstName} ${teacher.lastName}`);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setClassDialogTeacherId(Number(teacher.id));
+                            setClassDialogTeacherSearch(`${teacher.firstName} ${teacher.lastName}`);
+                          }
+                        }}
                         className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
-                          classDialogTeacherId === Number(teacher.id) ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
+                          isSelected ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-[#0A2540] rounded-full flex items-center justify-center text-white text-xs font-semibold">
                             {teacher.firstName?.[0]}{teacher.lastName?.[0]}
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 text-sm">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 text-sm truncate">
                               {teacher.firstName} {teacher.lastName}
                             </p>
                             <p className="text-xs text-gray-500">ID: {teacher.id}</p>
                           </div>
-                          {classDialogTeacherId === teacher.id && (
+                          {isSelected && (
                             <Check className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>
-                    ))
+                    )                    })
                   )}
                 </div>
               </div>
@@ -1877,6 +1997,7 @@ export function ManageTeacherAssignmentsPage() {
                   <Input
                     type="text"
                     placeholder="Search classes..."
+                    aria-label="Search classes"
                     value={classDialogClassSearch}
                     onChange={(e) => setClassDialogClassSearch(e.target.value)}
                     className="pl-10 h-12 rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
@@ -1888,31 +2009,45 @@ export function ManageTeacherAssignmentsPage() {
                       No classes found
                     </div>
                   ) : (
-                    classDialogFilteredClasses.map((cls) => (
+                    classDialogFilteredClasses.map((cls) => {
+                      const isSelected = Number(classDialogClassId) === Number(cls.id);
+                      return (
                       <div
                         key={cls.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isSelected}
+                        aria-label={`Select class ${cls.name}`}
                         onClick={() => {
                           setClassDialogClassId(cls.id);
                           setClassDialogClassSearch(cls.name);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setClassDialogClassId(cls.id);
+                            setClassDialogClassSearch(cls.name);
+                          }
+                        }}
                         className={`p-3 cursor-pointer hover:bg-emerald-50 border-b border-gray-100 last:border-b-0 ${
-                          classDialogClassId === cls.id ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
+                          isSelected ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-[#0A2540] rounded-full flex items-center justify-center text-white text-xs font-semibold">
                             {cls.name?.[0]}
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 text-sm">{cls.name}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 text-sm truncate">{cls.name}</p>
                             <p className="text-xs text-gray-500">{cls.level}</p>
                           </div>
-                          {classDialogClassId === cls.id && (
+                          {isSelected && (
                             <Check className="w-4 h-4 text-emerald-600" />
                           )}
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

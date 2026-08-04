@@ -408,7 +408,7 @@ export function SystemSettingsPage() {
         username: adminData.username,
         password: adminData.password,
         role: 'admin',
-        linkedId: 0,
+        linked_id: 0,
         email: adminData.email,
         status: 'Active',
       });

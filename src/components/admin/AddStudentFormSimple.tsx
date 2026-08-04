@@ -126,7 +126,7 @@ function AddStudentFormComponent({ onClose: _onClose, onSuccess }: AddStudentFor
       admission_date: new Date().toISOString().split('T')[0],
     };
 
-    const result = await createStudentAPI(studentData);
+    const result = await createStudentAPI(studentData as any);
 
     if (result?.id && passportFile) {
       try {

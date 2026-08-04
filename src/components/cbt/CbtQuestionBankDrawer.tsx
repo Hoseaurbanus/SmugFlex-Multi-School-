@@ -71,7 +71,7 @@ export function CbtQuestionBankDrawer({ open, onOpenChange, examId, subjectId, o
     setLoading(true);
     try {
       const result = await importFromCbtBank(examId, selected);
-      const count = result?.ids?.length || selected.length;
+      const count = result?.imported || selected.length;
       toast.success(`Imported ${count} question${count !== 1 ? 's' : ''}`);
       setSelected([]);
       onImported();

@@ -8,10 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
 import { toast } from "sonner";
-import { useSchool } from "../../contexts/SchoolContext";
+import { useActivityLogs } from "../../contexts/domains/IndependentActivityLogContext";
 
 export function ActivityLogsPage() {
-  const { activityLogs, getActivityLogs } = useSchool();
+  const { activityLogs, getActivityLogs } = useActivityLogs();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAction, setFilterAction] = useState("all");
   const [filterDate, setFilterDate] = useState("all");

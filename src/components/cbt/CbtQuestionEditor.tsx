@@ -166,7 +166,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
     setAiLoading(true);
     try {
       const r = await generateQuestionsFromMaterial(aiText, aiType, aiCount, { difficulty: aiDifficulty, exam_type: aiExamType, topic: aiTopic, include_explanations: aiExplanations });
-      if (r?.questions) { setAiPreview(r.questions); toast.success(`Generated ${r.questions.length} questions`); }
+      if (r && Array.isArray(r)) { setAiPreview(r); toast.success(`Generated ${r.length} questions`); }
     } catch (e: any) { toast.error(e.message || 'AI failed'); }
     finally { setAiLoading(false); }
   };
@@ -665,7 +665,6 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
       await addToCbtQuestionBank({
         question_type: q.question_type,
         question_text: q.question_text,
-        passage_text: q.passage_text || null,
         image_url: q.image_url || null,
         options: q.options || [],
         correct_answer: q.correct_answer || '',
@@ -674,6 +673,8 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
         topic: q.topic || '',
         tags: [],
         subject_id: exam.subject_id,
+        teacher_id: 0,
+        status: 'Active' as const,
       });
       toast.success('Saved to question bank');
     } catch (e: any) {

@@ -102,7 +102,7 @@ export function FileImportDialog({ open, onOpenChange, examId, onImported }: Pro
     for (let i = 0; i < questions.length; i++) {
       setImportProgress(i + 1);
       try {
-        await addCbtQuestion(examId, questions[i]);
+        await addCbtQuestion(examId, { ...questions[i], exam_id: examId, sort_order: i } as any);
         imported++;
       } catch {
         errors++;

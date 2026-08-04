@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useSchool } from '../../contexts/SchoolContext';
+import { useTimetables } from '../../contexts/domains/IndependentTimetableContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -13,14 +14,16 @@ export function ExamTimetablePage() {
   const {
     classes,
     subjects,
-    examTimetables,
-    addExamTimetable,
-    updateExamTimetable,
-    deleteExamTimetable,
     currentUser,
     currentTerm,
     currentAcademicYear,
   } = useSchool();
+  const {
+    examTimetables,
+    addExamTimetable,
+    updateExamTimetable,
+    deleteExamTimetable,
+  } = useTimetables();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);

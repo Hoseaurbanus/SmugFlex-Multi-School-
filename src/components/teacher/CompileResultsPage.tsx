@@ -12,299 +12,14 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
 import { api } from "../../services/api";
 import { API_CONFIG } from "../../config/api";
-
-const getStudentPhotoCandidates = (s: any): string[] => {
-  const raw =
-    s?.photoUrl ||
-    s?.photo_url ||
-    s?.photoURL ||
-    s?.passportPhoto ||
-    s?.passport_photo ||
-    s?.passport;
-
-  if (!raw || typeof raw !== 'string') return [];
-  const trimmed = raw.trim();
-  if (!trimmed) return [];
-
-  if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) return [trimmed];
-
-  let apiOrigin = '';
-  try {
-    apiOrigin = API_CONFIG?.BASE_URL ? new URL(API_CONFIG.BASE_URL).origin : '';
-  } catch {
-    apiOrigin = '';
-  }
-  const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
-
-  const candidates = [
-    appOrigin ? `${appOrigin}${normalizedPath}` : '',
-    apiOrigin ? `${apiOrigin}${normalizedPath}` : '',
-    trimmed,
-  ].filter(Boolean);
-
-  return Array.from(new Set(candidates));
-};
-
-const handleStudentPhotoError = (e: React.SyntheticEvent<HTMLImageElement>, s: any) => {
-  const img = e.currentTarget;
-  const candidates = getStudentPhotoCandidates(s);
-  const idx = Number(img.dataset.candidateIdx || '0');
-  const nextIdx = idx + 1;
-  if (nextIdx < candidates.length) {
-    img.dataset.candidateIdx = String(nextIdx);
-    img.src = candidates[nextIdx];
-  }
-};
-
-// Auto-comment generation system
-const _commentTemplates = {
-  excellent: [
-    "Outstanding performance! Shows exceptional understanding and mastery of all subjects.",
-    "Brilliant academic achievement. Maintains excellent standards across all areas.",
-    "Exceptional student who demonstrates outstanding intellectual capacity and diligence.",
-    "Remarkable performance! A true academic star with exemplary conduct.",
-    "Outstanding achievement! Consistently exceeds expectations in all subjects.",
-    "Exceptional work! Demonstrates superior analytical thinking and problem-solving skills.",
-    "Brilliant results! Shows remarkable dedication to academic excellence.",
-    "Outstanding scholar! Maintains highest standards in all academic pursuits.",
-    "Exceptional performance! A model student with outstanding intellectual abilities.",
-    "Brilliant achievement! Demonstrates exceptional mastery of course material."
-  ],
-  veryGood: [
-    "Very good performance. Shows strong understanding and consistent effort.",
-    "Commendable academic achievement with room for further improvement.",
-    "Impressive performance! Demonstrates strong analytical skills and dedication.",
-    "Very good result! Shows promise and potential for continued excellence.",
-    "Strong academic performance with consistent effort and good understanding.",
-    "Excellent work! Displays solid grasp of concepts and good analytical abilities.",
-    "Commendable results! Shows strong academic capabilities and dedication.",
-    "Very good achievement! Demonstrates consistent effort and understanding.",
-    "Strong performance! Shows good command of subject matter and analytical skills.",
-    "Impressive work! Displays academic potential and consistent dedication."
-  ],
-  good: [
-    "Good performance. Shows satisfactory understanding and steady progress.",
-    "Satisfactory academic achievement with areas for improvement.",
-    "Good effort shown. Consistent progress noted throughout the term.",
-    "Decent performance! With more effort, could achieve much higher results.",
-    "Fair performance showing understanding of core concepts.",
-    "Good work! Demonstrates adequate understanding and room for growth.",
-    "Satisfactory results! Shows steady progress and basic comprehension.",
-    "Decent achievement! Could benefit from additional study and practice.",
-    "Fair performance! Shows understanding of fundamental concepts.",
-    "Good effort! Demonstrates potential for improvement with dedicated work."
-  ],
-  average: [
-    "Average performance. Needs to put in more effort to improve.",
-    "Satisfactory but needs improvement in several areas.",
-    "Fair performance. Could benefit from additional study and practice.",
-    "Average result. More dedication needed for better performance.",
-    "Moderate performance showing need for increased effort.",
-    "Fair work! Requires more dedication and consistent study habits.",
-    "Average results! Needs to focus more on academic responsibilities.",
-    "Satisfactory performance! Could improve with better study methods.",
-    "Moderate achievement! Requires increased effort and attention.",
-    "Fair work! Needs to develop better study habits and consistency."
-  ],
-  belowAverage: [
-    "Below average performance. Requires significant improvement and attention.",
-    "Needs considerable improvement in academic performance and attitude.",
-    "Poor performance. Must show more commitment to studies.",
-    "Below expected standards. Immediate improvement required.",
-    "Unsatisfactory performance requiring urgent attention and support.",
-    "Weak performance! Needs serious attention to academic responsibilities.",
-    "Below average results! Requires immediate intervention and support.",
-    "Poor work! Must demonstrate greater commitment to learning.",
-    "Unsatisfactory achievement! Needs comprehensive academic support.",
-    "Weak performance! Requires urgent attention to study habits."
-  ],
-  poor: [
-    "Poor performance. Requires immediate intervention and support.",
-    "Very poor academic result. Needs serious attention to studies.",
-    "Unsatisfactory performance in all aspects. Major improvement needed.",
-    "Extremely poor result. Requires comprehensive academic support.",
-    "Failing performance. Must seek help and show dramatic improvement.",
-    "Very weak performance! Needs immediate academic intervention.",
-    "Extremely poor results! Requires comprehensive support and guidance.",
-    "Failing work! Must demonstrate complete commitment to improvement.",
-    "Very poor achievement! Needs urgent and sustained academic support.",
-    "Extremely weak performance! Requires immediate intervention and dedication."
-  ]
-};
-
-const _positionComments = {
-  top: [
-    "Outstanding class position! Shows exceptional academic ability.",
-    "Excellent class ranking! Among the best performers in class.",
-    "Brilliant class position! Demonstrates superior academic excellence.",
-    "Exceptional ranking! A true academic leader in the class.",
-    "Outstanding achievement! Maintains highest academic standards.",
-    "Excellent class standing! Shows remarkable intellectual capabilities.",
-    "Top position! Demonstrates exceptional mastery of all subjects.",
-    "Brilliant ranking! An exemplary student with outstanding abilities."
-  ],
-  upper: [
-    "Good class position. Shows strong academic performance.",
-    "Commendable class ranking. Above average performance.",
-    "Strong class position! Demonstrates solid academic abilities.",
-    "Good ranking! Shows consistent effort and understanding.",
-    "Commendable standing! Above average academic achievement.",
-    "Strong performance! Well-positioned among high achievers.",
-    "Good class ranking! Displays solid academic capabilities.",
-    "Commendable position! Shows promise for continued excellence."
-  ],
-  middle: [
-    "Average class position. Room for improvement in ranking.",
-    "Fair class position. Could work towards higher ranking.",
-    "Moderate class standing. Needs more effort to improve position.",
-    "Average ranking! Potential for better academic performance.",
-    "Fair position! Could benefit from increased dedication.",
-    "Middle ranking! Room for improvement with consistent effort.",
-    "Average standing! Needs focus to achieve higher position.",
-    "Moderate position! Can improve with better study habits."
-  ],
-  lower: [
-    "Below average class position. Needs significant improvement.",
-    "Poor class ranking. Must work harder to improve position.",
-    "Low class position. Requires immediate attention to studies.",
-    "Weak ranking! Needs substantial improvement in performance.",
-    "Poor standing! Must demonstrate greater academic commitment.",
-    "Low position! Requires urgent intervention and support.",
-    "Weak ranking! Needs comprehensive academic improvement.",
-    "Poor position! Must show dramatic improvement in studies."
-  ]
-};
-
-const _constructiveFeedback = {
-  excellent: [
-    "Continue maintaining excellent standards. Consider advanced studies.",
-    "Outstanding work! Explore leadership roles and academic competitions.",
-    "Exceptional performance! Consider mentoring other students.",
-    "Brilliant achievement! Pursue advanced academic challenges.",
-    "Excellent results! Consider participating in academic enrichment programs."
-  ],
-  veryGood: [
-    "Strong performance! With extra effort, could reach excellence.",
-    "Very good work! Focus on weak areas to achieve outstanding results.",
-    "Commendable achievement! Additional practice could lead to excellence.",
-    "Strong results! Target specific areas for improvement.",
-    "Very good performance! Consistent effort will lead to top ranking."
-  ],
-  good: [
-    "Good effort! Increase study time for better results.",
-    "Satisfactory work! Focus on understanding concepts deeply.",
-    "Good performance! Develop better study habits and consistency.",
-    "Decent achievement! Seek help in challenging subjects.",
-    "Fair work! More dedication will lead to significant improvement."
-  ],
-  average: [
-    "Needs improvement! Develop consistent study routine.",
-    "Fair performance! Seek additional help from teachers.",
-    "Average work! Focus on fundamentals and practice regularly.",
-    "Satisfactory results! Increase study time and concentration.",
-    "Moderate achievement! Join study groups and seek tutoring."
-  ],
-  belowAverage: [
-    "Requires immediate attention! Seek help from teachers and tutors.",
-    "Poor performance! Develop basic study skills and habits.",
-    "Below average work! Attend extra classes and seek counseling.",
-    "Weak achievement! Requires comprehensive academic support.",
-    "Unsatisfactory results! Must change study approach completely."
-  ],
-  poor: [
-    "Critical situation! Requires intensive academic intervention.",
-    "Very poor work! Must seek comprehensive support immediately.",
-    "Failing performance! Requires one-on-one tutoring and counseling.",
-    "Extremely weak results! Must consider academic probation.",
-    "Critical achievement! Requires complete academic rehabilitation."
-  ]
-};
-
-function generateAutoComment(averageScore: number, _position: number, _totalStudents: number): string {
-  // Generate comment based on specific average score ranges
-  if (averageScore >= 90 && averageScore <= 100) {
-    return 'An excellent result Keep it up.';
-  } else if (averageScore >= 80 && averageScore < 90) {
-    return 'A very good result, Keep it up.';
-  } else if (averageScore >= 70 && averageScore < 80) {
-    return 'A good result, You can do better.';
-  } else if (averageScore >= 60 && averageScore < 70) {
-    return 'A satisfactory result, you can do better.';
-  } else if (averageScore >= 50 && averageScore < 60) {
-    return 'A Fair result you have it in you to do better.';
-  } else if (averageScore >= 0 && averageScore < 50) {
-    return 'Fail';
-  } else {
-    return 'Fail';
-  }
-}
-
-function parseAttendedDaysFromRemarks(remarks: unknown): number {
-  if (typeof remarks !== 'string') return 0;
-  const match = remarks.match(/(\d+)\s*out\s*of\s*(\d+)\s*days/i);
-  if (!match) return 0;
-  const attended = parseInt(match[1], 10);
-  return Number.isFinite(attended) ? attended : 0;
-}
-
-function parseAttendanceFromRemarks(remarks: unknown): { attendedDays: number; requiredDays: number } {
-  if (typeof remarks !== 'string') return { attendedDays: 0, requiredDays: 0 };
-  const match = remarks.match(/(\d+)\s*out\s*of\s*(\d+)\s*days/i);
-  if (!match) return { attendedDays: 0, requiredDays: 0 };
-
-  const attended = parseInt(match[1], 10);
-  const required = parseInt(match[2], 10);
-
-  return {
-    attendedDays: Number.isFinite(attended) ? attended : 0,
-    requiredDays: Number.isFinite(required) ? required : 0,
-  };
-}
-
-function _generateMultipleCommentOptions(averageScore: number, _position: number, _totalStudents: number): string[] {
-  const baseComment = generateAutoComment(averageScore, _position, _totalStudents);
-  
-  // Generate variations of the base comment for teacher to choose from
-  const options: string[] = [baseComment];
-  
-  // Add some variations based on the base comment
-  if (averageScore >= 90) {
-    options.push('Excellent performance and outstanding achievement');
-    options.push('Excellent work, maintain this standard');
-  } else if (averageScore >= 80) {
-    options.push('A very good result, keep pushing for excellence');
-    options.push('A very good result with room for improvement');
-  } else if (averageScore >= 70) {
-    options.push('Good result, more effort needed for excellence');
-    options.push('Good result, continue working hard');
-  } else if (averageScore >= 60) {
-    options.push('A satisfaction result, improvement is possible');
-    options.push('A satisfaction result, put in more effort');
-  } else if (averageScore >= 50) {
-    options.push('A fair result, significant improvement needed');
-    options.push('A fair result, must work harder');
-  } else {
-    options.push('Fail, but serious improvement required');
-    options.push('Fail, needs dedicated effort');
-  }
-  
-  return options.slice(0, 5);
-}
-
-function _generatePrincipalComment(averageScore: number): string {
-  if (averageScore >= 80) {
-    return "Exceptional performance! Keep up the excellent work. You are a role model for others.";
-  } else if (averageScore >= 70) {
-    return "Very good performance! Continue to work hard and aim for excellence.";
-  } else if (averageScore >= 60) {
-    return "Good performance! There is room for improvement. Stay focused and dedicated.";
-  } else if (averageScore >= 50) {
-    return "Fair performance. More effort and dedication needed for better results.";
-  } else {
-    return "Poor performance. Requires immediate attention and significant improvement.";
-  }
-}
+import { getStudentPhotoCandidates, handleStudentPhotoError } from "../../utils/studentPhoto";
+import { generateAutoComment, parseAttendedDaysFromRemarks, parseAttendanceFromRemarks } from "../../utils/commentGenerators";
+import { useSubmitResult } from "../../hooks/useSubmitResult";
+import { StudentListCard } from "./compile-results/StudentListCard";
+import { ClassSelectionCard } from "./compile-results/ClassSelectionCard";
+import { DomainDisplay } from "./compile-results/DomainDisplay";
+import { SubjectScoresCard } from "./compile-results/SubjectScoresCard";
+import { AttendanceDisplayCard } from "./compile-results/AttendanceDisplayCard";
 
 export function CompileResultsPage() {
   const {
@@ -949,9 +664,7 @@ export function CompileResultsPage() {
         if (existingResult.class_teacher_comment) {
           // Always generate the expected comment for current average
           const expectedComment = generateAutoComment(
-            existingResult.average_score || 0,
-            existingResult.position || 1,
-            existingResult.total_students || 1
+            existingResult.average_score || 0
           );
           
           // Only use existing comment if it's not generic and matches expected
@@ -1333,267 +1046,34 @@ export function CompileResultsPage() {
     };
   }, [studentsCompletion]);
 
-  // Submit result for selected student
-  const handleSubmitResult = async () => {
-    setIsSubmitting(true);
-    try {
-      toast.info("Submitting result... Please wait.", { id: "submit-result" });
-      
-      // 1. COMPREHENSIVE VALIDATION
-      if (!selectedStudent || !currentTeacher || !effectiveSelectedClassId) {
-        toast.error('Missing required data', { id: "submit-result" });
-        return;
-      }
-
-      if (!currentTerm || !currentAcademicYear) {
-        toast.error('Current term or academic session is not set. Please contact the admin to set it in System Settings.', { id: "submit-result" });
-        return;
-      }
-
-      // Check if result is already approved
-      const existingApprovedResult = Array.isArray(compiledResults) ? compiledResults.find(cr => 
-        cr.student_id === selectedStudent.id &&
-        cr.class_id === Number(effectiveSelectedClassId) &&
-        cr.term === currentTerm &&
-        cr.academic_year === currentAcademicYear &&
-        cr.status === 'Approved'
-      ) : undefined;
-
-      if (existingApprovedResult) {
-        toast.error('This result has already been approved and cannot be modified.', { id: "submit-result" });
-        return;
-      }
-
-      // 2. VALIDATE STUDENT SCORES
-      const studentScoresRaw = scores.filter(s => {
-        if (String((s as any)?.student_id) !== String((selectedStudent as any)?.id)) return false;
-        if (String((s as any)?.term) !== String(currentTerm)) return false;
-        if (String((s as any)?.academic_year) !== String(currentAcademicYear)) return false;
-        const st = String((s as any)?.status);
-        return st === 'Submitted' || st === 'Approved' || st === 'Draft';
-      });
-      
-      if (studentScoresRaw.length === 0) {
-        toast.error('No scores found for this student', { id: "submit-result" });
-        return;
-      }
-
-      // Collapse potential duplicate assignment rows into 1 score per subject_id.
-      // Prefer Submitted/Approved over Draft; tie-breaker by highest total.
-      const bySubject = new Map<string, any>();
-      for (const sc of studentScoresRaw) {
-        const subId = assignmentIdToSubjectId.get(Number((sc as any)?.subject_assignment_id));
-        if (!subId) continue;
-        const key = String(subId);
-        const prev = bySubject.get(key);
-        if (!prev) {
-          bySubject.set(key, sc);
-          continue;
-        }
-        const prevStatus = String((prev as any)?.status || '');
-        const nextStatus = String((sc as any)?.status || '');
-        const prevIsFinal = prevStatus === 'Submitted' || prevStatus === 'Approved';
-        const nextIsFinal = nextStatus === 'Submitted' || nextStatus === 'Approved';
-        if (nextIsFinal && !prevIsFinal) {
-          bySubject.set(key, sc);
-          continue;
-        }
-        if (nextIsFinal === prevIsFinal) {
-          const prevTotal = Number((prev as any)?.total) || 0;
-          const nextTotal = Number((sc as any)?.total) || 0;
-          if (nextTotal > prevTotal) {
-            bySubject.set(key, sc);
-          }
-        }
-      }
-
-      const studentScores = Array.from(bySubject.values());
-
-      // Check if student has submitted scores for all class subjects
-      const registeredSubjectIds = new Set<string>();
-      if (Array.isArray(subjectRegistrations)) {
-        for (const sr of subjectRegistrations) {
-          if (String((sr as any)?.status) !== 'Active') continue;
-          if (String((sr as any)?.class_id) !== String(effectiveSelectedClassId)) continue;
-          if (String((sr as any)?.term) !== String(currentTerm)) continue;
-          if (String((sr as any)?.academic_year) !== String(currentAcademicYear)) continue;
-          const sid = (sr as any)?.subject_id;
-          if (sid !== undefined && sid !== null && String(sid) !== '') {
-            registeredSubjectIds.add(String(sid));
-          }
-        }
-      }
-
-      const requiredSubjectIds = registeredSubjectIds.size > 0
-        ? registeredSubjectIds
-        : classSubjectIdSet;
-
-      const requiredSubjects = requiredSubjectIds.size;
-      const submittedSubjectIds = new Set<string>();
-      for (const s of studentScores.filter(s => s.status === 'Submitted' || s.status === 'Approved')) {
-        const subId = assignmentIdToSubjectId.get(Number((s as any)?.subject_assignment_id));
-        if (subId && requiredSubjectIds.has(String(subId))) {
-          submittedSubjectIds.add(String(subId));
-        }
-      }
-      const submittedScores = submittedSubjectIds.size;
-
-      if (submittedScores < requiredSubjects) {
-        toast.error(`Student has submitted scores for ${submittedScores}/${requiredSubjects} subjects. All subjects must be submitted before compiling results. Please ensure all scores are entered and submitted in the Score Entry page.`, { id: "submit-result" });
-        return;
-      }
-
-      // 3. VALIDATE AFFECTIVE AND PSYCHOMOTOR DATA
-      const affective = Array.isArray(affectiveDomains) ? affectiveDomains.find(a => 
-        a.student_id === selectedStudent.id &&
-        String(a.class_id) === String(effectiveSelectedClassId) &&
-        a.term === currentTerm &&
-        a.academic_year === currentAcademicYear
-      ) : undefined;
-
-      const psychomotor = Array.isArray(psychomotorDomains) ? psychomotorDomains.find(p => 
-        p.student_id === selectedStudent.id &&
-        String(p.class_id) === String(effectiveSelectedClassId) &&
-        p.term === currentTerm &&
-        p.academic_year === currentAcademicYear
-      ) : undefined;
-
-      if (!affective) {
-        toast.error('Affective domain assessment is required', { id: "submit-result" });
-        return;
-      }
-
-      if (!psychomotor) {
-        toast.error('Psychomotor domain assessment is required', { id: "submit-result" });
-        return;
-      }
-
-      // 4. VALIDATE ATTENDANCE DATA
-      const attendanceRequirementsForValidation = getAttendanceRequirements();
-      const requiredDaysForValidation = attendanceRequirementsForValidation[currentTerm] || 0;
-      
-      if (requiredDaysForValidation === 0) {
-        toast.error('Attendance requirements not set for this term. Please configure attendance settings first.', { id: "submit-result" });
-        return;
-      }
-
-      const attendanceRows = getAttendanceByStudent(selectedStudent.id, currentAcademicYear, currentTerm);
-      const relevantAttendance = Array.isArray(attendanceRows)
-        ? attendanceRows.filter(a => String(a.class_id) === String(effectiveSelectedClassId))
-        : [];
-
-      const attendedDaysForValidation = relevantAttendance.reduce((max, row) => {
-        const parsed = parseAttendedDaysFromRemarks((row as any)?.remarks);
-        return parsed > max ? parsed : max;
-      }, 0);
-      
-      if (attendedDaysForValidation === 0) {
-        toast.error('Attendance data is required. Please mark attendance for this student in the Mark Attendance page before compiling results.', { id: "submit-result" });
-        return;
-      }
-
-      // 5. ENHANCE SCORES WITH SUBJECT NAMES
-      const enhancedScores = studentScores.map((score: Score) => {
-        const assignment = Array.isArray(subjectAssignments) ? subjectAssignments.find((sa: SubjectAssignment) => sa.id === score.subject_assignment_id) : undefined;
-        const subject = assignment && Array.isArray(subjects) ? subjects.find((s: Subject) => s.id === assignment.subject_id) : undefined;
-        
-        return {
-          ...score,
-          subject_name: subject?.name || assignment?.subject_name || score.subject_name || 'Unknown Subject'
-        };
-      });
-
-      // 5. ACCURATE SCORE CALCULATION
-      const totalScore = studentScores.reduce((sum, score) => {
-        const scoreTotal = Number(score.total) || 0;
-        return sum + scoreTotal;
-      }, 0);
-      
-      const averageScore = studentScores.length > 0 
-        ? Math.round((totalScore / studentScores.length) * 100) / 100 
-        : 0;
-
-      // 6. POSITION CALCULATION
-      // Use the precomputed class ranking (based on total score) so the position is generated
-      // before submission and matches what the teacher sees on the Compile page.
-      const completionRow = (studentsCompletion || []).find(s => s.studentId === selectedStudent.id);
-      const actualPosition = completionRow?.position || 0;
-      const totalStudents = completionRow?.totalStudents || classStudents.length;
-
-      // 7. ATTENDANCE DATA INTEGRATION
-      // Note: attendance data already validated above, just integrate it
-      const attendanceRequirements = getAttendanceRequirements();
-      const requiredDays = attendanceRequirements[currentTerm] || 0;
-      const attendedDays = attendedDaysForValidation;
-      const timesAbsent = requiredDays - attendedDays;
-      const attendanceRate = requiredDays > 0 ? Math.round((attendedDays / requiredDays) * 100) : 0;
-
-      // 8. COMPILE COMPLETE RESULT DATA
-      const compiledData = {
-        student_id: selectedStudent.id,
-        class_id: Number(effectiveSelectedClassId),
-        term: currentTerm,
-        academic_year: currentAcademicYear,
-        scores: enhancedScores,
-        affective: affective || null,
-        psychomotor: psychomotor || null,
-        total_score: totalScore,
-        average_score: averageScore,
-        class_average: averageScore,
-        position: actualPosition,
-        total_students: totalStudents,
-        times_present: attendedDays,
-        times_absent: timesAbsent,
-        total_attendance_days: requiredDays,
-        term_begin: getTermDates().termStartDate || '',
-        term_end: getTermDates().termEndDate || '',
-        next_term_begin: getTermDates().nextTermStarts || '',
-        class_teacher_name: currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'System Administrator',
-        class_teacher_comment: customComment || generateAutoComment(averageScore, actualPosition, totalStudents),
-        principal_name: 'Dr. Ibrahim Musa',
-        principal_comment: '',
-        principal_signature: '',
-        compiled_by: currentUser?.id || 1,
-        compiled_date: new Date().toISOString(),
-        status: 'Submitted' as const,
-        approved_by: null,
-        approved_date: null,
-        rejection_reason: null,
-        print_approved: 0
-      };
-
-      // 9. SUBMIT TO BACKEND (authoritative validation + persistence)
-      await api.post(API_CONFIG.ENDPOINTS.RESULTS.COMPILE, {
-        class_id: Number(effectiveSelectedClassId),
-        term: currentTerm,
-        academic_year: currentAcademicYear,
-        student_results: [compiledData]
-      });
-      
-      // 10. SUCCESS FEEDBACK
-      toast.success(
-        `✅ Result submitted successfully!\n` +
-        `📊 Student: ${selectedStudent.firstName} ${selectedStudent.lastName}\n` +
-        `🏆 Position: ${actualPosition}/${totalStudents} in class\n` +
-        `📈 Average Score: ${averageScore}%\n` +
-        `📅 Attendance Rate: ${attendanceRate}%\n` +
-        `⏳ Status: Submitted for admin approval`,
-        { id: "submit-result", duration: 8000 }
-      );
-      
-      // 11. CLEANUP AND NAVIGATION
-      setCustomComment("");
-      setSelectedStudentId(null);
-      
-      // 12. REFRESH DATA
-      await loadCompiledResultsFromAPI(null);
-      
-    } catch (error) {
-      toast.error('Failed to submit result. Please try again.', { id: "submit-result" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  // Submit result for selected student (extracted to hook)
+  const { handleSubmitResult } = useSubmitResult({
+    selectedStudent,
+    currentTeacher: currentTeacher ?? null,
+    effectiveSelectedClassId,
+    currentTerm,
+    currentAcademicYear,
+    compiledResults,
+    scores,
+    subjectRegistrations,
+    assignmentIdToSubjectId,
+    classSubjectIdSet,
+    affectiveDomains,
+    psychomotorDomains,
+    getAttendanceRequirements,
+    getAttendanceByStudent,
+    subjectAssignments,
+    subjects,
+    studentsCompletion,
+    classStudents,
+    customComment,
+    currentUser,
+    loadCompiledResultsFromAPI,
+    getTermDates,
+    setIsSubmitting,
+    setCustomComment,
+    setSelectedStudentId,
+  });
 
   const handleSubmitAllResults = async () => {
     if (!effectiveSelectedClassId || !currentTeacher) {
@@ -1833,7 +1313,7 @@ export function CompileResultsPage() {
           term_end: getTermDates().termEndDate || '',
           next_term_begin: getTermDates().nextTermStarts || '',
           class_teacher_name: currentTeacher ? `${currentTeacher.firstName} ${currentTeacher.lastName}` : 'System Administrator',
-          class_teacher_comment: generateAutoComment(averageScore, position, classStudents.length),
+          class_teacher_comment: generateAutoComment(averageScore),
           principal_name: 'Dr. Ibrahim Musa',
           principal_comment: '',
           principal_signature: '',
@@ -1989,202 +1469,28 @@ export function CompileResultsPage() {
       </div>
 
       {/* Class Selection - Compact */}
-      {!selectedStudentId && (
-        <Card className="border-[#0A2540]/10 shadow-sm">
-          <CardHeader className="bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-t-xl px-4 py-3">
-            <CardTitle className="text-base">Select Class</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            <div className="grid md:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-[#0A2540] mb-1 block text-sm">Class</Label>
-                <Select
-                  value={selectedClassId}
-                  onValueChange={(value) => {
-                    const canonical = resolveCanonicalClassId(value) ?? value;
-                    setSelectedClassId(canonical);
-                  }}
-                >
-                  <SelectTrigger className="h-9 rounded-lg border-[#0A2540]/20">
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classTeacherClasses.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.id.toString()}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-[#0A2540] mb-1 block text-sm">Term & Year</Label>
-                <div className="h-9 flex items-center px-3 rounded-lg border border-[#0A2540]/20 bg-gray-50">
-                  <p className="text-[#0A2540] text-sm">{currentTerm} {currentAcademicYear}</p>
-                </div>
-              </div>
-            </div>
-
-            {selectedClassId && classSubjectIdSet.size > 0 && (
-              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-xs text-blue-900">
-                  <strong>{classSubjectIdSet.size} subjects</strong> assigned to this class for {currentTerm} {currentAcademicYear}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <ClassSelectionCard
+        selectedStudentId={selectedStudentId}
+        selectedClassId={selectedClassId}
+        onClassChange={setSelectedClassId}
+        classTeacherClasses={classTeacherClasses}
+        currentTerm={currentTerm}
+        currentAcademicYear={currentAcademicYear}
+        classSubjectIdSet={classSubjectIdSet}
+      />
 
       {/* Student List - Compact */}
-      {!selectedStudentId && selectedClassId && (
-        <Card className="border-[#0A2540]/10 shadow-lg">
-          <CardHeader className="border-b border-[#0A2540]/10 bg-gradient-to-r from-[#0A2540]/5 to-[#1E40AF]/5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-[#0A2540] flex items-center gap-2">
-                  <Users className="w-6 h-6 text-[#1E40AF]" />
-                  Students List
-                </h2>
-                <p className="text-[#64748B] font-medium">
-                  {classStudents.length} students in class
-                </p>
-              </div>
-              <div className="flex gap-3">
-                {allSubmitted ? (
-                  <Button
-                    disabled={true}
-                    className="bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300 rounded-xl px-4 py-2 font-semibold"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    All Submitted ({submittedCount})
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleSubmitAllResults}
-                    disabled={!resultsGenerated || eligibleForSubmission.length === 0}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl px-4 py-2 font-semibold transition-all transform hover:scale-105"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Submit All ({eligibleForSubmission.length})
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-2 sm:p-3">
-            {classStudents.length === 0 ? (
-              <div className="text-center py-8">
-                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 font-semibold text-base">No students in this class</p>
-                <p className="text-gray-400 text-xs sm:text-sm">Students will appear here once they are enrolled</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {classStudents.map((student) => {
-                  const completion = Array.isArray(studentsCompletion) ? studentsCompletion.find(s => s.studentId === student.id) : undefined;
-                  // Don't hide students without completion data - show them with default values
-
-                  return (
-                    <div
-                      key={student.id}
-                      className="p-3 sm:p-4 border border-[#0A2540]/10 rounded-xl hover:border-[#1E40AF]/30 hover:bg-gradient-to-r hover:from-[#0A2540]/5 hover:to-[#1E40AF]/5 transition-all cursor-pointer shadow-sm hover:shadow-md"
-                      onClick={() => setSelectedStudentId(student.id)}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#1E40AF] shadow-sm">
-                            {student.photo_url ? (
-                              <img 
-                                src={getStudentPhotoCandidates(student)[0] || ''} 
-                                alt={`${student.firstName} ${student.lastName}`}
-                                className="w-full h-full object-cover rounded-full"
-                                data-candidate-idx={0}
-                                onError={(e) => {
-                                  handleStudentPhotoError(e, student);
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                }}
-                              />
-                            ) : null}
-                            <AvatarFallback className="bg-[#1E40AF] text-white font-bold">
-                              {student.firstName.charAt(0)}{student.lastName.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          
-                          <div>
-                            <p className="text-[#0A2540] font-semibold text-sm sm:text-base">
-                              {student.firstName} {student.lastName}
-                            </p>
-                            <p className="text-xs text-gray-500 font-mono">{student.admissionNumber}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 sm:gap-4">
-                          {/* Scores Progress */}
-                          <div className="text-right">
-                            <p className="text-xs font-semibold text-[#64748B] mb-1">Scores</p>
-                            <div className="flex items-center gap-1">
-                              <Badge 
-                                variant={completion?.completedSubjects === completion?.totalSubjects ? "default" : "outline"}
-                                className={`rounded-full text-xs font-semibold px-2 py-1 ${
-                                  completion?.completedSubjects === completion?.totalSubjects 
-                                    ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300' 
-                                    : 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300'
-                                }`}
-                              >
-                                {completion?.completedSubjects || 0}/{completion?.totalSubjects || 0}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          {/* Affective */}
-                          <div className="text-center hidden sm:block">
-                            <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${completion?.hasAffective ? 'text-green-500' : 'text-gray-300'}`} />
-                            <p className="text-xs text-gray-500 mt-1 hidden sm:block">Affective</p>
-                          </div>
-
-                          {/* Psychomotor */}
-                          <div className="text-center hidden sm:block">
-                            <Activity className={`w-4 h-4 sm:w-5 sm:h-5 ${completion?.hasPsychomotor ? 'text-green-500' : 'text-gray-300'}`} />
-                            <p className="text-xs text-gray-500 mt-1 hidden sm:block">Psychomotor</p>
-                          </div>
-
-                          {/* Status */}
-                          <div className="text-center">
-                            {completion?.isSubmitted ? (
-                              <Badge className="bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300 rounded-full text-xs font-semibold px-2 sm:px-3 py-1">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                <span className="hidden sm:inline">Submitted</span>
-                                <span className="sm:hidden">Sub</span>
-                              </Badge>
-                            ) : completion?.isRejected ? (
-                              <Badge className="bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border border-orange-300 rounded-full text-xs font-semibold px-2 sm:px-3 py-1">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                <span className="hidden sm:inline">Resubmit</span>
-                                <span className="sm:hidden">Res</span>
-                              </Badge>
-                            ) : completion?.isComplete ? (
-                              <Badge className="bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-300 rounded-full text-xs font-semibold px-2 sm:px-3 py-1">
-                                Ready
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300 rounded-full text-xs font-semibold px-2 sm:px-3 py-1">
-                                Pending
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <StudentListCard
+        selectedClassId={selectedClassId}
+        classStudents={classStudents}
+        studentsCompletion={studentsCompletion}
+        resultsGenerated={resultsGenerated}
+        allSubmitted={allSubmitted}
+        submittedCount={submittedCount}
+        eligibleForSubmission={eligibleForSubmission}
+        onSelectStudent={setSelectedStudentId}
+        onSubmitAll={handleSubmitAllResults}
+      />
 
       {/* Selected Student Detail View */}
       {selectedStudentId && selectedStudent && studentResultData && (
@@ -2310,206 +1616,25 @@ export function CompileResultsPage() {
           )}
 
           {/* Subject Scores */}
-          <Card className="border-[#0A2540]/10 shadow-lg">
-            <CardHeader className="border-b border-[#0A2540]/10 bg-gradient-to-r from-[#10B981]/5 to-[#059669]/5">
-              <CardTitle className="flex items-center gap-3 text-lg font-bold text-[#0A2540]">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#10B981] to-[#059669] rounded-xl flex items-center justify-center">
-                  <BookOpen className="w-4 h-4 text-white" />
-                </div>
-                Subject Scores
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-4">
-              <div className="space-y-3">
-                {(classSubjects || []).map((subject: any) => {
-                  const score = (studentResultData?.scores || []).find((s: any) => {
-                    const subId = assignmentIdToSubjectId.get(Number((s as any)?.subject_assignment_id));
-                    return String(subId || '') === String(subject?.subject_id || '');
-                  });
-
-                  return (
-                    <div key={subject.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 hover:shadow-md transition-all gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-sm">
-                          <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                        </div>
-                        <div>
-                          <p className="text-sm sm:text-base font-bold text-[#0A2540]">{subject.name || 'Unknown Subject'}</p>
-                          <p className="text-xs text-[#64748B] font-mono">{subject.subject_code || ''}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
-                          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">CA1</p>
-                          <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.ca1 || 0}</p>
-                        </div>
-                        <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
-                          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">CA2</p>
-                          <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.ca2 || 0}</p>
-                        </div>
-                        <div className="text-center bg-white p-2 rounded-lg border border-gray-200 min-w-[60px]">
-                          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Exam</p>
-                          <p className="text-sm sm:text-base font-bold text-[#0A2540]">{score?.exam || 0}</p>
-                        </div>
-                        <div className="text-center bg-gradient-to-r from-green-100 to-green-200 p-2 rounded-xl border border-green-300 min-w-[60px]">
-                          <p className="text-xs font-bold text-green-800 uppercase tracking-wider mb-1">Total</p>
-                          <p className="text-sm sm:text-base font-bold text-green-600">{score?.total || 0}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+          <SubjectScoresCard
+            classSubjects={classSubjects}
+            scores={studentResultData?.scores || []}
+            assignmentIdToSubjectId={assignmentIdToSubjectId}
+          />
 
           {/* Attendance Display - Read Only */}
-          <Card className="border-[#0A2540]/10 shadow-sm">
-            <CardHeader className="bg-gradient-to-r from-[#6366F1] to-[#4F46E5] text-white px-4 py-3 rounded-t-xl">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Calendar className="w-4 h-4" />
-                Attendance Record
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-indigo-800">Attendance Ratio:</span>
-                    <span className="text-lg font-bold text-indigo-900">
-                      {studentAttendance?.ratio || '0/60'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-indigo-700">Attendance Rate:</span>
-                    <span className="text-sm font-semibold text-indigo-800">
-                      {studentAttendance?.attendanceRate.toFixed(1) || '0.0'}%
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs text-blue-700 text-center">
-                    <Calendar className="w-3 h-3 inline mr-1" />
-                    Attendance is now managed in the Mark Attendance page
-                  </p>
-                </div>
-                
-                {studentResultData?.isSubmitted && !studentResultData?.isRejected && (
-                  <p className="text-xs text-gray-600 mt-1">
-                    Attendance cannot be modified after result submission.
-                  </p>
-                )}
-                
-                {studentResultData?.isRejected && (
-                  <p className="text-xs text-orange-600 mt-1">
-                    Result was rejected. You can edit and resubmit.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <AttendanceDisplayCard
+            studentAttendance={studentAttendance}
+            isSubmitted={!!studentResultData?.isSubmitted}
+            isRejected={!!studentResultData?.isRejected}
+          />
 
           
           {/* Affective & Psychomotor Display - Read Only */}
-          <div className="grid md:grid-cols-2 gap-4">
-            {/* Affective Domain Display */}
-            <Card className="border-[#0A2540]/10 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white px-4 py-3 rounded-t-xl">
-                <CardTitle className="text-base flex items-center gap-2">
-                  Affective Domain
-                  <span className="text-xs bg-white/20 px-2 py-1 rounded">Managed in Student Domains</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { key: 'attentiveness', label: 'Attentiveness' },
-                    { key: 'honesty', label: 'Honesty' },
-                    { key: 'neatness', label: 'Neatness' },
-                    { key: 'obedience', label: 'Obedience' },
-                    { key: 'sense_of_responsibility', label: 'Sense of Responsibility' }
-                  ].map((field) => (
-                    <div key={field.key} className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-700">{field.label}</Label>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg text-xs font-medium flex items-center justify-center ${
-                          Number(affectiveData[field.key as keyof typeof affectiveData]) >= 5 
-                            ? 'bg-green-100 text-green-800'
-                            : Number(affectiveData[field.key as keyof typeof affectiveData]) >= 4 
-                            ? 'bg-blue-100 text-blue-800'
-                            : Number(affectiveData[field.key as keyof typeof affectiveData]) >= 3
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {affectiveData[field.key as keyof typeof affectiveData] || 3}
-                        </div>
-                        <span className="text-xs text-gray-600">
-                          {Number(affectiveData[field.key as keyof typeof affectiveData]) >= 5 ? 'Excellent' :
-                           Number(affectiveData[field.key as keyof typeof affectiveData]) >= 4 ? 'Very Good' :
-                           Number(affectiveData[field.key as keyof typeof affectiveData]) >= 3 ? 'Good' : 'Needs Improvement'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="text-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                  <Heart className="w-3 h-3 inline mr-1" />
-                  Update affective domains in Student Domains page
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Psychomotor Domain Display */}
-            <Card className="border-[#0A2540]/10 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-[#EC4899] to-[#DB2777] text-white px-4 py-3 rounded-t-xl">
-                <CardTitle className="text-base flex items-center gap-2">
-                  Psychomotor Domain
-                  <span className="text-xs bg-white/20 px-2 py-1 rounded">Managed in Student Domains</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { key: 'attention_to_direction', label: 'Attention to Direction' },
-                    { key: 'considerate_of_others', label: 'Concern for Others' },
-                    { key: 'handwriting', label: 'Handwriting' },
-                    { key: 'sport', label: 'Sport' },
-                    { key: 'verbal_fluency', label: 'Verbal Fluency' },
-                    { key: 'works_well_independently', label: 'Works Well Independently' }
-                  ].map((field) => (
-                    <div key={field.key} className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-700">{field.label}</Label>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg text-xs font-medium flex items-center justify-center ${
-                          Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 5 
-                            ? 'bg-green-100 text-green-800'
-                            : Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 4 
-                            ? 'bg-blue-100 text-blue-800'
-                            : Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 3
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {psychomotorData[field.key as keyof typeof psychomotorData] || 3}
-                        </div>
-                        <span className="text-xs text-gray-600">
-                          {Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 5 ? 'Excellent' :
-                           Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 4 ? 'Very Good' :
-                           Number(psychomotorData[field.key as keyof typeof psychomotorData]) >= 3 ? 'Good' : 'Needs Improvement'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="text-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                  <Activity className="w-3 h-3 inline mr-1" />
-                  Update psychomotor domains in Student Domains page
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <DomainDisplay
+            affectiveData={affectiveData}
+            psychomotorData={psychomotorData}
+          />
 
           {/* Class Teacher Comment - Compact */}
           <Card className="border-[#0A2540]/10 shadow-sm">
@@ -2536,9 +1661,7 @@ export function CompileResultsPage() {
                   <p className="text-xs font-semibold text-green-800 mb-1">Auto-generated Comment:</p>
                   <p className="text-xs text-green-700">
                     {generateAutoComment(
-                      studentResultData.averageScore,
-                      studentsCompletion.find(s => s.studentId === selectedStudent.id)?.position || 0,
-                      studentsCompletion.find(s => s.studentId === selectedStudent.id)?.totalStudents || 0
+                      studentResultData.averageScore
                     )}
                   </p>
                 </div>
@@ -2552,9 +1675,7 @@ export function CompileResultsPage() {
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm font-medium text-blue-800">
                     {selectedStudent && studentResultData && generateAutoComment(
-                      studentResultData.averageScore,
-                      studentsCompletion.find(s => s.studentId === selectedStudent.id)?.position || 0,
-                      studentsCompletion.find(s => s.studentId === selectedStudent.id)?.totalStudents || 0
+                      studentResultData.averageScore
                     )}
                   </p>
                 </div>

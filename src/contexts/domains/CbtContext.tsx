@@ -3,6 +3,15 @@ import { createContext, useContext, ReactNode } from 'react';
 import { useSchool } from '../SchoolContext';
 import { CbtExam, CbtQuestion, CbtAttempt, CbtQuestionBank } from '../../types/school';
 
+interface CbtQuestionInput {
+  question_type: string;
+  question_text: string;
+  options?: string[];
+  correct_answer?: string | string[];
+  marks: number;
+  sort_order?: number;
+}
+
 interface CbtDomain {
   cbtExams: CbtExam[];
   cbtQuestions: CbtQuestion[];
@@ -11,26 +20,26 @@ interface CbtDomain {
   loadCbtExamsFromAPI: () => Promise<boolean>;
   loadCbtQuestionsFromAPI: (examId: number) => Promise<boolean>;
   loadCbtAttemptsFromAPI: (examId?: number) => Promise<boolean>;
-  loadCbtQuestionBankFromAPI: (params?: Record<string, any>) => Promise<boolean>;
+  loadCbtQuestionBankFromAPI: (params?: Record<string, string | number>) => Promise<boolean>;
   createCbtExam: (exam: Omit<CbtExam, 'id' | 'total_marks' | 'published' | 'status' | 'created_at'>) => Promise<number>;
   updateCbtExam: (id: number, exam: Partial<CbtExam>) => Promise<void>;
   deleteCbtExam: (id: number) => Promise<void>;
   publishCbtExam: (id: number) => Promise<void>;
-  addCbtQuestion: (examId: number, question: any) => Promise<number>;
-  updateCbtQuestion: (examId: number, questionId: number, question: any) => Promise<void>;
+  addCbtQuestion: (examId: number, question: Omit<CbtQuestion, 'id'>) => Promise<number>;
+  updateCbtQuestion: (examId: number, questionId: number, question: Partial<CbtQuestion>) => Promise<void>;
   deleteCbtQuestion: (examId: number, questionId: number) => Promise<void>;
   reorderCbtQuestions: (examId: number, order: {question_id: number; sort_order: number}[]) => Promise<void>;
-  addToCbtQuestionBank: (question: any) => Promise<number>;
+  addToCbtQuestionBank: (question: Omit<CbtQuestionBank, 'id'>) => Promise<number>;
   deleteFromCbtQuestionBank: (id: number) => Promise<void>;
-  importFromCbtBank: (examId: number, questionIds: number[]) => Promise<any>;
-  startCbtAttempt: (examId: number) => Promise<any>;
-  saveCbtAnswer: (attemptId: number, questionId: number, answer: any) => Promise<void>;
-  submitCbtAttempt: (attemptId: number, tabSwitchCount?: number) => Promise<any>;
-  getCbtAttemptDetail: (attemptId: number) => Promise<any>;
-  getCbtExamResults: (examId: number) => Promise<any>;
-  feedCbtExamScores: (examId: number, scoreSlot: string) => Promise<any>;
-  bulkImportQuestions: (examId: number, questions: any[]) => Promise<any>;
-  generateQuestionsFromMaterial: (materialText: string, questionType: string, count: number, options?: { difficulty?: string; exam_type?: string; topic?: string; include_explanations?: boolean }) => Promise<any>;
+  importFromCbtBank: (examId: number, questionIds: number[]) => Promise<{ imported: number; skipped: number }>;
+  startCbtAttempt: (examId: number) => Promise<CbtAttempt>;
+  saveCbtAnswer: (attemptId: number, questionId: number, answer: string | string[]) => Promise<void>;
+  submitCbtAttempt: (attemptId: number, tabSwitchCount?: number) => Promise<CbtAttempt>;
+  getCbtAttemptDetail: (attemptId: number) => Promise<CbtAttempt>;
+  getCbtExamResults: (examId: number) => Promise<CbtAttempt[]>;
+  feedCbtExamScores: (examId: number, scoreSlot: string) => Promise<{ success: boolean }>;
+  bulkImportQuestions: (examId: number, questions: Omit<CbtQuestion, 'id'>[]) => Promise<{ imported: number; errors: string[] }>;
+  generateQuestionsFromMaterial: (materialText: string, questionType: string, count: number, options?: { difficulty?: string; exam_type?: string; topic?: string; include_explanations?: boolean }) => Promise<CbtQuestionInput[]>;
 }
 
 const CbtContext = createContext<CbtDomain | null>(null);

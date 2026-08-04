@@ -7,3 +7,8 @@ export { ResultsProvider, useResults } from './ResultsContext';
 export { PaymentProvider, usePayments } from './PaymentContext';
 export { NotificationProvider, useNotifications } from './NotificationContext';
 export { CbtProvider, useCbt } from './CbtContext';
+export { DepartmentProvider, useDepartments } from './IndependentDepartmentContext';
+export { ScholarshipProvider, useScholarships } from './IndependentScholarshipContext';
+export { AssignmentProvider, useAssignments } from './IndependentAssignmentContext';
+export { TimetableProvider, useTimetables } from './IndependentTimetableContext';
+export { ActivityLogProvider, useActivityLogs } from './IndependentActivityLogContext';

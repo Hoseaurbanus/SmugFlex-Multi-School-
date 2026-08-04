@@ -301,15 +301,15 @@ export interface FeeStructure {
   uniform_fee: number;
   transport_fee: number;
   total_fee: number;
-  tuitionFee: number;
-  developmentLevy: number;
-  sportsFee: number;
-  examFee: number;
-  booksFee: number;
-  uniformFee: number;
-  transportFee: number;
-  totalFee: number;
-  className: string;
+  tuitionFee?: number;
+  developmentLevy?: number;
+  sportsFee?: number;
+  examFee?: number;
+  booksFee?: number;
+  uniformFee?: number;
+  transportFee?: number;
+  totalFee?: number;
+  className?: string;
 }
 
 export interface StudentFeeBalance {
@@ -329,7 +329,17 @@ export interface StudentFeeBalance {
 }
 
 export interface StudentInvoiceSummary {
-  invoice: any;
+  invoice: {
+    id: number;
+    student_id: number;
+    class_id: number;
+    term: string;
+    academic_year: string;
+    total_fee: number;
+    total_paid: number;
+    balance: number;
+    status: string;
+  };
   paid_total: number;
   outstanding: number;
   credit: number;
@@ -398,8 +408,9 @@ export interface Teacher {
 export interface User {
   id: number;
   username: string;
+  password?: string;
   role: 'admin' | 'teacher' | 'student' | 'accountant' | 'parent';
-  linked_id: number;
+  linked_id?: number | null;
   email: string;
   display_name?: string;
   first_name?: string;
@@ -408,9 +419,9 @@ export interface User {
   phone?: string | null;
   employee_id?: string | null;
   status: 'Active' | 'Inactive';
-  last_login: string | null;
-  created_at: string;
-  updated_at: string;
+  last_login?: string | null;
+  created_at?: string;
+  updated_at?: string;
   token?: string;
   school_id?: number;
   school_suffix?: string;
@@ -591,10 +602,10 @@ export interface CbtQuestion {
   question_type: 'single_choice' | 'true_false' | 'multi_select';
   question_text: string;
   options?: string[];
-  correct_answer?: any;
+  correct_answer?: string | string[];
   marks: number;
   sort_order: number;
-  student_answer?: any;
+  student_answer?: string | string[];
   is_correct?: boolean | null;
   marks_awarded?: number;
 }
@@ -630,8 +641,10 @@ export interface CbtQuestionBank {
   class_id?: number;
   question_type: 'single_choice' | 'true_false' | 'multi_select';
   question_text: string;
+  passage_text?: string | null;
+  image_url?: string | null;
   options?: string[];
-  correct_answer?: any;
+  correct_answer?: string | string[];
   marks: number;
   difficulty: 'easy' | 'medium' | 'hard';
   topic?: string;
@@ -653,6 +666,7 @@ export interface SchoolSettings {
   school_address?: string;
   school_phone?: string;
   school_email?: string;
+  [key: string]: unknown;
 }
 
 export interface BankAccountSettings {
@@ -680,14 +694,84 @@ export interface Scholarship {
   beneficiaries: number;
   status: 'Active' | 'Inactive';
   academic_year?: string;
+  student_id?: number;
+  class_id?: number;
 }
 
 export interface Assignment {
   id: number;
+  title?: string;
+  description?: string;
   studentId?: number;
   student_id?: number;
   classId?: number;
   class_id?: number;
+  subject_id?: number;
+  teacher_id?: number;
+  due_date?: string;
+  max_score?: number;
+  assigned_date?: string;
   subjects?: string[];
-  [key: string]: any;
+}
+
+export interface ParentStudentLink {
+  id: number;
+  parent_id: number;
+  student_id: number;
+  relationship: string;
+  is_primary: boolean;
+  created_at: string;
+}
+
+export interface ClassTeacherAssignment {
+  id: number;
+  class_id: number;
+  teacher_id: number;
+  academic_year: string;
+  term: string;
+  status: string;
+  teacher_name?: string;
+  teacher_email?: string;
+  class_name?: string;
+}
+
+export interface SchoolSetting {
+  setting_key: string;
+  setting_value: string;
+  setting_type?: string;
+}
+
+export interface RealtimeEvent {
+  id: number;
+  topic: string;
+  payload: {
+    action: string;
+    target_audience?: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface ParentChildData {
+  id: number;
+  firstName: string;
+  lastName: string;
+  admissionNumber: string;
+  className: string;
+  classId: number;
+  level: string;
+  gender: string;
+  dateOfBirth: string;
+  photoUrl?: string;
+  status: string;
+  totalFeeRequired: number;
+  totalPaid: number;
+  balance: number;
+  paymentStatus: string;
+  attendanceRate?: number;
+  averageScore?: number;
+  recentScores?: Array<{
+    subject: string;
+    score: number;
+    grade?: string;
+  }>;
 }
