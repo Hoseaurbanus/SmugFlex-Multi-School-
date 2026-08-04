@@ -25,6 +25,7 @@ import { setAuthToken, setCurrentUser as setApiCurrentUser, getAuthToken, remove
 import { tokenManager } from '../utils/tokenManager';
 import sqlDatabase from '../services/sqlDatabase';
 import { normalizeParentStudentLinks } from '../utils/schoolHelpers';
+import { PushNotificationHelper } from '../utils/pushNotificationHelper';
 import type {
   Student, Parent, Class, Subject, SubjectAssignment, SubjectRegistration,
   Score, AffectiveDomain, PsychomotorDomain, CompiledResult,
@@ -629,7 +630,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [attendanceRequirements, setAttendanceRequirements] = useState<Record<string, number>>({});
 
-  const realtimeEventSourceRef = useRef<EventSource | null>(null);
   const realtimeReconnectTimerRef = useRef<number | null>(null);
   const realtimePollingTimerRef = useRef<number | null>(null);
   const pendingRealtimeTopicsRef = useRef<Set<string>>(new Set());
@@ -812,26 +812,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!currentUser) {
-      if (realtimeEventSourceRef.current) {
-        realtimeEventSourceRef.current.close();
-        realtimeEventSourceRef.current = null;
-      }
       stopRealtimePollingFallback();
       return;
     }
 
-    const token = tokenManager.getToken() || getAuthToken();
-    if (!token) return;
+    const initPolling = async () => {
+      const token = await tokenManager.getToken();
+      if (!token) return;
 
-    if (realtimeEventSourceRef.current) {
-      realtimeEventSourceRef.current.close();
-      realtimeEventSourceRef.current = null;
-    }
-
-    // SSE cannot work through Vercel middleware proxy (fetch buffers responses,
-    // killing the streaming connection). Always use polling fallback instead.
-    const isProxy = API_CONFIG.BASE_URL.startsWith('/');
-    if (isProxy) {
+      // Use polling fallback — EventSource unreliable in WebView
       startRealtimePollingFallback();
       return;
     }
@@ -899,18 +888,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }, 3000);
     };
 
+    initPolling();
+
     return () => {
-      try {
-        if (realtimeEventSourceRef.current) {
-          realtimeEventSourceRef.current.close();
-          realtimeEventSourceRef.current = null;
-        }
-      } catch {}
       stopRealtimePollingFallback();
-      if (realtimeReconnectTimerRef.current) {
-        window.clearTimeout(realtimeReconnectTimerRef.current);
-        realtimeReconnectTimerRef.current = null;
-      }
     };
   }, [currentUser, scheduleRealtimeRefresh, startRealtimePollingFallback, stopRealtimePollingFallback]);
 
@@ -1272,7 +1253,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const loadParentsFromAPI = async (): Promise<boolean> => {
     try {
-      const effectiveUser: any = currentUser || getApiCurrentUser();
+      const effectiveUser: any = currentUser || await getApiCurrentUser();
       // Ensure token is available
       await tokenManager.ensureToken(effectiveUser);
 
@@ -1354,7 +1335,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const loadParentStudentLinksFromAPI = async (): Promise<boolean> => {
     try {
-      const effectiveUser: any = currentUser || getApiCurrentUser();
+      const effectiveUser: any = currentUser || await getApiCurrentUser();
       // Ensure token is available
       await tokenManager.ensureToken(effectiveUser);
 
@@ -2271,17 +2252,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       try {
         // Only restore authentication if NOT on landing page
         // This prevents automatic login when user clicks login button
-        const currentPath = window.location.pathname;
-        const isLandingPage = currentPath === '/' || currentPath === '';
+        // Note: With HashRouter, pathname is always '/'; check hash for landing page detection
+        const currentPath = window.location.pathname + window.location.hash;
+        const isLandingPage = currentPath === '/' || currentPath === '' || currentPath === '#/' || currentPath === '#';
         
         if (!isLandingPage) {
           // Check for existing token and restore authentication
-          const token = getAuthToken();
-          const savedUser = getApiCurrentUser();
+          const token = await getAuthToken();
+          const savedUser = await getApiCurrentUser();
           
           if (token && savedUser) {
-            setAuthToken(token);
-            setApiCurrentUser(savedUser);
+            await setAuthToken(token);
+            await setApiCurrentUser(savedUser);
             setCurrentUser(savedUser);
             
             await loadDataForUser(savedUser);
@@ -2324,11 +2306,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // ==================== API FUNCTIONS ====================
 
   // Centralized auth failure handler — clears token and redirects to login
-  const handleAuthFailure = () => {
+  const handleAuthFailure = async () => {
     if (authFailureRedirected.current) return;
     authFailureRedirected.current = true;
-    removeAuthToken();
-    setApiCurrentUser(null);
+    await removeAuthToken();
+    await setApiCurrentUser(null);
     setCurrentUser(null);
     localStorage.removeItem('api_token');
     localStorage.removeItem('api_user');
@@ -2402,6 +2384,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
       await Promise.allSettled(roleLoads);
 
+      // Register for push notifications on native (non-blocking)
+      if (PushNotificationHelper.isNative()) {
+        PushNotificationHelper.register().then((reg) => {
+          if (reg) {
+            PushNotificationHelper.registerWithBackend(reg.token);
+          }
+        }).catch(() => {});
+
+        // Set up notification handlers
+        PushNotificationHelper.onReceived((notification) => {
+          toast.info(notification.title || 'New notification', {
+            description: notification.body,
+          });
+        });
+      }
+
       // Schedule heavy data loads AFTER dashboard renders (non-blocking)
       // These load in background and update state when ready
       setTimeout(() => {
@@ -2439,7 +2437,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       // Login attempt
       
       // Clear any existing tokens first to prevent conflicts
-      removeAuthToken();
+      await removeAuthToken();
       
       // Use API login instead of local SQL database
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.LOGIN}`, {
@@ -2465,12 +2463,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       
       if (user) {
         setCurrentUser(user);
-        setApiCurrentUser(user);
+        await setApiCurrentUser(user);
         
         // Extract token from API response structure
         const token = user.token || '';
         
-        setAuthToken(token);
+        await setAuthToken(token);
         
         // Reload all data after successful login using the helper function
         
@@ -2499,7 +2497,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // Student passwordless login (admission number + class name)
   const studentLogin = async (admissionNumber: string, className: string): Promise<User | null> => {
     try {
-      removeAuthToken();
+      await removeAuthToken();
 
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.STUDENT_LOGIN}`, {
         method: 'POST',
@@ -2523,10 +2521,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
       if (user) {
         setCurrentUser(user);
-        setApiCurrentUser(user);
+        await setApiCurrentUser(user);
 
         const token = user.token || '';
-        setAuthToken(token);
+        await setAuthToken(token);
 
         const dataLoaded = await loadDataForUser(user);
 
@@ -4512,7 +4510,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // Missing Functions
   const changePassword = async (oldPassword: string, newPassword: string): Promise<boolean> => {
     try {
-      const effectiveUser: any = currentUser || getApiCurrentUser();
+      const effectiveUser: any = currentUser || await getApiCurrentUser();
       const hasToken = await tokenManager.ensureToken(effectiveUser);
       if (!hasToken) return false;
 
@@ -7299,10 +7297,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     setCurrentUser,
     login,
     studentLogin,
-    logout: () => {
+    logout: async () => {
       
       // Call backend to blacklist the token before clearing local data
-      const currentToken = getAuthToken();
+      const currentToken = await getAuthToken();
       if (currentToken) {
         fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.LOGOUT}`, {
           method: 'POST',
@@ -7316,8 +7314,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       
       // Clear authentication data
-      removeAuthToken();
+      await removeAuthToken();
       setCurrentUser(null);
+
+      // Unregister push notifications on logout
+      if (PushNotificationHelper.isNative()) {
+        PushNotificationHelper.removeAllListeners();
+        PushNotificationHelper.unregisterFromBackend().catch(() => {});
+        PushNotificationHelper.unregister().catch(() => {});
+      }
       
       // Clear all local storage data
       localStorage.clear();

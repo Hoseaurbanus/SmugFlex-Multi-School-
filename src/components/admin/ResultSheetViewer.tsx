@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { StudentResultCard } from "../shared/StudentResultCard";
 import { generatePDFFromData as generateStudentResultPdf } from "../../utils/pdfGenerator";
 import { toast } from "sonner";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 interface ResultSheetViewerProps {
   isOpen?: boolean;
@@ -126,14 +127,10 @@ export function ResultSheetViewer({
 
   const resultCardRef = useRef<HTMLDivElement>(null);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (resultCardRef.current && studentResultData) {
-      const pw = window.open('', '_blank');
-      if (pw) {
-        pw.document.write(`<html><head><title>Result Sheet</title><style>@page{size:A4;margin:8mm}body{margin:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact}table{border-collapse:collapse;width:100%}td,th{padding:4px;font-size:10px}.bg-white{background:white!important}</style></head><body>${resultCardRef.current.innerHTML}</body></html>`);
-        pw.document.close();
-        setTimeout(() => { pw.print(); pw.close(); }, 500);
-      }
+      const htmlContent = `<html><head><title>Result Sheet</title><style>@page{size:A4;margin:8mm}body{margin:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact}table{border-collapse:collapse;width:100%}td,th{padding:4px;font-size:10px}.bg-white{background:white!important}</style></head><body>${resultCardRef.current.innerHTML}</body></html>`;
+      await CapacitorHelper.print(htmlContent);
     }
   };
 

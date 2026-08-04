@@ -18,6 +18,7 @@ import { CumulativeResultSheet } from "../CumulativeResultSheet";
 import { shouldShowPosition as checkShouldShowPosition, getGrade } from "../../utils/classHelpers";
 import { useSchool } from "../../contexts/SchoolContext";
 import { toast } from "sonner";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 import { API_CONFIG } from "../../config/api";
 import { formatPositionWithSuffix } from "../../utils/position";
 import { generatePDFFromData as generateStudentResultPdf, generateCumulativePDF } from "../../utils/pdfGenerator";
@@ -693,13 +694,6 @@ export function ResultsManagementPage() {
 
     if (resultSheetRef.current) {
       try {
-        // Create a new window for printing
-        const printWindow = window.open("", "_blank", "width=800,height=600");
-        if (!printWindow) {
-          toast.error("Please allow popups to print result sheets");
-          return;
-        }
-
         // Get the content with proper CSS
         const content = resultSheetRef.current.innerHTML;
         const printCSS = `
@@ -728,9 +722,7 @@ export function ResultsManagementPage() {
           </style>
         `;
 
-        // Write the complete HTML document
-        printWindow.document.write(`
-          <!DOCTYPE html>
+        const htmlContent = `<!DOCTYPE html>
           <html>
           <head>
             <title>Result Sheet - ${selectedStudent?.firstName || 'Student'} ${selectedStudent?.lastName || ''}</title>
@@ -739,18 +731,10 @@ export function ResultsManagementPage() {
           <body>
             ${content}
           </body>
-          </html>
-        `);
-        
-        printWindow.document.close();
-        printWindow.focus();
+          </html>`;
 
-        // Wait for content to load before printing
-        setTimeout(() => {
-          printWindow.print();
-          printWindow.close();
-          toast.success("Result sheet printed successfully");
-        }, 1000);
+        await CapacitorHelper.print(htmlContent);
+        toast.success("Result sheet printed successfully");
 
       } catch (error) {
         toast.error("Failed to print result sheet. Please try again.");

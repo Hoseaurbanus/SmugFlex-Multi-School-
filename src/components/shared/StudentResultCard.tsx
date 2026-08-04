@@ -5,6 +5,7 @@ import { StudentResultCardProps } from './types/resultCard';
 import { API_CONFIG } from "../../config/api";
 import { formatPositionWithSuffix } from "../../utils/position";
 import { generateQrDataUrl } from "../../utils/qrCode";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 // Add print styles
 const printStyles = `
@@ -191,8 +192,8 @@ const StudentResultCardInner = ({
   }, []);
 
   // Handle print function
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    await CapacitorHelper.print();
   };
 
   // Load detailed scores when component mounts or result changes

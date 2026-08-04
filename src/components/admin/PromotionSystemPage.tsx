@@ -15,6 +15,7 @@ import { StudentPromotionTable } from "./promotion-system/StudentPromotionTable"
 import { ConfirmPromotionDialog } from "./promotion-system/ConfirmPromotionDialog";
 import { ManualPromotionDialog } from "./promotion-system/ManualPromotionDialog";
 import { ManualClassChangeDialog } from "./promotion-system/ManualClassChangeDialog";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 const PROMOTION_STATUSES = [
   'Promoted', 'Repeated', 'Transferred', 'On Hold',
@@ -574,7 +575,34 @@ export function PromotionSystemPage() {
     }
   };
 
-  const exportPromotionList = () => {
+  const getStatusBadge = (status: PromotionStatus, studentId: number) => {
+    const isManualOverride = manualOverride[studentId];
+    const hasError = promotionErrors[studentId];
+    const badgeClass = isManualOverride ? "ring-2 ring-orange-300" : hasError ? "ring-2 ring-red-300" : "";
+    
+    switch (status) {
+      case "Promoted":
+        return <Badge className={`bg-emerald-500 text-white border-0 ${badgeClass}`}><CheckCircle className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Promoted</Badge>;
+      case "Conditional":
+        return <Badge className={`bg-yellow-500 text-white border-0 ${badgeClass}`}><Clock className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Conditional</Badge>;
+      case "Repeated":
+        return <Badge className={`bg-red-500 text-white border-0 ${badgeClass}`}><XCircle className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Repeated</Badge>;
+      case "On Hold":
+        return <Badge className={`bg-orange-500 text-white border-0 ${badgeClass}`}><AlertTriangle className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}On Hold</Badge>;
+      case "Withdrawn":
+        return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><XCircle className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Withdrawn</Badge>;
+      case "Pending Approval":
+        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><Clock className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Pending Approval</Badge>;
+      case "Manual":
+        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><Settings className="w-3 h-3 mr-1" />Manual</Badge>;
+      case "Transferred":
+        return <Badge className={`bg-[#0A2540] text-white border-0 ${badgeClass}`}><TrendingUp className="w-3 h-3 mr-1" />{isManualOverride ? "Manual: " : ""}Transferred</Badge>;
+      default:
+        return <Badge className={`bg-gray-500 text-white border-0 ${badgeClass}`}><AlertTriangle className="w-3 h-3 mr-1" />Pending</Badge>;
+    }
+  };
+
+  const exportPromotionList = async () => {
     const headers = ['Student Name', 'Admission No', 'Current Class', 'Average Score', 'Position', 'Attendance', 'Status', 'Next Class', 'Manual Override'];
     const rows = filteredStudents.map((s: any) => {
       const nextClass = promotionMapping[s.id] ? classes.find((c: any) => c.id === promotionMapping[s.id])?.name : '-';
@@ -586,12 +614,7 @@ export function PromotionSystemPage() {
       ];
     });
     const csvContent = [headers, ...rows].map((row: any[]) => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `promotion-list-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    await CapacitorHelper.downloadCSV(csvContent, `promotion-list-${new Date().toISOString().split('T')[0]}.csv`);
     toast.success("Promotion list exported successfully");
   };
 

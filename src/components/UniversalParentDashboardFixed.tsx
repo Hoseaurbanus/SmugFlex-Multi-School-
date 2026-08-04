@@ -16,6 +16,7 @@ import { connectionMonitor } from "../utils/connectionMonitor";
 import { MyChildrenPage } from "./parent/MyChildrenPage";
 import { API_CONFIG, getAuthToken } from "../config/api";
 import { PaymentReceipt } from "./ui/PaymentReceipt";
+import { CapacitorHelper } from "../utils/capacitorHelper";
 
 // Naira symbol constant for reliable display
 const NAIRA = "₦";
@@ -528,7 +529,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
       return;
     }
 
-    const token = getAuthToken();
+    const token = await getAuthToken();
     if (!token) {
       setWhatsappGroups([]);
       toast.error('Session expired. Please log in again to view WhatsApp groups.');
@@ -565,7 +566,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeItem, currentUser?.linked_id, children.length]);
 
-  const handleJoinWhatsappGroup = (group: any) => {
+  const handleJoinWhatsappGroup = async (group: any) => {
     if (!group || !group.whatsapp_group_link) {
       toast.error('WhatsApp group link not available');
       return;
@@ -573,7 +574,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
 
     try {
       // Open WhatsApp group in new tab
-      window.open(group.whatsapp_group_link, '_blank');
+      await CapacitorHelper.openUrl(group.whatsapp_group_link);
       toast.success(`Opening ${group.group_name || 'WhatsApp group'}`);
     } catch (error) {
       toast.error('Failed to open WhatsApp group');

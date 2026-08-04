@@ -18,6 +18,7 @@ import {
   getStorageSize,
   type StorageData 
 } from "../../utils/storageManager";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 import {
   exportStudentsToCSV,
   exportTeachersToCSV,
@@ -185,26 +186,13 @@ export function DataBackupPage() {
   };
 
   // Helper function to download file
-  const downloadFile = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+  const downloadFile = async (content: string, filename: string) => {
+    await CapacitorHelper.downloadCSV(content, filename);
   };
 
   // Helper function to download JSON
-  const downloadJSON = (data: any, filename: string) => {
-    const jsonStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+  const downloadJSON = async (data: any, filename: string) => {
+    await CapacitorHelper.downloadJSON(data, filename);
   };
 
   // New CSV Export Functions using utilities

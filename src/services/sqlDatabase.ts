@@ -101,7 +101,7 @@ class SQLDatabaseService {
 
     return this.debouncedRequest(queryKey, async () => {
       try {
-        const storedUser: any = getApiCurrentUser();
+        const storedUser: any = await getApiCurrentUser();
         if (String(storedUser?.role || '').toLowerCase() === 'parent') {
           return {
             success: false,
@@ -111,7 +111,7 @@ class SQLDatabaseService {
           };
         }
 
-        let token = getAuthToken();
+        let token = await getAuthToken();
         if (!token) {
           throw new Error('Authentication required for database operations');
         }
@@ -134,7 +134,7 @@ class SQLDatabaseService {
           const refreshed = await tokenManager.refreshAuthToken();
 
           if (refreshed) {
-            token = getAuthToken();
+            token = await getAuthToken();
             if (token) {
               response = await makeRequest(token);
             }
@@ -692,7 +692,7 @@ class SQLDatabaseService {
 
   // Generic API method for secure operations
   private async api(method: string, endpoint: string, data: any): Promise<any> {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     if (!token) {
       throw new Error('Authentication required for API operations');
     }

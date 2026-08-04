@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { useSchool } from '../../contexts/SchoolContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { toast } from 'sonner';
+import { CapacitorHelper } from '../../utils/capacitorHelper';
 
 const NAIRA = "\u20A6";
 
@@ -104,7 +105,7 @@ export function PaymentHistoryPage() {
     }
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const escapeCSV = (value: any) => {
       if (value === null || value === undefined) return '';
       const str = String(value);
@@ -131,13 +132,7 @@ export function PaymentHistoryPage() {
     ]);
     
     const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payment-history-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await CapacitorHelper.downloadCSV(csvContent, `payment-history-${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   return (

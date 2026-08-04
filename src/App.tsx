@@ -97,8 +97,8 @@ function AppContent({ navigate }: { navigate: any }) {
 
   // Proactive token expiry check — every 60 seconds
   useEffect(() => {
-    const checkTokenExpiry = () => {
-      const token = getAuthToken();
+    const checkTokenExpiry = async () => {
+      const token = await getAuthToken();
       if (!token) return;
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));

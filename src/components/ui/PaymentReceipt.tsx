@@ -1,6 +1,7 @@
 import { Payment } from '../../types/school';
 import { Button } from "./button";
 import { Printer, Download } from "lucide-react";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 // Naira symbol constant for reliable display
 const NAIRA = "₦";
@@ -13,18 +14,13 @@ interface PaymentReceiptProps {
 }
 
 export function PaymentReceipt({ payment, studentName, studentClassName, className = '' }: PaymentReceiptProps) {
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    await CapacitorHelper.print();
   };
 
-  const handleDownload = () => {
-    // Create a temporary element for receipt content
-    const receiptElement = document.getElementById('payment-receipt');
-    if (!receiptElement) return;
-
-    // Use html2canvas or similar library for PDF generation
-    // For now, we'll trigger print which can save as PDF
-    window.print();
+  const handleDownload = async () => {
+    // Use CapacitorHelper for printing/saving
+    await CapacitorHelper.print();
   };
 
   const transactionReference = (payment as any).transaction_reference || (payment as any).reference || '';

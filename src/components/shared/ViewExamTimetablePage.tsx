@@ -3,6 +3,7 @@ import { useSchool } from '../../contexts/SchoolContext';
 import { useTimetables } from '../../contexts/domains/IndependentTimetableContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
+import { CapacitorHelper } from '../../utils/capacitorHelper';
 interface ViewExamTimetablePageProps {
   userRole: 'teacher' | 'parent' | 'student';
 }
@@ -68,7 +69,7 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
     groupedByDate[date].sort((a, b) => a.start_time.localeCompare(b.start_time));
   });
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     // Create CSV content
     let csvContent = `${currentUser?.school_name || currentUser?.school_suffix || 'School'} - Exam Timetable\n`;
     csvContent += `Term: ${currentTerm}, Academic Year: ${currentAcademicYear}\n`;
@@ -89,11 +90,7 @@ export function ViewExamTimetablePage({ userRole }: ViewExamTimetablePageProps) 
       });
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `exam-timetable-${selectedClassId || 'all'}-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    await CapacitorHelper.downloadFile(blob, `exam-timetable-${selectedClassId || 'all'}-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
   };
 
   return (

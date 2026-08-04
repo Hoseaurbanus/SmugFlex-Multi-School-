@@ -15,6 +15,7 @@ import { useSchool } from "../../contexts/SchoolContext";
 import { exportSubjectsToCSV } from "../../utils/csvExporter";
 import { importSubjectsFromCSV, generateSubjectTemplate } from "../../utils/csvImporter";
 import { SubjectCreationForm } from "./forms/SubjectCreationForm";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 export function ManageSubjectsPageFixed() {
   const { subjects, updateSubject, deleteSubject, subjectAssignments, loadSubjectsFromAPI } = useSchool();
@@ -194,14 +195,9 @@ export function ManageSubjectsPageFixed() {
     setDeleteDialogOpen(true);
   };
 
-  const _exportCSVTemplate = () => {
+  const _exportCSVTemplate = async () => {
     const template = generateSubjectTemplate();
-    const blob = new Blob([template], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'subject_import_template.csv';
-    a.click();
+    await CapacitorHelper.downloadCSV(template, 'subject_import_template.csv');
     toast.success("CSV template downloaded");
   };
 

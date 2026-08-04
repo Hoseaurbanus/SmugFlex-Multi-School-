@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
+import { CapacitorHelper } from '../../utils/capacitorHelper';
 
 export function AttendanceReportsPage() {
   const {
@@ -107,7 +108,7 @@ export function AttendanceReportsPage() {
     }).filter(c => c.total > 0).sort((a, b) => b.rate - a.rate);
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     let csvContent = '';
     let fileName = '';
 
@@ -135,11 +136,7 @@ export function AttendanceReportsPage() {
     }
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
+    await CapacitorHelper.downloadFile(blob, fileName, 'text/csv');
   };
 
   return (

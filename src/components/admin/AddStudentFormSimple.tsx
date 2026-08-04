@@ -7,8 +7,10 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { useSchool } from "../../contexts/SchoolContext";
 import { API_CONFIG } from '../../config/api';
 import { toast } from "sonner";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Camera } from "lucide-react";
 import { tokenManager } from "../../utils/tokenManager";
+import { CameraHelper } from "../../utils/cameraHelper";
+import { Capacitor } from "@capacitor/core";
 
 interface AddStudentFormProps {
   onClose: () => void;
@@ -64,6 +66,31 @@ function AddStudentFormComponent({ onClose: _onClose, onSuccess }: AddStudentFor
       toast.success("Photo uploaded successfully");
     };
     reader.readAsDataURL(passportFile);
+  };
+
+  const handleCameraCapture = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      const file = await CameraHelper.pickFromWebInput();
+      if (file) {
+        setPassportFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPhotoPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+      return;
+    }
+
+    const captured = await CameraHelper.pickImage();
+    if (captured) {
+      const file = CameraHelper.capturedImageToFile(captured, 'passport.jpg');
+      if (file) {
+        setPassportFile(file);
+        setPhotoPreview(captured.webPath);
+        toast.success("Photo captured");
+      }
+    }
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -390,7 +417,7 @@ function AddStudentFormComponent({ onClose: _onClose, onSuccess }: AddStudentFor
                   type="file"
                   accept="image/*"
                   onChange={(e) => setPassportFile(e.target.files?.[0] || null)}
-                  className="rounded-xl border-gray-300 bg-white text-gray-900"
+                  className="rounded-xl border-gray-300 bg-white text-gray-900 flex-1"
                 />
                 <Button
                   type="button"
@@ -400,6 +427,14 @@ function AddStudentFormComponent({ onClose: _onClose, onSuccess }: AddStudentFor
                 >
                   <ImageIcon className="w-4 h-4 mr-2" />
                   Upload
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleCameraCapture}
+                  variant="outline"
+                  className="rounded-xl border-gray-300"
+                >
+                  <Camera className="w-4 h-4" />
                 </Button>
               </div>
               {passportFile && (

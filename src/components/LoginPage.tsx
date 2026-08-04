@@ -20,9 +20,12 @@ import {
   User,
   Lock,
   Loader2,
+  Fingerprint,
 } from "lucide-react";
 import { useAuth } from "../contexts/domains/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { BiometricHelper } from "../utils/biometricHelper";
+import { Capacitor } from "@capacitor/core";
 
 const ROLES = [
   { value: "admin", label: "Administrator", icon: Settings },
@@ -54,6 +57,9 @@ export function LoginPage() {
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [studentLoading, setStudentLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState<string>("");
+  const [biometricLoading, setBiometricLoading] = useState(false);
 
   const roleRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +83,25 @@ export function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
+    // Check biometric availability on native
+    if (Capacitor.isNativePlatform()) {
+      BiometricHelper.checkCapability().then((cap) => {
+        if (cap.available) {
+          setBiometricAvailable(true);
+          setBiometricType(BiometricHelper.getBiometryLabel(cap.biometryType));
+        } else {
+          // Only show if user previously enabled biometrics
+          BiometricHelper.isEnabled().then((enabled) => {
+            if (enabled) {
+              setBiometricAvailable(true);
+              setBiometricType("Biometric");
+            }
+          });
+        }
+      }).catch(() => {
+        // BiometricAuth plugin unavailable on this device
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -98,6 +123,11 @@ export function LoginPage() {
     try {
       const user = await login(data.userId, data.password, role);
       if (user) {
+        // Save credentials for biometric login if enabled
+        if (biometricAvailable) {
+          await BiometricHelper.saveCredentials(data.userId, data.password);
+          await BiometricHelper.enable();
+        }
         navigate(`/${user.role}`);
       } else {
         setError("Invalid credentials. Please check your username and password.");
@@ -106,6 +136,28 @@ export function LoginPage() {
       setError(err.message || "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    setError("");
+    setBiometricLoading(true);
+    try {
+      const credentials = await BiometricHelper.getCredentials();
+      if (!credentials) {
+        setError("Biometric authentication failed or no credentials saved.");
+        return;
+      }
+      const user = await login(credentials.identity, credentials.password, role);
+      if (user) {
+        navigate(`/${user.role}`);
+      } else {
+        setError("Session expired. Please sign in with your password.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Biometric login failed.");
+    } finally {
+      setBiometricLoading(false);
     }
   };
 
@@ -428,6 +480,35 @@ export function LoginPage() {
                   )}
                 </button>
               </motion.div>
+
+              {/* Biometric Login Button */}
+              {biometricAvailable && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.42 }}
+                  className="mt-3"
+                >
+                  <button
+                    type="button"
+                    onClick={handleBiometricLogin}
+                    disabled={biometricLoading || isLoading}
+                    className="w-full h-11 text-sm font-semibold rounded-xl flex items-center justify-center gap-2.5 transition-all duration-300 border-2 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 disabled:opacity-70"
+                  >
+                    {biometricLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 spinner" />
+                        Authenticating...
+                      </>
+                    ) : (
+                      <>
+                        <Fingerprint className="w-5 h-5 text-indigo-600" />
+                        Sign in with {biometricType}
+                      </>
+                    )}
+                  </button>
+                </motion.div>
+              )}
             </form>
 
             {/* Register Link */}

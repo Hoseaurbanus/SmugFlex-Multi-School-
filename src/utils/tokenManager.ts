@@ -7,10 +7,10 @@ import { getAuthToken, setAuthToken, removeAuthToken, API_CONFIG } from '../conf
 
 export interface TokenManager {
   ensureToken: (currentUser?: any) => Promise<boolean>;
-  getToken: () => string | null;
-  setToken: (token: string) => void;
-  clearToken: () => void;
-  isTokenValid: () => boolean;
+  getToken: () => Promise<string | null>;
+  setToken: (token: string) => Promise<void>;
+  clearToken: () => Promise<void>;
+  isTokenValid: () => Promise<boolean>;
 }
 
 class TokenManagerImpl implements TokenManager {
@@ -22,20 +22,19 @@ class TokenManagerImpl implements TokenManager {
   async ensureToken(currentUser?: any): Promise<boolean> {
     try {
       // Check if token exists in storage
-      let token = getAuthToken();
+      let token = await getAuthToken();
 
       // If no token in storage and currentUser has token, set it
       if (!token && currentUser?.token) {
-
-        setAuthToken(currentUser.token);
+        await setAuthToken(currentUser.token);
         token = currentUser.token;
       }
 
-      // If still no token, try to get it from localStorage directly
+      // If still no token, try to get it from storage directly
       if (!token) {
         try {
           const candidates = [
-            localStorage.getItem(API_CONFIG.AUTH.USER_KEY),
+            await getAuthToken(),
             localStorage.getItem('currentUser'),
             localStorage.getItem('current_user')
           ].filter(Boolean) as string[];
@@ -43,13 +42,12 @@ class TokenManagerImpl implements TokenManager {
           for (const storedUser of candidates) {
             const user = JSON.parse(storedUser);
             if (user?.token) {
-              setAuthToken(user.token);
+              await setAuthToken(user.token);
               token = user.token;
               break;
             }
           }
         } catch (error) {
-
           // Clear corrupted data
           localStorage.removeItem(API_CONFIG.AUTH.USER_KEY);
           localStorage.removeItem('currentUser');
@@ -57,50 +55,47 @@ class TokenManagerImpl implements TokenManager {
         }
       }
 
-      const isValid = this.isTokenValid();
-
+      const isValid = await this.isTokenValid();
 
       return isValid;
     } catch (error) {
-
       return false;
     }
   }
 
   /**
    * Get current authentication token
-   * @returns string | null - Current token or null if not available
+   * @returns Promise<string | null> - Current token or null if not available
    */
-  getToken(): string | null {
-    return getAuthToken();
+  async getToken(): Promise<string | null> {
+    return await getAuthToken();
   }
 
   /**
    * Set authentication token
    * @param token - Authentication token to set
    */
-  setToken(token: string): void {
-    setAuthToken(token);
+  async setToken(token: string): Promise<void> {
+    await setAuthToken(token);
   }
 
   /**
    * Clear authentication token
    */
-  clearToken(): void {
+  async clearToken(): Promise<void> {
     try {
-      removeAuthToken();
-
+      await removeAuthToken();
     } catch (error) {
-
+      // Silent fail
     }
   }
 
   /**
    * Check if current token is valid (basic validation)
-   * @returns boolean - true if token appears valid
+   * @returns Promise<boolean> - true if token appears valid
    */
-  isTokenValid(): boolean {
-    const token = this.getToken();
+  async isTokenValid(): Promise<boolean> {
+    const token = await this.getToken();
     if (!token) return false;
 
     // Basic validation - check if it's a JWT token or reasonable length
@@ -133,7 +128,7 @@ class TokenManagerImpl implements TokenManager {
    */
   async refreshAuthToken(): Promise<boolean> {
     try {
-      const token = this.getToken();
+      const token = await this.getToken();
       if (!token) return false;
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/auth/refresh-token`, {
@@ -147,7 +142,7 @@ class TokenManagerImpl implements TokenManager {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data?.token) {
-          this.setToken(result.data.token);
+          await this.setToken(result.data.token);
           return true;
         }
       }

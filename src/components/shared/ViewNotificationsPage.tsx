@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { useSchool } from '../../contexts/SchoolContext';
 import { toast } from 'sonner';
 import { API_CONFIG, getAuthToken } from '../../config/api';
+import { CapacitorHelper } from '../../utils/capacitorHelper';
 
 export function ViewNotificationsPage() {
   const { currentUser, markNotificationAsRead, deleteNotification, loadNotificationsFromAPI, getAllNotifications } = useSchool();
@@ -25,7 +26,7 @@ export function ViewNotificationsPage() {
         return;
       }
 
-      const token = getAuthToken();
+      const token = await getAuthToken();
       if (!token) {
         setWhatsappGroups([]);
         return;
@@ -158,13 +159,13 @@ export function ViewNotificationsPage() {
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => {
+                        onClick={async () => {
                           const link = String(g.whatsapp_group_link || '').trim();
                           if (!link) {
                             toast.error('No WhatsApp link available');
                             return;
                           }
-                          window.open(link, '_blank');
+                          await CapacitorHelper.openUrl(link);
                         }}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
                       >

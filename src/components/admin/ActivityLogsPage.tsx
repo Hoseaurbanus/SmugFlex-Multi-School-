@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Badge } from "../ui/badge";
 import { toast } from "sonner";
 import { useActivityLogs } from "../../contexts/domains/IndependentActivityLogContext";
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 export function ActivityLogsPage() {
   const { activityLogs, getActivityLogs } = useActivityLogs();
@@ -42,7 +43,7 @@ export function ActivityLogsPage() {
     return "bg-gray-300";
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const headers = ['Timestamp', 'Actor', 'Role', 'Action', 'Target', 'IP Address', 'Status'];
     const rows = filteredLogs.map(log => [
       new Date(log.timestamp).toLocaleString(),
@@ -55,12 +56,7 @@ export function ActivityLogsPage() {
     ]);
     
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `activity-logs-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    await CapacitorHelper.downloadCSV(csvContent, `activity-logs-${new Date().toISOString().split('T')[0]}.csv`);
     toast.success("Activity log exported successfully");
   };
 

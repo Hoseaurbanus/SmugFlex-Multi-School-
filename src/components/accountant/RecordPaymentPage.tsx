@@ -8,6 +8,7 @@ import { Badge } from "../ui/badge";
 import { toast } from "sonner";
 import { useSchool } from "../../contexts/SchoolContext";
 import { CheckCircle, AlertCircle, FileText, Printer, X, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { CapacitorHelper } from "../../utils/capacitorHelper";
 
 export function RecordPaymentPage() {
   const {
@@ -634,9 +635,9 @@ export function RecordPaymentPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     // Print receipt logic
-                    window.print();
+                    await CapacitorHelper.print();
                   }}
                   className="flex-1 h-12 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-lg"
                 >
