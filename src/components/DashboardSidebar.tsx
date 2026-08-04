@@ -101,6 +101,7 @@ const DashboardSidebar = memo(function DashboardSidebar({
         )}
         {isMobile && (
           <button
+            aria-label="Close navigation menu"
             onClick={() => setIsOpen(false)}
             className="w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] flex items-center justify-center text-white/40 hover:text-white transition-colors"
           >
@@ -230,6 +231,7 @@ const DashboardSidebar = memo(function DashboardSidebar({
       {/* Mobile hamburger */}
       <motion.button
         whileTap={{ scale: 0.92 }}
+        aria-label="Open navigation menu"
         onClick={() => setIsOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 w-10 h-10 rounded-xl bg-[#18181B] shadow-lg border border-white/[0.06] flex items-center justify-center text-white/70 hover:text-white active:scale-95 transition-all duration-150"
       >

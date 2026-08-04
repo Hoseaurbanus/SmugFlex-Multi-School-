@@ -339,7 +339,7 @@ export function ManageStudentsPageMobile({ onNavigateToLink: _onNavigateToLink }
               <Button onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)} size="sm" variant="outline" className="text-xs px-3 py-2 h-8">
                 <Filter className="w-3 h-3 mr-1" />Filters
               </Button>
-              <Button onClick={handleManualRefresh} disabled={isRefreshing} size="sm" variant="outline" className="text-xs px-3 py-2 h-8">
+              <Button onClick={handleManualRefresh} disabled={isRefreshing} size="sm" variant="outline" aria-label="Refresh student list" className="text-xs px-3 py-2 h-8">
                 {isRefreshing ? <div className="w-3 h-3 animate-spin rounded-full border border-gray-300 border-t-emerald-600" /> : <RefreshCw className="w-3 h-3" />}
               </Button>
             </div>
@@ -440,6 +440,9 @@ export function ManageStudentsPageMobile({ onNavigateToLink: _onNavigateToLink }
                   <div>
                     <div className="flex items-center mb-4 p-3 bg-gray-50 rounded-lg">
                       <button
+                        role="checkbox"
+                        aria-checked={isSelectAll}
+                        aria-label="Select all students"
                         onClick={handleSelectAll}
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center mr-3 ${isSelectAll ? 'bg-[#0A2540] border-[#0A2540]' : 'border-gray-300'}`}
                       >
@@ -497,14 +500,14 @@ export function ManageStudentsPageMobile({ onNavigateToLink: _onNavigateToLink }
                         <div className="col-span-2"><span className="text-gray-500">Parent:</span> {getParentInfo(student).name || 'No Parent'}</div>
                       </div>
                       <div className="flex gap-1 border-t pt-2">
-                        <Button size="sm" variant="ghost" onClick={() => handleView(student)} className="h-8 w-8 p-0"><Eye className="w-3 h-3" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleEdit(student)} className="h-8 w-8 p-0"><Pencil className="w-3 h-3" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleToggleStatus(student)}
+                        <Button size="sm" variant="ghost" aria-label="View student" onClick={() => handleView(student)} className="h-8 w-8 p-0"><Eye className="w-3 h-3" /></Button>
+                        <Button size="sm" variant="ghost" aria-label="Edit student" onClick={() => handleEdit(student)} className="h-8 w-8 p-0"><Pencil className="w-3 h-3" /></Button>
+                        <Button size="sm" variant="ghost" aria-label={student.status === 'Active' ? 'Deactivate student' : 'Activate student'} onClick={() => handleToggleStatus(student)}
                           disabled={student.status === 'Active' && (scores.some(s => s.student_id === student.id) || attendances.some(a => a.student_id === student.id) || compiledResults.some(cr => cr.student_id === student.id))}
                           className="h-8 w-8 p-0">
                           {student.status === 'Active' ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => openDeleteDialog(student)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-3 h-3" /></Button>
+                        <Button size="sm" variant="ghost" aria-label="Delete student" onClick={() => openDeleteDialog(student)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-3 h-3" /></Button>
                       </div>
                     </div>
                   ))}

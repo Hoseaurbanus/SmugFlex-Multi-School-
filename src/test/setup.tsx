@@ -112,7 +112,7 @@ vi.mock('jspdf', () => {
       splitTextToSize(t: string) { return [t]; }
       save() {}
       output() { return ''; }
-      internal: { pageSize: { getWidth: () => 210, getHeight: () => 297 } };
+      internal = { pageSize: { getWidth: () => 210, getHeight: () => 297 } };
     },
     jsPDF: class MockJsPDF {
       text() { return this; }
@@ -121,7 +121,7 @@ vi.mock('jspdf', () => {
       splitTextToSize(t: string) { return [t]; }
       save() {}
       output() { return ''; }
-      internal: { pageSize: { getWidth: () => 210, getHeight: () => 297 } };
+      internal = { pageSize: { getWidth: () => 210, getHeight: () => 297 } };
     },
   };
 });

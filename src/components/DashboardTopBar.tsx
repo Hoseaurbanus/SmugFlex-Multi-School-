@@ -74,6 +74,7 @@ export function DashboardTopBar({ userName, userRole, schoolName = '', onLogout,
             <PopoverTrigger asChild>
               <button
                 type="button"
+                aria-label="Notifications"
                 className="relative w-10 h-10 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors border border-border"
               >
                 <Bell className="w-[18px] h-[18px] text-muted-foreground" />
@@ -124,6 +125,7 @@ export function DashboardTopBar({ userName, userRole, schoolName = '', onLogout,
                       </div>
                       <motion.button
                         whileTap={{ scale: 0.85 }}
+                        aria-label="Dismiss notification"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteNotification(notification.id);
@@ -158,6 +160,8 @@ export function DashboardTopBar({ userName, userRole, schoolName = '', onLogout,
             <PopoverTrigger asChild>
               <button
                 type="button"
+                aria-label="User menu"
+                aria-haspopup="true"
                 className="flex items-center gap-2.5 pl-2.5 pr-3 py-1.5 rounded-full bg-muted hover:bg-muted/80 transition-all border border-border active:scale-95"
               >
                 <Avatar size="sm" src={undefined} fallback={userName} />

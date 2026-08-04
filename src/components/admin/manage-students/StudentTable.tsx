@@ -87,15 +87,16 @@ export function StudentTable({
                 </td>
                 <td className="p-3">
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => onView(student)} className="h-8 w-8 p-0">
+                    <Button size="sm" variant="ghost" aria-label="View student" onClick={() => onView(student)} className="h-8 w-8 p-0">
                       <Eye className="w-3 h-3" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => onEdit(student)} className="h-8 w-8 p-0">
+                    <Button size="sm" variant="ghost" aria-label="Edit student" onClick={() => onEdit(student)} className="h-8 w-8 p-0">
                       <Pencil className="w-3 h-3" />
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
+                      aria-label={student.status === 'Active' ? 'Deactivate student' : 'Activate student'}
                       onClick={() => onToggleStatus(student)}
                       disabled={student.status === 'Active' && hasRecords(student.id)}
                       title={student.status === 'Active' ? 'Deactivate' : 'Activate'}
@@ -103,7 +104,7 @@ export function StudentTable({
                     >
                       {student.status === 'Active' ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => onDelete(student)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <Button size="sm" variant="ghost" aria-label="Delete student" onClick={() => onDelete(student)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   </div>

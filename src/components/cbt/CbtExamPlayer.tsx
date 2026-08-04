@@ -219,7 +219,7 @@ export function CbtExamPlayer({ exam, onExit }: Props) {
             />
           )}
           {!isFullscreen && (
-            <Button variant="ghost" size="sm" onClick={enterFullscreen} className="hidden sm:inline-flex">
+            <Button variant="ghost" size="sm" aria-label="Enter fullscreen" onClick={enterFullscreen} className="hidden sm:inline-flex">
               <Maximize2 className="w-4 h-4" />
             </Button>
           )}

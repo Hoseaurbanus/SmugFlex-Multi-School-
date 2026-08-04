@@ -88,7 +88,7 @@ export function CbtExamResultsPage({ exam, onBack }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={onBack} className="p-2">
+        <Button variant="ghost" aria-label="Go back" onClick={onBack} className="p-2">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>

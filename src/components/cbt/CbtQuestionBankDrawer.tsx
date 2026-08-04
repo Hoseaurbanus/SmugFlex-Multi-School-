@@ -99,7 +99,7 @@ export function CbtQuestionBankDrawer({ open, onOpenChange, examId, subjectId, o
               onChange={e => setSearchQuery(e.target.value)}
               className="pl-9 pr-9"
             />
-            <button onClick={() => setShowFilters(!showFilters)} className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded transition-colors ${showFilters ? 'bg-[#3B82F6] text-white' : 'text-[#6B7280] hover:bg-gray-100'}`}>
+            <button aria-label="Toggle filters" aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)} className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded transition-colors ${showFilters ? 'bg-[#3B82F6] text-white' : 'text-[#6B7280] hover:bg-gray-100'}`}>
               <Filter className="w-4 h-4" />
             </button>
           </div>

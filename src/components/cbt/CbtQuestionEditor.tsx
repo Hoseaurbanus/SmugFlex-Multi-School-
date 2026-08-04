@@ -351,7 +351,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
           {/* Image Preview */}
           {newQuestion.image_url && (
             <div className="border border-[#E5E7EB] rounded-lg p-1.5 bg-gray-50">
-              <img src={newQuestion.image_url} alt="" className="max-h-28 sm:max-h-40 object-contain rounded mx-auto" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              <img src={newQuestion.image_url} alt="Question diagram" className="max-h-28 sm:max-h-40 object-contain rounded mx-auto" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             </div>
           )}
 
@@ -488,7 +488,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
                 <Badge variant="outline" className="text-[10px]">{typeLabel(showPreview.question_type)} · {showPreview.marks}m</Badge>
               </div>
               <div className="text-sm font-medium" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(showPreview.question_text || '', { ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'sub', 'sup', 'br', 'p', 'span'] }) }} />
-              {showPreview.image_url && <img src={showPreview.image_url} alt="" className="max-h-32 rounded object-contain border mx-auto" />}
+              {showPreview.image_url && <img src={showPreview.image_url} alt="Question diagram" className="max-h-32 rounded object-contain border mx-auto" />}
               {showPreview.question_type === 'fill_in_blank' ? (
                 <div className="p-2 border border-dashed border-[#D1D5DB] rounded bg-gray-50">
                   <Input placeholder="Type answer..." disabled className="h-8 text-sm" />
@@ -547,7 +547,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
                         ))}
                       </div>
                     )}
-                    {q.image_url && <img src={q.image_url} alt="" className="mt-1 max-h-10 rounded object-contain" />}
+                    {q.image_url && <img src={q.image_url} alt="Question diagram" className="mt-1 max-h-10 rounded object-contain" />}
                     {q.explanation && <p className="mt-0.5 text-[10px] text-[#6B7280] italic"><strong>Why:</strong> {q.explanation}</p>}
                   </div>
                 ))}
@@ -702,7 +702,7 @@ export function CbtQuestionEditor({ exam, onBack }: Props) {
                 </div>
                 {q.passage_text && <div className="mb-1 p-1.5 bg-gray-50 border border-[#E5E7EB] rounded text-[10px] text-[#6B7280] italic line-clamp-1">Passage: {q.passage_text.substring(0, 80)}...</div>}
                 <div className="text-xs font-medium [&_img]:max-h-12 [&_img]:rounded" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(q.question_text, { ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'sub', 'sup', 'br', 'p', 'span', 'img'] }) }} />
-                {q.image_url && <img src={q.image_url} alt="" className="mt-1 max-h-10 rounded object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+                {q.image_url && <img src={q.image_url} alt="Question diagram" className="mt-1 max-h-10 rounded object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
                 {q.question_type !== 'fill_in_blank' && q.options?.length > 0 && (
                   <div className="flex gap-1 mt-1 flex-wrap">
                     {q.options.filter(Boolean).map((o: string, oi: number) => (
