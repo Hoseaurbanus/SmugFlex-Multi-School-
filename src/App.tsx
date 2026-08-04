@@ -92,7 +92,7 @@ function App() {
   );
 }
 
-function AppContent({ navigate }: { navigate: any }) {
+function AppContent({ navigate }: { navigate: (path: string) => void }) {
   const { logout } = useAuth();
 
   // Proactive token expiry check — every 60 seconds

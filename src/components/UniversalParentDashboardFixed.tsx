@@ -85,7 +85,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) return [trimmed];
 
     const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-    let apiOrigin = '';
+    let apiOrigin: string;
     try {
       apiOrigin = API_CONFIG?.BASE_URL ? new URL(API_CONFIG.BASE_URL).origin : '';
     } catch {
@@ -252,14 +252,10 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'parent') return;
 
-    let intervalId: number | undefined;
-
     const refresh = async () => {
       try {
         await loadCompiledResultsFromAPI();
-      } catch (e) {
-        // Keep UI stable if refresh fails.
-      }
+      } catch { /* refresh may fail when offline */ }
     };
 
     const onVisibility = () => {
@@ -271,7 +267,7 @@ export function UniversalParentDashboardFixed({ onLogout }: ParentDashboardProps
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisibility);
     refresh();
-    intervalId = window.setInterval(refresh, 10000);
+    const intervalId = window.setInterval(refresh, 10000);
 
     return () => {
       window.removeEventListener('focus', refresh);

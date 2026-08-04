@@ -48,7 +48,7 @@ const DashboardSidebar = memo(function DashboardSidebar({
     try {
       localStorage.setItem(COLLAPSED_KEY, String(isCollapsed));
       document.documentElement.style.setProperty('--sidebar-width', isCollapsed ? '68px' : '256px');
-    } catch {}
+    } catch { /* localStorage may be unavailable */ }
   }, [isCollapsed]);
 
   useEffect(() => {

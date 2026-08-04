@@ -414,7 +414,7 @@ export function ResultsManagementPage() {
     const currentSystemTerm = currentTerm ?? '';
     const isCurrentSession = selectedYear === currentYear && selectedTerm === currentSystemTerm;
 
-    let allResults = isCurrentSession 
+    const allResults = isCurrentSession 
       ? compiledResults 
       : historicalResults;
 

@@ -51,7 +51,7 @@ export class PushNotificationHelper {
 
     try {
       // Request permission
-      let permission = await PushNotifications.requestPermissions();
+      const permission = await PushNotifications.requestPermissions();
       if (permission.receive !== 'granted') {
         console.warn('Push notification permission denied');
         return null;

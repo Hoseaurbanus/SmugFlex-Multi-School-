@@ -108,7 +108,8 @@ function AddStudentFormComponent({ onClose: _onClose, onSuccess }: AddStudentFor
     }
 
     // Better class validation with multiple approaches
-    let selectedClass = null;
+     
+    let selectedClass: (typeof classes)[number] | undefined = undefined;
     
     // Try string comparison first
     selectedClass = classes.find((c) => String(c.id) === addFormData.class_id);

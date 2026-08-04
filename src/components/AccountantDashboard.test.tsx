@@ -39,8 +39,10 @@ vi.mock('./ChangePasswordPage', () => ({ ChangePasswordPage: () => <div data-tes
 vi.mock('./shared/ViewNotificationsPage', () => ({ ViewNotificationsPage: () => <div data-testid="view-notifications-page" /> }));
 
 vi.mock('./DashboardSidebar', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DashboardSidebar: ({ items, onItemClick }: any) => (
     <div data-testid="dashboard-sidebar">
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       {items.map((item: any) => (
         <button key={item.id} data-testid={`sidebar-${item.id}`} onClick={() => onItemClick(item.id)}>
           {item.label}
@@ -51,6 +53,7 @@ vi.mock('./DashboardSidebar', () => ({
 }));
 
 vi.mock('./DashboardTopBar', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DashboardTopBar: ({ userName, onLogout, onNotificationClick }: any) => (
     <div data-testid="dashboard-topbar">
       <span data-testid="user-name">{userName}</span>

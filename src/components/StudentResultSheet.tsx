@@ -97,7 +97,6 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
 
     // Get student
     const student = students.find((s) => s.id === studentId);
-    if (!student) return null;
 
     const studentPhotoCandidates = useMemo(() => {
       const raw =
@@ -116,7 +115,7 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
         return [trimmed];
       }
 
-      let apiOrigin = '';
+      let apiOrigin: string;
       try {
         apiOrigin = API_CONFIG?.BASE_URL ? new URL(API_CONFIG.BASE_URL).origin : '';
       } catch {
@@ -134,6 +133,8 @@ export const StudentResultSheet = forwardRef<HTMLDivElement, StudentResultSheetP
 
       return Array.from(new Set(candidates));
     }, [student]);
+
+    if (!student) return null;
 
     // Get compiled result
     const safeCompiledResults = Array.isArray(compiledResults) ? compiledResults : [];

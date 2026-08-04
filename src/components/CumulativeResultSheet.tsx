@@ -3,6 +3,7 @@ import { useSchool } from "../contexts/SchoolContext";
 import { formatPositionWithSuffix } from "../utils/position";
 import { generateQrDataUrl } from "../utils/qrCode";
 import { shouldShowPosition as checkShouldShowPosition } from "../utils/classHelpers";
+import type { Student } from "../types/school";
 
 interface CumulativeResultSheetProps {
   studentId: number;
@@ -57,7 +58,7 @@ export const CumulativeResultSheet = forwardRef<HTMLDivElement, CumulativeResult
     const [qrGenerating, setQrGenerating] = useState(false);
     const loadedRef = useRef<string>('');
 
-    const student = useMemo(() => students.find((s: any) => s.id === studentId), [students, studentId]);
+    const student = useMemo(() => students.find((s: Student) => s.id === studentId), [students, studentId]);
     const cumulativeResult = useMemo(
       () => cumulativeResults.find((cr) => cr.student_id === studentId && cr.academic_year === academicYear),
       [cumulativeResults, studentId, academicYear]

@@ -98,7 +98,7 @@ export function CbtExamPlayer({ exam, onExit }: Props) {
         await playerRef.current.requestFullscreen();
         setIsFullscreen(true);
       }
-    } catch {}
+    } catch { /* fullscreen may be blocked */ }
   };
 
   useEffect(() => {
@@ -113,7 +113,7 @@ export function CbtExamPlayer({ exam, onExit }: Props) {
     answerTimeouts.current[questionId] = setTimeout(async () => {
       try {
         if (attempt) await saveCbtAnswer(attempt.id, questionId, value);
-      } catch {}
+      } catch { /* save may fail */ }
     }, 1000);
   };
 

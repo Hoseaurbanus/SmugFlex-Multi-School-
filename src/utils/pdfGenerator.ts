@@ -389,7 +389,7 @@ export const generatePDFFromData = async (student: any, result: any, context: an
     })).sort((a: any, b: any) => a.subject_name.localeCompare(b.subject_name));
   } else if (context.scores && Array.isArray(context.scores) && context.scores.length > 0) {
     
-    let studentScores = context.scores.filter((score: any) => 
+    const studentScores = context.scores.filter((score: any) => 
       score.student_id === result.student_id &&
       score.academic_year === result.academic_year &&
       score.term === result.term

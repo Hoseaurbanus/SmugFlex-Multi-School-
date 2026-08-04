@@ -6158,7 +6158,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       if (!subjectAssignment) return;
 
       // Find or create compiled result for this student
-      let compiledResult = compiledResults.find(cr => 
+      const compiledResult = compiledResults.find(cr => 
         cr.student_id === studentId && 
         cr.class_id === student.class_id && 
         cr.term === currentTerm && 

@@ -209,7 +209,7 @@ export function parseQuestions(rawText: string): ParsedQuestion[] {
           continue;
         }
       }
-      let passageLines: string[] = [];
+      const passageLines: string[] = [];
       let pi = i + 1;
       while (pi < lines.length && !/^\d+[.)\]]?\s/.test(lines[pi]) &&
              !/^question\s+\d/i.test(lines[pi]) &&
@@ -267,7 +267,7 @@ export function parseQuestions(rawText: string): ParsedQuestion[] {
       let correctAnswer: string | string[] = '';
       let explanation = '';
 
-      let inlineResult = extractOptionsFromText(qText);
+      const inlineResult = extractOptionsFromText(qText);
       if (inlineResult) {
         qText = inlineResult.questionText;
         options = inlineResult.options;
@@ -334,7 +334,7 @@ export function parseQuestions(rawText: string): ParsedQuestion[] {
         }
 
         if (options.length === 0 && !correctAnswer) {
-          let textLines: string[] = [];
+          const textLines: string[] = [];
           while (i < lines.length && lines[i].trim() &&
                  !/^\d+[.)\]]?\s/.test(lines[i]) &&
                  !/^question\s+\d/i.test(lines[i]) &&

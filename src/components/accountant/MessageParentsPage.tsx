@@ -32,7 +32,7 @@ export function MessageParentsPage() {
     e.preventDefault();
     
     try {
-      let targetAudience = "parents";
+      const targetAudience = "parents";
       let recipientText = "All Parents";
       
       if (messageData.recipientType === "specific_parent" && messageData.parentId) {

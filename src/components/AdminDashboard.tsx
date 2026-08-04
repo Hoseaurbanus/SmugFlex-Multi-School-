@@ -91,7 +91,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     schoolSettings,
   } = useSchool();
   const [activeItem, setActiveItem] = useState("dashboard");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [_refreshKey, setRefreshKey] = useState(0);
 
   const adminName = currentUser ? (currentUser.first_name || currentUser.username) : 'Administrator';
   const schoolDisplayName = schoolSettings.school_name || currentUser?.school_name || 'School';
@@ -113,7 +113,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     const run = async () => { if (isMounted) await refreshData(); };
     run();
     return () => { isMounted = false; };
-  }, []);
+  }, [refreshData]);
 
   useNotificationListener(currentUser?.role, currentUser?.id);
 

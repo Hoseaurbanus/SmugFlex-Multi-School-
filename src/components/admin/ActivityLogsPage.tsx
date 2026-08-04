@@ -3,7 +3,7 @@ import { Key, Settings, Link } from 'lucide-react';
 import { CardHeader } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-// @ts-ignore - TypeScript language service caching issue
+// Import select components (language service may cache incorrectly)
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
